@@ -60,10 +60,12 @@ pub mod tool_registry;
 pub mod invocation_engine;
 pub mod security_policy;
 pub mod protocol_adapters;
+pub mod digital_credits;
 
 // Re-exports
 pub use testimony_agent::*;
 pub use tool_registry::*;
 pub use invocation_engine::*;
 pub use security_policy::*;
+pub use digital_credits::*;
 
