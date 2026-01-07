@@ -18,13 +18,15 @@
 //! 3. **NFTs**: Non-fungible digital assets
 //! 4. **Wrapped Tokens**: Bridged from external chains
 //! 
-//! ## DC FAT Tokenomics
+//! ## DC FAT Tokenomics (Layer 0 Scale)
 //! 
 //! - Symbol: FAT
 //! - Name: DATACHAIN Future Access Token
 //! - Decimals: 18
-//! - Max Supply: 1,000,000,000 (1 billion)
-//! - Governance-controlled minting with AI validation
+//! - Genesis Supply: 10,000,000,000 (10 billion) at launch
+//! - Max Supply: **UNLIMITED** (like Solana, Ethereum, Polkadot)
+//! - Annual Inflation Cap: 500 million FAT/year (~5% initial, decreasing %)
+//! - Inflation: Controlled via AI Testimony validation + Governance
 //! 
 //! ## Minting Process
 //! 
@@ -364,21 +366,24 @@ impl CreditsLedger {
         let mut tokens = HashMap::new();
         
         // Create native DC FAT (DATACHAIN Future Access Token)
+        // Tokenomics designed for Layer 0/Layer 1 scale
+        // Model: Unlimited supply with controlled annual inflation (like Solana)
+        // Initial inflation: ~5% of circulating supply per year, decreasing over time
         let dc_fat_token = Token {
             id: DC_FAT_TOKEN_ID,
             symbol: "FAT".to_string(),
             name: "DATACHAIN Future Access Token".to_string(),
             decimals: 18,
             token_type: TokenType::Native,
-            total_supply: 0, // No pre-mine, fair launch
-            max_supply: Some(1_000_000_000 * 10u128.pow(18)), // 1 billion max supply
+            total_supply: 10_000_000_000 * 10u128.pow(18), // 10 billion at genesis
+            max_supply: None, // UNLIMITED - like Solana, Ethereum, Polkadot
             creator: [0u8; 32], // Genesis creator
             created_at: chrono::Utc::now().timestamp(),
             metadata: TokenMetadata {
                 description: "DC FAT - The native currency of Datachain Rope Smartchain. \
                     Future Access Token powers the decentralized data management infrastructure, \
                     enabling AI-validated transactions, smart contract execution, and cross-protocol \
-                    interoperability.".to_string(),
+                    interoperability. Unlimited supply with controlled annual inflation.".to_string(),
                 logo_uri: Some("https://datachain.one/assets/dc-fat-logo.svg".to_string()),
                 website: Some("https://datachain.one".to_string()),
                 attributes: {
@@ -387,6 +392,10 @@ impl CreditsLedger {
                     attrs.insert("type".to_string(), "utility".to_string());
                     attrs.insert("network".to_string(), "Datachain Rope".to_string());
                     attrs.insert("standard".to_string(), "DC-20".to_string());
+                    attrs.insert("supply_model".to_string(), "inflationary".to_string());
+                    attrs.insert("genesis_supply".to_string(), "10000000000".to_string());
+                    attrs.insert("annual_cap".to_string(), "500000000".to_string());
+                    attrs.insert("initial_inflation".to_string(), "5%".to_string());
                     attrs
                 },
             },
@@ -396,8 +405,10 @@ impl CreditsLedger {
                 requires_testimony: true,
                 min_testimony_agents: 5, // Requires 5 AI agents to validate
                 rate_limit: Some(RateLimit {
-                    amount_per_period: 1_000_000 * 10u128.pow(18), // 1M FAT per period max
-                    period_seconds: 86400, // 24 hour period
+                    // Annual cap: 500 million FAT per year maximum
+                    // This allows sustainable growth for validator rewards, staking, ecosystem
+                    amount_per_period: 500_000_000 * 10u128.pow(18), // 500M FAT per year max
+                    period_seconds: 31_536_000, // 365 days (1 year)
                 }),
                 minting_enabled: true,
             },
@@ -775,7 +786,12 @@ mod tests {
         assert_eq!(dc_fat.name, "DATACHAIN Future Access Token");
         assert_eq!(dc_fat.decimals, 18);
         assert!(matches!(dc_fat.token_type, TokenType::Native));
-        assert_eq!(dc_fat.max_supply, Some(1_000_000_000 * 10u128.pow(18)));
+        // 10 billion genesis supply
+        assert_eq!(dc_fat.total_supply, 10_000_000_000 * 10u128.pow(18));
+        // Unlimited max supply with controlled annual inflation (like Solana)
+        assert_eq!(dc_fat.max_supply, None);
+        // Check rate limit exists (500M per year cap)
+        assert!(dc_fat.minting_rules.rate_limit.is_some());
     }
     
     #[test]
