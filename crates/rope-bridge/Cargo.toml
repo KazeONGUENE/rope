@@ -1,0 +1,22 @@
+[package]
+name = "rope-bridge"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Interoperability bridges for Datachain Rope - Ethereum, XDC, Polkadot"
+
+[dependencies]
+rope-core = { path = "../rope-core" }
+rope-crypto = { path = "../rope-crypto" }
+
+tokio = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+

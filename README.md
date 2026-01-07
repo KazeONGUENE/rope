@@ -6,11 +6,53 @@
 ![Rust](https://img.shields.io/badge/Rust-1.75+-orange?style=for-the-badge&logo=rust)
 ![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)
 
-**A Distributed Information Communication Protocol Inspired by DNA**
+**The First Smartchain - An Intelligent Distributed Information Protocol**
 
-*Replacing blockchain's linear chains with intertwined strings that can heal, adapt, and forget*
+*Not a blockchain. A Smartchain with AI-powered testimonies that can heal, adapt, and forget*
 
 </div>
+
+---
+
+## 🧠 What is a Smartchain?
+
+**Datachain Rope is NOT a blockchain. It is a Smartchain.**
+
+A Smartchain is an intelligent distributed system that goes beyond cryptographic proofs:
+
+| Blockchain | Smartchain |
+|------------|------------|
+| Validates: "Is the signature valid?" | Validates: "Is this valid AND does it make business sense?" |
+| Static consensus rules | AI-powered adaptive validation |
+| Single protocol | Invokes any vetted tool (blockchain, banking, finance, etc.) |
+| Just stores data | Understands, validates, and executes with intelligence |
+
+### AI Testimony Agents
+
+Traditional consensus relies on mathematical proofs. Smartchain extends this with **AI Testimony Agents**:
+
+- **ValidationAgent**: Validates transaction semantics and business rules
+- **ContractAgent**: Monitors and enforces smart contract conditions  
+- **ComplianceAgent**: Ensures regulatory compliance (KYC/AML/GDPR)
+- **InsuranceAgent**: Validates claims before payout
+- **OracleAgent**: Bridges external data for contract evaluation
+
+### Vetted Tool Registry
+
+The Smartchain can invoke external protocols to execute transactions:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    SMARTCHAIN INVOCATION                         │
+│                                                                  │
+│   Contract Condition → AI Testimony Validation → Tool Execution │
+│                                                                  │
+│   ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐       │
+│   │ Ethereum │  │  SWIFT   │  │  Asset   │  │ Insurance│       │
+│   │ Protocol │  │ Banking  │  │Management│  │ Platform │       │
+│   └──────────┘  └──────────┘  └──────────┘  └──────────┘       │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -23,11 +65,12 @@ Datachain Rope is a revolutionary distributed information communication protocol
 | Innovation | Description |
 |------------|-------------|
 | **String Lattice Architecture** | Continuous, parallel DAG replacing discrete blocks |
-| **Testimony Consensus** | Virtual voting + accountable attestations (2-3s finality) |
+| **AI Testimony Protocol** | AI agents validate conditions before execution |
+| **Vetted Tool Invocation** | Connect to any protocol (blockchain, banking, etc.) |
 | **Organic Encryption System** | Self-evolving post-quantum cryptography |
+| **Digitized Contracts** | Smart contracts with AI-validated conditions |
 | **Regeneration Protocol** | DNA-inspired data repair and recovery |
 | **Controlled Erasure Protocol** | GDPR-compliant, privacy-preserving deletion |
-| **Rope Distribution Protocol** | BitTorrent-inspired decentralized distribution |
 
 ### Performance Targets
 
@@ -94,11 +137,23 @@ datachain-rope/
 │   │   ├── hash.rs         # BLAKE3 utilities
 │   │   └── keys.rs         # Key management
 │   │
+│   ├── rope-smartchain/    # 🧠 AI-Powered Smartchain Layer
+│   │   ├── testimony_agent.rs  # AI agents for validation
+│   │   ├── tool_registry.rs    # Vetted tool registry
+│   │   ├── invocation_engine.rs # Orchestration engine
+│   │   ├── security_policy.rs  # Adaptive security
+│   │   └── protocol_adapters.rs # External protocol adapters
+│   │
 │   ├── rope-consensus/     # Testimony Consensus Protocol
 │   │   ├── testimony.rs    # Attestation mechanism
 │   │   ├── anchor.rs       # Anchor string creation
 │   │   ├── virtual_voting.rs # Hashgraph-style voting
 │   │   └── finality.rs     # Finality determination
+│   │
+│   ├── rope-bridge/        # External protocol bridges
+│   │   ├── ethereum.rs     # Ethereum EVM bridge
+│   │   ├── swift.rs        # SWIFT banking bridge
+│   │   └── xdc.rs          # XDC Network bridge
 │   │
 │   ├── rope-network/       # P2P networking (libp2p)
 │   │   ├── transport.rs    # QUIC transport
@@ -200,6 +255,62 @@ Where:
 
 ---
 
+## 🆔 Entity Identity (Datawallet)
+
+Every entity in Datachain Rope is linked to a distributed identity (Datawallet):
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         ENTITY (Datawallet)                     │
+│  ┌─────────────────┐   ┌─────────────────┐   ┌──────────────┐  │
+│  │ NodeId (32 bytes)│   │ HybridPublicKey │   │ Credentials  │  │
+│  │ = BLAKE3(pk)    │   │ Ed25519+Dilithium│   │ & Contracts  │  │
+│  └─────────────────┘   └─────────────────┘   └──────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+| Component | Description |
+|-----------|-------------|
+| **NodeId** | 32-byte identifier derived from public key (like wallet address) |
+| **HybridPublicKey** | Ed25519 + Dilithium (quantum-resistant identity) |
+| **Credentials** | Verifiable claims stored in lattice |
+| **Contracts** | Digitized contracts with conditions |
+
+---
+
+## 📜 Digitized Contracts
+
+Smart contracts in Smartchain are **Digitized Contracts** with AI-validated conditions:
+
+```rust
+DigitizedContract {
+    contract_id: [u8; 32],           // StringId in lattice
+    parties: Vec<ContractParty>,      // All signatories
+    conditions: Vec<ContractCondition>, // AI-validated conditions
+    actions: Vec<ContractAction>,     // Execute via vetted tools
+}
+```
+
+### Condition Types
+
+- **Temporal**: "Execute after date X"
+- **ValueThreshold**: "If payment > $10,000"
+- **InsuranceClaim**: "If damage verified"
+- **ComplianceCheck**: "If KYC/AML passed"
+- **MultiSig**: "If 3/5 parties sign"
+
+### Example: Insurance Claim
+
+```
+1. Policy holder submits claim → Creates String in lattice
+2. InsuranceAgent (AI) validates damage evidence
+3. ComplianceAgent (AI) verifies identity
+4. If conditions met → Invoke banking protocol for payout
+5. Record result in lattice with proof
+```
+
+---
+
 ## 🔐 Security
 
 ### Cryptographic Algorithms
@@ -217,6 +328,7 @@ Where:
 - **Quantum Resistance**: Post-quantum primitives throughout
 - **Byzantine Tolerance**: n ≥ 3f + 1 validator threshold
 - **Controlled Erasure**: GDPR Article 17 compliant
+- **AI Validation**: Context-aware security beyond cryptography
 
 ---
 
@@ -224,10 +336,12 @@ Where:
 
 | Property | Bitcoin | Ethereum | Hashgraph | **Datachain Rope** |
 |----------|---------|----------|-----------|-------------------|
-| Paradigm | Blockchain | Blockchain | Hashgraph | **String Lattice** |
+| Paradigm | Blockchain | Blockchain | Hashgraph | **Smartchain** |
 | Data Structure | Linear | Linear | DAG | **Double Helix DAG** |
 | Finality | ~60 min | ~15 min | ~3-5 sec | **~2-3 sec** |
 | Throughput | ~7 TPS | ~30 TPS | ~10K TPS | **~50K+ TPS** |
+| AI Validation | No | No | No | **Yes (Testimony Agents)** |
+| External Protocol | Manual | Manual | No | **Automatic (Tool Registry)** |
 | Erasability | No | No | No | **Yes (controlled)** |
 | Regeneration | No | No | No | **Yes (DNA-like)** |
 | Quantum Resistant | No | Partial | No | **Yes (OES)** |
@@ -269,7 +383,13 @@ www.datachain.one
 
 <div align="center">
 
-*"Datachain Rope is not a blockchain. It has no blocks. It has strings that interweave to form a resilient, regenerative, and when necessary, erasable structure."*
+*"Datachain Rope is not a blockchain. It is a Smartchain.*
+
+*It has no blocks—it has strings that interweave to form a resilient, regenerative, and when necessary, erasable structure.*
+
+*Its Testimonies are not just signatures—they are AI agents that understand, validate, and execute.*
+
+*It doesn't just store transactions—it invokes the right tools to make them happen."*
 
 **Author: Kazé A. ONGUENE, CEO & Visionary**
 

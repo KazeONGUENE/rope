@@ -1,0 +1,23 @@
+[package]
+name = "rope-protocols"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Advanced protocols for Datachain Rope - Regeneration, Erasure, Gossip"
+
+[dependencies]
+rope-core = { path = "../rope-core" }
+rope-crypto = { path = "../rope-crypto" }
+
+tokio = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+blake3 = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+

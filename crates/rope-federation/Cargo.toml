@@ -1,0 +1,20 @@
+[package]
+name = "rope-federation"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Federation Generation Protocol for Datachain Rope"
+
+[dependencies]
+rope-core = { path = "../rope-core" }
+rope-crypto = { path = "../rope-crypto" }
+
+serde = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+parking_lot = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+

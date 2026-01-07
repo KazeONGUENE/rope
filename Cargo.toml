@@ -9,6 +9,7 @@ members = [
     "crates/rope-bridge",
     "crates/rope-network",
     "crates/rope-storage",
+    "crates/rope-smartchain",
     "crates/rope-node",
     "crates/rope-cli",
 ]

@@ -45,7 +45,9 @@ impl LorenzState {
 
     /// Create from seed entropy
     pub fn from_seed(seed: &[u8]) -> Self {
-        let hash = blake3::hash(&[seed, b"lorenz_init"].concat());
+        let mut input = seed.to_vec();
+        input.extend_from_slice(b"lorenz_init");
+        let hash = blake3::hash(&input);
         let bytes = hash.as_bytes();
         
         let x = Self::bytes_to_range(&bytes[0..8], -25.0, 25.0);
@@ -83,10 +85,10 @@ pub struct CellularGrid {
 impl CellularGrid {
     /// Create from seed
     pub fn from_seed(seed: &[u8], size: usize) -> Self {
+        let mut input = seed.to_vec();
+        input.extend_from_slice(b"cellular_init");
         let mut rng = ChaCha20Rng::from_seed(
-            blake3::hash(&[seed, b"cellular_init"].concat())
-                .as_bytes()
-                .clone()
+            *blake3::hash(&input).as_bytes()
         );
         
         let grid: Vec<Vec<u8>> = (0..size)
@@ -177,7 +179,9 @@ pub struct FractalState {
 impl FractalState {
     /// Create from seed
     pub fn from_seed(seed: &[u8]) -> Self {
-        let hash = blake3::hash(&[seed, b"fractal_init"].concat());
+        let mut input = seed.to_vec();
+        input.extend_from_slice(b"fractal_init");
+        let hash = blake3::hash(&input);
         let bytes = hash.as_bytes();
         
         // Initialize c in the Mandelbrot set region
@@ -360,16 +364,28 @@ impl ImpossibilityAnchors {
     /// Create anchors from seed
     pub fn from_seed(seed: &[u8]) -> Self {
         // Generate conceptual factorization modulus
-        let p_hash = blake3::hash(&[seed, b"factor_p"].concat());
-        let q_hash = blake3::hash(&[seed, b"factor_q"].concat());
-        let modulus_hash = blake3::hash(&[p_hash.as_bytes(), q_hash.as_bytes()].concat());
+        let mut p_input = seed.to_vec();
+        p_input.extend_from_slice(b"factor_p");
+        let p_hash = blake3::hash(&p_input);
+        
+        let mut q_input = seed.to_vec();
+        q_input.extend_from_slice(b"factor_q");
+        let q_hash = blake3::hash(&q_input);
+        
+        let mut modulus_input = p_hash.as_bytes().to_vec();
+        modulus_input.extend_from_slice(q_hash.as_bytes());
+        let modulus_hash = blake3::hash(&modulus_input);
         
         // Generate lattice basis hash
-        let lattice_seed = blake3::hash(&[seed, b"lattice"].concat());
+        let mut lattice_input = seed.to_vec();
+        lattice_input.extend_from_slice(b"lattice");
+        let lattice_seed = blake3::hash(&lattice_input);
         let lattice_hash = *lattice_seed.as_bytes();
         
         // Generate EC params hash
-        let ec_hash = blake3::hash(&[seed, b"ec_params"].concat());
+        let mut ec_input = seed.to_vec();
+        ec_input.extend_from_slice(b"ec_params");
+        let ec_hash = blake3::hash(&ec_input);
         
         Self {
             factorization_modulus_hash: *modulus_hash.as_bytes(),
@@ -672,8 +688,15 @@ impl OrganicEncryptionState {
 
     /// Derive key material from genome
     fn derive_key_material_internal(genome: &[u8], generation: u64) -> [u8; 64] {
-        let hash1 = blake3::hash(&[genome, b"kyber_seed", &generation.to_le_bytes()].concat());
-        let hash2 = blake3::hash(&[genome, b"dilithium_seed", &generation.to_le_bytes()].concat());
+        let mut input1 = genome.to_vec();
+        input1.extend_from_slice(b"kyber_seed");
+        input1.extend_from_slice(&generation.to_le_bytes());
+        let hash1 = blake3::hash(&input1);
+        
+        let mut input2 = genome.to_vec();
+        input2.extend_from_slice(b"dilithium_seed");
+        input2.extend_from_slice(&generation.to_le_bytes());
+        let hash2 = blake3::hash(&input2);
         
         let mut material = [0u8; 64];
         material[0..32].copy_from_slice(hash1.as_bytes());
@@ -683,15 +706,27 @@ impl OrganicEncryptionState {
 
     /// Generate Kyber keypair (placeholder)
     fn generate_kyber_keypair(seed: &[u8]) -> (Vec<u8>, Vec<u8>) {
-        let pk_hash = blake3::hash(&[seed, b"kyber_pk"].concat());
-        let sk_hash = blake3::hash(&[seed, b"kyber_sk"].concat());
+        let mut pk_input = seed.to_vec();
+        pk_input.extend_from_slice(b"kyber_pk");
+        let pk_hash = blake3::hash(&pk_input);
+        
+        let mut sk_input = seed.to_vec();
+        sk_input.extend_from_slice(b"kyber_sk");
+        let sk_hash = blake3::hash(&sk_input);
+        
         (pk_hash.as_bytes().to_vec(), sk_hash.as_bytes().to_vec())
     }
 
     /// Generate Dilithium keypair (placeholder)
     fn generate_dilithium_keypair(seed: &[u8]) -> (Vec<u8>, Vec<u8>) {
-        let pk_hash = blake3::hash(&[seed, b"dilithium_pk"].concat());
-        let sk_hash = blake3::hash(&[seed, b"dilithium_sk"].concat());
+        let mut pk_input = seed.to_vec();
+        pk_input.extend_from_slice(b"dilithium_pk");
+        let pk_hash = blake3::hash(&pk_input);
+        
+        let mut sk_input = seed.to_vec();
+        sk_input.extend_from_slice(b"dilithium_sk");
+        let sk_hash = blake3::hash(&sk_input);
+        
         (pk_hash.as_bytes().to_vec(), sk_hash.as_bytes().to_vec())
     }
 
@@ -724,7 +759,9 @@ impl OrganicEncryptionState {
         
         // Extend if needed
         while derived.len() < length {
-            let extension = blake3::hash(&[&derived, &self.genome].concat());
+            let mut ext_input = derived.clone();
+            ext_input.extend_from_slice(&self.genome);
+            let extension = blake3::hash(&ext_input);
             derived.extend_from_slice(extension.as_bytes());
         }
         

@@ -9,6 +9,7 @@ description = "Core data structures for Datachain Rope - String, Nucleotide, Com
 [dependencies]
 # Serialization
 serde = { workspace = true }
+serde_bytes = "0.11"
 bincode = { workspace = true }
 
 # Cryptography
@@ -37,7 +38,7 @@ reed-solomon-erasure = { workspace = true }
 proptest = { workspace = true }
 criterion = { workspace = true }
 
-[[bench]]
-name = "lattice_operations"
-harness = false
+# [[bench]]
+# name = "lattice_operations"
+# harness = false
 

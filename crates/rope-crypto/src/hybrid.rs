@@ -6,8 +6,9 @@
 //! 
 //! The hybrid approach ensures security even if one algorithm is broken.
 
-use ed25519_dalek::{Signature as Ed25519Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use ed25519_dalek::{Signature as Ed25519Signature, Signer, SigningKey, Verifier, VerifyingKey, SecretKey};
 use rand::rngs::OsRng;
+use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
@@ -16,8 +17,9 @@ use crate::error::{CryptoError, Result};
 /// Hybrid signature combining Ed25519 and Dilithium
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HybridSignature {
-    /// Ed25519 signature (64 bytes)
-    pub ed25519_sig: [u8; 64],
+    /// Ed25519 signature (64 bytes) - stored as Vec for serde
+    #[serde(with = "serde_bytes")]
+    pub ed25519_sig: Vec<u8>,
     
     /// CRYSTALS-Dilithium3 signature (~2420 bytes)
     #[serde(with = "serde_bytes")]
@@ -27,20 +29,20 @@ pub struct HybridSignature {
 impl HybridSignature {
     /// Create a new hybrid signature
     pub fn new(ed25519_sig: [u8; 64], dilithium_sig: Vec<u8>) -> Self {
-        Self { ed25519_sig, dilithium_sig }
+        Self { ed25519_sig: ed25519_sig.to_vec(), dilithium_sig }
     }
 
     /// Create empty signature
     pub fn empty() -> Self {
         Self {
-            ed25519_sig: [0u8; 64],
+            ed25519_sig: vec![0u8; 64],
             dilithium_sig: Vec::new(),
         }
     }
 
     /// Check if signature is empty
     pub fn is_empty(&self) -> bool {
-        self.ed25519_sig == [0u8; 64] && self.dilithium_sig.is_empty()
+        self.ed25519_sig.iter().all(|&b| b == 0) && self.dilithium_sig.is_empty()
     }
 
     /// Get total signature size in bytes
@@ -115,18 +117,21 @@ impl HybridSigner {
     /// Generate new random keypair
     pub fn generate() -> (Self, HybridPublicKey) {
         // Generate Ed25519 keypair
-        let ed25519_key = SigningKey::generate(&mut OsRng);
+        let mut secret_bytes = [0u8; 32];
+        OsRng.fill_bytes(&mut secret_bytes);
+        let ed25519_key = SigningKey::from_bytes(&secret_bytes);
         let ed25519_public = ed25519_key.verifying_key().to_bytes();
         
         // Generate Dilithium keypair (placeholder)
         // In production: use pqcrypto_dilithium::dilithium3::keypair()
         let dilithium_seed: [u8; 32] = rand::random();
-        let dilithium_key = blake3::hash(&[&dilithium_seed, b"dilithium_sk"].concat())
-            .as_bytes()
-            .to_vec();
-        let dilithium_public = blake3::hash(&[&dilithium_seed, b"dilithium_pk"].concat())
-            .as_bytes()
-            .to_vec();
+        let mut sk_input = dilithium_seed.to_vec();
+        sk_input.extend_from_slice(b"dilithium_sk");
+        let dilithium_key = blake3::hash(&sk_input).as_bytes().to_vec();
+        
+        let mut pk_input = dilithium_seed.to_vec();
+        pk_input.extend_from_slice(b"dilithium_pk");
+        let dilithium_public = blake3::hash(&pk_input).as_bytes().to_vec();
         
         let signer = Self {
             ed25519_key,
@@ -155,15 +160,14 @@ impl HybridSigner {
     pub fn sign(&self, message: &[u8]) -> HybridSignature {
         // Ed25519 signature
         let ed25519_sig = self.ed25519_key.sign(message);
-        let mut ed25519_bytes = [0u8; 64];
-        ed25519_bytes.copy_from_slice(&ed25519_sig.to_bytes());
+        let ed25519_bytes = ed25519_sig.to_bytes().to_vec();
         
         // Dilithium signature (placeholder)
         // In production: use pqcrypto_dilithium::dilithium3::sign()
-        let dilithium_sig = blake3::keyed_hash(
-            self.dilithium_key.get(..32).unwrap_or(&[0u8; 32]).try_into().unwrap_or(&[0u8; 32]),
-            message,
-        ).as_bytes().to_vec();
+        let key_slice: &[u8; 32] = self.dilithium_key.get(..32)
+            .and_then(|s| s.try_into().ok())
+            .unwrap_or(&[0u8; 32]);
+        let dilithium_sig = blake3::keyed_hash(key_slice, message).as_bytes().to_vec();
         
         HybridSignature {
             ed25519_sig: ed25519_bytes,
@@ -197,7 +201,11 @@ impl HybridVerifier {
         let ed25519_public = VerifyingKey::from_bytes(&public_key.ed25519)
             .map_err(|e| CryptoError::InvalidPublicKey(e.to_string()))?;
         
-        let ed25519_sig = Ed25519Signature::from_bytes(&signature.ed25519_sig);
+        // Convert signature bytes to array
+        let sig_bytes: [u8; 64] = signature.ed25519_sig.as_slice()
+            .try_into()
+            .map_err(|_| CryptoError::InvalidSignature("Invalid Ed25519 signature length".to_string()))?;
+        let ed25519_sig = Ed25519Signature::from_bytes(&sig_bytes);
         
         let ed25519_valid = ed25519_public.verify(message, &ed25519_sig).is_ok();
         
@@ -263,12 +271,14 @@ impl HybridKEM {
         
         // Kyber encapsulation (placeholder - in production use pqcrypto-kyber)
         let kyber_shared: [u8; 32] = rand::random();
-        let kyber_ciphertext = blake3::hash(&[&kyber_shared, &public_key.dilithium].concat())
-            .as_bytes()
-            .to_vec();
+        let mut kyber_input = kyber_shared.to_vec();
+        kyber_input.extend_from_slice(&public_key.dilithium);
+        let kyber_ciphertext = blake3::hash(&kyber_input).as_bytes().to_vec();
         
         // Combine shared secrets
-        let combined = blake3::hash(&[x25519_shared.as_bytes(), &kyber_shared].concat());
+        let mut combined_input = x25519_shared.as_bytes().to_vec();
+        combined_input.extend_from_slice(&kyber_shared);
+        let combined = blake3::hash(&combined_input);
         
         let encapsulated = EncapsulatedKey {
             x25519_ephemeral: *ephemeral_public.as_bytes(),

@@ -1,0 +1,21 @@
+[package]
+name = "rope-distribution"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Rope Distribution Protocol (RDP) - BitTorrent-inspired distribution"
+
+[dependencies]
+rope-core = { path = "../rope-core" }
+
+tokio = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+hashbrown = { workspace = true }
+dashmap = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+

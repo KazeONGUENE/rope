@@ -10,6 +10,7 @@
 //! - μ (Mu): Mutability Class - erasure policy
 
 use serde::{Deserialize, Serialize};
+use serde_bytes;
 use crate::types::{StringId, NodeId, MutabilityClass, constants};
 use crate::nucleotide::NucleotideSequence;
 use crate::clock::LamportClock;
@@ -18,30 +19,32 @@ use crate::clock::LamportClock;
 /// Ed25519 + CRYSTALS-Dilithium3
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HybridSignature {
-    /// Ed25519 signature (64 bytes)
-    pub ed25519_sig: [u8; 64],
+    /// Ed25519 signature (64 bytes) - stored as Vec for serde compatibility
+    #[serde(with = "serde_bytes")]
+    pub ed25519_sig: Vec<u8>,
     
     /// CRYSTALS-Dilithium3 signature (~2420 bytes)
+    #[serde(with = "serde_bytes")]
     pub dilithium_sig: Vec<u8>,
 }
 
 impl HybridSignature {
     /// Create a new hybrid signature
     pub fn new(ed25519_sig: [u8; 64], dilithium_sig: Vec<u8>) -> Self {
-        Self { ed25519_sig, dilithium_sig }
+        Self { ed25519_sig: ed25519_sig.to_vec(), dilithium_sig }
     }
 
     /// Create empty/placeholder signature (for unsigned strings)
     pub fn empty() -> Self {
         Self {
-            ed25519_sig: [0u8; 64],
+            ed25519_sig: vec![0u8; 64],
             dilithium_sig: Vec::new(),
         }
     }
 
     /// Check if signature is empty
     pub fn is_empty(&self) -> bool {
-        self.ed25519_sig == [0u8; 64] && self.dilithium_sig.is_empty()
+        self.ed25519_sig.iter().all(|&b| b == 0) && self.dilithium_sig.is_empty()
     }
 }
 
