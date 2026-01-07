@@ -256,9 +256,14 @@ Apache License 2.0
 
 ## 📧 Contact
 
-**Datachain Foundation DDMI**  
-Paris, France  
-contact@datachain.foundation
+**Datachain Foundation**
+**DDMI Division**   
+We Are Powering NextGen Internet With Our
+Decentralized Data Management Infrastructure
+HQ: 54 Boulevard de Clichy, 75018 Paris, FR
+Fr. +33 1 42 59 71 14
+contact@datachain.one
+www.datachain.one
 
 ---
 
