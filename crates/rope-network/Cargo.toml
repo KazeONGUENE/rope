@@ -1,0 +1,38 @@
+[package]
+name = "rope-network"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "P2P networking layer for Datachain Rope using libp2p"
+
+[dependencies]
+rope-core = { path = "../rope-core" }
+rope-crypto = { path = "../rope-crypto" }
+
+# Networking
+libp2p = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+
+# RPC
+tonic = { workspace = true }
+prost = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+bincode = { workspace = true }
+
+# Utilities
+tracing = { workspace = true }
+thiserror = { workspace = true }
+parking_lot = { workspace = true }
+dashmap = { workspace = true }
+
+[build-dependencies]
+tonic-build = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+

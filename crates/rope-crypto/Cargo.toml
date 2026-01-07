@@ -1,0 +1,44 @@
+[package]
+name = "rope-crypto"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Cryptographic primitives for Datachain Rope - OES, hybrid signatures, post-quantum crypto"
+
+[dependencies]
+rope-core = { path = "../rope-core" }
+
+# Classical cryptography
+ring = { workspace = true }
+ed25519-dalek = { workspace = true }
+x25519-dalek = { workspace = true }
+blake3 = { workspace = true }
+
+# Post-quantum cryptography (NIST PQ-3)
+pqcrypto = { workspace = true }
+pqcrypto-dilithium = { workspace = true }
+pqcrypto-kyber = { workspace = true }
+pqcrypto-traits = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+bincode = { workspace = true }
+
+# Utilities
+thiserror = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
+parking_lot = { workspace = true }
+tracing = { workspace = true }
+zeroize = { version = "1.7", features = ["derive"] }
+
+[dev-dependencies]
+proptest = { workspace = true }
+criterion = { workspace = true }
+hex = { workspace = true }
+
+[[bench]]
+name = "crypto_benchmarks"
+harness = false
+

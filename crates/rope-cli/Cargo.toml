@@ -1,0 +1,23 @@
+[package]
+name = "rope-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Command-line interface for Datachain Rope"
+
+[[bin]]
+name = "rope"
+path = "src/main.rs"
+
+[dependencies]
+rope-node = { path = "../rope-node" }
+rope-core = { path = "../rope-core" }
+
+tokio = { workspace = true }
+clap = { workspace = true }
+config = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+

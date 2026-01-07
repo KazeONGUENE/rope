@@ -1,0 +1,37 @@
+# Build artifacts
+/target/
+**/*.rs.bk
+*.pdb
+
+# Cargo lock for libraries (keep for binaries)
+# Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node data
+/data/
+/logs/
+
+# Keys (never commit real keys!)
+/keys/
+*.pem
+*.key
+
+# Configuration with secrets
+rope.toml
+.env
+.env.*
+
+# Test artifacts
+*.profraw
+coverage/
+

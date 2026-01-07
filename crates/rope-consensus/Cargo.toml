@@ -1,0 +1,24 @@
+[package]
+name = "rope-consensus"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Testimony Consensus Protocol for Datachain Rope"
+
+[dependencies]
+rope-core = { path = "../rope-core" }
+rope-crypto = { path = "../rope-crypto" }
+
+tokio = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+hashbrown = { workspace = true }
+parking_lot = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+proptest = { workspace = true }
+

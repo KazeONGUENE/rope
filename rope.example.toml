@@ -1,0 +1,234 @@
+# Datachain Rope Node Configuration
+# Copy this file to rope.toml and customize for your deployment
+
+# =============================================================================
+# NODE CONFIGURATION
+# =============================================================================
+[node]
+# Node operation mode: "validator", "relay", or "seeder"
+mode = "relay"
+
+# Network chain identifier
+chain_id = "datachain-mainnet-1"
+
+# Human-readable node name (for logging/identification)
+name = "my-rope-node"
+
+# Data directory for persistent storage
+data_dir = "./data"
+
+# =============================================================================
+# STRING LATTICE CONFIGURATION
+# =============================================================================
+[lattice]
+# Number of copies maintained for regeneration (3-10, default: 5)
+# Higher values = more redundancy but more storage
+replication_factor = 5
+
+# Enable controlled erasure protocol for GDPR compliance
+erasure_enabled = true
+
+# Enable DNA-inspired regeneration protocol
+regeneration_enabled = true
+
+# Maximum string size in bytes (default: 10MB)
+max_string_size = 10485760
+
+# =============================================================================
+# ORGANIC ENCRYPTION SYSTEM (OES)
+# =============================================================================
+[oes]
+# Number of anchor strings between OES evolutions
+evolution_interval = 100
+
+# Size of OES genome in bytes
+genome_dimension = 992
+
+# Mutation rate per evolution (0.0-1.0)
+# 0.1 = 10% of genome positions may mutate
+mutation_rate = 0.1
+
+# Valid generations window for accepting strings
+generation_window = 10
+
+# =============================================================================
+# CONSENSUS CONFIGURATION
+# =============================================================================
+[consensus]
+# Target interval between anchor strings (seconds)
+anchor_interval = 3
+
+# Anchor strings required for finality
+finality_anchors = 3
+
+# Maximum strings per gossip batch
+max_gossip_batch = 1000
+
+# Gossip fanout (nodes to gossip to per round)
+gossip_fanout = 10
+
+# =============================================================================
+# NETWORK CONFIGURATION
+# =============================================================================
+[network]
+# Listen addresses (multiaddr format)
+listen_addresses = [
+    "/ip4/0.0.0.0/tcp/30333",
+    "/ip4/0.0.0.0/udp/30333/quic-v1"
+]
+
+# Bootstrap nodes for initial peer discovery
+bootstrap_nodes = [
+    # "/ip4/192.168.1.1/tcp/30333/p2p/12D3KooW...",
+]
+
+# Maximum connected peers
+max_peers = 50
+
+# Minimum connected peers before degraded operation
+min_peers = 8
+
+# Target peer count for optimal operation
+target_peers = 25
+
+# Connection keepalive interval (seconds)
+keepalive_interval = 30
+
+# Handshake timeout (seconds)
+handshake_timeout = 10
+
+# =============================================================================
+# ROPE DISTRIBUTION PROTOCOL (RDP)
+# =============================================================================
+[distribution]
+# Maximum peers for distribution swarm
+max_peers = 50
+
+# Target upload/download ratio for fair sharing
+seeding_ratio = 2.0
+
+# Piece size for string distribution (bytes)
+piece_size = 262144  # 256 KB
+
+# DHT replication factor
+dht_replication = 20
+
+# =============================================================================
+# RATE LIMITING
+# =============================================================================
+[rate_limits]
+# Maximum string creation rate per second
+strings_per_second = 1000
+
+# Maximum gossip messages per second
+gossip_messages_per_second = 100
+
+# Maximum RPC requests per second
+rpc_requests_per_second = 1000
+
+# Maximum bandwidth (bytes per second)
+bandwidth_bytes_per_second = 104857600  # 100 MB/s
+
+# =============================================================================
+# RPC API CONFIGURATION
+# =============================================================================
+[rpc]
+# Enable gRPC API
+enabled = true
+
+# gRPC listen address
+address = "127.0.0.1:9933"
+
+# Enable TLS for gRPC
+tls_enabled = false
+
+# TLS certificate path (if enabled)
+# tls_cert = "/path/to/cert.pem"
+# tls_key = "/path/to/key.pem"
+
+# Enable CORS for web clients
+cors_enabled = true
+cors_origins = ["*"]
+
+# =============================================================================
+# STORAGE CONFIGURATION
+# =============================================================================
+[storage]
+# RocksDB cache size (bytes)
+cache_size = 1073741824  # 1 GB
+
+# Enable compression
+compression = true
+
+# Maximum open files
+max_open_files = 1000
+
+# WAL (Write-Ahead Log) size (bytes)
+wal_size = 268435456  # 256 MB
+
+# =============================================================================
+# LOGGING CONFIGURATION
+# =============================================================================
+[logging]
+# Log level: "error", "warn", "info", "debug", "trace"
+level = "info"
+
+# Log format: "text" or "json"
+format = "text"
+
+# Log file path (optional, logs to stdout if not set)
+# file = "./logs/rope.log"
+
+# Enable color output (for text format)
+color = true
+
+# =============================================================================
+# METRICS & MONITORING
+# =============================================================================
+[metrics]
+# Enable Prometheus metrics
+enabled = true
+
+# Metrics endpoint address
+address = "127.0.0.1:9615"
+
+# =============================================================================
+# VALIDATOR-SPECIFIC CONFIGURATION (only for mode = "validator")
+# =============================================================================
+[validator]
+# Path to validator keys
+keys_path = "./keys/validator"
+
+# Automatic key rotation interval (hours, 0 = disabled)
+key_rotation_interval = 0
+
+# Geographic zone for federation distribution
+# Options: "NorthAmerica", "Europe", "AsiaPacific", "LatinAmerica", "Africa", "MiddleEast"
+geo_zone = "Europe"
+
+# =============================================================================
+# BRIDGE CONFIGURATION (optional)
+# =============================================================================
+[bridges]
+# Enable Ethereum bridge
+ethereum_enabled = false
+# ethereum_rpc = "https://mainnet.infura.io/v3/YOUR-PROJECT-ID"
+# ethereum_contract = "0x..."
+
+# Enable XDC bridge
+xdc_enabled = false
+# xdc_rpc = "https://rpc.xdc.org"
+
+# =============================================================================
+# DEVELOPMENT / DEBUGGING
+# =============================================================================
+[dev]
+# Enable development mode (relaxed security, verbose logging)
+enabled = false
+
+# Disable signature verification (DANGEROUS - dev only)
+skip_signature_verification = false
+
+# Fast finality for testing (fewer anchors required)
+fast_finality = false
+

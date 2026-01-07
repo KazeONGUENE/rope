@@ -1,0 +1,43 @@
+[package]
+name = "rope-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Core data structures for Datachain Rope - String, Nucleotide, Complement, Lattice"
+
+[dependencies]
+# Serialization
+serde = { workspace = true }
+bincode = { workspace = true }
+
+# Cryptography
+blake3 = { workspace = true }
+ed25519-dalek = { workspace = true }
+
+# Data structures
+hashbrown = { workspace = true }
+indexmap = { workspace = true }
+bitvec = { workspace = true }
+petgraph = { workspace = true }
+
+# Utilities
+thiserror = { workspace = true }
+bytes = { workspace = true }
+hex = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+tracing = { workspace = true }
+parking_lot = { workspace = true }
+
+# Reed-Solomon for complement generation
+reed-solomon-erasure = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "lattice_operations"
+harness = false
+
