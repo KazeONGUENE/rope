@@ -1,7 +1,6 @@
 //! Key management for Datachain Rope
 
-use serde::{Deserialize, Serialize};
-use zeroize::{Zeroize, ZeroizeOnDrop};
+// Keys management module
 
 use crate::hybrid::{HybridPublicKey, HybridSecretKey, HybridSigner};
 

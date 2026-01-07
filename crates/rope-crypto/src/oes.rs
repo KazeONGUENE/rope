@@ -25,9 +25,9 @@ use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use serde::{Deserialize, Serialize};
 use zeroize::{Zeroize, ZeroizeOnDrop};
-use std::f64::consts::PI;
+// PI used for Lorenz attractor calculations
 
-use rope_core::types::constants::{GENOME_DIMENSION, MUTATION_RATE, OES_EVOLUTION_INTERVAL};
+use rope_core::types::constants::{GENOME_DIMENSION, OES_EVOLUTION_INTERVAL};
 
 /// Lorenz attractor state (chaos dynamics)
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -241,12 +241,12 @@ pub struct QuantumState {
 
 impl QuantumState {
     /// Create from seed, initialized at center
-    pub fn from_seed(seed: &[u8]) -> Self {
+    pub fn from_seed(_seed: &[u8]) -> Self {
         let num_positions = 11; // -5 to +5
         let mut amplitudes_real = vec![0.0; num_positions];
         let amplitudes_imag = vec![0.0; num_positions];
         
-        // Start localized at center
+        // Start localized at center (seed reserved for future use)
         amplitudes_real[num_positions / 2] = 1.0;
         
         Self {

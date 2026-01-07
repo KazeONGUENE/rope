@@ -9,15 +9,12 @@
 //! - R (Regeneration): Repair relation for damaged strings
 
 use hashbrown::{HashMap, HashSet};
-use indexmap::IndexMap;
 use parking_lot::RwLock;
 use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::Direction;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::sync::Arc;
 
-use crate::clock::LamportClock;
 use crate::complement::Complement;
 use crate::error::{RopeError, Result};
 use crate::string::RopeString;
@@ -137,11 +134,13 @@ impl LatticeDAG {
         }
     }
 
-    fn contains(&self, id: &StringId) -> bool {
+    /// Check if a string exists in the DAG
+    pub fn contains(&self, id: &StringId) -> bool {
         self.id_to_index.contains_key(id)
     }
 
-    fn node_count(&self) -> usize {
+    /// Get the number of nodes in the DAG
+    pub fn node_count(&self) -> usize {
         self.graph.node_count()
     }
 }
@@ -365,7 +364,7 @@ impl StringLattice {
             .unwrap_or(constants::DEFAULT_REPLICATION_FACTOR);
         
         // Attempt regeneration
-        let regenerated_content = complement
+        let _regenerated_content = complement
             .regenerate_content(&damaged_content, replication_factor)
             .ok_or(RopeError::RegenerationFailed(*id))?;
         

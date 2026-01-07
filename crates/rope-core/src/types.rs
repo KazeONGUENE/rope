@@ -10,7 +10,7 @@ use std::time::Duration;
 /// StringId - Unique identifier for strings computed from BLAKE3 hash
 /// 
 /// StringId = BLAKE3(σ || τ || π || ρ || μ)
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub struct StringId {
     /// 256-bit BLAKE3 hash
     hash: [u8; 32],
@@ -144,9 +144,12 @@ pub enum ErasureCondition {
 }
 
 /// Attestation types for Testimony consensus
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum AttestationType {
-    /// String is valid
+    /// String exists and is valid
+    Existence,
+    
+    /// String is valid (deprecated - use Existence)
     Validity,
     
     /// Confirms ordering position
@@ -160,6 +163,33 @@ pub enum AttestationType {
     
     /// Confirms regeneration success
     Regeneration,
+}
+
+impl AttestationType {
+    /// Convert to u8 for hashing/storage
+    pub fn as_u8(&self) -> u8 {
+        match self {
+            AttestationType::Existence => 0,
+            AttestationType::Validity => 1,
+            AttestationType::Ordering => 2,
+            AttestationType::Finality => 3,
+            AttestationType::Erasure => 4,
+            AttestationType::Regeneration => 5,
+        }
+    }
+    
+    /// Create from u8
+    pub fn from_u8(value: u8) -> Option<Self> {
+        match value {
+            0 => Some(AttestationType::Existence),
+            1 => Some(AttestationType::Validity),
+            2 => Some(AttestationType::Ordering),
+            3 => Some(AttestationType::Finality),
+            4 => Some(AttestationType::Erasure),
+            5 => Some(AttestationType::Regeneration),
+            _ => None,
+        }
+    }
 }
 
 /// Geographic zone for federation distribution

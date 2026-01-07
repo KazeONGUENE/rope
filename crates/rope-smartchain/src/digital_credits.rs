@@ -28,11 +28,18 @@
 //! - Annual Inflation Cap: 500 million FAT/year (~5% initial, decreasing %)
 //! - Inflation: Controlled via AI Testimony validation + Governance
 //! 
-//! ## Minting Process
+//! ## Minting Process (12 Approvals Required for DC FAT)
 //! 
 //! ```text
-//! Mint Request → AI Testimony Validation → Governance Check → Ledger Update → String in Lattice
+//! Mint Request → AI Testimony (5) → Random Governors (5) → Foundation (2) → Execute
+//!                  │                   │                      │
+//!                  │                   │                      └─ 2 Foundation wallets
+//!                  │                   └─ 5 random active validators
+//!                  └─ 5 AI Testimony Agents validate request
 //! ```
+//! 
+//! **Security**: DC FAT minting MUST go through governance approval.
+//! Direct minting is ONLY allowed for custom tokens created by their owners.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -141,20 +148,32 @@ pub struct MintingRules {
     /// Who can mint
     pub authorized_minters: Vec<[u8; 32]>,
     
-    /// Requires governance approval
+    /// Requires governance approval (12 approvals: 5 AI + 5 governors + 2 foundation)
     pub requires_governance: bool,
     
     /// Requires AI testimony validation
     pub requires_testimony: bool,
     
-    /// Minimum testimony agents required
+    /// Minimum testimony agents required (5 for DC FAT)
     pub min_testimony_agents: u32,
+    
+    /// Minimum random governors required (5 for DC FAT)
+    pub min_random_governors: u32,
+    
+    /// Minimum foundation members required (2 for DC FAT)
+    pub min_foundation_members: u32,
     
     /// Minting rate limit (per block/anchor)
     pub rate_limit: Option<RateLimit>,
     
     /// Is minting currently enabled
     pub minting_enabled: bool,
+    
+    /// Amount minted this period (for rate limiting)
+    pub minted_this_period: u128,
+    
+    /// Period start timestamp
+    pub period_start: i64,
 }
 
 impl Default for MintingRules {
@@ -163,10 +182,56 @@ impl Default for MintingRules {
             authorized_minters: Vec::new(),
             requires_governance: true,
             requires_testimony: true,
-            min_testimony_agents: 3,
+            min_testimony_agents: 5,
+            min_random_governors: 5,
+            min_foundation_members: 2,
             rate_limit: None,
             minting_enabled: true,
+            minted_this_period: 0,
+            period_start: chrono::Utc::now().timestamp(),
         }
+    }
+}
+
+impl MintingRules {
+    /// Create minting rules for custom tokens (less strict)
+    pub fn custom_token(creator: [u8; 32]) -> Self {
+        Self {
+            authorized_minters: vec![creator],
+            requires_governance: false,
+            requires_testimony: false,
+            min_testimony_agents: 0,
+            min_random_governors: 0,
+            min_foundation_members: 0,
+            rate_limit: None,
+            minting_enabled: true,
+            minted_this_period: 0,
+            period_start: chrono::Utc::now().timestamp(),
+        }
+    }
+    
+    /// Create minting rules for DC FAT (strictest - 12 approvals required)
+    pub fn dc_fat() -> Self {
+        Self {
+            authorized_minters: Vec::new(), // Governance controlled
+            requires_governance: true,
+            requires_testimony: true,
+            min_testimony_agents: 5, // 5 AI agents
+            min_random_governors: 5, // 5 random validators
+            min_foundation_members: 2, // 2 foundation members
+            rate_limit: Some(RateLimit {
+                amount_per_period: 500_000_000 * 10u128.pow(18), // 500M FAT per year
+                period_seconds: 31_536_000, // 1 year
+            }),
+            minting_enabled: true,
+            minted_this_period: 0,
+            period_start: chrono::Utc::now().timestamp(),
+        }
+    }
+    
+    /// Get total approvals required
+    pub fn total_approvals_required(&self) -> u32 {
+        self.min_testimony_agents + self.min_random_governors + self.min_foundation_members
     }
 }
 
@@ -399,19 +464,7 @@ impl CreditsLedger {
                     attrs
                 },
             },
-            minting_rules: MintingRules {
-                authorized_minters: Vec::new(), // Governance controlled
-                requires_governance: true,
-                requires_testimony: true,
-                min_testimony_agents: 5, // Requires 5 AI agents to validate
-                rate_limit: Some(RateLimit {
-                    // Annual cap: 500 million FAT per year maximum
-                    // This allows sustainable growth for validator rewards, staking, ecosystem
-                    amount_per_period: 500_000_000 * 10u128.pow(18), // 500M FAT per year max
-                    period_seconds: 31_536_000, // 365 days (1 year)
-                }),
-                minting_enabled: true,
-            },
+            minting_rules: MintingRules::dc_fat(), // 12 approvals required (5 AI + 5 governors + 2 foundation)
             is_active: true,
         };
         
@@ -486,12 +539,28 @@ impl CreditsLedger {
     }
     
     /// Mint new tokens (requires validation)
+    /// 
+    /// # Security
+    /// 
+    /// For DC FAT (native token), this function MUST only be called after
+    /// governance approval (12 approvals: 5 AI + 5 governors + 2 foundation).
+    /// 
+    /// For custom tokens, minting is controlled by authorized_minters.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `token_id` - Token to mint
+    /// * `to` - Recipient address
+    /// * `amount` - Amount to mint
+    /// * `minter` - Who is executing the mint
+    /// * `governance_approved` - Whether governance has approved (required for DC FAT)
     pub fn mint(
         &self,
         token_id: &TokenId,
         to: &[u8; 32],
         amount: Balance,
         minter: &[u8; 32],
+        governance_approved: bool,
     ) -> Result<OperationResult, LedgerError> {
         let mut tokens = self.tokens.write();
         
@@ -506,6 +575,11 @@ impl CreditsLedger {
             return Err(LedgerError::MintingDisabled);
         }
         
+        // CRITICAL: DC FAT requires governance approval (12 approvals)
+        if token.minting_rules.requires_governance && !governance_approved {
+            return Err(LedgerError::GovernanceRequired);
+        }
+        
         // Check max supply
         if let Some(max) = token.max_supply {
             if token.total_supply + amount > max {
@@ -513,7 +587,27 @@ impl CreditsLedger {
             }
         }
         
-        // Check authorization
+        // Check rate limit for DC FAT
+        if let Some(ref rate_limit) = token.minting_rules.rate_limit {
+            let now = chrono::Utc::now().timestamp();
+            let period_elapsed = now - token.minting_rules.period_start;
+            
+            // Reset period if expired
+            if period_elapsed >= rate_limit.period_seconds as i64 {
+                token.minting_rules.minted_this_period = 0;
+                token.minting_rules.period_start = now;
+            }
+            
+            // Check if minting would exceed rate limit
+            if token.minting_rules.minted_this_period + amount > rate_limit.amount_per_period {
+                return Err(LedgerError::RateLimitExceeded);
+            }
+            
+            // Update minted amount
+            token.minting_rules.minted_this_period += amount;
+        }
+        
+        // Check authorization for custom tokens
         if !token.minting_rules.authorized_minters.is_empty() 
             && !token.minting_rules.authorized_minters.contains(minter) {
             return Err(LedgerError::Unauthorized);
@@ -545,6 +639,25 @@ impl CreditsLedger {
         self.history.write().push(result.clone());
         
         Ok(result)
+    }
+    
+    /// Mint tokens without governance check (internal use only)
+    /// 
+    /// # Safety
+    /// 
+    /// This bypasses governance checks. Only use for:
+    /// - Initial distribution during genesis
+    /// - Custom tokens where creator has minting rights
+    /// 
+    /// NEVER use for DC FAT minting after genesis.
+    fn mint_internal(
+        &self,
+        token_id: &TokenId,
+        to: &[u8; 32],
+        amount: Balance,
+        minter: &[u8; 32],
+    ) -> Result<OperationResult, LedgerError> {
+        self.mint(token_id, to, amount, minter, true) // Skip governance for internal
     }
     
     /// Burn tokens
@@ -732,7 +845,7 @@ impl Default for CreditsLedger {
 }
 
 /// Ledger errors
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum LedgerError {
     TokenNotFound,
     TokenExists,
@@ -747,6 +860,8 @@ pub enum LedgerError {
     InvalidSymbol,
     InvalidAmount,
     RateLimitExceeded,
+    /// DC FAT minting requires governance approval (12 approvals)
+    GovernanceRequired,
 }
 
 impl std::fmt::Display for LedgerError {
@@ -765,6 +880,7 @@ impl std::fmt::Display for LedgerError {
             LedgerError::InvalidSymbol => write!(f, "Invalid token symbol"),
             LedgerError::InvalidAmount => write!(f, "Invalid amount"),
             LedgerError::RateLimitExceeded => write!(f, "Rate limit exceeded"),
+            LedgerError::GovernanceRequired => write!(f, "DC FAT minting requires governance approval (12 approvals: 5 AI + 5 governors + 2 foundation)"),
         }
     }
 }
@@ -825,9 +941,8 @@ mod tests {
         let creator = [1u8; 32];
         let recipient = [2u8; 32];
         
-        // Create token with creator as authorized minter
-        let mut rules = MintingRules::default();
-        rules.authorized_minters.push(creator);
+        // Create token with creator as authorized minter (custom token, no governance required)
+        let rules = MintingRules::custom_token(creator);
         
         let token_id = ledger.create_token(
             creator,
@@ -841,12 +956,28 @@ mod tests {
             rules,
         ).unwrap();
         
-        // Mint to recipient
-        let result = ledger.mint(&token_id, &recipient, 500_000, &creator).unwrap();
+        // Mint to recipient (no governance needed for custom tokens)
+        let result = ledger.mint(&token_id, &recipient, 500_000, &creator, false).unwrap();
         
         assert!(result.success);
         assert_eq!(ledger.balance_of(&recipient, &token_id), 500_000);
         assert_eq!(ledger.total_supply(&token_id), 500_000);
+    }
+    
+    #[test]
+    fn test_dc_fat_requires_governance() {
+        let ledger = CreditsLedger::new();
+        let minter = [1u8; 32];
+        let recipient = [2u8; 32];
+        
+        // Try to mint DC FAT without governance approval - should fail
+        let result = ledger.mint(&DC_FAT_TOKEN_ID, &recipient, 1000, &minter, false);
+        assert!(matches!(result, Err(LedgerError::GovernanceRequired)));
+        
+        // With governance approval - should succeed
+        let result = ledger.mint(&DC_FAT_TOKEN_ID, &recipient, 1000, &minter, true);
+        assert!(result.is_ok());
+        assert_eq!(ledger.balance_of(&recipient, &DC_FAT_TOKEN_ID), 1000);
     }
     
     #[test]

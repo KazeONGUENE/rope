@@ -132,7 +132,7 @@ impl Complement {
             .parentage()
             .iter()
             .enumerate()
-            .map(|(i, parent_id)| RegenerationHint {
+            .map(|(_i, parent_id)| RegenerationHint {
                 related_string_id: *parent_id,
                 relationship: RelationshipType::Parent,
                 segment_range: (0, content.len() as u64),

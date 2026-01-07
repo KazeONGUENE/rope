@@ -119,7 +119,7 @@ impl SecurityPolicy {
     }
     
     /// Evaluate a policy rule
-    fn evaluate_rule(&self, rule: &PolicyRule, entity_id: &[u8; 32], action: &ToolAction) -> bool {
+    fn evaluate_rule(&self, rule: &PolicyRule, _entity_id: &[u8; 32], action: &ToolAction) -> bool {
         match rule {
             PolicyRule::RequireKyc { for_value_above } => {
                 if let ToolActionType::Transfer { amount, .. } = &action.action_type {
@@ -132,11 +132,11 @@ impl SecurityPolicy {
                 }
                 true
             }
-            PolicyRule::BlockProtocol { protocol } => {
+            PolicyRule::BlockProtocol { protocol: _ } => {
                 // Check if action targets blocked protocol
                 true // Placeholder
             }
-            PolicyRule::RequireMultiSig { threshold } => {
+            PolicyRule::RequireMultiSig { threshold: _ } => {
                 // Check if multi-sig is present
                 true // Placeholder
             }
@@ -144,7 +144,7 @@ impl SecurityPolicy {
                 let hour = chrono::Utc::now().hour();
                 hour >= *start_hour && hour <= *end_hour
             }
-            PolicyRule::GeoRestriction { allowed_regions } => {
+            PolicyRule::GeoRestriction { allowed_regions: _ } => {
                 // Would need to check entity's region
                 true // Placeholder
             }

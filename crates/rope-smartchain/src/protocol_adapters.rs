@@ -249,7 +249,7 @@ impl ProtocolAdapter for EthereumAdapter {
         })
     }
     
-    async fn query(&self, query: &ProtocolQuery) -> Result<QueryResult, AdapterError> {
+    async fn query(&self, _query: &ProtocolQuery) -> Result<QueryResult, AdapterError> {
         if !self.connected {
             return Err(AdapterError::NotConnected);
         }

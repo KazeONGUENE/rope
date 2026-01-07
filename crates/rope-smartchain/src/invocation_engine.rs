@@ -9,7 +9,7 @@
 //! 4. Invokes vetted tools to execute actions
 //! 5. Records results in the String Lattice
 
-use async_trait::async_trait;
+// Invocation engine for executing vetted tools
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
