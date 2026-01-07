@@ -16,7 +16,7 @@
 
 ## 🧬 Overview
 
-Datachain Rope is a revolutionary distributed information communication protocol that fundamentally reconceptualizes how data is transmitted, stored, and secured across decentralized networks. Unlike blockchain architectures that rely on sequential block structures, Datachain Rope implements a **string-based topology** where information strands interweave to form resilient cords—directly analogous to the **double helix of DNA**.
+Datachain Rope is a revolutionary distributed information communication protocol that fundamentally reconceptualizes how data is transmitted, stored, and secured across decentralized networks. Unlike blockchain architectures that rely on sequential block structures, Datachain Rope implements a **string-based topology** where information strands interweave to form resilient cords, directly analogous to the **double helix of DNA**.
 
 ### Key Innovations
 
