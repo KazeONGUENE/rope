@@ -5,16 +5,63 @@
 ![Datachain Rope](https://img.shields.io/badge/Datachain-Rope-blue?style=for-the-badge)
 ![Rust](https://img.shields.io/badge/Rust-1.75+-orange?style=for-the-badge&logo=rust)
 ![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)
+![Chain ID](https://img.shields.io/badge/Chain%20ID-314159-purple?style=for-the-badge)
 
 **The First Smartchain - An Intelligent Distributed Information Protocol**
 
 *Not a blockchain. A Smartchain with AI-powered testimonies that can heal, adapt, and forget*
 
+[🌐 datachain.network](https://datachain.network) | [🔗 rope.network](https://rope.network) | [📊 DC Scan](https://dcscan.io)
+
 </div>
 
 ---
 
-##What is a Smartchain?
+## 🌐 Network Information
+
+Add **Datachain Rope** to MetaMask or any EVM-compatible wallet:
+
+| Parameter | Value |
+|-----------|-------|
+| **Network Name** | Datachain Rope |
+| **Chain ID** | `314159` (0x4CB2F) |
+| **Currency Symbol** | `FAT` |
+| **Currency Name** | DC FAT |
+| **RPC URL** | `https://erpc.datachain.network` |
+| **RPC URL (Alt)** | `https://erpc.rope.network` |
+| **WebSocket** | `wss://ws.datachain.network` |
+| **Block Explorer** | `https://dcscan.io` |
+
+### Domains
+
+| Domain | Purpose |
+|--------|---------|
+| [datachain.network](https://datachain.network) | Primary network domain |
+| [rope.network](https://rope.network) | Secondary/alias domain |
+| [dcscan.io](https://dcscan.io) | DC Explorer |
+
+### Bridge Contracts
+
+| Bridge | Contract Address |
+|--------|-----------------|
+| Ethereum | `0x0b44547be0a0df5dcd5327de8ea73680517c5a54` |
+| XDC | `0x20b59e6c5deb7d7ced2ca823c6ca81dd3f7e9a3a` |
+| Polkadot | Coming Soon |
+
+### Testnet
+
+| Parameter | Value |
+|-----------|-------|
+| **Network Name** | Datachain Rope Testnet |
+| **Chain ID** | `314160` (0x4CB30) |
+| **Currency Symbol** | `DCR FAT` |
+| **RPC URL** | `https://testnet.erpc.datachain.network` |
+| **Block Explorer** | `https://testnet.dcscan.io` |
+| **Faucet** | `https://faucet.testnet.datachain.network` |
+
+---
+
+## What is a Smartchain?
 
 **Datachain Rope is NOT a blockchain. It is a Smartchain.**
 

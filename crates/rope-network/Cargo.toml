@@ -29,6 +29,9 @@ tracing = { workspace = true }
 thiserror = { workspace = true }
 parking_lot = { workspace = true }
 dashmap = { workspace = true }
+chrono = { workspace = true }
+blake3 = { workspace = true }
+rand = { workspace = true }
 
 [build-dependencies]
 tonic-build = { workspace = true }

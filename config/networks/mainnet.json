@@ -1,0 +1,102 @@
+{
+  "network": {
+    "name": "Datachain Rope",
+    "shortName": "Datachain",
+    "chainId": 314159,
+    "chainIdHex": "0x4CB2F",
+    "networkId": 314159,
+    "type": "mainnet"
+  },
+  "domains": {
+    "primary": "datachain.network",
+    "secondary": "rope.network"
+  },
+  "currency": {
+    "name": "DC FAT",
+    "symbol": "FAT",
+    "decimals": 18,
+    "standard": "DC-20"
+  },
+  "rpc": {
+    "primary": "https://erpc.datachain.network",
+    "secondary": "https://erpc.rope.network",
+    "archive": "https://archive.erpc.datachain.network"
+  },
+  "websocket": {
+    "primary": "wss://ws.datachain.network",
+    "secondary": "wss://ws.rope.network"
+  },
+  "explorer": {
+    "url": "https://dcscan.io",
+    "api": "https://api.dcscan.io",
+    "name": "DC Explorer"
+  },
+  "services": {
+    "faucet": "https://faucet.datachain.network",
+    "bridge": "https://bridge.datachain.network",
+    "graphql": "https://graph.datachain.network/subgraphs",
+    "ipfs": "https://ipfs.datachain.network"
+  },
+  "bridges": {
+    "ethereum": {
+      "enabled": true,
+      "endpoint": "https://bridge.datachain.network/ethereum",
+      "contractAddress": "0x0b44547be0a0df5dcd5327de8ea73680517c5a54"
+    },
+    "xdc": {
+      "enabled": true,
+      "endpoint": "https://bridge.datachain.network/xdc",
+      "contractAddress": "0x20b59e6c5deb7d7ced2ca823c6ca81dd3f7e9a3a"
+    },
+    "polkadot": {
+      "enabled": true,
+      "endpoint": "https://bridge.datachain.network/polkadot",
+      "contractAddress": null
+    }
+  },
+  "consensus": {
+    "type": "testimony",
+    "stringIntervalMs": 1000,
+    "epochLength": 43200,
+    "minValidators": 21,
+    "maxValidators": 100,
+    "minStake": "1000000000000000000000",
+    "aiAgentsRequired": 5
+  },
+  "genesis": {
+    "hash": null,
+    "timestamp": 1767225600,
+    "gasLimit": "30000000",
+    "extraData": "Datachain Rope - Smartchain Genesis - Powering The Future of Internet"
+  },
+  "tokens": {
+    "native": {
+      "name": "DC FAT",
+      "symbol": "FAT",
+      "decimals": 18,
+      "genesisSupply": "10000000000000000000000000000",
+      "maxSupply": null,
+      "annualMintCap": "500000000000000000000000000"
+    }
+  },
+  "walletConfig": {
+    "chainId": "0x4CB2F",
+    "chainName": "Datachain Rope",
+    "nativeCurrency": {
+      "name": "DC FAT",
+      "symbol": "FAT",
+      "decimals": 18
+    },
+    "rpcUrls": [
+      "https://erpc.datachain.network",
+      "https://erpc.rope.network"
+    ],
+    "blockExplorerUrls": [
+      "https://dcscan.io"
+    ],
+    "iconUrls": [
+      "https://datachain.network/assets/icons/dc-fat-logo.svg",
+      "https://datachain.network/assets/icons/dc-fat-logo-128.png"
+    ]
+  }
+}

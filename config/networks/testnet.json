@@ -1,0 +1,60 @@
+{
+  "network": {
+    "name": "Datachain Rope Testnet",
+    "shortName": "Datachain Testnet",
+    "chainId": 314160,
+    "chainIdHex": "0x4CB30",
+    "networkId": 314160,
+    "type": "testnet"
+  },
+  "domains": {
+    "primary": "testnet.datachain.network",
+    "secondary": "testnet.rope.network"
+  },
+  "currency": {
+    "name": "DCR FAT",
+    "symbol": "DCR FAT",
+    "decimals": 18,
+    "standard": "DC-20"
+  },
+  "rpc": {
+    "primary": "https://testnet.erpc.datachain.network",
+    "secondary": "https://testnet.erpc.rope.network"
+  },
+  "websocket": {
+    "primary": "wss://testnet.ws.datachain.network"
+  },
+  "explorer": {
+    "url": "https://testnet.dcscan.io",
+    "api": "https://testnet.api.dcscan.io",
+    "name": "DC Scan Testnet"
+  },
+  "services": {
+    "faucet": "https://faucet.testnet.datachain.network",
+    "bridge": "https://bridge.testnet.datachain.network"
+  },
+  "consensus": {
+    "type": "testimony",
+    "stringIntervalMs": 500,
+    "epochLength": 21600,
+    "minValidators": 5,
+    "maxValidators": 50,
+    "minStake": "100000000000000000000",
+    "aiAgentsRequired": 3
+  },
+  "walletConfig": {
+    "chainId": "0x4CB30",
+    "chainName": "Datachain Rope Testnet",
+    "nativeCurrency": {
+      "name": "DCR FAT",
+      "symbol": "DCR FAT",
+      "decimals": 18
+    },
+    "rpcUrls": [
+      "https://testnet.erpc.datachain.network"
+    ],
+    "blockExplorerUrls": [
+      "https://testnet.dcscan.io"
+    ]
+  }
+}
