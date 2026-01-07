@@ -19,6 +19,7 @@
 
 pub mod testimony;
 pub mod anchor;
+pub mod finality_engine;
 
 pub mod virtual_voting {
     //! Virtual voting mechanism - calculate votes from gossip history
@@ -184,3 +185,7 @@ pub use testimony::{
 pub use anchor::AnchorString;
 pub use virtual_voting::{VirtualVote, VoteDecision, VirtualVotingState};
 pub use finality::FinalityStatus;
+pub use finality_engine::{
+    FinalityEngine, FinalityConfig, FinalityState,
+    StringFinalityInfo, AnchorInfo, FinalityStats,
+};
