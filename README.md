@@ -14,7 +14,7 @@
 
 ---
 
-## 🧠 What is a Smartchain?
+##What is a Smartchain?
 
 **Datachain Rope is NOT a blockchain. It is a Smartchain.**
 
@@ -56,7 +56,7 @@ The Smartchain can invoke external protocols to execute transactions:
 
 ---
 
-## 🧬 Overview
+##Overview
 
 Datachain Rope is a revolutionary distributed information communication protocol that fundamentally reconceptualizes how data is transmitted, stored, and secured across decentralized networks. Unlike blockchain architectures that rely on sequential block structures, Datachain Rope implements a **string-based topology** where information strands interweave to form resilient cords, directly analogous to the **double helix of DNA**.
 
@@ -81,7 +81,7 @@ Datachain Rope is a revolutionary distributed information communication protocol
 
 ---
 
-## 🏗️ Architecture
+##Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -117,7 +117,7 @@ Datachain Rope is a revolutionary distributed information communication protocol
 
 ---
 
-## 📦 Crate Structure
+##Crate Structure
 
 ```
 datachain-rope/
@@ -137,7 +137,7 @@ datachain-rope/
 │   │   ├── hash.rs         # BLAKE3 utilities
 │   │   └── keys.rs         # Key management
 │   │
-│   ├── rope-smartchain/    # 🧠 AI-Powered Smartchain Layer
+│   ├── rope-smartchain/    # AI-Powered Smartchain Layer
 │   │   ├── testimony_agent.rs  # AI agents for validation
 │   │   ├── tool_registry.rs    # Vetted tool registry
 │   │   ├── invocation_engine.rs # Orchestration engine
