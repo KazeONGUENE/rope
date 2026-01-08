@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bridge - Datachain Rope</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+            color: #fff;
+            padding: 2rem;
+        }
+        .container {
+            max-width: 520px;
+            width: 100%;
+            text-align: center;
+        }
+        .icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 2rem;
+        }
+        
+        .icon svg {
+            width: 100%;
+            height: 100%;
+        }
+        h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.02em;
+        }
+        p {
+            color: #a1a1aa;
+            margin-bottom: 2rem;
+            line-height: 1.7;
+        }
+        .card {
+            background: #18181b;
+            border: 1px solid #27272a;
+            border-radius: 16px;
+            padding: 2rem;
+        }
+        .chain-selector {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .chain-box {
+            flex: 1;
+            padding: 1rem;
+            background: #27272a;
+            border-radius: 12px;
+            text-align: center;
+        }
+        .chain-box label {
+            display: block;
+            font-size: 0.75rem;
+            color: #71717a;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .chain-name {
+            font-weight: 600;
+            font-size: 0.9375rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        .chain-name i {
+            color: #71717a;
+        }
+        .arrow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #52525b;
+        }
+        .input-group {
+            margin-bottom: 1rem;
+        }
+        .input-group label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #a1a1aa;
+            margin-bottom: 0.5rem;
+            text-align: left;
+        }
+        input, select {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            border: 1px solid #3f3f46;
+            border-radius: 8px;
+            font-size: 0.9375rem;
+            font-family: 'JetBrains Mono', monospace;
+            background: #27272a;
+            color: #fff;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        input:focus, select:focus {
+            border-color: #fff;
+        }
+        button {
+            width: 100%;
+            padding: 1rem;
+            background: #fff;
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            transition: opacity 0.15s;
+            margin-top: 1rem;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .networks {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: center;
+            margin-top: 2rem;
+        }
+        .network-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.375rem;
+            padding: 0.5rem 0.875rem;
+            background: #27272a;
+            border-radius: 100px;
+            font-size: 0.75rem;
+            color: #a1a1aa;
+        }
+        .network-badge i {
+            font-size: 1rem;
+        }
+        .back {
+            margin-top: 2rem;
+            color: #71717a;
+            font-size: 0.875rem;
+        }
+        .back a {
+            color: #fff;
+            text-decoration: none;
+        }
+        .back a:hover {
+            text-decoration: underline;
+        }
+        .coming-soon {
+            background: #3b82f6;
+            color: #fff;
+            padding: 0.375rem 0.75rem;
+            border-radius: 100px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: inline-block;
+            margin-bottom: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <rect width="100" height="100" rx="16" fill="#fff"/>
+                <path d="M50 22 L72 72 L28 72 Z" fill="#000" stroke="#fff" stroke-width="1"/>
+                <path d="M23 44 L38 72 L8 72 Z" fill="#000" stroke="#fff" stroke-width="1"/>
+                <path d="M77 44 L92 72 L62 72 Z" fill="#000" stroke="#fff" stroke-width="1"/>
+            </svg>
+        </div>
+        <span class="coming-soon">Coming Soon</span>
+        <h1>Cross-Chain Bridge</h1>
+        <p>Transfer assets between Datachain Rope and other networks with AI-validated security.</p>
+        
+        <div class="card">
+            <div class="chain-selector">
+                <div class="chain-box">
+                    <label>From</label>
+                    <div class="chain-name">
+                        <i class="fa-brands fa-ethereum"></i>
+                        Ethereum
+                    </div>
+                </div>
+                <div class="arrow">
+                    <i class="fa-solid fa-arrow-right"></i>
+                </div>
+                <div class="chain-box">
+                    <label>To</label>
+                    <div class="chain-name">
+                        <i class="fa-solid fa-dna"></i>
+                        Datachain
+                    </div>
+                </div>
+            </div>
+            
+            <div class="input-group">
+                <label>Amount</label>
+                <input type="text" placeholder="0.0" disabled>
+            </div>
+            
+            <div class="input-group">
+                <label>Receive Address</label>
+                <input type="text" placeholder="0x..." disabled>
+            </div>
+            
+            <button disabled>
+                <i class="fa-solid fa-bridge"></i>
+                Bridge Coming Soon
+            </button>
+        </div>
+        
+        <div class="networks">
+            <div class="network-badge">
+                <i class="fa-brands fa-ethereum"></i>
+                Ethereum
+            </div>
+            <div class="network-badge">
+                <i class="fa-solid fa-x"></i>
+                XDC
+            </div>
+            <div class="network-badge">
+                <i class="fa-solid fa-circle-nodes"></i>
+                Polkadot
+            </div>
+        </div>
+        
+        <div class="back">
+            <a href="https://datachain.network"><i class="fa-solid fa-arrow-left"></i> Back to Datachain</a>
+        </div>
+    </div>
+</body>
+</html>
+

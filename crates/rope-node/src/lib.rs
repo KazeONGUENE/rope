@@ -1,16 +1,12 @@
 //! # Datachain Rope Node
 //! 
-//! Complete node implementation integrating all components.
-//! 
-//! ## Node Types
-//! 
-//! - **Validator**: L0 Core Federation, consensus participation
-//! - **Relay**: L1 Public, string distribution
-//! - **Seeder**: RDP distribution, storage contribution
+//! Full node implementation for the Datachain Rope network.
 
-pub mod node;
 pub mod config;
+pub mod node;
+pub mod genesis;
+pub mod rpc_server;
+pub mod metrics;
 
-// Re-exports
 pub use config::NodeConfig;
-
+pub use node::RopeNode;

@@ -79,6 +79,14 @@ impl HybridPublicKey {
     pub fn node_id(&self) -> [u8; 32] {
         *blake3::hash(&self.ed25519).as_bytes()
     }
+    
+    /// Serialize to bytes
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&self.ed25519);
+        bytes.extend_from_slice(&self.dilithium);
+        bytes
+    }
 }
 
 /// Hybrid secret key (zeroized on drop)
@@ -184,6 +192,14 @@ impl HybridSigner {
             ed25519: ed25519_public,
             dilithium: dilithium_public,
         }
+    }
+    
+    /// Get secret key bytes for serialization
+    pub fn secret_key_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(self.ed25519_key.to_bytes().as_slice());
+        bytes.extend_from_slice(&self.dilithium_key);
+        bytes
     }
 }
 

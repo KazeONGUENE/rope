@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Top Accounts | DC Explorer</title>
+    <meta name="description" content="Top accounts by FAT balance on Datachain Rope">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --black: #000000; --white: #ffffff; --gray-50: #fafafa; --gray-100: #f4f4f5; --gray-200: #e4e4e7;
+            --gray-400: #a1a1aa; --gray-500: #71717a; --gray-600: #52525b; --gray-700: #3f3f46;
+            --gray-800: #27272a; --gray-900: #18181b; --success: #22c55e; --success-bg: #dcfce7;
+            --warning: #f59e0b; --warning-bg: #fef3c7; --info: #3b82f6; --info-bg: #dbeafe;
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px;
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: var(--font-sans); background: var(--gray-50); color: var(--gray-900); line-height: 1.5; font-size: 14px; }
+        a { color: var(--info); text-decoration: none; } a:hover { text-decoration: underline; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 0 1rem; }
+        .top-bar { background: var(--gray-900); color: var(--white); padding: 0.5rem 0; font-size: 12px; }
+        .top-bar-content { display: flex; justify-content: space-between; align-items: center; }
+        .top-bar-left { display: flex; align-items: center; gap: 1.5rem; }
+        .top-bar-item { display: flex; align-items: center; gap: 0.375rem; color: var(--gray-400); }
+        .top-bar-value { color: var(--white); font-weight: 500; }
+        header { background: var(--white); border-bottom: 1px solid var(--gray-200); position: sticky; top: 0; z-index: 100; }
+        .header-container { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+        .logo { display: flex; align-items: center; gap: 0.625rem; font-weight: 450; font-size: 1rem; color: #000; line-height: 1.2; }
+        .logo-text { display: flex; flex-direction: column; }
+        .logo-icon { width: 32px; height: 32px; }
+        .main-nav { display: flex; align-items: center; gap: 0.25rem; }
+        .nav-item { position: relative; }
+        .nav-link { display: flex; align-items: center; gap: 0.375rem; padding: 0.5rem 0.875rem; color: var(--gray-600); font-weight: 500; font-size: 13px; border-radius: var(--radius-md); }
+        .nav-link:hover { color: var(--black); background: var(--gray-100); text-decoration: none; }
+        .nav-link.active { background: var(--gray-900); color: var(--white); }
+        .nav-dropdown { position: absolute; top: 100%; left: 0; min-width: 220px; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); padding: 0.5rem; opacity: 0; visibility: hidden; transform: translateY(10px); transition: all 0.2s; z-index: 200; }
+        .nav-item:hover .nav-dropdown { opacity: 1; visibility: visible; transform: translateY(0); }
+        .dropdown-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.625rem 0.75rem; color: var(--gray-700); border-radius: var(--radius-sm); font-size: 13px; }
+        .dropdown-item:hover { background: var(--gray-100); color: var(--black); text-decoration: none; }
+        .dropdown-item i { width: 16px; color: var(--gray-500); }
+        .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.5rem 1rem; font-size: 13px; font-weight: 600; border-radius: var(--radius-md); border: none; cursor: pointer; }
+        .btn-secondary { background: var(--gray-100); color: var(--gray-700); }
+        .page-header { background: var(--white); border-bottom: 1px solid var(--gray-200); padding: 1.5rem 0; }
+        .page-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem; }
+        .page-subtitle { color: var(--gray-500); font-size: 0.875rem; }
+        .page-breadcrumb { display: flex; align-items: center; gap: 0.5rem; font-size: 12px; color: var(--gray-500); margin-bottom: 0.5rem; }
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin: 1.5rem 0; }
+        .stat-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 1.25rem; }
+        .stat-label { font-size: 12px; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+        .stat-value { font-size: 1.5rem; font-weight: 700; }
+        .tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; }
+        .tab { padding: 0.625rem 1rem; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-md); font-size: 13px; font-weight: 500; cursor: pointer; }
+        .tab:hover { background: var(--gray-100); }
+        .tab.active { background: var(--gray-900); color: var(--white); border-color: var(--gray-900); }
+        .table-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); overflow: hidden; }
+        .table-header { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; border-bottom: 1px solid var(--gray-200); }
+        .table-title { font-weight: 600; display: flex; align-items: center; gap: 0.5rem; }
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th { background: var(--gray-50); padding: 0.75rem 1rem; text-align: left; font-weight: 600; font-size: 12px; color: var(--gray-600); text-transform: uppercase; border-bottom: 1px solid var(--gray-200); }
+        .data-table td { padding: 0.875rem 1rem; border-bottom: 1px solid var(--gray-100); font-size: 13px; }
+        .data-table tr:hover { background: var(--gray-50); }
+        .mono { font-family: var(--font-mono); font-size: 12px; }
+        .rank { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; font-size: 12px; font-weight: 600; }
+        .rank-1 { background: #fef3c7; color: #b45309; }
+        .rank-2 { background: #e5e7eb; color: #374151; }
+        .rank-3 { background: #fed7aa; color: #c2410c; }
+        .rank-default { background: var(--gray-100); color: var(--gray-600); }
+        .address-cell { display: flex; align-items: center; gap: 0.5rem; }
+        .address-icon { width: 24px; height: 24px; border-radius: 50%; background: url('/assets/user-avatar.png') center/cover no-repeat; }
+        .badge { display: inline-flex; align-items: center; padding: 0.125rem 0.375rem; font-size: 10px; font-weight: 600; border-radius: 4px; margin-left: 0.5rem; }
+        .badge-contract { background: var(--info-bg); color: var(--info); }
+        .badge-exchange { background: var(--warning-bg); color: var(--warning); }
+        .badge-validator { background: var(--success-bg); color: #ef4444; }
+        .percentage-bar { width: 100px; height: 6px; background: var(--gray-200); border-radius: 3px; overflow: hidden; }
+        .percentage-bar-fill { height: 100%; background: var(--info); border-radius: 3px; }
+        .pagination { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; border-top: 1px solid var(--gray-200); }
+        .pagination-info { font-size: 13px; color: var(--gray-500); }
+        .pagination-controls { display: flex; align-items: center; gap: 0.25rem; }
+        .page-btn { padding: 0.5rem 0.75rem; border: 1px solid var(--gray-200); background: var(--white); border-radius: var(--radius-sm); font-size: 13px; cursor: pointer; }
+        .page-btn:hover { background: var(--gray-100); }
+        .page-btn.active { background: var(--black); color: var(--white); border-color: var(--black); }
+        footer { background: var(--white); border-top: 1px solid var(--gray-200); padding: 2rem 0; margin-top: 3rem; }
+        .footer-content { display: flex; justify-content: space-between; align-items: center; }
+        .footer-brand { display: flex; align-items: center; gap: 0.5rem; color: var(--gray-500); }
+        .footer-links { display: flex; gap: 1.5rem; }
+        .footer-links a { font-size: 12px; color: var(--gray-500); }
+        @media (max-width: 1024px) { .stats-row { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 768px) { .stats-row { grid-template-columns: 1fr; } .main-nav { display: none; } }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <div class="container top-bar-content">
+            <div class="top-bar-left">
+                <div class="top-bar-item"><span>DC FAT Price:</span><span class="top-bar-value">$0.00390</span><span style="color: #ef4444; margin-left: 0.25rem;">-2.94%</span></div>
+                <div class="top-bar-item"><span>Gas:</span><span class="top-bar-value">0.001 gwei</span></div>
+                <div class="top-bar-item"><span>Finality:</span><span class="top-bar-value">&lt;5s</span></div>
+            </div>
+        </div>
+    </div>
+    <header>
+        <div class="container header-container">
+            <a href="/" class="logo">
+                <div class="logo-icon"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 100%; height: 100%; object-fit: contain;"></div>
+                <span class="logo-text"><span>DC</span><span>Explorer</span></span>
+            </a>
+            <nav class="main-nav">
+                <div class="nav-item"><a href="#" class="nav-link active">Smartchain <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/strings" class="dropdown-item">View Strings</a>
+                        <a href="/txs" class="dropdown-item">Transactions</a>
+                        <a href="/txsPending" class="dropdown-item">Pending Txns</a>
+                        <a href="/accounts" class="dropdown-item">Top Accounts</a>
+                        <a href="/contracts" class="dropdown-item">Verified Contracts</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">AI Agents <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/agents" class="dropdown-item">All Agents</a>
+                        <a href="/testimonies" class="dropdown-item">Testimonies</a>
+                        <a href="/validations" class="dropdown-item">Validators</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">Tokens <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/tokens" class="dropdown-item">DC-20 Tokens</a>
+                        <a href="/tokentxns" class="dropdown-item">Token Transfers</a>
+                        <a href="/vote" class="dropdown-item">Vote</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">Network <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/defi" class="dropdown-item">DeFi</a>
+                        <a href="/validators" class="dropdown-item">Validators</a>
+                        <a href="/databases" class="dropdown-item">Databases</a>
+                        <a href="/stats" class="dropdown-item">Charts & Stats</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">More <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/apis" class="dropdown-item">API Docs</a>
+                        <a href="/verify" class="dropdown-item">Verify Contract</a>
+                        <a href="/faucet" class="dropdown-item">Faucet</a>
+                        <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank">GitHub</a>
+                        <a href="/contact" class="dropdown-item">Contact</a>
+                    </div>
+                </div>
+            </nav>
+            <button class="btn btn-secondary"><i class="fas fa-wallet"></i> Connect</button>
+        </div>
+    </header>
+
+    <div class="page-header">
+        <div class="container">
+            <div class="page-breadcrumb"><a href="/">Home</a> <i class="fas fa-chevron-right" style="font-size: 8px;"></i> <span>Top Accounts</span></div>
+            <h1 class="page-title">Top Accounts by FAT Balance</h1>
+            <p class="page-subtitle">Ranked list of accounts by total FAT holdings</p>
+        </div>
+    </div>
+
+    <main class="container">
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-label">Total Accounts</div>
+                <div class="stat-value">1,847,293</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Supply</div>
+                <div class="stat-value">1B FAT</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Top 100 Holdings</div>
+                <div class="stat-value">34.7%</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Active Addresses (24H)</div>
+                <div class="stat-value">127,491</div>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active">All Accounts</button>
+            <button class="tab">EOA Only</button>
+            <button class="tab">Contracts</button>
+            <button class="tab">Validators</button>
+        </div>
+
+        <div class="table-card">
+            <div class="table-header">
+                <div class="table-title"><i class="fas fa-users" style="color: var(--gray-400);"></i> Top 100 Accounts</div>
+            </div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Address</th>
+                        <th>Name Tag</th>
+                        <th style="text-align: right;">Balance</th>
+                        <th style="text-align: right;">Percentage</th>
+                        <th style="text-align: right;">Txn Count</th>
+                    </tr>
+                </thead>
+                <tbody id="accountsTable"></tbody>
+            </table>
+            <div class="pagination">
+                <div class="pagination-info">Showing 1 to 100 of 1,847,293 accounts</div>
+                <div class="pagination-controls">
+                    <button class="page-btn" disabled><i class="fas fa-angle-left"></i></button>
+                    <button class="page-btn active">1</button>
+                    <button class="page-btn">2</button>
+                    <button class="page-btn">3</button>
+                    <button class="page-btn"><i class="fas fa-angle-right"></i></button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container footer-content">
+            <div class="footer-brand"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 24px; height: 24px;"> DC Explorer - Powered by Datachain Rope</div>
+            <div class="footer-links">
+                <a href="https://datachain.network">Datachain</a>
+                <a href="/apis">API</a>
+                <a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a>
+                <a href="/contact">Contact</a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        const names = ['Genesis Wallet', 'Tanastok Exchange', 'Foundation Reserve', 'Staking Pool', 'Bridge Contract', 'Team Vesting', 'Community Fund', 'DEX Liquidity', 'Validator Node', 'Treasury'];
+        const badges = ['', '<span class="badge badge-exchange">Exchange</span>', '<span class="badge badge-contract">Contract</span>', '<span class="badge badge-validator">Validator</span>'];
+        
+        function randomAddr() { return '0x' + Array.from({length: 40}, () => Math.floor(Math.random() * 16).toString(16)).join(''); }
+        
+        function generateAccountRow(rank) {
+            const addr = randomAddr();
+            const balance = (100000000 / Math.pow(rank, 0.8)).toFixed(2);
+            const pct = (parseFloat(balance) / 10000000).toFixed(4);
+            const txns = Math.floor(Math.random() * 100000) + 1000;
+            const name = rank <= 10 ? names[rank - 1] : '';
+            const badge = rank <= 4 ? badges[rank % badges.length] : '';
+            const rankClass = rank === 1 ? 'rank-1' : rank === 2 ? 'rank-2' : rank === 3 ? 'rank-3' : 'rank-default';
+            
+            return `<tr>
+                <td><span class="rank ${rankClass}">${rank}</span></td>
+                <td>
+                    <div class="address-cell">
+                        <div class="address-icon"></div>
+                        <a href="/address/${addr}" class="mono">${addr.slice(0, 18)}...${addr.slice(-6)}</a>
+                    </div>
+                </td>
+                <td>${name}${badge}</td>
+                <td style="text-align: right;" class="mono">${parseFloat(balance).toLocaleString()} FAT</td>
+                <td style="text-align: right;">
+                    <div style="display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem;">
+                        <span>${pct}%</span>
+                        <div class="percentage-bar"><div class="percentage-bar-fill" style="width: ${Math.min(pct * 10, 100)}%;"></div></div>
+                    </div>
+                </td>
+                <td style="text-align: right;" class="mono">${txns.toLocaleString()}</td>
+            </tr>`;
+        }
+        
+        const tbody = document.getElementById('accountsTable');
+        let rows = '';
+        for (let i = 1; i <= 25; i++) rows += generateAccountRow(i);
+        tbody.innerHTML = rows;
+    </script>
+</body>
+</html>
+

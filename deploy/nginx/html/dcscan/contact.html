@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact | DC Explorer</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root { --black: #000; --white: #fff; --gray-50: #fafafa; --gray-100: #f4f4f5; --gray-200: #e4e4e7; --gray-500: #71717a; --gray-600: #52525b; --gray-700: #3f3f46; --gray-800: #27272a; --gray-900: #18181b; --success: #22c55e; --info: #3b82f6; --info-bg: #dbeafe; --font-sans: 'Inter', sans-serif; --radius-md: 8px; --radius-lg: 12px; --radius-xl: 16px; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: var(--font-sans); background: var(--gray-50); color: var(--gray-900); font-size: 14px; }
+        a { color: var(--info); text-decoration: none; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 0 1rem; }
+        header { background: var(--white); border-bottom: 1px solid var(--gray-200); position: sticky; top: 0; z-index: 100; }
+        .header-container { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+        .logo { display: flex; align-items: center; gap: 0.625rem; font-weight: 450; font-size: 1rem; color: #000; line-height: 1.2; }
+        .logo-text { display: flex; flex-direction: column; }
+        .logo-icon { width: 32px; height: 32px; }
+        .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.5rem 1rem; font-size: 13px; font-weight: 600; border-radius: var(--radius-md); border: none; cursor: pointer; }
+        .btn-secondary { background: var(--gray-100); color: var(--gray-700); }
+        .btn-primary { background: var(--black); color: var(--white); }
+        .hero { background: linear-gradient(135deg, var(--gray-900), var(--gray-800)); color: var(--white); padding: 4rem 0; text-align: center; }
+        .hero-title { font-size: 2.5rem; font-weight: 700; margin-bottom: 0.75rem; }
+        .hero-subtitle { color: #94a3b8; font-size: 1.125rem; max-width: 500px; margin: 0 auto; }
+        .contact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; margin: 3rem 0; }
+        .contact-info { }
+        .info-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; }
+        .info-desc { color: var(--gray-600); margin-bottom: 2rem; line-height: 1.7; }
+        .contact-methods { display: grid; gap: 1.5rem; }
+        .contact-method { display: flex; gap: 1rem; align-items: flex-start; }
+        .method-icon { width: 48px; height: 48px; background: var(--black); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; color: var(--white); font-size: 1.25rem; flex-shrink: 0; }
+        .method-content { }
+        .method-title { font-weight: 600; margin-bottom: 0.25rem; }
+        .method-value { color: var(--gray-600); font-size: 13px; }
+        .social-links { display: flex; gap: 0.75rem; margin-top: 2rem; }
+        .social-link { width: 44px; height: 44px; background: var(--gray-100); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--gray-600); font-size: 1.125rem; transition: all 0.2s; }
+        .social-link:hover { background: var(--black); color: var(--white); }
+        .contact-form-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-xl); padding: 2rem; }
+        .form-title { font-size: 1.25rem; font-weight: 700; margin-bottom: 1.5rem; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .form-group { margin-bottom: 1rem; }
+        .form-label { display: block; font-weight: 500; font-size: 13px; margin-bottom: 0.375rem; }
+        .form-input, .form-select, .form-textarea { width: 100%; padding: 0.75rem; border: 1px solid var(--gray-200); border-radius: var(--radius-md); font-size: 14px; font-family: inherit; transition: border-color 0.2s; }
+        .form-input:focus, .form-select:focus, .form-textarea:focus { outline: none; border-color: var(--info); }
+        .form-textarea { min-height: 120px; resize: vertical; }
+        .submit-btn { width: 100%; padding: 0.875rem; background: var(--black); color: var(--white); border: none; border-radius: var(--radius-md); font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem; transition: background 0.2s; }
+        .submit-btn:hover { background: var(--gray-800); }
+        footer { background: var(--white); border-top: 1px solid var(--gray-200); padding: 2rem 0; margin-top: 3rem; }
+        .footer-content { display: flex; justify-content: space-between; }
+        .footer-brand { display: flex; align-items: center; gap: 0.5rem; color: var(--gray-500); }
+        .footer-links { display: flex; gap: 1.5rem; }
+        .footer-links a { font-size: 12px; color: var(--gray-500); }
+        @media (max-width: 768px) { .contact-grid { grid-template-columns: 1fr; } .form-row { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <header><div class="container header-container"><a href="/" class="logo"><div class="logo-icon"><img src="/assets/logo.svg" alt="DC Explorer" style="width:100%;height:100%;object-fit:contain;"></div><span class="logo-text"><span>DC</span><span>Explorer</span></span></a><button class="btn btn-secondary"><i class="fas fa-wallet"></i> Connect</button></div></header>
+
+    <div class="hero"><div class="container"><h1 class="hero-title">Get in Touch</h1><p class="hero-subtitle">Have questions about Datachain Rope? We're here to help you build the future of decentralized data.</p></div></div>
+
+    <main class="container">
+        <div class="contact-grid">
+            <div class="contact-info">
+                <h2 class="info-title">Let's Connect</h2>
+                <p class="info-desc">Whether you're a developer looking to build on Datachain Rope, a business exploring blockchain solutions, or just curious about our technology, we'd love to hear from you.</p>
+
+                <div class="contact-methods">
+                    <div class="contact-method">
+                        <div class="method-icon"><i class="fas fa-envelope"></i></div>
+                        <div class="method-content">
+                            <div class="method-title">Email</div>
+                            <div class="method-value">contact@datachain.network</div>
+                        </div>
+                    </div>
+                    <div class="contact-method">
+                        <div class="method-icon"><i class="fas fa-comments"></i></div>
+                        <div class="method-content">
+                            <div class="method-title">Discord Community</div>
+                            <div class="method-value">Join our developer community</div>
+                        </div>
+                    </div>
+                    <div class="contact-method">
+                        <div class="method-icon"><i class="fab fa-github"></i></div>
+                        <div class="method-content">
+                            <div class="method-title">GitHub</div>
+                            <div class="method-value">github.com/KazeONGUENE/rope</div>
+                        </div>
+                    </div>
+                    <div class="contact-method">
+                        <div class="method-icon"><i class="fas fa-map-marker-alt"></i></div>
+                        <div class="method-content">
+                            <div class="method-title">Headquarters</div>
+                            <div class="method-value">BraincitiesLab, Libreville, Gabon</div>
+                        </div>
+                    </div>
+                    <div class="contact-method">
+                        <div class="method-icon"><i class="fas fa-building"></i></div>
+                        <div class="method-content">
+                            <div class="method-title">Paris Office</div>
+                            <div class="method-value">54 Boulevard de Clichy, 75018 Paris, France<br>Tel: +33 1 42 59 71 14</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="social-links">
+                    <a href="https://twitter.com/datachain" class="social-link" target="_blank"><i class="fab fa-twitter"></i></a>
+                    <a href="https://github.com/KazeONGUENE/rope" class="social-link" target="_blank"><i class="fab fa-github"></i></a>
+                    <a href="#" class="social-link"><i class="fab fa-discord"></i></a>
+                    <a href="#" class="social-link"><i class="fab fa-telegram"></i></a>
+                    <a href="#" class="social-link"><i class="fab fa-linkedin"></i></a>
+                </div>
+            </div>
+
+            <div class="contact-form-card">
+                <h3 class="form-title">Send us a Message</h3>
+                <form>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">First Name *</label>
+                            <input type="text" class="form-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Last Name *</label>
+                            <input type="text" class="form-input" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email *</label>
+                        <input type="email" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Subject *</label>
+                        <select class="form-select" required>
+                            <option>General Inquiry</option>
+                            <option>Technical Support</option>
+                            <option>Partnership</option>
+                            <option>API Access</option>
+                            <option>Bug Report</option>
+                            <option>Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Message *</label>
+                        <textarea class="form-textarea" placeholder="Tell us how we can help..." required></textarea>
+                    </div>
+                    <button type="submit" class="submit-btn"><i class="fas fa-paper-plane"></i> Send Message</button>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <footer><div class="container footer-content"><div class="footer-brand"><img src="/assets/logo.svg" alt="DC Explorer" style="width:24px;height:24px;"> DC Explorer</div><div class="footer-links"><a href="https://datachain.network">Datachain</a><a href="/apis">API</a><a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a></div></div></footer>
+</body>
+</html>
+

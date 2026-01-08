@@ -1,0 +1,44 @@
+# Datachain Rope Node - Production Dockerfile
+FROM rust:1.75-bookworm AS builder
+
+WORKDIR /app
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    clang \
+    libclang-dev \
+    librocksdb-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy source
+COPY . .
+
+# Build release
+RUN cargo build --release -p rope-node
+
+# Runtime image
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create user
+RUN useradd -m -u 1000 rope
+USER rope
+
+WORKDIR /home/rope
+
+# Copy binary
+COPY --from=builder /app/target/release/rope-node /usr/local/bin/rope-node
+
+# Data directory
+RUN mkdir -p /home/rope/data
+
+EXPOSE 8545 8546 9000
+
+ENTRYPOINT ["rope-node"]
+CMD ["--config", "/etc/rope/rope.toml"]
+

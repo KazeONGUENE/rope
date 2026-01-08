@@ -1,0 +1,50 @@
+# DC Explorer - Block Explorer API for Datachain Rope
+# Multi-stage build for optimal size
+
+# Stage 1: Build - Using Rust nightly for edition 2024 support
+FROM rustlang/rust:nightly-bookworm AS builder
+
+WORKDIR /app
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy workspace files
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+
+# Build the explorer binary
+RUN cargo build --release --package rope-explorer --bin dc-explorer
+
+# Stage 2: Runtime
+FROM debian:bookworm-slim
+
+WORKDIR /app
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the binary from builder
+COPY --from=builder /app/target/release/dc-explorer /usr/local/bin/dc-explorer
+
+# Create non-root user
+RUN useradd -r -s /bin/false explorer
+USER explorer
+
+# Expose API port
+EXPOSE 3001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:3001/health || exit 1
+
+# Run the explorer
+ENV RUST_LOG=info
+ENTRYPOINT ["dc-explorer"]
+

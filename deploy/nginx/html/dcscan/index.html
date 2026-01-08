@@ -1,0 +1,1924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DC Explorer | Datachain Rope Block Explorer</title>
+    <meta name="description" content="Explore strings, transactions, AI testimonies, and validators on the Datachain Rope network.">
+    
+    <!-- Font Awesome Free -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    
+    <!-- Leaflet.js for interactive maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --black: #000000;
+            --white: #ffffff;
+            --gray-50: #fafafa;
+            --gray-100: #f4f4f5;
+            --gray-200: #e4e4e7;
+            --gray-300: #d4d4d8;
+            --gray-400: #a1a1aa;
+            --gray-500: #71717a;
+            --gray-600: #52525b;
+            --gray-700: #3f3f46;
+            --gray-800: #27272a;
+            --gray-900: #18181b;
+            --gray-950: #09090b;
+            
+            --success: #22c55e;
+            --success-bg: #dcfce7;
+            --warning: #f59e0b;
+            --warning-bg: #fef3c7;
+            --error: #ef4444;
+            --error-bg: #fee2e2;
+            --info: #3b82f6;
+            --info-bg: #dbeafe;
+            
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            
+            --radius-sm: 6px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: var(--font-sans);
+            background: var(--gray-50);
+            color: var(--gray-900);
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+            font-size: 14px;
+        }
+        
+        a {
+            color: var(--black);
+            text-decoration: none;
+            transition: color 0.15s;
+        }
+        
+        a:hover {
+            color: var(--gray-600);
+        }
+        
+        /* Top Bar */
+        .top-bar {
+            background: var(--gray-900);
+            color: var(--white);
+            padding: 0.5rem 0;
+            font-size: 12px;
+        }
+        
+        .top-bar-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .top-bar-left {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+        
+        .top-bar-item {
+            display: flex;
+            align-items: center;
+            gap: 0.375rem;
+            color: var(--gray-400);
+        }
+        
+        .top-bar-item i {
+            font-size: 10px;
+        }
+        
+        .top-bar-value {
+            color: var(--white);
+            font-weight: 500;
+        }
+        
+        .top-bar-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .theme-toggle {
+            background: none;
+            border: none;
+            color: var(--gray-400);
+            cursor: pointer;
+            padding: 0.25rem;
+            font-size: 14px;
+        }
+        
+        .theme-toggle:hover {
+            color: var(--white);
+        }
+        
+        /* Main Header */
+        header {
+            background: var(--white);
+            border-bottom: 1px solid var(--gray-200);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .header-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 64px;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.625rem;
+            font-weight: 450;
+            font-size: 1rem;
+            color: #000000;
+            line-height: 1.2;
+        }
+        
+        .logo-text {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .logo-icon svg {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .main-nav {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        
+        .nav-item {
+            position: relative;
+        }
+        
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 0.375rem;
+            padding: 0.5rem 0.875rem;
+            color: var(--gray-600);
+            font-weight: 500;
+            font-size: 13px;
+            border-radius: var(--radius-md);
+            transition: all 0.15s;
+        }
+        
+        .nav-link:hover {
+            color: var(--black);
+            background: var(--gray-100);
+        }
+        
+        .nav-link i {
+            font-size: 11px;
+        }
+        
+        .nav-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            min-width: 220px;
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            padding: 0.5rem;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(10px);
+            transition: all 0.2s;
+            z-index: 200;
+        }
+        
+        .nav-item:hover .nav-dropdown {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+        
+        .dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.625rem 0.75rem;
+            color: var(--gray-700);
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+        }
+        
+        .dropdown-item:hover {
+            background: var(--gray-100);
+            color: var(--black);
+        }
+        
+        .dropdown-item i {
+            width: 16px;
+            color: var(--gray-500);
+        }
+        
+        .dropdown-divider {
+            height: 1px;
+            background: var(--gray-200);
+            margin: 0.5rem 0;
+        }
+        
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.375rem;
+            padding: 0.5rem 1rem;
+            font-size: 13px;
+            font-weight: 600;
+            border-radius: var(--radius-md);
+            border: none;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: inherit;
+        }
+        
+        .btn-primary {
+            background: var(--black);
+            color: var(--white);
+        }
+        
+        .btn-primary:hover {
+            background: var(--gray-800);
+        }
+        
+        .btn-secondary {
+            background: var(--gray-100);
+            color: var(--gray-700);
+        }
+        
+        .btn-secondary:hover {
+            background: var(--gray-200);
+        }
+        
+        /* Hero Section */
+        .hero {
+            background: var(--white);
+            padding: 3rem 0;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        
+        .hero-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+        
+        .hero-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .hero-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.02em;
+        }
+        
+        .hero-subtitle {
+            color: var(--gray-500);
+            font-size: 0.9375rem;
+        }
+        
+        /* Search Box */
+        .search-container {
+            max-width: 800px;
+            margin: 0 auto 2rem;
+        }
+        
+        .search-box {
+            display: flex;
+            background: var(--gray-50);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            transition: all 0.15s;
+        }
+        
+        .search-box:focus-within {
+            border-color: var(--gray-400);
+            box-shadow: 0 0 0 3px rgba(0,0,0,0.05);
+        }
+        
+        .search-filter {
+            padding: 0 1rem;
+            background: var(--white);
+            border: none;
+            border-right: 1px solid var(--gray-200);
+            font-size: 13px;
+            color: var(--gray-600);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .search-input {
+            flex: 1;
+            padding: 1rem;
+            border: none;
+            background: transparent;
+            font-size: 14px;
+            font-family: inherit;
+            outline: none;
+        }
+        
+        .search-input::placeholder {
+            color: var(--gray-400);
+        }
+        
+        .search-btn {
+            padding: 1rem 1.5rem;
+            background: var(--black);
+            color: var(--white);
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.15s;
+        }
+        
+        .search-btn:hover {
+            background: var(--gray-800);
+        }
+        
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+        }
+        
+        .stat-card {
+            background: var(--gray-50);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            padding: 1.25rem;
+        }
+        
+        .stat-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.75rem;
+        }
+        
+        .stat-icon {
+            width: 36px;
+            height: 36px;
+            background: var(--black);
+            border: none;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--white);
+            font-size: 1rem;
+        }
+        
+        .stat-change {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 0.25rem 0.5rem;
+            border-radius: 100px;
+        }
+        
+        .stat-change.positive {
+            background: var(--success-bg);
+            color: #ef4444;
+        }
+        
+        .stat-change.negative {
+            background: var(--error-bg);
+            color: var(--error);
+        }
+        
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+            letter-spacing: -0.02em;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: var(--gray-500);
+        }
+        
+        /* Main Content */
+        main {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 1.5rem 1rem;
+        }
+        
+        .content-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem;
+        }
+        
+        .card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+        
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        
+        .card-title {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .card-title i {
+            color: var(--gray-500);
+        }
+        
+        .card-action {
+            font-size: 12px;
+            color: var(--gray-500);
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        
+        .card-action:hover {
+            color: var(--black);
+        }
+        
+        .card-body {
+            padding: 0;
+        }
+        
+        /* Table Styles */
+        .data-table {
+            width: 100%;
+        }
+        
+        .table-row {
+            display: flex;
+            align-items: center;
+            padding: 0.875rem 1.25rem;
+            border-bottom: 1px solid var(--gray-100);
+            transition: background 0.15s;
+        }
+        
+        .table-row:last-child {
+            border-bottom: none;
+        }
+        
+        .table-row:hover {
+            background: var(--gray-50);
+        }
+        
+        .row-icon {
+            width: 36px;
+            height: 36px;
+            background: var(--gray-100);
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--gray-600);
+            font-size: 0.875rem;
+            margin-right: 0.875rem;
+            flex-shrink: 0;
+        }
+        
+        .row-content {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .row-primary {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.25rem;
+        }
+        
+        .row-hash {
+            font-family: var(--font-mono);
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--black);
+        }
+        
+        .row-hash:hover {
+            color: var(--gray-600);
+        }
+        
+        .row-secondary {
+            font-size: 12px;
+            color: var(--gray-500);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .row-meta {
+            text-align: right;
+            flex-shrink: 0;
+        }
+        
+        .row-amount {
+            font-family: var(--font-mono);
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 0.125rem;
+        }
+        
+        .row-time {
+            font-size: 11px;
+            color: var(--gray-400);
+        }
+        
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.125rem 0.5rem;
+            font-size: 10px;
+            font-weight: 600;
+            border-radius: 100px;
+            text-transform: uppercase;
+        }
+        
+        .badge-success {
+            background: var(--success-bg);
+            color: #ef4444;
+        }
+        
+        .badge-pending {
+            background: var(--warning-bg);
+            color: var(--warning);
+        }
+        
+        .badge-ai {
+            background: var(--info-bg);
+            color: var(--info);
+        }
+        
+        /* View All Button */
+        .card-footer {
+            padding: 1rem 1.25rem;
+            border-top: 1px solid var(--gray-100);
+            text-align: center;
+        }
+        
+        .view-all-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--gray-100);
+            color: var(--gray-700);
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: var(--radius-md);
+        }
+        
+        .view-all-btn:hover {
+            background: var(--gray-200);
+            color: var(--black);
+        }
+        
+        /* AI Agents Section */
+        .ai-section {
+            margin-top: 1.5rem;
+        }
+        
+        .ai-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 1rem;
+        }
+        
+        .ai-card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            padding: 1.25rem;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        
+        .ai-card:hover {
+            border-color: var(--gray-300);
+            box-shadow: var(--shadow-md);
+        }
+        
+        .ai-icon {
+            width: 48px;
+            height: 48px;
+            background: var(--black);
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--white);
+            font-size: 1.25rem;
+            margin: 0 auto 1rem;
+        }
+        
+        .ai-name {
+            font-weight: 600;
+            font-size: 13px;
+            margin-bottom: 0.25rem;
+        }
+        
+        .ai-role {
+            font-size: 11px;
+            color: var(--gray-500);
+            margin-bottom: 0.75rem;
+        }
+        
+        .ai-status {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.375rem;
+            font-size: 11px;
+            font-weight: 500;
+            color: #ef4444;
+        }
+        
+        .ai-status::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* Databox Map Section */
+        .map-section {
+            margin-top: 1.5rem;
+        }
+        
+        .map-card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+        
+        .map-container {
+            height: 500px;
+            background: #1a2332;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        /* Leaflet Map */
+        #leafletMap {
+            width: 100%;
+            height: 100%;
+            background: #1a2332;
+        }
+        
+        /* Custom pulsing markers */
+        .custom-marker {
+            border-radius: 50% !important;
+            background: transparent !important;
+            border: none !important;
+        }
+        
+        .custom-marker > div {
+            border-radius: 50%;
+            animation: pulse-marker 2s ease-in-out infinite;
+        }
+        
+        .validator-marker > div {
+            background: #00ff88 !important;
+            border: 2px solid rgba(0, 255, 136, 0.5);
+            border-radius: 50%;
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.9), 0 0 30px rgba(0, 255, 136, 0.5);
+        }
+        
+        .databox-marker > div {
+            background: #00d4ff !important;
+            border: 2px solid rgba(0, 212, 255, 0.5);
+            border-radius: 50%;
+            box-shadow: 0 0 12px rgba(0, 212, 255, 0.8), 0 0 25px rgba(0, 212, 255, 0.4);
+            animation-delay: 0.5s;
+        }
+        
+        @keyframes pulse-marker {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.5); opacity: 0.8; }
+        }
+        
+        /* Leaflet popup styles */
+        .leaflet-popup-content-wrapper {
+            background: rgba(0, 0, 0, 0.9) !important;
+            color: white !important;
+            border-radius: 8px !important;
+            font-family: var(--font-sans) !important;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3) !important;
+        }
+        
+        .leaflet-popup-content {
+            margin: 10px 14px !important;
+            font-size: 13px !important;
+            line-height: 1.4 !important;
+        }
+        
+        .leaflet-popup-tip {
+            background: rgba(0, 0, 0, 0.9) !important;
+        }
+        
+        .popup-city {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+        
+        .popup-type {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .popup-type.validator {
+            color: #00ff88;
+        }
+        
+        .popup-type.databox {
+            color: #00d4ff;
+        }
+        
+        /* Move Leaflet zoom controls to bottom left */
+        .leaflet-top.leaflet-left {
+            top: auto !important;
+            bottom: 10px !important;
+        }
+        
+        /* Custom zoom controls */
+        .leaflet-control-zoom {
+            border: none !important;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.15) !important;
+            border-radius: 8px !important;
+            overflow: hidden;
+            margin-bottom: 0 !important;
+        }
+        
+        .leaflet-control-zoom a {
+            background: rgba(255, 255, 255, 0.95) !important;
+            color: #404040 !important;
+            border: none !important;
+            width: 36px !important;
+            height: 36px !important;
+            line-height: 36px !important;
+            font-size: 18px !important;
+            transition: all 0.2s !important;
+        }
+        
+        .leaflet-control-zoom a:hover {
+            background: white !important;
+            color: black !important;
+        }
+        
+        .leaflet-control-zoom-in {
+            border-bottom: 1px solid #e5e5e5 !important;
+        }
+        
+        /* Hide default attribution */
+        .leaflet-control-attribution {
+            display: none !important;
+        }
+        
+        /* Custom controls container - bottom right */
+        .map-controls-container {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        /* Control button base styles */
+        .map-control-btn {
+            width: 36px;
+            height: 36px;
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid #e5e5e5;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 14px;
+            color: #404040;
+            transition: all 0.2s;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+        }
+        
+        .map-control-btn:hover {
+            background: white;
+            color: black;
+        }
+        
+        /* Zoom buttons grouped */
+        .map-zoom-group {
+            display: flex;
+            flex-direction: column;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+        }
+        
+        .map-zoom-group .map-control-btn {
+            border-radius: 0;
+            box-shadow: none;
+        }
+        
+        .map-zoom-group .map-control-btn:first-child {
+            border-radius: 8px 8px 0 0;
+            border-bottom: none;
+        }
+        
+        .map-zoom-group .map-control-btn:last-child {
+            border-radius: 0 0 8px 8px;
+        }
+        
+        /* Fullscreen styles */
+        .map-section:fullscreen {
+            background: #1a2332;
+            padding: 0;
+        }
+        
+        .map-section:fullscreen .map-card {
+            height: 100vh;
+            border-radius: 0;
+        }
+        
+        .map-section:fullscreen .map-container {
+            height: calc(100vh - 120px);
+        }
+        
+        .map-section:fullscreen .card-header,
+        .map-section:fullscreen .map-legend {
+            background: var(--white);
+        }
+        
+        .map-legend {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            border-top: 1px solid var(--gray-200);
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 12px;
+            color: var(--gray-600);
+        }
+        
+        .legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--black);
+        }
+        
+        .legend-dot.validator {
+            background: var(--success);
+        }
+        
+        .legend-dot.databox {
+            background: var(--info);
+        }
+        
+        /* Footer */
+        footer {
+            background: var(--white);
+            border-top: 1px solid var(--gray-200);
+            padding: 2rem 0;
+            margin-top: 3rem;
+        }
+        
+        .footer-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .footer-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 400;
+            font-size: 1rem;
+            color: var(--gray-500);
+        }
+        
+        .footer-links {
+            display: flex;
+            gap: 1.5rem;
+        }
+        
+        .footer-links a {
+            font-size: 12px;
+            color: var(--gray-500);
+        }
+        
+        .footer-links a:hover {
+            color: var(--black);
+        }
+        
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .ai-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+            
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .top-bar-left {
+                display: none;
+            }
+            
+            .main-nav {
+                display: none;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .ai-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .hero-title {
+                font-size: 1.375rem;
+            }
+            
+            .search-filter {
+                display: none;
+            }
+        }
+        
+        /* Utility */
+        .truncate {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .mono {
+            font-family: var(--font-mono);
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <div class="top-bar-container">
+            <div class="top-bar-left">
+                <div class="top-bar-item">
+                    <i class="fa-solid fa-coins"></i>
+                    DC FAT Price:
+                    <span class="top-bar-value">$0.00390</span>
+                    <span style="color: #ef4444; margin-left: 0.25rem;">-2.94%</span>
+                </div>
+                <div class="top-bar-item">
+                    <i class="fa-solid fa-gas-pump"></i>
+                    Gas:
+                    <span class="top-bar-value">0.001 gwei</span>
+                </div>
+                <div class="top-bar-item">
+                    <i class="fa-solid fa-clock"></i>
+                    Finality:
+                    <span class="top-bar-value">&lt;5s</span>
+                </div>
+            </div>
+            <div class="top-bar-right">
+                <button class="theme-toggle">
+                    <i class="fa-solid fa-sun"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Header -->
+    <header>
+        <div class="header-container">
+            <a href="/" class="logo">
+                <div class="logo-icon">
+                    <img src="/assets/logo.svg" alt="DC Explorer Logo" style="width: 100%; height: 100%; object-fit: contain;">
+                </div>
+                <span class="logo-text">
+                    <span>DC</span>
+                    <span>Explorer</span>
+                </span>
+            </a>
+            
+            <nav class="main-nav">
+                <div class="nav-item">
+                    <a href="#" class="nav-link">
+                        Smartchain
+                        <i class="fa-solid fa-chevron-down"></i>
+                    </a>
+                    <div class="nav-dropdown">
+                        <a href="/strings" class="dropdown-item">View Strings</a>
+                        <a href="/txs" class="dropdown-item">Transactions</a>
+                        <a href="/txsPending" class="dropdown-item">Pending Transactions</a>
+                        <div class="dropdown-divider"></div>
+                        <a href="/accounts" class="dropdown-item">Top Accounts</a>
+                        <a href="/contracts" class="dropdown-item">Verified Contracts</a>
+                    </div>
+                </div>
+                
+                <div class="nav-item">
+                    <a href="#" class="nav-link">
+                        AI Agents
+                        <i class="fa-solid fa-chevron-down"></i>
+                    </a>
+                    <div class="nav-dropdown">
+                        <a href="/agents" class="dropdown-item">All Agents</a>
+                        <a href="/testimonies" class="dropdown-item">Testimonies</a>
+                        <a href="/validations" class="dropdown-item">Validations</a>
+                    </div>
+                </div>
+                
+                <div class="nav-item">
+                    <a href="#" class="nav-link">
+                        Tokens
+                        <i class="fa-solid fa-chevron-down"></i>
+                    </a>
+                    <div class="nav-dropdown">
+                        <a href="/tokens" class="dropdown-item">DC-20 Tokens</a>
+                        <a href="/tokentxns" class="dropdown-item">Token Transfers</a>
+                    </div>
+                </div>
+                
+                <div class="nav-item">
+                    <a href="#" class="nav-link">
+                        Network
+                        <i class="fa-solid fa-chevron-down"></i>
+                    </a>
+                    <div class="nav-dropdown">
+                        <a href="/validators" class="dropdown-item">Validators</a>
+                        <a href="/databoxes" class="dropdown-item">Databoxes</a>
+                        <a href="/stats" class="dropdown-item">Charts & Stats</a>
+                    </div>
+                </div>
+                
+                <div class="nav-item">
+                    <a href="#" class="nav-link">
+                        More
+                        <i class="fa-solid fa-chevron-down"></i>
+                    </a>
+                    <div class="nav-dropdown">
+                        <a href="/apis" class="dropdown-item">API Documentation</a>
+                        <a href="/verify" class="dropdown-item">Verify Contract</a>
+                        <a href="/faucet" class="dropdown-item">Faucet</a>
+                    </div>
+                </div>
+            </nav>
+            
+            <div class="header-actions">
+                <button class="btn btn-secondary">
+                    <i class="fa-solid fa-wallet"></i>
+                    Connect
+                </button>
+            </div>
+        </div>
+    </header>
+    
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-container">
+            <div class="hero-header">
+                <h1 class="hero-title">Datachain Rope Explorer</h1>
+                <p class="hero-subtitle">Explore strings, transactions, AI testimonies, and validators on the network</p>
+            </div>
+            
+            <!-- Search -->
+            <div class="search-container">
+                <div class="search-box">
+                    <select class="search-filter">
+                        <option>All Filters</option>
+                        <option>Addresses</option>
+                        <option>Tokens</option>
+                        <option>Strings</option>
+                        <option>Transactions</option>
+                    </select>
+                    <input type="text" class="search-input" placeholder="Search by Address / Txn Hash / String / Token">
+                    <button class="search-btn">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon">
+                            <i class="fa-solid fa-link"></i>
+                        </div>
+                        <div class="stat-change positive">
+                            <i class="fa-solid fa-arrow-up"></i>
+                            12.3%
+                        </div>
+                    </div>
+                    <div class="stat-value">1,247,893</div>
+                    <div class="stat-label">Total Strings</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon">
+                            <i class="fa-solid fa-arrow-right-arrow-left"></i>
+                        </div>
+                        <div class="stat-change positive">
+                            <i class="fa-solid fa-arrow-up"></i>
+                            8.7%
+                        </div>
+                    </div>
+                    <div class="stat-value">4,892,451</div>
+                    <div class="stat-label">Total Transactions</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon">
+                            <i class="fa-solid fa-robot"></i>
+                        </div>
+                    </div>
+                    <div class="stat-value">5</div>
+                    <div class="stat-label">AI Testimony Agents</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon">
+                            <i class="fa-solid fa-server"></i>
+                        </div>
+                        <div class="stat-change positive">
+                            <i class="fa-solid fa-arrow-up"></i>
+                            3.2%
+                        </div>
+                    </div>
+                    <div class="stat-value">127</div>
+                    <div class="stat-label">Active Validators</div>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Main Content -->
+    <main>
+        <div class="content-grid">
+            <!-- Latest Strings -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fa-solid fa-link"></i>
+                        Latest Strings
+                    </div>
+                    <a href="/strings" class="card-action">
+                        View all
+                        <i class="fa-solid fa-arrow-right"></i>
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="data-table">
+                        <div class="table-row">
+                            <div class="row-icon">
+                                <i class="fa-solid fa-cube"></i>
+                            </div>
+                            <div class="row-content">
+                                <div class="row-primary">
+                                    <a href="/string/1247893" class="row-hash">1247893</a>
+                                    <span class="badge badge-success">Final</span>
+                                </div>
+                                <div class="row-secondary">
+                                    <span>24 txns</span>
+                                    <span>Validator: 0x7f3a...8d2e</span>
+                                </div>
+                            </div>
+                            <div class="row-meta">
+                                <div class="row-amount">3.2s ago</div>
+                            </div>
+                        </div>
+                        
+                        <div class="table-row">
+                            <div class="row-icon">
+                                <i class="fa-solid fa-cube"></i>
+                            </div>
+                            <div class="row-content">
+                                <div class="row-primary">
+                                    <a href="/string/1247892" class="row-hash">1247892</a>
+                                    <span class="badge badge-success">Final</span>
+                                </div>
+                                <div class="row-secondary">
+                                    <span>18 txns</span>
+                                    <span>Validator: 0x2b9c...4f1a</span>
+                                </div>
+                            </div>
+                            <div class="row-meta">
+                                <div class="row-amount">6.8s ago</div>
+                            </div>
+                        </div>
+                        
+                        <div class="table-row">
+                            <div class="row-icon">
+                                <i class="fa-solid fa-cube"></i>
+                            </div>
+                            <div class="row-content">
+                                <div class="row-primary">
+                                    <a href="/string/1247891" class="row-hash">1247891</a>
+                                    <span class="badge badge-success">Final</span>
+                                </div>
+                                <div class="row-secondary">
+                                    <span>31 txns</span>
+                                    <span>Validator: 0x9e4d...7c3b</span>
+                                </div>
+                            </div>
+                            <div class="row-meta">
+                                <div class="row-amount">10.4s ago</div>
+                            </div>
+                        </div>
+                        
+                        <div class="table-row">
+                            <div class="row-icon">
+                                <i class="fa-solid fa-cube"></i>
+                            </div>
+                            <div class="row-content">
+                                <div class="row-primary">
+                                    <a href="/string/1247890" class="row-hash">1247890</a>
+                                    <span class="badge badge-success">Final</span>
+                                </div>
+                                <div class="row-secondary">
+                                    <span>12 txns</span>
+                                    <span>Validator: 0x5a1f...2e8d</span>
+                                </div>
+                            </div>
+                            <div class="row-meta">
+                                <div class="row-amount">14.1s ago</div>
+                            </div>
+                        </div>
+                        
+                        <div class="table-row">
+                            <div class="row-icon">
+                                <i class="fa-solid fa-cube"></i>
+                            </div>
+                            <div class="row-content">
+                                <div class="row-primary">
+                                    <a href="/string/1247889" class="row-hash">1247889</a>
+                                    <span class="badge badge-success">Final</span>
+                                </div>
+                                <div class="row-secondary">
+                                    <span>27 txns</span>
+                                    <span>Validator: 0x8c2e...9a4f</span>
+                                </div>
+                            </div>
+                            <div class="row-meta">
+                                <div class="row-amount">17.6s ago</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <a href="/strings" class="view-all-btn">
+                        View all strings
+                        <i class="fa-solid fa-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Latest Transactions -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fa-solid fa-arrow-right-arrow-left"></i>
+                        Latest Transactions
+                    </div>
+                    <a href="/txs" class="card-action">
+                        View all
+                        <i class="fa-solid fa-arrow-right"></i>
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="data-table">
+                        <div class="table-row">
+                            <div class="row-icon">
+                                <i class="fa-solid fa-exchange-alt"></i>
+                            </div>
+                            <div class="row-content">
+                                <div class="row-primary">
+                                    <a href="/tx/0x8f2a9c3d" class="row-hash truncate">0x8f2a9c3d...4e7b1f8a</a>
+                                    <span class="badge badge-ai">AI Verified</span>
+                                </div>
+                                <div class="row-secondary">
+                                    <span>From: 0x7f3a...8d2e</span>
+                                    <span>To: 0x2b9c...4f1a</span>
+                                </div>
+                            </div>
+                            <div class="row-meta">
+                                <div class="row-amount">1,250.00 FAT</div>
+                                <div class="row-time">2s ago</div>
+                            </div>
+                        </div>
+                        
+                        <div class="table-row">
+                            <div class="row-icon">
+                                <i class="fa-solid fa-exchange-alt"></i>
+                            </div>
+                            <div class="row-content">
+                                <div class="row-primary">
+                                    <a href="/tx/0x4c7e2b1f" class="row-hash truncate">0x4c7e2b1f...9a3d5c8e</a>
+                                    <span class="badge badge-success">Success</span>
+                                </div>
+                                <div class="row-secondary">
+                                    <span>From: 0x9e4d...7c3b</span>
+                                    <span>To: 0x5a1f...2e8d</span>
+                                </div>
+                            </div>
+                            <div class="row-meta">
+                                <div class="row-amount">847.50 FAT</div>
+                                <div class="row-time">5s ago</div>
+                            </div>
+                        </div>
+                        
+                        <div class="table-row">
+                            <div class="row-icon">
+                                <i class="fa-solid fa-file-code"></i>
+                            </div>
+                            <div class="row-content">
+                                <div class="row-primary">
+                                    <a href="/tx/0x1d5a8e3c" class="row-hash truncate">0x1d5a8e3c...6f2b9a4d</a>
+                                    <span class="badge badge-ai">AI Verified</span>
+                                </div>
+                                <div class="row-secondary">
+                                    <span>Contract Call</span>
+                                    <span>To: 0x8c2e...9a4f</span>
+                                </div>
+                            </div>
+                            <div class="row-meta">
+                                <div class="row-amount">0.00 FAT</div>
+                                <div class="row-time">8s ago</div>
+                            </div>
+                        </div>
+                        
+                        <div class="table-row">
+                            <div class="row-icon">
+                                <i class="fa-solid fa-exchange-alt"></i>
+                            </div>
+                            <div class="row-content">
+                                <div class="row-primary">
+                                    <a href="/tx/0x6b3f9d2e" class="row-hash truncate">0x6b3f9d2e...8c1a4e7f</a>
+                                    <span class="badge badge-success">Success</span>
+                                </div>
+                                <div class="row-secondary">
+                                    <span>From: 0x3e7b...1d4c</span>
+                                    <span>To: 0x6f2a...8e5d</span>
+                                </div>
+                            </div>
+                            <div class="row-meta">
+                                <div class="row-amount">5,000.00 FAT</div>
+                                <div class="row-time">12s ago</div>
+                            </div>
+                        </div>
+                        
+                        <div class="table-row">
+                            <div class="row-icon">
+                                <i class="fa-solid fa-exchange-alt"></i>
+                            </div>
+                            <div class="row-content">
+                                <div class="row-primary">
+                                    <a href="/tx/0x9a2c7e4f" class="row-hash truncate">0x9a2c7e4f...3b8d1f6a</a>
+                                    <span class="badge badge-pending">Pending</span>
+                                </div>
+                                <div class="row-secondary">
+                                    <span>From: 0x1c4e...9b2f</span>
+                                    <span>To: 0x4d7a...3c8e</span>
+                                </div>
+                            </div>
+                            <div class="row-meta">
+                                <div class="row-amount">320.75 FAT</div>
+                                <div class="row-time">15s ago</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <a href="/txs" class="view-all-btn">
+                        View all transactions
+                        <i class="fa-solid fa-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- AI Agents Section -->
+        <section class="ai-section">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fa-solid fa-robot"></i>
+                        AI Testimony Agents
+                    </div>
+                    <a href="/agents" class="card-action">
+                        View details
+                        <i class="fa-solid fa-arrow-right"></i>
+                    </a>
+                </div>
+                <div class="card-body" style="padding: 1.25rem;">
+                    <div class="ai-grid">
+                        <div class="ai-card">
+                            <div class="ai-icon">
+                                <i class="fa-solid fa-gavel"></i>
+                            </div>
+                            <div class="ai-name">ValidationAgent</div>
+                            <div class="ai-role">Transaction Validator</div>
+                            <div class="ai-status">Online</div>
+                        </div>
+                        
+                        <div class="ai-card">
+                            <div class="ai-icon">
+                                <i class="fa-solid fa-umbrella"></i>
+                            </div>
+                            <div class="ai-name">InsuranceAgent</div>
+                            <div class="ai-role">Risk Assessment</div>
+                            <div class="ai-status">Online</div>
+                        </div>
+                        
+                        <div class="ai-card">
+                            <div class="ai-icon">
+                                <i class="fa-solid fa-scale-balanced"></i>
+                            </div>
+                            <div class="ai-name">ComplianceAgent</div>
+                            <div class="ai-role">Regulatory Check</div>
+                            <div class="ai-status">Online</div>
+                        </div>
+                        
+                        <div class="ai-card">
+                            <div class="ai-icon">
+                                <i class="fa-solid fa-satellite-dish"></i>
+                            </div>
+                            <div class="ai-name">OracleAgent</div>
+                            <div class="ai-role">External Data</div>
+                            <div class="ai-status">Online</div>
+                        </div>
+                        
+                        <div class="ai-card">
+                            <div class="ai-icon">
+                                <i class="fa-solid fa-brain"></i>
+                            </div>
+                            <div class="ai-name">SemanticAgent</div>
+                            <div class="ai-role">Intent Analysis</div>
+                            <div class="ai-status">Online</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Global Databox Network -->
+        <section class="map-section">
+            <div class="map-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fa-solid fa-globe"></i>
+                        Global Databox Network
+                    </div>
+                    <a href="/databoxes" class="card-action">
+                        View all nodes
+                        <i class="fa-solid fa-arrow-right"></i>
+                    </a>
+                </div>
+                <div class="map-container" id="mapContainer">
+                    <!-- Leaflet Map Container -->
+                    <div id="leafletMap"></div>
+                    
+                    <!-- Custom Controls - Bottom Left -->
+                    <div class="map-controls-container">
+                        <div class="map-zoom-group">
+                            <button class="map-control-btn" id="zoomIn" title="Zoom In">
+                                <i class="fa-solid fa-plus"></i>
+                            </button>
+                            <button class="map-control-btn" id="zoomOut" title="Zoom Out">
+                                <i class="fa-solid fa-minus"></i>
+                            </button>
+                        </div>
+                        <button class="map-control-btn" id="mapFullscreen" title="Toggle Fullscreen">
+                            <i class="fa-solid fa-expand"></i>
+                        </button>
+                        <button class="map-control-btn" id="mapReset" title="Reset View">
+                            <i class="fa-solid fa-crosshairs"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="map-legend">
+                    <div style="display: flex; gap: 1.5rem;">
+                        <div class="legend-item">
+                            <div class="legend-dot validator"></div>
+                            <span>127 Validators</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-dot databox"></div>
+                            <span>284 Databoxes</span>
+                        </div>
+                    </div>
+                    <div class="legend-item">
+                        <i class="fa-solid fa-globe" style="color: var(--gray-400);"></i>
+                        <span>42 Countries</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+    
+    <!-- Footer -->
+    <footer>
+        <div class="footer-container">
+            <div class="footer-brand">
+                <div class="logo-icon" style="width: 24px; height: 24px;">
+                    <img src="/assets/logo.svg" alt="DC Explorer Logo" style="width: 100%; height: 100%; object-fit: contain;">
+                </div>
+                DC Explorer - Powered by Datachain Rope
+            </div>
+            <div class="footer-links">
+                <a href="https://datachain.network">Datachain</a>
+                <a href="/apis">API</a>
+                <a href="https://github.com/KazeONGUENE/rope">GitHub</a>
+                <a href="/contact">Contact</a>
+            </div>
+        </div>
+    </footer>
+    
+    <script>
+        // Simulated real-time updates
+        function formatNumber(num) {
+            return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        }
+        
+        function updateStats() {
+            // Simulate incrementing stats
+            const stringCount = document.querySelectorAll('.stat-value')[0];
+            const txCount = document.querySelectorAll('.stat-value')[1];
+            
+            if (stringCount && txCount) {
+                let strings = parseInt(stringCount.textContent.replace(/,/g, ''));
+                let txs = parseInt(txCount.textContent.replace(/,/g, ''));
+                
+                strings += Math.floor(Math.random() * 3);
+                txs += Math.floor(Math.random() * 15);
+                
+                stringCount.textContent = formatNumber(strings);
+                txCount.textContent = formatNumber(txs);
+            }
+        }
+        
+        // Update every 5 seconds
+        setInterval(updateStats, 5000);
+        
+        // Search functionality
+        document.querySelector('.search-btn').addEventListener('click', function() {
+            const query = document.querySelector('.search-input').value.trim();
+            if (query) {
+                // Determine search type
+                if (query.startsWith('0x') && query.length === 66) {
+                    window.location.href = '/tx/' + query;
+                } else if (query.startsWith('0x') && query.length === 42) {
+                    window.location.href = '/address/' + query;
+                } else if (!isNaN(query)) {
+                    window.location.href = '/string/' + query;
+                } else {
+                    alert('Please enter a valid address, transaction hash, or string number.');
+                }
+            }
+        });
+        
+        document.querySelector('.search-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                document.querySelector('.search-btn').click();
+            }
+        });
+        
+        // Theme toggle (placeholder)
+        document.querySelector('.theme-toggle').addEventListener('click', function() {
+            document.body.classList.toggle('dark-mode');
+            const icon = this.querySelector('i');
+            icon.classList.toggle('fa-sun');
+            icon.classList.toggle('fa-moon');
+        });
+        
+        // Connect wallet
+        document.querySelector('.btn-secondary').addEventListener('click', async function() {
+            if (typeof window.ethereum !== 'undefined') {
+                try {
+                    await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+                    if (accounts.length > 0) {
+                        this.innerHTML = `<i class="fa-solid fa-check"></i> ${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}`;
+                    }
+                } catch (error) {
+                    console.error('Failed to connect wallet:', error);
+                }
+            } else {
+                alert('Please install Datawallet+ or another Web3 wallet.');
+            }
+        });
+        
+        // ============================================
+        // LEAFLET INTERACTIVE MAP
+        // ============================================
+        (function() {
+            // Initialize Leaflet map (disable default controls)
+            const map = L.map('leafletMap', {
+                center: [20, 0],
+                zoom: 2,
+                minZoom: 2,
+                maxZoom: 8,
+                zoomControl: false,  // Disable default zoom control
+                attributionControl: false,
+                worldCopyJump: true
+            });
+            
+            // Dark styled tile layer (CartoDB Dark Matter)
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                subdomains: 'abcd',
+                maxZoom: 19
+            }).addTo(map);
+            
+            // City data with real GPS coordinates
+            const cities = [
+                // NORTH AMERICA - USA
+                { name: "New York", country: "USA", lat: 40.7128, lng: -74.0060, type: "validator" },
+                { name: "Los Angeles", country: "USA", lat: 34.0522, lng: -118.2437, type: "validator" },
+                { name: "Chicago", country: "USA", lat: 41.8781, lng: -87.6298, type: "databox" },
+                { name: "Houston", country: "USA", lat: 29.7604, lng: -95.3698, type: "databox" },
+                { name: "Phoenix", country: "USA", lat: 33.4484, lng: -112.0740, type: "databox" },
+                { name: "Boston", country: "USA", lat: 42.3601, lng: -71.0589, type: "validator" },
+                { name: "Seattle", country: "USA", lat: 47.6062, lng: -122.3321, type: "databox" },
+                { name: "San Francisco", country: "USA", lat: 37.7749, lng: -122.4194, type: "databox" },
+                { name: "Miami", country: "USA", lat: 25.7617, lng: -80.1918, type: "databox" },
+                { name: "Denver", country: "USA", lat: 39.7392, lng: -104.9903, type: "databox" },
+                // Canada
+                { name: "Toronto", country: "Canada", lat: 43.6532, lng: -79.3832, type: "validator" },
+                { name: "Vancouver", country: "Canada", lat: 49.2827, lng: -123.1207, type: "databox" },
+                { name: "Montreal", country: "Canada", lat: 45.5017, lng: -73.5673, type: "databox" },
+                // Mexico
+                { name: "Mexico City", country: "Mexico", lat: 19.4326, lng: -99.1332, type: "databox" },
+                
+                // SOUTH AMERICA
+                { name: "São Paulo", country: "Brazil", lat: -23.5505, lng: -46.6333, type: "validator" },
+                { name: "Rio de Janeiro", country: "Brazil", lat: -22.9068, lng: -43.1729, type: "databox" },
+                { name: "Buenos Aires", country: "Argentina", lat: -34.6037, lng: -58.3816, type: "validator" },
+                { name: "Bogotá", country: "Colombia", lat: 4.7110, lng: -74.0721, type: "databox" },
+                { name: "Santiago", country: "Chile", lat: -33.4489, lng: -70.6693, type: "databox" },
+                { name: "Lima", country: "Peru", lat: -12.0464, lng: -77.0428, type: "databox" },
+                
+                // EUROPE
+                { name: "London", country: "UK", lat: 51.5074, lng: -0.1278, type: "validator" },
+                { name: "Manchester", country: "UK", lat: 53.4808, lng: -2.2426, type: "databox" },
+                { name: "Berlin", country: "Germany", lat: 52.5200, lng: 13.4050, type: "validator" },
+                { name: "Frankfurt", country: "Germany", lat: 50.1109, lng: 8.6821, type: "validator" },
+                { name: "Munich", country: "Germany", lat: 48.1351, lng: 11.5820, type: "databox" },
+                { name: "Paris", country: "France", lat: 48.8566, lng: 2.3522, type: "validator" },
+                { name: "Lyon", country: "France", lat: 45.7640, lng: 4.8357, type: "databox" },
+                { name: "Amsterdam", country: "Netherlands", lat: 52.3676, lng: 4.9041, type: "validator" },
+                { name: "Zurich", country: "Switzerland", lat: 47.3769, lng: 8.5417, type: "validator" },
+                { name: "Madrid", country: "Spain", lat: 40.4168, lng: -3.7038, type: "databox" },
+                { name: "Barcelona", country: "Spain", lat: 41.3851, lng: 2.1734, type: "databox" },
+                { name: "Milan", country: "Italy", lat: 45.4642, lng: 9.1900, type: "databox" },
+                { name: "Rome", country: "Italy", lat: 41.9028, lng: 12.4964, type: "databox" },
+                { name: "Warsaw", country: "Poland", lat: 52.2297, lng: 21.0122, type: "databox" },
+                { name: "Stockholm", country: "Sweden", lat: 59.3293, lng: 18.0686, type: "validator" },
+                { name: "Oslo", country: "Norway", lat: 59.9139, lng: 10.7522, type: "databox" },
+                { name: "Helsinki", country: "Finland", lat: 60.1699, lng: 24.9384, type: "databox" },
+                
+                // ASIA
+                { name: "Tokyo", country: "Japan", lat: 35.6762, lng: 139.6503, type: "validator" },
+                { name: "Osaka", country: "Japan", lat: 34.6937, lng: 135.5023, type: "databox" },
+                { name: "Seoul", country: "South Korea", lat: 37.5665, lng: 126.9780, type: "validator" },
+                { name: "Busan", country: "South Korea", lat: 35.1796, lng: 129.0756, type: "databox" },
+                { name: "Shanghai", country: "China", lat: 31.2304, lng: 121.4737, type: "validator" },
+                { name: "Beijing", country: "China", lat: 39.9042, lng: 116.4074, type: "validator" },
+                { name: "Shenzhen", country: "China", lat: 22.5431, lng: 114.0579, type: "databox" },
+                { name: "Hong Kong", country: "China", lat: 22.3193, lng: 114.1694, type: "databox" },
+                { name: "Taipei", country: "Taiwan", lat: 25.0330, lng: 121.5654, type: "databox" },
+                { name: "Singapore", country: "Singapore", lat: 1.3521, lng: 103.8198, type: "validator" },
+                { name: "Mumbai", country: "India", lat: 19.0760, lng: 72.8777, type: "validator" },
+                { name: "Bangalore", country: "India", lat: 12.9716, lng: 77.5946, type: "databox" },
+                { name: "Delhi", country: "India", lat: 28.7041, lng: 77.1025, type: "databox" },
+                { name: "Dubai", country: "UAE", lat: 25.2048, lng: 55.2708, type: "validator" },
+                { name: "Tel Aviv", country: "Israel", lat: 32.0853, lng: 34.7818, type: "databox" },
+                { name: "Moscow", country: "Russia", lat: 55.7558, lng: 37.6173, type: "validator" },
+                { name: "St. Petersburg", country: "Russia", lat: 59.9311, lng: 30.3609, type: "databox" },
+                { name: "Bangkok", country: "Thailand", lat: 13.7563, lng: 100.5018, type: "databox" },
+                { name: "Ho Chi Minh City", country: "Vietnam", lat: 10.8231, lng: 106.6297, type: "databox" },
+                { name: "Jakarta", country: "Indonesia", lat: -6.2088, lng: 106.8456, type: "databox" },
+                { name: "Manila", country: "Philippines", lat: 14.5995, lng: 120.9842, type: "databox" },
+                { name: "Kuala Lumpur", country: "Malaysia", lat: 3.1390, lng: 101.6869, type: "databox" },
+                
+                // AFRICA
+                { name: "Johannesburg", country: "South Africa", lat: -26.2041, lng: 28.0473, type: "validator" },
+                { name: "Cape Town", country: "South Africa", lat: -33.9249, lng: 18.4241, type: "databox" },
+                { name: "Lagos", country: "Nigeria", lat: 6.5244, lng: 3.3792, type: "databox" },
+                { name: "Nairobi", country: "Kenya", lat: -1.2921, lng: 36.8219, type: "databox" },
+                { name: "Cairo", country: "Egypt", lat: 30.0444, lng: 31.2357, type: "databox" },
+                { name: "Casablanca", country: "Morocco", lat: 33.5731, lng: -7.5898, type: "databox" },
+                
+                // OCEANIA
+                { name: "Sydney", country: "Australia", lat: -33.8688, lng: 151.2093, type: "validator" },
+                { name: "Melbourne", country: "Australia", lat: -37.8136, lng: 144.9631, type: "validator" },
+                { name: "Brisbane", country: "Australia", lat: -27.4698, lng: 153.0251, type: "databox" },
+                { name: "Perth", country: "Australia", lat: -31.9505, lng: 115.8605, type: "databox" },
+                { name: "Auckland", country: "New Zealand", lat: -36.8509, lng: 174.7645, type: "databox" },
+                { name: "Wellington", country: "New Zealand", lat: -41.2866, lng: 174.7756, type: "databox" },
+            ];
+            
+            // Create custom marker icons
+            function createMarkerIcon(type) {
+                const size = type === 'validator' ? 16 : 12;
+                return L.divIcon({
+                    className: `custom-marker ${type}-marker`,
+                    iconSize: [size, size],
+                    iconAnchor: [size/2, size/2],
+                    popupAnchor: [0, -size/2],
+                    html: `<div style="width:${size}px;height:${size}px;"></div>`
+                });
+            }
+            
+            // Add markers to map
+            cities.forEach(city => {
+                const marker = L.marker([city.lat, city.lng], {
+                    icon: createMarkerIcon(city.type)
+                }).addTo(map);
+                
+                // Popup content
+                const popupContent = `
+                    <div class="popup-city">${city.name}</div>
+                    <div class="popup-type ${city.type}">${city.type === 'validator' ? '● Validator Node' : '● Databox Node'}</div>
+                    <div style="font-size: 10px; opacity: 0.7; margin-top: 4px;">${city.country}</div>
+                `;
+                
+                marker.bindPopup(popupContent, {
+                    closeButton: false,
+                    offset: [0, -5]
+                });
+                
+                marker.on('mouseover', function() { this.openPopup(); });
+                marker.on('mouseout', function() { this.closePopup(); });
+            });
+            
+            // Custom control buttons
+            const zoomInBtn = document.getElementById('zoomIn');
+            const zoomOutBtn = document.getElementById('zoomOut');
+            const fullscreenBtn = document.getElementById('mapFullscreen');
+            const resetBtn = document.getElementById('mapReset');
+            
+            // Zoom In
+            if (zoomInBtn) {
+                zoomInBtn.addEventListener('click', function() {
+                    map.zoomIn();
+                });
+            }
+            
+            // Zoom Out
+            if (zoomOutBtn) {
+                zoomOutBtn.addEventListener('click', function() {
+                    map.zoomOut();
+                });
+            }
+            
+            // Reset view
+            if (resetBtn) {
+                resetBtn.addEventListener('click', function() {
+                    map.setView([20, 0], 2);
+                });
+            }
+            
+            // Fullscreen toggle
+            if (fullscreenBtn) {
+                fullscreenBtn.addEventListener('click', function() {
+                    const mapSection = document.querySelector('.map-section');
+                    if (!document.fullscreenElement) {
+                        if (mapSection.requestFullscreen) {
+                            mapSection.requestFullscreen();
+                        } else if (mapSection.webkitRequestFullscreen) {
+                            mapSection.webkitRequestFullscreen();
+                        }
+                        this.innerHTML = '<i class="fa-solid fa-compress"></i>';
+                    } else {
+                        if (document.exitFullscreen) {
+                            document.exitFullscreen();
+                        }
+                        this.innerHTML = '<i class="fa-solid fa-expand"></i>';
+                    }
+                    // Invalidate map size after fullscreen change
+                    setTimeout(() => map.invalidateSize(), 100);
+                });
+            }
+            
+            // Handle fullscreen change to resize map
+            document.addEventListener('fullscreenchange', function() {
+                setTimeout(() => map.invalidateSize(), 100);
+                // Update icon based on fullscreen state
+                if (fullscreenBtn) {
+                    fullscreenBtn.innerHTML = document.fullscreenElement 
+                        ? '<i class="fa-solid fa-compress"></i>' 
+                        : '<i class="fa-solid fa-expand"></i>';
+                }
+            });
+        })();
+    </script>
+</body>
+</html>
+
