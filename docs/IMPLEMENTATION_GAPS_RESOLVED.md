@@ -4,6 +4,25 @@
 
 This document tracks the resolution of implementation gaps identified in `IMPLEMENTATION_GAPS.md`. All critical gaps have been addressed to bring each component to production readiness.
 
+## Domain Architecture
+
+All core protocol components run under **datachain.network**:
+
+```
+datachain.network (ROPE NETWORK)
+├── erpc.datachain.network  → rope-node:8545 (JSON-RPC)
+├── ws.datachain.network    → rope-node:8546 (WebSocket)
+├── faucet.datachain.network
+└── bridge.datachain.network
+
+dcscan.io (BLOCK EXPLORER) ← Fetches data from datachain.network
+├── dcscan.io               → Explorer Frontend
+├── api.dcscan.io           → dc-explorer:3001 (REST API)
+└── testnet.dcscan.io       → Testnet Explorer
+```
+
+See `docs/ARCHITECTURE.md` for detailed architecture documentation.
+
 ---
 
 ## 1. Post-Quantum Cryptography Integration ✅ COMPLETE (100%)
