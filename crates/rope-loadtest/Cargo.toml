@@ -1,0 +1,45 @@
+[package]
+name = "rope-loadtest"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Load testing infrastructure for Datachain Rope production environment"
+
+[dependencies]
+# Core crates
+rope-core = { path = "../rope-core" }
+rope-crypto = { path = "../rope-crypto" }
+rope-network = { path = "../rope-network" }
+
+# Async runtime
+tokio = { workspace = true, features = ["full", "test-util"] }
+futures = { workspace = true }
+async-trait = { workspace = true }
+
+# HTTP client for API testing
+reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Utilities
+chrono = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+rand = { workspace = true }
+blake3 = { workspace = true }
+hex = { workspace = true }
+clap = { version = "4.4", features = ["derive"] }
+
+# Metrics
+prometheus = "0.13"
+
+# Statistics
+hdrhistogram = "7.5"
+
+[[bin]]
+name = "rope-loadtest"
+path = "src/main.rs"
+
