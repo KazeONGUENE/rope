@@ -13,6 +13,8 @@ members = [
     "crates/rope-node",
     "crates/rope-cli",
     "crates/rope-explorer",
+    "crates/rope-benchmarks",
+    "crates/rope-loadtest",
 ]
 resolver = "2"
 

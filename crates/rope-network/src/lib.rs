@@ -41,6 +41,7 @@ pub mod rdp;
 pub mod peer;
 pub mod message;
 pub mod rpc;
+pub mod swarm;
 
 // Re-exports
 pub use transport::{TransportConfig, TransportLayer};
@@ -50,3 +51,4 @@ pub use rdp::{RopeDistributionProtocol, RdpConfig, Swarm as RdpSwarm};
 pub use peer::{PeerId, PeerManager, PeerState};
 pub use message::{NetworkMessage, MessageType};
 pub use rpc::RpcConfig;
+pub use swarm::{RopeSwarmRuntime, SwarmConfig, SwarmCommand, SwarmNetworkEvent, SwarmStats};
