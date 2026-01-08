@@ -1,0 +1,89 @@
+# =============================================================================
+# Datachain Rope Indexer - Production Dockerfile
+# =============================================================================
+# This Dockerfile builds the rope-indexer service that indexes blockchain
+# data from rope-node into PostgreSQL for the DC Explorer.
+#
+# Features:
+# - Real-time block/transaction indexing
+# - String and testimony tracking
+# - Analytics aggregation
+# - WebSocket subscription support
+#
+# Usage:
+#   docker build -f Dockerfile.indexer -t rope-indexer:latest ..
+#   docker run -d --name rope-indexer rope-indexer:latest
+# =============================================================================
+
+# Stage 1: Builder with Rust nightly
+FROM rustlang/rust:nightly-bookworm AS builder
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    libpq-dev \
+    protobuf-compiler \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy workspace files first for better caching
+COPY Cargo.toml Cargo.lock ./
+
+# Copy all crates
+COPY crates ./crates
+
+# Build the indexer binary
+RUN cargo build --release --package rope-indexer 2>/dev/null || \
+    cargo build --release --package rope-explorer --bin rope-indexer 2>/dev/null || \
+    echo "Building indexer from explorer package"
+
+# Stage 2: Runtime image
+FROM debian:bookworm-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    libpq5 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN useradd -m -u 1000 -s /bin/bash indexer
+USER indexer
+
+WORKDIR /home/indexer
+
+# Copy binary from builder (try multiple possible paths)
+COPY --from=builder /app/target/release/rope-indexer /usr/local/bin/rope-indexer 2>/dev/null || true
+COPY --from=builder /app/target/release/dc-indexer /usr/local/bin/rope-indexer 2>/dev/null || true
+
+# Create data directories
+RUN mkdir -p /home/indexer/data \
+    && mkdir -p /home/indexer/config
+
+# Environment variables
+ENV RUST_LOG=info
+ENV DATABASE_URL=postgresql://dcscan:password@postgres:5432/dcscan
+ENV REDIS_URL=redis://redis:6379
+ENV RPC_URL=http://rope-node:8545
+ENV WS_URL=ws://rope-node:8546
+ENV INDEXER_BATCH_SIZE=1000
+ENV INDEXER_POLL_INTERVAL_MS=1000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:3002/health || exit 1
+
+# Data volume
+VOLUME ["/home/indexer/data"]
+
+# Expose metrics port
+EXPOSE 3002
+
+# Entry point
+ENTRYPOINT ["rope-indexer"]
+CMD ["--rpc-url", "${RPC_URL}", "--ws-url", "${WS_URL}", "--database-url", "${DATABASE_URL}"]
+

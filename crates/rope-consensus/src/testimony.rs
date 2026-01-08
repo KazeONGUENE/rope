@@ -89,6 +89,9 @@ pub struct TestimonyMetadata {
     pub attributes: HashMap<String, String>,
 }
 
+/// Testimony type marker for string content
+pub const TESTIMONY_TYPE_MARKER: u8 = 0x01;
+
 impl Testimony {
     /// Create a new testimony
     pub fn new(
@@ -146,6 +149,161 @@ impl Testimony {
     pub fn set_signature(&mut self, ed25519: Vec<u8>, dilithium: Vec<u8>) {
         self.signature.ed25519 = ed25519;
         self.signature.dilithium = dilithium;
+    }
+    
+    // ========================================================================
+    // Testimony as String (§6.1)
+    // ========================================================================
+    
+    /// Serialize testimony content for lattice storage
+    /// 
+    /// Per specification §6.1:
+    /// "Critically, each testimony is itself a string that references other strings,
+    /// creating a recursive structure where consensus evidence is preserved in the
+    /// same data structure as the data being validated."
+    pub fn serialize_content(&self) -> Vec<u8> {
+        let mut content = Vec::with_capacity(256);
+        
+        // Type marker
+        content.push(TESTIMONY_TYPE_MARKER);
+        
+        // Version (for future compatibility)
+        content.push(0x01);
+        
+        // Target string ID (32 bytes)
+        content.extend_from_slice(self.target_string_id.as_bytes());
+        
+        // Validator ID (32 bytes)
+        content.extend_from_slice(self.validator_id.as_bytes());
+        
+        // Attestation type (1 byte)
+        content.push(self.attestation_type.as_u8());
+        
+        // Timestamp (8 bytes)
+        content.extend_from_slice(&self.timestamp.time().to_le_bytes());
+        
+        // OES generation (8 bytes)
+        content.extend_from_slice(&self.oes_generation.to_le_bytes());
+        
+        // Round number (8 bytes)
+        content.extend_from_slice(&self.metadata.round.to_le_bytes());
+        
+        // Signature lengths and data
+        let ed25519_len = self.signature.ed25519.len() as u16;
+        let dilithium_len = self.signature.dilithium.len() as u16;
+        
+        content.extend_from_slice(&ed25519_len.to_le_bytes());
+        content.extend_from_slice(&self.signature.ed25519);
+        
+        content.extend_from_slice(&dilithium_len.to_le_bytes());
+        content.extend_from_slice(&self.signature.dilithium);
+        
+        content
+    }
+    
+    /// Parse testimony from serialized content
+    pub fn from_content(content: &[u8]) -> Result<Self, TestimonyError> {
+        if content.len() < 84 {
+            return Err(TestimonyError::InvalidFormat("Content too short".to_string()));
+        }
+        
+        let mut pos = 0;
+        
+        // Check type marker
+        if content[pos] != TESTIMONY_TYPE_MARKER {
+            return Err(TestimonyError::InvalidFormat("Invalid type marker".to_string()));
+        }
+        pos += 1;
+        
+        // Version
+        let _version = content[pos];
+        pos += 1;
+        
+        // Target string ID
+        let target_bytes: [u8; 32] = content[pos..pos+32].try_into()
+            .map_err(|_| TestimonyError::InvalidFormat("Invalid target ID".to_string()))?;
+        let target_string_id = StringId::from_bytes(target_bytes);
+        pos += 32;
+        
+        // Validator ID
+        let validator_bytes: [u8; 32] = content[pos..pos+32].try_into()
+            .map_err(|_| TestimonyError::InvalidFormat("Invalid validator ID".to_string()))?;
+        let validator_id = NodeId::new(validator_bytes);
+        pos += 32;
+        
+        // Attestation type
+        let attestation_type = AttestationType::from_u8(content[pos])
+            .ok_or(TestimonyError::InvalidAttestationType)?;
+        pos += 1;
+        
+        // Timestamp
+        let timestamp_val = u64::from_le_bytes(content[pos..pos+8].try_into()
+            .map_err(|_| TestimonyError::InvalidFormat("Invalid timestamp".to_string()))?);
+        pos += 8;
+        
+        // OES generation
+        let oes_generation = u64::from_le_bytes(content[pos..pos+8].try_into()
+            .map_err(|_| TestimonyError::InvalidFormat("Invalid OES generation".to_string()))?);
+        pos += 8;
+        
+        // Round
+        let round = u64::from_le_bytes(content[pos..pos+8].try_into()
+            .map_err(|_| TestimonyError::InvalidFormat("Invalid round".to_string()))?);
+        pos += 8;
+        
+        // Signatures
+        let ed25519_len = u16::from_le_bytes(content[pos..pos+2].try_into()
+            .map_err(|_| TestimonyError::InvalidFormat("Invalid signature length".to_string()))?) as usize;
+        pos += 2;
+        
+        let ed25519 = if ed25519_len > 0 && pos + ed25519_len <= content.len() {
+            content[pos..pos+ed25519_len].to_vec()
+        } else {
+            Vec::new()
+        };
+        pos += ed25519_len;
+        
+        let dilithium_len = if pos + 2 <= content.len() {
+            u16::from_le_bytes(content[pos..pos+2].try_into().unwrap_or([0, 0])) as usize
+        } else {
+            0
+        };
+        pos += 2;
+        
+        let dilithium = if dilithium_len > 0 && pos + dilithium_len <= content.len() {
+            content[pos..pos+dilithium_len].to_vec()
+        } else {
+            Vec::new()
+        };
+        
+        // Reconstruct timestamp (simplified - just use value as time)
+        let mut timestamp = LamportClock::new(validator_id);
+        for _ in 0..timestamp_val {
+            timestamp.increment();
+        }
+        
+        let mut testimony = Self::new(
+            target_string_id,
+            validator_id,
+            attestation_type,
+            timestamp,
+            oes_generation,
+        );
+        
+        testimony.signature = TestimonySignature { ed25519, dilithium };
+        testimony.metadata.round = round;
+        
+        Ok(testimony)
+    }
+    
+    /// Get string ID for this testimony when stored in lattice
+    pub fn as_string_id(&self) -> StringId {
+        StringId::from_bytes(self.id)
+    }
+    
+    /// Get parent string IDs (references the target string)
+    pub fn parent_strings(&self) -> Vec<StringId> {
+        vec![self.target_string_id]
     }
 }
 
@@ -395,6 +553,7 @@ pub enum TestimonyError {
     DuplicateTestimony,
     ExpiredTestimony,
     InvalidAttestationType,
+    InvalidFormat(String),
 }
 
 impl std::fmt::Display for TestimonyError {
@@ -406,6 +565,7 @@ impl std::fmt::Display for TestimonyError {
             TestimonyError::DuplicateTestimony => write!(f, "Duplicate testimony"),
             TestimonyError::ExpiredTestimony => write!(f, "Expired testimony"),
             TestimonyError::InvalidAttestationType => write!(f, "Invalid attestation type"),
+            TestimonyError::InvalidFormat(msg) => write!(f, "Invalid format: {}", msg),
         }
     }
 }

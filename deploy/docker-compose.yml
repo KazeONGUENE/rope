@@ -6,7 +6,7 @@ version: '3.8'
 
 services:
   # =============================================================================
-  # DATACHAIN ROPE NODE
+  # DATACHAIN ROPE NODE (Blockchain Validator)
   # =============================================================================
   rope-node:
     build:
@@ -15,15 +15,21 @@ services:
     container_name: rope-node
     restart: unless-stopped
     ports:
-      - "9000:9000"   # P2P
-      - "8545:8545"   # RPC (internal only via nginx)
-      - "8546:8546"   # WebSocket
+      - "9000:9000"   # P2P (QUIC/TCP)
+      - "127.0.0.1:8545:8545"   # RPC (internal only via nginx)
+      - "127.0.0.1:8546:8546"   # WebSocket (internal only)
+      - "127.0.0.1:9100:9100"   # Prometheus metrics
     volumes:
-      - rope_data:/data
-      - ./config/rope.toml:/etc/rope/rope.toml:ro
+      - rope_data:/home/rope/data
+      - rope_keys:/home/rope/keys
+      - ./config/node.toml:/home/rope/config/node.toml:ro
     environment:
       - RUST_LOG=info
-      - ROPE_DATA_DIR=/data
+      - ROPE_DATA_DIR=/home/rope/data
+      - ROPE_KEYS_DIR=/home/rope/keys
+      - ROPE_P2P_PORT=9000
+      - ROPE_RPC_PORT=8545
+      - ROPE_WS_PORT=8546
     networks:
       - rope-network
     healthcheck:
@@ -31,6 +37,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 60s
 
   # =============================================================================
   # POSTGRESQL (Local - for Explorer indexing)
@@ -106,26 +113,39 @@ services:
       retries: 3
 
   # =============================================================================
-  # INDEXER SERVICE
+  # INDEXER SERVICE (Blockchain Data Indexer)
   # =============================================================================
-  indexer:
+  rope-indexer:
     build:
-      context: ../indexer
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: deploy/Dockerfile.indexer
     container_name: rope-indexer
     restart: unless-stopped
     depends_on:
-      - rope-node
-      - postgres
-      - redis
+      rope-node:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       - RUST_LOG=info
       - DATABASE_URL=postgresql://dcscan:${POSTGRES_PASSWORD}@postgres:5432/dcscan
+      - NEON_DATABASE_URL=${NEON_DATABASE_URL}
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
       - RPC_URL=http://rope-node:8545
       - WS_URL=ws://rope-node:8546
+      - INDEXER_BATCH_SIZE=1000
+      - INDEXER_POLL_INTERVAL_MS=1000
+    ports:
+      - "127.0.0.1:3002:3002"
     networks:
       - rope-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # =============================================================================
   # NGINX REVERSE PROXY
@@ -154,6 +174,7 @@ networks:
 
 volumes:
   rope_data:
+  rope_keys:
   postgres_data:
   redis_data:
 

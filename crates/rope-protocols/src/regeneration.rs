@@ -910,24 +910,49 @@ impl Default for DamageDetector {
 }
 
 // ============================================================================
-// Reed-Solomon Error Correction
+// Reed-Solomon Error Correction (Production Implementation)
 // ============================================================================
 
-/// Reed-Solomon parameters
+use reed_solomon_erasure::galois_8::ReedSolomon;
+
+/// Reed-Solomon parameters per specification §9.3.1
+/// Configuration: (ρ, (ρ-1)/2) where ρ is replication factor
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ReedSolomonParams {
-    /// Number of data shards
+    /// Number of data shards (ρ)
     pub data_shards: usize,
     
-    /// Number of parity shards
+    /// Number of parity shards ((ρ-1)/2)
     pub parity_shards: usize,
     
     /// Shard size in bytes
     pub shard_size: usize,
 }
 
+impl ReedSolomonParams {
+    /// Create params from replication factor per spec
+    pub fn from_replication_factor(rho: usize) -> Self {
+        Self {
+            data_shards: rho,
+            parity_shards: (rho.saturating_sub(1)) / 2,
+            shard_size: 1024,
+        }
+    }
+    
+    /// Total shards (data + parity)
+    pub fn total_shards(&self) -> usize {
+        self.data_shards + self.parity_shards
+    }
+    
+    /// Maximum recoverable shards
+    pub fn max_recoverable(&self) -> usize {
+        self.parity_shards
+    }
+}
+
 impl Default for ReedSolomonParams {
     fn default() -> Self {
+        // Default: 4 data + 2 parity (can recover up to 2 lost shards)
         Self {
             data_shards: 4,
             parity_shards: 2,
@@ -936,154 +961,319 @@ impl Default for ReedSolomonParams {
     }
 }
 
-/// Reed-Solomon encoded data
+/// Reed-Solomon encoded data structure
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ReedSolomonData {
     /// Parameters used for encoding
     pub params: ReedSolomonParams,
     
-    /// Data shards
-    pub data_shards: Vec<Vec<u8>>,
+    /// All shards (data first, then parity)
+    /// None indicates a missing/corrupted shard
+    pub shards: Vec<Option<Vec<u8>>>,
     
-    /// Parity shards
-    pub parity_shards: Vec<Vec<u8>>,
-    
-    /// Original data length
+    /// Original data length (for truncation after decode)
     pub original_length: usize,
+    
+    /// Hash of original data for verification
+    pub original_hash: [u8; 32],
 }
 
-/// Reed-Solomon encoder/decoder
+impl ReedSolomonData {
+    /// Get data shards only
+    pub fn data_shards(&self) -> Vec<Option<&Vec<u8>>> {
+        self.shards.iter()
+            .take(self.params.data_shards)
+            .map(|s| s.as_ref())
+            .collect()
+    }
+    
+    /// Get parity shards only
+    pub fn parity_shards(&self) -> Vec<Option<&Vec<u8>>> {
+        self.shards.iter()
+            .skip(self.params.data_shards)
+            .map(|s| s.as_ref())
+            .collect()
+    }
+    
+    /// Count available (non-None) shards
+    pub fn available_shards(&self) -> usize {
+        self.shards.iter().filter(|s| s.is_some()).count()
+    }
+    
+    /// Count missing shards
+    pub fn missing_shards(&self) -> usize {
+        self.shards.iter().filter(|s| s.is_none()).count()
+    }
+    
+    /// Check if recovery is possible
+    pub fn can_recover(&self) -> bool {
+        self.available_shards() >= self.params.data_shards
+    }
+    
+    /// Mark a shard as corrupted/missing
+    pub fn mark_missing(&mut self, index: usize) {
+        if index < self.shards.len() {
+            self.shards[index] = None;
+        }
+    }
+}
+
+/// Production Reed-Solomon encoder/decoder using GF(2^8)
 pub struct ReedSolomonCodec {
     params: ReedSolomonParams,
+    encoder: ReedSolomon,
 }
 
 impl ReedSolomonCodec {
     /// Create new codec with default params
-    pub fn new() -> Self {
-        Self {
-            params: ReedSolomonParams::default(),
-        }
+    pub fn new() -> Result<Self, String> {
+        Self::with_params(ReedSolomonParams::default())
     }
     
     /// Create codec with custom params
-    pub fn with_params(params: ReedSolomonParams) -> Self {
-        Self { params }
+    pub fn with_params(params: ReedSolomonParams) -> Result<Self, String> {
+        let encoder = ReedSolomon::new(params.data_shards, params.parity_shards)
+            .map_err(|e| format!("Failed to create Reed-Solomon encoder: {:?}", e))?;
+        
+        Ok(Self { params, encoder })
     }
     
-    /// Encode data with Reed-Solomon
-    pub fn encode(&self, data: &[u8]) -> ReedSolomonData {
-        let shard_size = self.params.shard_size;
-        let data_shards_count = self.params.data_shards;
-        let parity_shards_count = self.params.parity_shards;
+    /// Create codec from replication factor
+    pub fn from_replication_factor(rho: usize) -> Result<Self, String> {
+        Self::with_params(ReedSolomonParams::from_replication_factor(rho))
+    }
+    
+    /// Get parameters
+    pub fn params(&self) -> &ReedSolomonParams {
+        &self.params
+    }
+    
+    /// Encode data with Reed-Solomon erasure coding
+    /// Returns ReedSolomonData with data + parity shards
+    pub fn encode(&self, data: &[u8]) -> Result<ReedSolomonData, String> {
+        let shard_size = self.calculate_shard_size(data.len());
+        let total_shards = self.params.total_shards();
         
-        // Pad data to fit into shards
-        let total_data_size = data_shards_count * shard_size;
-        let mut padded_data = data.to_vec();
-        padded_data.resize(total_data_size, 0);
+        // Prepare shards buffer
+        let mut shards: Vec<Vec<u8>> = Vec::with_capacity(total_shards);
         
-        // Split into data shards
-        let data_shards: Vec<Vec<u8>> = padded_data
-            .chunks(shard_size)
-            .map(|c| c.to_vec())
-            .collect();
-        
-        // Generate parity shards using XOR (simplified Reed-Solomon)
-        // In production, use a proper RS library like reed-solomon-erasure
-        let mut parity_shards = vec![vec![0u8; shard_size]; parity_shards_count];
-        
-        for (i, parity) in parity_shards.iter_mut().enumerate() {
-            // Each parity shard is XOR of a subset of data shards
-            // Parity[i] = XOR of data shards with different patterns
-            for (j, data_shard) in data_shards.iter().enumerate() {
-                if (j + i) % (parity_shards_count + 1) != parity_shards_count {
-                    for (k, &byte) in data_shard.iter().enumerate() {
-                        parity[k] ^= byte;
-                    }
-                }
+        // Split data into data shards
+        for i in 0..self.params.data_shards {
+            let start = i * shard_size;
+            let end = ((i + 1) * shard_size).min(data.len());
+            
+            let mut shard = vec![0u8; shard_size];
+            if start < data.len() {
+                let copy_len = end.saturating_sub(start);
+                shard[..copy_len].copy_from_slice(&data[start..end]);
             }
+            shards.push(shard);
         }
         
-        ReedSolomonData {
-            params: self.params.clone(),
-            data_shards,
-            parity_shards,
-            original_length: data.len(),
+        // Add empty parity shards
+        for _ in 0..self.params.parity_shards {
+            shards.push(vec![0u8; shard_size]);
         }
+        
+        // Compute parity using real Reed-Solomon
+        self.encoder.encode(&mut shards)
+            .map_err(|e| format!("Reed-Solomon encoding failed: {:?}", e))?;
+        
+        // Wrap in Option<Vec<u8>>
+        let shards_opt: Vec<Option<Vec<u8>>> = shards.into_iter().map(Some).collect();
+        
+        Ok(ReedSolomonData {
+            params: self.params.clone(),
+            shards: shards_opt,
+            original_length: data.len(),
+            original_hash: *blake3::hash(data).as_bytes(),
+        })
     }
     
-    /// Attempt to recover data from shards
+    /// Decode and reconstruct original data from shards
+    /// Can recover up to parity_shards missing shards
     pub fn decode(&self, mut rs_data: ReedSolomonData) -> Result<Vec<u8>, String> {
-        let data_shards_count = rs_data.params.data_shards;
-        let shard_size = rs_data.params.shard_size;
-        
-        // Check how many data shards are available (non-empty)
-        let available_count = rs_data.data_shards.iter()
-            .filter(|s| !s.is_empty() && s.iter().any(|&b| b != 0))
-            .count();
-        
-        // If all data shards available, just reconstruct
-        if available_count == data_shards_count {
-            let mut result: Vec<u8> = rs_data.data_shards.into_iter().flatten().collect();
-            result.truncate(rs_data.original_length);
-            return Ok(result);
-        }
-        
-        // Find missing shards
-        let missing_indices: Vec<_> = rs_data.data_shards.iter()
-            .enumerate()
-            .filter(|(_, s)| s.is_empty() || s.iter().all(|&b| b == 0))
-            .map(|(i, _)| i)
-            .collect();
-        
         // Check if recovery is possible
-        if missing_indices.len() > rs_data.parity_shards.len() {
+        if !rs_data.can_recover() {
             return Err(format!(
-                "Cannot recover: {} missing shards, only {} parity shards",
-                missing_indices.len(),
-                rs_data.parity_shards.len()
+                "Cannot recover: {} missing shards, need at least {} available",
+                rs_data.missing_shards(),
+                self.params.data_shards
             ));
         }
         
-        // Simplified recovery using XOR (works for single missing shard)
-        if missing_indices.len() == 1 && !rs_data.parity_shards.is_empty() {
-            let missing_idx = missing_indices[0];
-            let mut recovered = vec![0u8; shard_size];
-            
-            // XOR all available data shards with first parity
-            for (j, data_shard) in rs_data.data_shards.iter().enumerate() {
-                if j != missing_idx {
-                    for (k, &byte) in data_shard.iter().enumerate() {
-                        recovered[k] ^= byte;
-                    }
-                }
-            }
-            
-            // XOR with parity to recover missing shard
-            for (k, &byte) in rs_data.parity_shards[0].iter().enumerate() {
-                recovered[k] ^= byte;
-            }
-            
-            rs_data.data_shards[missing_idx] = recovered;
+        // If all shards are present, just concatenate data shards
+        if rs_data.missing_shards() == 0 {
+            return self.extract_data(&rs_data);
         }
         
-        let mut result: Vec<u8> = rs_data.data_shards.into_iter().flatten().collect();
-        result.truncate(rs_data.original_length);
-        Ok(result)
+        // Reconstruct missing shards using Reed-Solomon
+        self.encoder.reconstruct(&mut rs_data.shards)
+            .map_err(|e| format!("Reed-Solomon reconstruction failed: {:?}", e))?;
+        
+        // Extract and verify data
+        let recovered = self.extract_data(&rs_data)?;
+        
+        // Verify hash
+        let recovered_hash = *blake3::hash(&recovered).as_bytes();
+        if recovered_hash != rs_data.original_hash {
+            return Err("Recovered data hash mismatch".to_string());
+        }
+        
+        Ok(recovered)
     }
     
-    /// Check if data can be recovered
-    pub fn can_recover(&self, rs_data: &ReedSolomonData) -> bool {
-        let missing = rs_data.data_shards.iter()
-            .filter(|s| s.is_empty() || s.iter().all(|&b| b == 0))
-            .count();
+    /// Extract original data from shards
+    fn extract_data(&self, rs_data: &ReedSolomonData) -> Result<Vec<u8>, String> {
+        let mut data = Vec::with_capacity(rs_data.original_length);
         
-        missing <= rs_data.parity_shards.len()
+        for shard_opt in rs_data.shards.iter().take(self.params.data_shards) {
+            match shard_opt {
+                Some(shard) => data.extend_from_slice(shard),
+                None => return Err("Missing data shard after reconstruction".to_string()),
+            }
+        }
+        
+        data.truncate(rs_data.original_length);
+        Ok(data)
+    }
+    
+    /// Calculate optimal shard size for given data length
+    fn calculate_shard_size(&self, data_len: usize) -> usize {
+        let min_size = (data_len + self.params.data_shards - 1) / self.params.data_shards;
+        min_size.max(self.params.shard_size)
+    }
+    
+    /// Check if data can be recovered from given shards
+    pub fn can_recover(&self, rs_data: &ReedSolomonData) -> bool {
+        rs_data.can_recover()
+    }
+    
+    /// Verify data integrity without full decode
+    pub fn verify(&self, rs_data: &ReedSolomonData) -> Result<bool, String> {
+        if !rs_data.can_recover() {
+            return Ok(false);
+        }
+        
+        // Clone and reconstruct to verify
+        let mut verify_shards = rs_data.shards.clone();
+        
+        if rs_data.missing_shards() > 0 {
+            self.encoder.reconstruct(&mut verify_shards)
+                .map_err(|e| format!("Verification reconstruction failed: {:?}", e))?;
+        }
+        
+        // Verify parity
+        self.encoder.verify(&verify_shards)
+            .map_err(|e| format!("Parity verification failed: {:?}", e))
     }
 }
 
 impl Default for ReedSolomonCodec {
     fn default() -> Self {
-        Self::new()
+        Self::new().expect("Default Reed-Solomon params should be valid")
+    }
+}
+
+/// High-level erasure coding manager for string recovery
+pub struct ErasureCodingManager {
+    /// Codec for standard recovery
+    standard_codec: ReedSolomonCodec,
+    
+    /// Codec for high-redundancy recovery
+    high_redundancy_codec: ReedSolomonCodec,
+    
+    /// Statistics
+    stats: parking_lot::RwLock<ErasureStats>,
+}
+
+/// Erasure coding statistics
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct ErasureStats {
+    pub total_encodes: u64,
+    pub total_decodes: u64,
+    pub successful_recoveries: u64,
+    pub failed_recoveries: u64,
+    pub bytes_encoded: u64,
+    pub bytes_recovered: u64,
+}
+
+impl ErasureCodingManager {
+    /// Create new manager with standard and high-redundancy codecs
+    pub fn new() -> Result<Self, String> {
+        // Standard: 4 data + 2 parity (can lose 2 shards)
+        let standard_codec = ReedSolomonCodec::with_params(ReedSolomonParams {
+            data_shards: 4,
+            parity_shards: 2,
+            shard_size: 4096,
+        })?;
+        
+        // High redundancy: 4 data + 4 parity (can lose 4 shards)
+        let high_redundancy_codec = ReedSolomonCodec::with_params(ReedSolomonParams {
+            data_shards: 4,
+            parity_shards: 4,
+            shard_size: 4096,
+        })?;
+        
+        Ok(Self {
+            standard_codec,
+            high_redundancy_codec,
+            stats: parking_lot::RwLock::new(ErasureStats::default()),
+        })
+    }
+    
+    /// Encode with standard redundancy
+    pub fn encode(&self, data: &[u8]) -> Result<ReedSolomonData, String> {
+        let result = self.standard_codec.encode(data)?;
+        
+        let mut stats = self.stats.write();
+        stats.total_encodes += 1;
+        stats.bytes_encoded += data.len() as u64;
+        
+        Ok(result)
+    }
+    
+    /// Encode with high redundancy (for critical data)
+    pub fn encode_high_redundancy(&self, data: &[u8]) -> Result<ReedSolomonData, String> {
+        self.high_redundancy_codec.encode(data)
+    }
+    
+    /// Decode and recover data
+    pub fn decode(&self, rs_data: ReedSolomonData) -> Result<Vec<u8>, String> {
+        let codec = if rs_data.params.parity_shards > 2 {
+            &self.high_redundancy_codec
+        } else {
+            &self.standard_codec
+        };
+        
+        let missing = rs_data.missing_shards();
+        
+        match codec.decode(rs_data) {
+            Ok(data) => {
+                let mut stats = self.stats.write();
+                stats.total_decodes += 1;
+                if missing > 0 {
+                    stats.successful_recoveries += 1;
+                    stats.bytes_recovered += data.len() as u64;
+                }
+                Ok(data)
+            }
+            Err(e) => {
+                self.stats.write().failed_recoveries += 1;
+                Err(e)
+            }
+        }
+    }
+    
+    /// Get statistics
+    pub fn stats(&self) -> ErasureStats {
+        self.stats.read().clone()
+    }
+}
+
+impl Default for ErasureCodingManager {
+    fn default() -> Self {
+        Self::new().expect("Default erasure coding params should be valid")
     }
 }
 
@@ -1332,23 +1522,94 @@ mod damage_detection_tests {
     }
     
     #[test]
-    fn test_reed_solomon() {
-        let codec = ReedSolomonCodec::new();
-        let original = b"Test data for Reed-Solomon encoding and recovery!";
+    fn test_reed_solomon_encode_decode() {
+        let codec = ReedSolomonCodec::new().expect("Failed to create codec");
+        let original = b"Test data for Reed-Solomon encoding and recovery! This needs to be longer.";
         
-        let encoded = codec.encode(original);
-        assert_eq!(encoded.data_shards.len(), 4);
-        assert_eq!(encoded.parity_shards.len(), 2);
+        let encoded = codec.encode(original).expect("Encoding failed");
+        
+        // Check structure
+        assert_eq!(encoded.params.data_shards, 4);
+        assert_eq!(encoded.params.parity_shards, 2);
+        assert_eq!(encoded.shards.len(), 6); // 4 data + 2 parity
+        assert!(encoded.can_recover());
         
         // Recover without damage
-        let recovered = codec.decode(encoded.clone()).unwrap();
-        assert_eq!(&recovered, original);
+        let recovered = codec.decode(encoded.clone()).expect("Decode failed");
+        assert_eq!(&recovered[..], &original[..]);
+    }
+    
+    #[test]
+    fn test_reed_solomon_recovery_single_shard() {
+        let codec = ReedSolomonCodec::new().expect("Failed to create codec");
+        let original = b"Test data for Reed-Solomon recovery with single missing shard!";
         
-        // Simulate one missing shard
-        let mut damaged = encoded;
-        damaged.data_shards[1] = vec![0; damaged.params.shard_size];
+        let mut encoded = codec.encode(original).expect("Encoding failed");
         
-        assert!(codec.can_recover(&damaged));
+        // Mark one data shard as missing
+        encoded.mark_missing(1);
+        assert_eq!(encoded.missing_shards(), 1);
+        assert!(encoded.can_recover());
+        
+        // Should recover successfully
+        let recovered = codec.decode(encoded).expect("Recovery failed");
+        assert_eq!(&recovered[..], &original[..]);
+    }
+    
+    #[test]
+    fn test_reed_solomon_recovery_two_shards() {
+        let codec = ReedSolomonCodec::new().expect("Failed to create codec");
+        let original = b"Test data for Reed-Solomon recovery with two missing shards!!";
+        
+        let mut encoded = codec.encode(original).expect("Encoding failed");
+        
+        // Mark two shards as missing (max recoverable)
+        encoded.mark_missing(0);
+        encoded.mark_missing(3);
+        assert_eq!(encoded.missing_shards(), 2);
+        assert!(encoded.can_recover());
+        
+        // Should recover successfully (we have 2 parity shards)
+        let recovered = codec.decode(encoded).expect("Recovery failed");
+        assert_eq!(&recovered[..], &original[..]);
+    }
+    
+    #[test]
+    fn test_reed_solomon_too_many_missing() {
+        let codec = ReedSolomonCodec::new().expect("Failed to create codec");
+        let original = b"Test data for Reed-Solomon - too many missing shards";
+        
+        let mut encoded = codec.encode(original).expect("Encoding failed");
+        
+        // Mark three shards as missing (exceeds max recoverable)
+        encoded.mark_missing(0);
+        encoded.mark_missing(1);
+        encoded.mark_missing(2);
+        assert_eq!(encoded.missing_shards(), 3);
+        assert!(!encoded.can_recover());
+        
+        // Should fail to recover
+        let result = codec.decode(encoded);
+        assert!(result.is_err());
+    }
+    
+    #[test]
+    fn test_erasure_coding_manager() {
+        let manager = ErasureCodingManager::new().expect("Failed to create manager");
+        let original = b"Data managed by ErasureCodingManager for production use!";
+        
+        // Standard encode/decode
+        let encoded = manager.encode(original).expect("Encode failed");
+        let decoded = manager.decode(encoded).expect("Decode failed");
+        assert_eq!(&decoded[..], &original[..]);
+        
+        // High redundancy
+        let encoded_hr = manager.encode_high_redundancy(original).expect("HR encode failed");
+        assert_eq!(encoded_hr.params.parity_shards, 4); // More parity
+        
+        // Check stats
+        let stats = manager.stats();
+        assert!(stats.total_encodes > 0);
     }
 }
 
