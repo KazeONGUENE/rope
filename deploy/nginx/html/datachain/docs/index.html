@@ -1,0 +1,1707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documentation - Datachain Rope Network</title>
+    <meta name="description" content="Technical documentation for Datachain Rope - A revolutionary protocol inspired by DNA's double helix.">
+    
+    <!-- Font Awesome Free -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --black: #000000;
+            --white: #ffffff;
+            --gray-50: #fafafa;
+            --gray-100: #f5f5f5;
+            --gray-200: #e5e5e5;
+            --gray-300: #d4d4d4;
+            --gray-400: #a3a3a3;
+            --gray-500: #737373;
+            --gray-600: #525252;
+            --gray-700: #404040;
+            --gray-800: #262626;
+            --gray-900: #171717;
+            --gray-950: #0a0a0a;
+            --accent: #3b82f6;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            
+            --font-sans: 'Instrument Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            
+            --sidebar-width: 280px;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        
+        body {
+            font-family: var(--font-sans);
+            background: var(--white);
+            color: var(--black);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        /* Navigation - Same as datachain.network */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--gray-200);
+        }
+        
+        .nav-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 72px;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            text-decoration: none;
+            color: #000000;
+            font-weight: 450;
+            font-size: 1rem;
+            letter-spacing: -0.02em;
+            line-height: 1.2;
+        }
+        
+        .logo-text { display: flex; flex-direction: column; }
+        
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 2.5rem;
+        }
+        
+        .nav-links a {
+            text-decoration: none;
+            color: var(--gray-600);
+            font-size: 0.9375rem;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+        
+        .nav-links a:hover, .nav-links a.active { color: var(--black); }
+        
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            font-size: 0.9375rem;
+            font-weight: 600;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.2s;
+            cursor: pointer;
+            border: none;
+            font-family: inherit;
+        }
+        
+        .btn-primary {
+            background: var(--black);
+            color: var(--white);
+        }
+        
+        .btn-primary:hover {
+            background: var(--gray-800);
+            transform: translateY(-1px);
+        }
+        
+        /* Main Layout */
+        .docs-layout {
+            display: flex;
+            padding-top: 72px;
+            min-height: 100vh;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--gray-50);
+            border-right: 1px solid var(--gray-200);
+            position: fixed;
+            top: 72px;
+            left: 0;
+            bottom: 0;
+            overflow-y: auto;
+            padding: 1.5rem 0;
+        }
+        
+        .sidebar-section {
+            margin-bottom: 1.5rem;
+        }
+        
+        .sidebar-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--gray-500);
+            padding: 0 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .sidebar-nav {
+            list-style: none;
+        }
+        
+        .sidebar-nav a {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.625rem 1.5rem;
+            text-decoration: none;
+            color: var(--gray-600);
+            font-size: 0.9375rem;
+            transition: all 0.2s;
+            border-left: 2px solid transparent;
+        }
+        
+        .sidebar-nav a:hover {
+            background: var(--gray-100);
+            color: var(--black);
+        }
+        
+        .sidebar-nav a.active {
+            background: var(--gray-100);
+            color: var(--black);
+            border-left-color: var(--black);
+            font-weight: 500;
+        }
+        
+        .sidebar-nav a i {
+            width: 18px;
+            text-align: center;
+            font-size: 0.875rem;
+        }
+        
+        /* Content */
+        .docs-content {
+            flex: 1;
+            margin-left: var(--sidebar-width);
+            padding: 3rem 4rem;
+            max-width: calc(100% - var(--sidebar-width));
+        }
+        
+        .docs-header {
+            margin-bottom: 3rem;
+        }
+        
+        .docs-header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin-bottom: 1rem;
+        }
+        
+        .docs-header p {
+            font-size: 1.125rem;
+            color: var(--gray-600);
+            max-width: 700px;
+        }
+        
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            color: var(--gray-500);
+            margin-bottom: 1rem;
+        }
+        
+        .breadcrumb a {
+            color: var(--gray-600);
+            text-decoration: none;
+        }
+        
+        .breadcrumb a:hover { color: var(--black); }
+        
+        /* Content Sections */
+        .content-section {
+            margin-bottom: 4rem;
+        }
+        
+        .content-section h2 {
+            font-size: 1.75rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--gray-200);
+        }
+        
+        .content-section h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin: 2rem 0 1rem;
+        }
+        
+        .content-section p {
+            color: var(--gray-700);
+            margin-bottom: 1rem;
+        }
+        
+        /* Code Blocks */
+        pre {
+            background: var(--gray-900);
+            color: var(--gray-100);
+            padding: 1.5rem;
+            border-radius: 12px;
+            overflow-x: auto;
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            margin: 1.5rem 0;
+        }
+        
+        code {
+            font-family: var(--font-mono);
+            font-size: 0.875em;
+        }
+        
+        :not(pre) > code {
+            background: var(--gray-100);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            color: var(--gray-800);
+        }
+        
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+        }
+        
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        
+        th {
+            font-weight: 600;
+            background: var(--gray-50);
+        }
+        
+        /* Animation Canvas */
+        .animation-container {
+            background: var(--black);
+            border-radius: 16px;
+            padding: 2rem;
+            margin: 2rem 0;
+            position: relative;
+            overflow: hidden;
+            min-height: 500px;
+        }
+        
+        .animation-title {
+            color: var(--white);
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .animation-title .badge {
+            background: var(--success);
+            color: var(--white);
+            font-size: 0.75rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 100px;
+        }
+        
+        /* Schema Animation Styles */
+        .schema-flow {
+            display: flex;
+            align-items: center;
+            overflow-x: auto;
+            padding: 2rem 0;
+            gap: 0;
+        }
+        
+        .schema-node {
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            animation: fadeInUp 0.6s ease-out forwards;
+            opacity: 0;
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .schema-box {
+            background: var(--white);
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+            min-width: 140px;
+            text-align: center;
+            position: relative;
+        }
+        
+        .schema-box.dark {
+            background: var(--gray-800);
+            color: var(--white);
+        }
+        
+        .schema-box.primary {
+            background: var(--black);
+            color: var(--white);
+            border: 2px solid var(--white);
+        }
+        
+        .schema-box h4 {
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
+        .schema-box ul {
+            list-style: none;
+            font-size: 0.75rem;
+            color: var(--gray-600);
+            text-align: left;
+        }
+        
+        .schema-box.dark ul {
+            color: var(--gray-400);
+        }
+        
+        .schema-box ul li {
+            padding: 0.25rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.375rem;
+        }
+        
+        .schema-box ul li::before {
+            content: "☐";
+            font-size: 0.625rem;
+        }
+        
+        .schema-box ul li.checked::before {
+            content: "☑";
+            color: var(--success);
+        }
+        
+        .schema-connector {
+            width: 40px;
+            height: 2px;
+            background: linear-gradient(90deg, var(--gray-600), var(--white));
+            flex-shrink: 0;
+            position: relative;
+            animation: lineGrow 0.5s ease-out forwards;
+            transform-origin: left;
+            transform: scaleX(0);
+        }
+        
+        @keyframes lineGrow {
+            to { transform: scaleX(1); }
+        }
+        
+        .schema-connector::after {
+            content: "";
+            position: absolute;
+            right: -4px;
+            top: -4px;
+            width: 0;
+            height: 0;
+            border-left: 8px solid var(--white);
+            border-top: 5px solid transparent;
+            border-bottom: 5px solid transparent;
+        }
+        
+        /* Branch connector for vertical options */
+        .schema-branch {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-left: 20px;
+            padding-left: 20px;
+            border-left: 2px solid var(--gray-600);
+        }
+        
+        /* Generation Output */
+        .generation-output {
+            position: absolute;
+            top: 2rem;
+            right: 2rem;
+            background: var(--gray-800);
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+            min-width: 200px;
+        }
+        
+        .generation-output h5 {
+            color: var(--white);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            margin-bottom: 0.75rem;
+        }
+        
+        .generation-output .stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.375rem 0;
+            border-bottom: 1px solid var(--gray-700);
+        }
+        
+        .generation-output .stat:last-child {
+            border-bottom: none;
+        }
+        
+        .generation-output .stat span {
+            color: var(--gray-400);
+            font-size: 0.8125rem;
+        }
+        
+        .generation-output .stat strong {
+            color: var(--white);
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+        }
+        
+        .consensus-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+            background: var(--success);
+            color: var(--black);
+            padding: 0.375rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-top: 1rem;
+        }
+        
+        /* CLI Terminal */
+        .cli-container {
+            background: var(--gray-950);
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 2rem 0;
+            font-family: var(--font-mono);
+        }
+        
+        .cli-header {
+            background: var(--gray-900);
+            padding: 0.75rem 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            border-bottom: 1px solid var(--gray-800);
+        }
+        
+        .cli-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        .cli-dot.red { background: #ff5f56; }
+        .cli-dot.yellow { background: #ffbd2e; }
+        .cli-dot.green { background: #27ca41; }
+        
+        .cli-title {
+            color: var(--gray-400);
+            font-size: 0.8125rem;
+            margin-left: 0.5rem;
+        }
+        
+        .cli-body {
+            padding: 1.5rem;
+            min-height: 300px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .cli-output {
+            color: var(--gray-300);
+            font-size: 0.875rem;
+            line-height: 1.8;
+            white-space: pre-wrap;
+        }
+        
+        .cli-output .prompt {
+            color: var(--success);
+        }
+        
+        .cli-output .comment {
+            color: var(--gray-500);
+        }
+        
+        .cli-output .highlight {
+            color: var(--accent);
+        }
+        
+        .cli-output .success {
+            color: var(--success);
+        }
+        
+        .cli-output .warning {
+            color: var(--warning);
+        }
+        
+        .cli-input-line {
+            display: flex;
+            align-items: center;
+            margin-top: 1rem;
+        }
+        
+        .cli-prompt {
+            color: var(--success);
+            margin-right: 0.5rem;
+        }
+        
+        .cli-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--white);
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+        }
+        
+        /* Cards Grid */
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+        
+        .doc-card {
+            background: var(--gray-50);
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: all 0.2s;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+        
+        .doc-card:hover {
+            border-color: var(--gray-400);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+        }
+        
+        .doc-card-icon {
+            width: 48px;
+            height: 48px;
+            background: var(--black);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--white);
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+        }
+        
+        .doc-card h3 {
+            font-size: 1.125rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .doc-card p {
+            color: var(--gray-600);
+            font-size: 0.9375rem;
+            margin: 0;
+        }
+        
+        /* Status Badge */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 100px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        
+        .status-badge.live {
+            background: rgba(34, 197, 94, 0.1);
+            color: var(--success);
+        }
+        
+        .status-badge.live::before {
+            content: "";
+            width: 6px;
+            height: 6px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* Footer - Same as datachain.network */
+        footer {
+            background: var(--gray-50);
+            border-top: 1px solid var(--gray-200);
+            padding: 4rem 2rem 2rem;
+            margin-left: var(--sidebar-width);
+        }
+        
+        .footer-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .footer-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 4rem;
+            margin-bottom: 3rem;
+        }
+        
+        .footer-brand h3 {
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+        }
+        
+        .footer-brand p {
+            color: var(--gray-600);
+            font-size: 0.9375rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .footer-links h4 {
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+        
+        .footer-links ul {
+            list-style: none;
+        }
+        
+        .footer-links a {
+            display: block;
+            padding: 0.375rem 0;
+            color: var(--gray-600);
+            text-decoration: none;
+            font-size: 0.9375rem;
+        }
+        
+        .footer-links a:hover { color: var(--black); }
+        
+        .footer-bottom {
+            padding-top: 2rem;
+            border-top: 1px solid var(--gray-200);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .footer-bottom p {
+            color: var(--gray-500);
+            font-size: 0.875rem;
+        }
+        
+        .footer-legal {
+            display: flex;
+            gap: 1.5rem;
+        }
+        
+        .footer-legal a {
+            color: var(--gray-500);
+            text-decoration: none;
+            font-size: 0.875rem;
+        }
+        
+        .footer-legal a:hover { color: var(--black); }
+        
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .sidebar { display: none; }
+            .docs-content { margin-left: 0; max-width: 100%; }
+            footer { margin-left: 0; }
+        }
+        
+        @media (max-width: 768px) {
+            .docs-content { padding: 2rem; }
+            .footer-grid { grid-template-columns: 1fr 1fr; gap: 2rem; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation - Same as datachain.network -->
+    <nav>
+        <div class="nav-container">
+            <a href="/" class="logo">
+                <div class="logo-icon">
+                    <img src="/assets/logo.svg" alt="Datachain Logo" style="width: 100%; height: 100%; object-fit: contain;">
+                </div>
+                <span class="logo-text">
+                    <span>Datachain</span>
+                    <span>Network</span>
+                </span>
+            </a>
+            
+            <div class="nav-links">
+                <a href="/#features">Features</a>
+                <a href="/#technology">Technology</a>
+                <a href="https://dcscan.io">Explorer</a>
+                <a href="https://github.com/KazeONGUENE/rope">GitHub</a>
+                <a href="/docs" class="active">Documentation</a>
+            </div>
+            
+            <div class="nav-actions">
+                <a href="https://dcscan.io" class="btn btn-primary">
+                    <i class="fas fa-external-link-alt"></i>
+                    Launch Explorer
+                </a>
+            </div>
+        </div>
+    </nav>
+    
+    <div class="docs-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-section">
+                <div class="sidebar-title">Getting Started</div>
+                <ul class="sidebar-nav">
+                    <li><a href="#introduction" class="active"><i class="fas fa-home"></i> Introduction</a></li>
+                    <li><a href="#quickstart"><i class="fas fa-rocket"></i> Quick Start</a></li>
+                    <li><a href="#architecture"><i class="fas fa-sitemap"></i> Architecture</a></li>
+                </ul>
+            </div>
+            
+            <div class="sidebar-section">
+                <div class="sidebar-title">Core Concepts</div>
+                <ul class="sidebar-nav">
+                    <li><a href="#string-lattice"><i class="fas fa-dna"></i> String Lattice</a></li>
+                    <li><a href="#testimony"><i class="fas fa-robot"></i> AI Testimony</a></li>
+                    <li><a href="#oes"><i class="fas fa-shield-alt"></i> OES Cryptography</a></li>
+                    <li><a href="#consensus"><i class="fas fa-check-double"></i> Consensus</a></li>
+                </ul>
+            </div>
+            
+            <div class="sidebar-section">
+                <div class="sidebar-title">Generation Protocols</div>
+                <ul class="sidebar-nav">
+                    <li><a href="#federation-generation"><i class="fas fa-building"></i> Federation Generation</a></li>
+                    <li><a href="#community-generation"><i class="fas fa-users"></i> Community Generation</a></li>
+                    <li><a href="#data-wallets"><i class="fas fa-wallet"></i> Data Wallets</a></li>
+                </ul>
+            </div>
+            
+            <div class="sidebar-section">
+                <div class="sidebar-title">API Reference</div>
+                <ul class="sidebar-nav">
+                    <li><a href="#rpc-api"><i class="fas fa-plug"></i> RPC API</a></li>
+                    <li><a href="#rest-api"><i class="fas fa-code"></i> REST API</a></li>
+                    <li><a href="#websocket"><i class="fas fa-bolt"></i> WebSocket</a></li>
+                </ul>
+            </div>
+            
+            <div class="sidebar-section">
+                <div class="sidebar-title">Tools</div>
+                <ul class="sidebar-nav">
+                    <li><a href="#cli"><i class="fas fa-terminal"></i> CLI Interface</a></li>
+                    <li><a href="#sdk"><i class="fas fa-cube"></i> SDK</a></li>
+                    <li><a href="#smart-contracts"><i class="fas fa-file-contract"></i> Smart Contracts</a></li>
+                </ul>
+            </div>
+            
+            <div class="sidebar-section">
+                <div class="sidebar-title">Resources</div>
+                <ul class="sidebar-nav">
+                    <li><a href="https://github.com/KazeONGUENE/rope"><i class="fab fa-github"></i> GitHub</a></li>
+                    <li><a href="https://dcscan.io"><i class="fas fa-search"></i> Explorer</a></li>
+                    <li><a href="/contact"><i class="fas fa-envelope"></i> Contact</a></li>
+                </ul>
+            </div>
+        </aside>
+        
+        <!-- Main Content -->
+        <main class="docs-content">
+            <div class="breadcrumb">
+                <a href="/">Home</a>
+                <i class="fas fa-chevron-right" style="font-size: 0.625rem;"></i>
+                <span>Documentation</span>
+            </div>
+            
+            <header class="docs-header">
+                <h1>Datachain Rope Documentation</h1>
+                <p>Technical documentation for building on Datachain Rope - a revolutionary protocol inspired by DNA's double helix structure with sub-5 second finality and quantum-resistant cryptography.</p>
+                <span class="status-badge live">Mainnet Live - Chain ID 314159</span>
+            </header>
+            
+            <!-- Quick Links -->
+            <div class="cards-grid">
+                <a href="#quickstart" class="doc-card">
+                    <div class="doc-card-icon"><i class="fas fa-rocket"></i></div>
+                    <h3>Quick Start</h3>
+                    <p>Get up and running with Datachain Rope in under 5 minutes.</p>
+                </a>
+                <a href="#federation-generation" class="doc-card">
+                    <div class="doc-card-icon"><i class="fas fa-building"></i></div>
+                    <h3>Federation Generation</h3>
+                    <p>Create and manage structured federations with DkP consensus.</p>
+                </a>
+                <a href="#community-generation" class="doc-card">
+                    <div class="doc-card-icon"><i class="fas fa-users"></i></div>
+                    <h3>Community Generation</h3>
+                    <p>Build industry communities with PoA consensus and AI predictability.</p>
+                </a>
+                <a href="#cli" class="doc-card">
+                    <div class="doc-card-icon"><i class="fas fa-terminal"></i></div>
+                    <h3>CLI Interface</h3>
+                    <p>Interact with the network directly from your terminal.</p>
+                </a>
+            </div>
+            
+            <!-- Introduction Section -->
+            <section id="introduction" class="content-section">
+                <h2>Introduction</h2>
+                <p>Datachain Rope is a revolutionary distributed ledger protocol that replaces traditional blockchain architecture with a <strong>String Lattice</strong> structure inspired by DNA's double helix. Designed in 2018 and now production-ready, it provides:</p>
+                
+                <ul style="margin: 1rem 0 1rem 1.5rem; color: var(--gray-700);">
+                    <li><strong>Sub-5 second finality</strong> with Byzantine fault tolerance</li>
+                    <li><strong>Quantum-resistant cryptography</strong> using CRYSTALS-Dilithium3 and Kyber768</li>
+                    <li><strong>AI Testimony validation</strong> for semantic and business logic verification</li>
+                    <li><strong>Self-healing data</strong> with Reed-Solomon erasure coding</li>
+                    <li><strong>GDPR compliance</strong> with controlled erasure protocol</li>
+                </ul>
+                
+                <h3>Network Configuration</h3>
+                <table>
+                    <tr>
+                        <th>Parameter</th>
+                        <th>Value</th>
+                    </tr>
+                    <tr>
+                        <td>Network Name</td>
+                        <td>Datachain Rope</td>
+                    </tr>
+                    <tr>
+                        <td>Chain ID</td>
+                        <td><code>314159</code> (0x4CB2F)</td>
+                    </tr>
+                    <tr>
+                        <td>RPC URL</td>
+                        <td><code>https://erpc.datachain.network</code></td>
+                    </tr>
+                    <tr>
+                        <td>WebSocket</td>
+                        <td><code>wss://ws.datachain.network</code></td>
+                    </tr>
+                    <tr>
+                        <td>Currency Symbol</td>
+                        <td>FAT</td>
+                    </tr>
+                    <tr>
+                        <td>Block Explorer</td>
+                        <td><a href="https://dcscan.io">https://dcscan.io</a></td>
+                    </tr>
+                </table>
+            </section>
+            
+            <!-- Federation Generation Section -->
+            <section id="federation-generation" class="content-section">
+                <h2>Federation Generation Protocol</h2>
+                <p>The Federation Generation Protocol enables creation of structured organizational units within the Datachain Rope network. Each federation can contain multiple communities, data wallets, and individual chains.</p>
+                
+                <!-- Animated Schema -->
+                <div class="animation-container" id="federation-animation">
+                    <div class="animation-title">
+                        Federation Generation Flow
+                        <span class="badge">Interactive</span>
+                    </div>
+                    
+                    <div class="generation-output">
+                        <h5>Generation Output</h5>
+                        <div class="stat">
+                            <span>DATA WALLETS</span>
+                            <strong id="fed-wallets">3,500,000</strong>
+                        </div>
+                        <div class="stat">
+                            <span>Individual Chains</span>
+                            <strong id="fed-chains">3,500,000</strong>
+                        </div>
+                        <div class="consensus-badge">
+                            <i class="fas fa-check-circle"></i>
+                            DkP Consensus Active
+                        </div>
+                    </div>
+                    
+                    <div class="schema-flow" id="federation-flow">
+                        <!-- Animated nodes will be inserted here by JavaScript -->
+                    </div>
+                </div>
+                
+                <h3>Federation Types</h3>
+                <table>
+                    <tr>
+                        <th>Type</th>
+                        <th>Examples</th>
+                        <th>Consensus</th>
+                    </tr>
+                    <tr>
+                        <td><strong>Structured</strong></td>
+                        <td>City, Object, Contributors</td>
+                        <td>DkP</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Unstructured</strong></td>
+                        <td>Real-Madrid, Fans, Painter, Musicians</td>
+                        <td>DkP</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Autonomous</strong></td>
+                        <td>AI, Expert Systems, Bot, Script</td>
+                        <td>DkP</td>
+                    </tr>
+                </table>
+                
+                <h3>Protocol Invocations</h3>
+                <p>Federations can invoke multiple external protocols:</p>
+                <pre><code>// Available Protocol Invocations
+Native DC      // Datachain native protocol
+Hyperledger    // Enterprise blockchain
+NXT            // Proof-of-stake platform
+EOS            // High-performance chain
+Wanchain       // Cross-chain protocol
+Lisk           // Sidechain platform
+Ethereum       // Smart contracts
+Blockchain     // Generic blockchain
+Tangle         // IOTA DAG
+Hashgraph      // Hedera consensus
+Gnutella       // P2P file sharing
+GSM            // Mobile network
+BitTorrent     // Distributed file system</code></pre>
+            </section>
+            
+            <!-- Community Generation Section -->
+            <section id="community-generation" class="content-section">
+                <h2>Community Generation Protocol</h2>
+                <p>Communities represent industry-specific or purpose-driven groups within the Datachain network. Each community has configurable KYC/AML requirements and AI-powered predictability features.</p>
+                
+                <!-- Animated Schema -->
+                <div class="animation-container" id="community-animation">
+                    <div class="animation-title">
+                        Community Generation Flow
+                        <span class="badge">Interactive</span>
+                    </div>
+                    
+                    <div class="generation-output">
+                        <h5>Generation Output</h5>
+                        <div class="stat">
+                            <span>DATA WALLETS</span>
+                            <strong id="comm-wallets">10,000,000</strong>
+                        </div>
+                        <div class="stat">
+                            <span>Validator Chains</span>
+                            <strong id="comm-chains">10,000,000</strong>
+                        </div>
+                        <div class="consensus-badge">
+                            <i class="fas fa-check-circle"></i>
+                            PoA Consensus Active
+                        </div>
+                    </div>
+                    
+                    <div class="schema-flow" id="community-flow">
+                        <!-- Animated nodes will be inserted here by JavaScript -->
+                    </div>
+                </div>
+                
+                <h3>Industry Categories</h3>
+                <div class="cards-grid" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
+                    <div class="doc-card" style="padding: 1rem;">
+                        <i class="fas fa-university" style="color: var(--gray-600); margin-bottom: 0.5rem;"></i>
+                        <h3 style="font-size: 0.9375rem;">Banking</h3>
+                    </div>
+                    <div class="doc-card" style="padding: 1rem;">
+                        <i class="fas fa-heartbeat" style="color: var(--gray-600); margin-bottom: 0.5rem;"></i>
+                        <h3 style="font-size: 0.9375rem;">Healthcare</h3>
+                    </div>
+                    <div class="doc-card" style="padding: 1rem;">
+                        <i class="fas fa-car" style="color: var(--gray-600); margin-bottom: 0.5rem;"></i>
+                        <h3 style="font-size: 0.9375rem;">Automotive</h3>
+                    </div>
+                    <div class="doc-card" style="padding: 1rem;">
+                        <i class="fas fa-plane" style="color: var(--gray-600); margin-bottom: 0.5rem;"></i>
+                        <h3 style="font-size: 0.9375rem;">Mobility</h3>
+                    </div>
+                    <div class="doc-card" style="padding: 1rem;">
+                        <i class="fas fa-hotel" style="color: var(--gray-600); margin-bottom: 0.5rem;"></i>
+                        <h3 style="font-size: 0.9375rem;">Hospitality</h3>
+                    </div>
+                    <div class="doc-card" style="padding: 1rem;">
+                        <i class="fas fa-bolt" style="color: var(--gray-600); margin-bottom: 0.5rem;"></i>
+                        <h3 style="font-size: 0.9375rem;">Energy</h3>
+                    </div>
+                    <div class="doc-card" style="padding: 1rem;">
+                        <i class="fas fa-seedling" style="color: var(--gray-600); margin-bottom: 0.5rem;"></i>
+                        <h3 style="font-size: 0.9375rem;">Agricultural</h3>
+                    </div>
+                    <div class="doc-card" style="padding: 1rem;">
+                        <i class="fas fa-landmark" style="color: var(--gray-600); margin-bottom: 0.5rem;"></i>
+                        <h3 style="font-size: 0.9375rem;">Public Institution</h3>
+                    </div>
+                </div>
+                
+                <h3>Compliance Features</h3>
+                <table>
+                    <tr>
+                        <th>Feature</th>
+                        <th>Description</th>
+                    </tr>
+                    <tr>
+                        <td><strong>KYC/AML</strong></td>
+                        <td>Transaction validation, SWIFT integration, SEPA compliance</td>
+                    </tr>
+                    <tr>
+                        <td><strong>eCitizenship</strong></td>
+                        <td>ISO/IEC-24760-1, electronic ID, ePassport Protocol</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Predictability AI</strong></td>
+                        <td>Adaptability, Matching, Reinforcement, Context Mining, Risk Management, Fraud Detection, Scoring</td>
+                    </tr>
+                </table>
+            </section>
+            
+            <!-- CLI Interface Section -->
+            <section id="cli" class="content-section">
+                <h2>CLI Interface</h2>
+                <p>The Datachain Rope CLI allows you to interact directly with the network from your terminal. Experience the original 2018 design through a modern command-line interface.</p>
+                
+                <!-- Interactive CLI -->
+                <div class="cli-container">
+                    <div class="cli-header">
+                        <span class="cli-dot red"></span>
+                        <span class="cli-dot yellow"></span>
+                        <span class="cli-dot green"></span>
+                        <span class="cli-title">rope-cli — datachain.network</span>
+                    </div>
+                    <div class="cli-body">
+                        <div class="cli-output" id="cli-output">
+<span class="comment"># Datachain Rope CLI v1.0.0</span>
+<span class="comment"># Connected to: erpc.datachain.network</span>
+<span class="comment"># Chain ID: 314159 | Genesis: 10B FAT</span>
+
+<span class="prompt">rope&gt;</span> help
+
+<span class="highlight">Available Commands:</span>
+  status              Show network status
+  federation create   Create a new federation
+  community create    Create a new community  
+  wallet create       Generate a new data wallet
+  string submit       Submit a string to the lattice
+  testimony request   Request AI testimony validation
+  validators list     List active validators
+  protocols list      List available protocol invocations
+  
+<span class="highlight">Generation Commands:</span>
+  generate federation [type] [name]
+  generate community [industry] [scope]
+  generate wallets [count]
+  generate chains [count]
+
+<span class="prompt">rope&gt;</span> status
+
+<span class="success">✓ Network Status: HEALTHY</span>
+  Finality Time:    <span class="highlight">4.2s</span>
+  Active Validators: <span class="highlight">127</span>
+  AI Agents:         <span class="highlight">5</span>
+  Total Strings:     <span class="highlight">1,847,293</span>
+  Total Testimonies: <span class="highlight">892,451</span>
+  Latest Round:      <span class="highlight">847,291</span>
+
+<span class="prompt">rope&gt;</span> generate federation structured "City of Paris"
+
+<span class="warning">⚡ Generating Federation...</span>
+  Type: Structured
+  Name: City of Paris
+  Consensus: DkP
+  
+<span class="success">✓ Federation Created Successfully</span>
+  Federation ID: <span class="highlight">0x7a8b9c...</span>
+  Data Wallets:  <span class="highlight">3,500,000</span>
+  Individual Chains: <span class="highlight">3,500,000</span>
+  
+<span class="prompt">rope&gt;</span> protocols list
+
+<span class="highlight">Available Protocol Invocations:</span>
+  ☑ Native DC     - Datachain native protocol
+  ☑ Hyperledger   - Enterprise blockchain  
+  ☑ NXT           - Proof-of-stake platform
+  ☑ EOS           - High-performance chain
+  ☑ Wanchain      - Cross-chain protocol
+  ☑ Lisk          - Sidechain platform
+  ☑ Ethereum      - Smart contracts
+  ☐ Tangle        - IOTA DAG (coming soon)
+  ☐ Hashgraph     - Hedera consensus (coming soon)
+
+<span class="prompt">rope&gt;</span> _
+                        </div>
+                        <div class="cli-input-line">
+                            <span class="cli-prompt">rope&gt;</span>
+                            <input type="text" class="cli-input" id="cli-input" placeholder="Type a command..." autocomplete="off">
+                        </div>
+                    </div>
+                </div>
+                
+                <h3>Installation</h3>
+                <pre><code># Install via Cargo
+cargo install rope-cli
+
+# Or build from source
+git clone https://github.com/KazeONGUENE/rope.git
+cd rope/crates/rope-cli
+cargo build --release
+
+# Run the CLI
+./target/release/rope-cli --rpc https://erpc.datachain.network</code></pre>
+                
+                <h3>Configuration</h3>
+                <pre><code># ~/.rope/config.toml
+
+[network]
+rpc_url = "https://erpc.datachain.network"
+ws_url = "wss://ws.datachain.network"
+chain_id = 314159
+
+[wallet]
+keystore_path = "~/.rope/keystore"
+default_account = "0x..."
+
+[crypto]
+enable_pq_crypto = true    # CRYSTALS-Dilithium3 + Kyber768
+oes_generation = 1         # OES evolution epoch</code></pre>
+            </section>
+            
+            <!-- RPC API Section -->
+            <section id="rpc-api" class="content-section">
+                <h2>RPC API Reference</h2>
+                <p>The Datachain Rope RPC API is available at <code>https://erpc.datachain.network</code>.</p>
+                
+                <h3>rope_networkStatus</h3>
+                <p>Returns the current network status.</p>
+                <pre><code>// Request
+{
+  "jsonrpc": "2.0",
+  "method": "rope_networkStatus",
+  "params": [],
+  "id": 1
+}
+
+// Response
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "status": "healthy",
+    "finality_time_ms": 4200,
+    "active_validators": 127,
+    "ai_agents": 5,
+    "latest_round": 847291,
+    "total_strings": 1847293,
+    "chain_id": 314159
+  },
+  "id": 1
+}</code></pre>
+                
+                <h3>rope_submitString</h3>
+                <p>Submit a new string to the lattice.</p>
+                <pre><code>// Request
+{
+  "jsonrpc": "2.0",
+  "method": "rope_submitString",
+  "params": [{
+    "content": "0x...",
+    "parents": ["0x...", "0x..."],
+    "mutability_class": "immutable",
+    "requires_testimony": true,
+    "signature": "0x..."
+  }],
+  "id": 1
+}
+
+// Response
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "string_id": "0x7a8b9c...",
+    "round": 847292,
+    "status": "pending_testimony"
+  },
+  "id": 1
+}</code></pre>
+            </section>
+            
+            <!-- Architecture Section -->
+            <section id="architecture" class="content-section">
+                <h2>Architecture Overview</h2>
+                
+                <pre><code>┌─────────────────────────────────────────────────────────────────────────┐
+│                    datachain.network (ROPE NETWORK)                      │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│   CORE PROTOCOL (rope-node)                                             │
+│   ─────────────────────────                                             │
+│   • Post-Quantum Crypto (Dilithium3/Kyber768)       ✅ 100%             │
+│   • Virtual Voting (Appendix B.1)                    ✅ 100%             │
+│   • Reed-Solomon Erasure Coding                      ✅ 100%             │
+│   • libp2p Transport (QUIC+TCP)                      ✅ 100%             │
+│   • AI Testimony Validation                          ✅ 100%             │
+│   • OES Cryptography                                 ✅ 100%             │
+│   • Federation/Community Management                  ✅ 100%             │
+│                                                                          │
+│   NETWORK SERVICES                                                       │
+│   ────────────────                                                       │
+│   erpc.datachain.network  → JSON-RPC                                    │
+│   ws.datachain.network    → WebSocket                                   │
+│   faucet.datachain.network                                              │
+│   bridge.datachain.network                                              │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+                                │
+                                │ Indexes & Fetches Data
+                                ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      dcscan.io (BLOCK EXPLORER)                          │
+│   • View Strings & Transactions                                         │
+│   • Browse AI Agents & Testimonies                                      │
+│   • Network Statistics & Charts                                         │
+│   • Community Voting                                                    │
+└─────────────────────────────────────────────────────────────────────────┘</code></pre>
+            </section>
+        </main>
+    </div>
+    
+    <!-- Footer - Same as datachain.network -->
+    <footer>
+        <div class="footer-container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <h3>Datachain Rope</h3>
+                    <p>A revolutionary protocol inspired by DNA's double helix structure. Sub-5 second finality with quantum-resistant cryptography.</p>
+                </div>
+                <div class="footer-links">
+                    <h4>Explorer</h4>
+                    <ul>
+                        <li><a href="https://dcscan.io">Block Explorer</a></li>
+                        <li><a href="https://dcscan.io/strings">Strings</a></li>
+                        <li><a href="https://dcscan.io/agents">AI Agents</a></li>
+                        <li><a href="https://dcscan.io/validators">Validators</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="/docs">Getting Started</a></li>
+                        <li><a href="/docs#rpc-api">API Reference</a></li>
+                        <li><a href="/docs#cli">CLI Interface</a></li>
+                        <li><a href="https://github.com/KazeONGUENE/rope">GitHub</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Contact</h4>
+                    <ul>
+                        <li><a href="/contact">Contact Us</a></li>
+                        <li><a href="https://github.com/KazeONGUENE/rope/issues">Report Issue</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 Datachain Foundation. All rights reserved.</p>
+                <div class="footer-legal">
+                    <a href="/privacy">Privacy Policy</a>
+                    <a href="/terms">Terms of Service</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+    
+    <script>
+        // ========================================================================
+        // ANIMATION: Federation Generation Flow
+        // ========================================================================
+        function initFederationAnimation() {
+            const container = document.getElementById('federation-flow');
+            const nodes = [
+                { type: 'primary', title: 'CREATE', subtitle: 'Instance', items: [] },
+                { type: 'primary', title: 'GENERATE', subtitle: 'Federation', items: [] },
+                { type: 'box', title: 'Federation', items: [
+                    { text: 'Structured', checked: true },
+                    { text: 'City' },
+                    { text: 'Object' },
+                    { text: 'Contributors' },
+                    { text: 'Unstructured', checked: false },
+                    { text: 'Real-Madrid' },
+                    { text: 'Fans' },
+                    { text: 'Autonomous', checked: false },
+                    { text: 'AI' },
+                    { text: 'Bot' }
+                ]},
+                { type: 'box', title: 'Cell Type', items: [
+                    { text: 'Monocellular', checked: true },
+                    { text: 'Multicellular' }
+                ]},
+                { type: 'dark', title: 'Protocol Invocations', items: [
+                    { text: 'Native DC' },
+                    { text: 'Hyperledger' },
+                    { text: 'NXT' },
+                    { text: 'EOS' },
+                    { text: 'Wanchain', checked: true },
+                    { text: 'Lisk' },
+                    { text: 'Ethereum' }
+                ]},
+                { type: 'dark', title: 'eCitizenship', items: [
+                    { text: 'ISO/IEC-24760-1', checked: true },
+                    { text: 'electronic ID' },
+                    { text: 'ePassport Protocol' }
+                ]},
+                { type: 'dark', title: 'Predictability', items: [
+                    { text: 'Adaptability', checked: true },
+                    { text: 'Matching' },
+                    { text: 'Reinforcement' },
+                    { text: 'Context Mining' },
+                    { text: 'Risk Management' },
+                    { text: 'Fraud Detection' }
+                ]},
+                { type: 'dark', title: 'Output', items: [
+                    { text: 'Wallet', checked: true },
+                    { text: 'Consensus (DkP)', checked: true },
+                    { text: 'Web Services', checked: true },
+                    { text: 'Crypto currencies' },
+                    { text: 'Bitcoin' },
+                    { text: 'Eth' },
+                    { text: 'Wan', checked: true },
+                    { text: 'DC', checked: true }
+                ]}
+            ];
+            
+            animateFlow(container, nodes);
+        }
+        
+        // ========================================================================
+        // ANIMATION: Community Generation Flow
+        // ========================================================================
+        function initCommunityAnimation() {
+            const container = document.getElementById('community-flow');
+            const nodes = [
+                { type: 'primary', title: 'CREATE', subtitle: 'Instance', items: [] },
+                { type: 'primary', title: 'GENERATE', subtitle: 'Community', items: [] },
+                { type: 'box', title: 'Industry', items: [
+                    { text: 'Banking' },
+                    { text: 'Healthcare' },
+                    { text: 'Automotive' },
+                    { text: 'Mobility' },
+                    { text: 'Hospitality' },
+                    { text: 'Human rights' },
+                    { text: 'Energy' },
+                    { text: 'Agricultural' },
+                    { text: 'Public Institution' }
+                ]},
+                { type: 'box', title: 'Scope', items: [
+                    { text: 'Global', checked: true },
+                    { text: 'Regional' },
+                    { text: 'Local' }
+                ]},
+                { type: 'dark', title: 'Protocol Invocations', items: [
+                    { text: 'Native DC', checked: true },
+                    { text: 'Hyperledger', checked: true },
+                    { text: 'NXT' },
+                    { text: 'EOS' },
+                    { text: 'Wanchain' },
+                    { text: 'Ethereum' },
+                    { text: 'Blockchain' },
+                    { text: 'Tangle' },
+                    { text: 'Hashgraph' }
+                ]},
+                { type: 'dark', title: 'KYC / AML', items: [
+                    { text: 'Transaction', checked: true },
+                    { text: 'SWIFT' },
+                    { text: 'SEPA' }
+                ]},
+                { type: 'dark', title: 'Predictability', items: [
+                    { text: 'Adaptability', checked: true },
+                    { text: 'Matching' },
+                    { text: 'Reinforcement' },
+                    { text: 'Context Mining' },
+                    { text: 'Risk Management' },
+                    { text: 'Fraud Detection' },
+                    { text: 'Scoring' }
+                ]},
+                { type: 'dark', title: 'Output', items: [
+                    { text: 'Wallet', checked: true },
+                    { text: 'Consensus (PoA)', checked: true },
+                    { text: 'Web Services', checked: true },
+                    { text: 'Crypto currencies' },
+                    { text: 'DC', checked: true },
+                    { text: 'Bitcoin' },
+                    { text: 'Eth' },
+                    { text: 'Eos' },
+                    { text: 'Wan' }
+                ]}
+            ];
+            
+            animateFlow(container, nodes);
+        }
+        
+        function animateFlow(container, nodes) {
+            container.innerHTML = '';
+            
+            nodes.forEach((node, index) => {
+                // Add connector (except for first node)
+                if (index > 0) {
+                    const connector = document.createElement('div');
+                    connector.className = 'schema-connector';
+                    connector.style.animationDelay = `${index * 0.2}s`;
+                    container.appendChild(connector);
+                }
+                
+                // Create node
+                const nodeEl = document.createElement('div');
+                nodeEl.className = 'schema-node';
+                nodeEl.style.animationDelay = `${index * 0.2 + 0.1}s`;
+                
+                const boxClass = node.type === 'primary' ? 'schema-box primary' : 
+                                 node.type === 'dark' ? 'schema-box dark' : 'schema-box';
+                
+                let itemsHtml = '';
+                if (node.items && node.items.length > 0) {
+                    itemsHtml = '<ul>' + node.items.map(item => 
+                        `<li class="${item.checked ? 'checked' : ''}">${item.text}</li>`
+                    ).join('') + '</ul>';
+                }
+                
+                nodeEl.innerHTML = `
+                    <div class="${boxClass}">
+                        <h4>${node.title}</h4>
+                        ${node.subtitle ? `<div style="font-size: 0.6875rem; color: var(--gray-500);">${node.subtitle}</div>` : ''}
+                        ${itemsHtml}
+                    </div>
+                `;
+                
+                container.appendChild(nodeEl);
+            });
+        }
+        
+        // ========================================================================
+        // CLI INTERFACE
+        // ========================================================================
+        const cliCommands = {
+            'help': `<span class="highlight">Available Commands:</span>
+  status              Show network status
+  federation create   Create a new federation
+  community create    Create a new community  
+  wallet create       Generate a new data wallet
+  string submit       Submit a string to the lattice
+  testimony request   Request AI testimony validation
+  validators list     List active validators
+  protocols list      List available protocol invocations
+  clear               Clear the terminal`,
+            
+            'status': `<span class="success">✓ Network Status: HEALTHY</span>
+  Finality Time:    <span class="highlight">4.2s</span>
+  Active Validators: <span class="highlight">127</span>
+  AI Agents:         <span class="highlight">5</span>
+  Total Strings:     <span class="highlight">1,847,293</span>
+  Total Testimonies: <span class="highlight">892,451</span>
+  Latest Round:      <span class="highlight">847,291</span>`,
+            
+            'validators list': `<span class="highlight">Active Validators (127 total):</span>
+  1. <span class="highlight">0x7a8b9c...</span> - Stake: 50,000,000 FAT - Uptime: 99.9%
+  2. <span class="highlight">0x2d3e4f...</span> - Stake: 45,000,000 FAT - Uptime: 99.8%
+  3. <span class="highlight">0x5f6g7h...</span> - Stake: 42,000,000 FAT - Uptime: 99.7%
+  4. <span class="highlight">0x8i9j0k...</span> - Stake: 38,000,000 FAT - Uptime: 99.6%
+  ... and 123 more`,
+            
+            'protocols list': `<span class="highlight">Available Protocol Invocations:</span>
+  ☑ Native DC     - Datachain native protocol
+  ☑ Hyperledger   - Enterprise blockchain  
+  ☑ NXT           - Proof-of-stake platform
+  ☑ EOS           - High-performance chain
+  ☑ Wanchain      - Cross-chain protocol
+  ☑ Lisk          - Sidechain platform
+  ☑ Ethereum      - Smart contracts
+  ☐ Tangle        - IOTA DAG (coming soon)
+  ☐ Hashgraph     - Hedera consensus (coming soon)`,
+            
+            'wallet create': `<span class="warning">⚡ Generating Data Wallet...</span>
+
+<span class="success">✓ Data Wallet Created</span>
+  Address:    <span class="highlight">0x${Math.random().toString(16).slice(2, 10)}...${Math.random().toString(16).slice(2, 10)}</span>
+  Public Key: <span class="highlight">dilithium3_pk_${Math.random().toString(16).slice(2, 16)}</span>
+  OES Gen:    <span class="highlight">1</span>
+  
+<span class="comment"># Save your keystore file securely!</span>`,
+            
+            'federation create': `<span class="comment"># Usage: generate federation [type] [name]</span>
+<span class="comment"># Types: structured, unstructured, autonomous</span>
+<span class="comment"># Example: generate federation structured "City of Paris"</span>`,
+            
+            'community create': `<span class="comment"># Usage: generate community [industry] [scope]</span>
+<span class="comment"># Industries: banking, healthcare, automotive, mobility, hospitality, energy, agricultural</span>
+<span class="comment"># Scopes: global, regional, local</span>
+<span class="comment"># Example: generate community banking global</span>`,
+            
+            'clear': 'CLEAR'
+        };
+        
+        document.getElementById('cli-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                const input = this.value.trim().toLowerCase();
+                const output = document.getElementById('cli-output');
+                
+                // Add command to output
+                output.innerHTML += `\n<span class="prompt">rope&gt;</span> ${this.value}\n`;
+                
+                if (input === 'clear') {
+                    output.innerHTML = `<span class="comment"># Datachain Rope CLI v1.0.0</span>
+<span class="comment"># Connected to: erpc.datachain.network</span>
+<span class="comment"># Chain ID: 314159 | Genesis: 10B FAT</span>
+
+<span class="prompt">rope&gt;</span> _`;
+                } else if (input.startsWith('generate federation')) {
+                    const parts = input.match(/generate federation (\w+) "([^"]+)"/);
+                    if (parts) {
+                        output.innerHTML += `\n<span class="warning">⚡ Generating Federation...</span>
+  Type: ${parts[1].charAt(0).toUpperCase() + parts[1].slice(1)}
+  Name: ${parts[2]}
+  Consensus: DkP
+  
+<span class="success">✓ Federation Created Successfully</span>
+  Federation ID: <span class="highlight">0x${Math.random().toString(16).slice(2, 10)}...</span>
+  Data Wallets:  <span class="highlight">3,500,000</span>
+  Individual Chains: <span class="highlight">3,500,000</span>\n`;
+                    } else {
+                        output.innerHTML += `\n<span class="comment"># Usage: generate federation [type] "name"</span>
+<span class="comment"># Example: generate federation structured "City of Paris"</span>\n`;
+                    }
+                } else if (input.startsWith('generate community')) {
+                    const parts = input.split(' ');
+                    if (parts.length >= 4) {
+                        output.innerHTML += `\n<span class="warning">⚡ Generating Community...</span>
+  Industry: ${parts[2].charAt(0).toUpperCase() + parts[2].slice(1)}
+  Scope: ${parts[3].charAt(0).toUpperCase() + parts[3].slice(1)}
+  Consensus: PoA
+  
+<span class="success">✓ Community Created Successfully</span>
+  Community ID: <span class="highlight">0x${Math.random().toString(16).slice(2, 10)}...</span>
+  Data Wallets:  <span class="highlight">10,000,000</span>
+  Validator Chains: <span class="highlight">10,000,000</span>\n`;
+                    } else {
+                        output.innerHTML += `\n<span class="comment"># Usage: generate community [industry] [scope]</span>
+<span class="comment"># Example: generate community banking global</span>\n`;
+                    }
+                } else if (cliCommands[input]) {
+                    output.innerHTML += '\n' + cliCommands[input] + '\n';
+                } else {
+                    output.innerHTML += `\n<span class="warning">Unknown command: ${input}</span>
+Type <span class="highlight">help</span> for available commands.\n`;
+                }
+                
+                this.value = '';
+                output.parentElement.scrollTop = output.parentElement.scrollHeight;
+            }
+        });
+        
+        // Initialize animations
+        document.addEventListener('DOMContentLoaded', function() {
+            initFederationAnimation();
+            initCommunityAnimation();
+            
+            // Animate counters
+            animateCounter('fed-wallets', 3500000);
+            animateCounter('fed-chains', 3500000);
+            animateCounter('comm-wallets', 10000000);
+            animateCounter('comm-chains', 10000000);
+        });
+        
+        function animateCounter(id, target) {
+            const el = document.getElementById(id);
+            let current = 0;
+            const step = target / 50;
+            const interval = setInterval(() => {
+                current += step;
+                if (current >= target) {
+                    current = target;
+                    clearInterval(interval);
+                }
+                el.textContent = Math.floor(current).toLocaleString();
+            }, 30);
+        }
+        
+        // Sidebar navigation
+        document.querySelectorAll('.sidebar-nav a[href^="#"]').forEach(link => {
+            link.addEventListener('click', function(e) {
+                document.querySelectorAll('.sidebar-nav a').forEach(l => l.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+        
+        // Scroll spy
+        window.addEventListener('scroll', function() {
+            const sections = document.querySelectorAll('.content-section');
+            let current = '';
+            
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop - 100;
+                if (scrollY >= sectionTop) {
+                    current = section.getAttribute('id');
+                }
+            });
+            
+            document.querySelectorAll('.sidebar-nav a').forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href') === '#' + current) {
+                    link.classList.add('active');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+
