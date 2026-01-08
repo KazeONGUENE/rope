@@ -1,44 +1,97 @@
+# =============================================================================
 # Datachain Rope Node - Production Dockerfile
-FROM rust:1.75-bookworm AS builder
+# =============================================================================
+# This Dockerfile builds the rope-node blockchain validator/full node.
+#
+# Features:
+# - QUIC networking with libp2p
+# - Post-quantum cryptography (Dilithium3, Kyber768)
+# - String Lattice consensus
+# - OES (Organic Encryption System)
+#
+# Usage:
+#   docker build -f Dockerfile.node -t rope-node:latest ..
+#   docker run -d --name rope-node -p 9000:9000 -p 8545:8545 rope-node:latest
+# =============================================================================
+
+# Stage 1: Builder with Rust nightly
+FROM rustlang/rust:nightly-bookworm AS builder
 
 WORKDIR /app
 
-# Install dependencies
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     clang \
     libclang-dev \
+    cmake \
+    pkg-config \
+    libssl-dev \
+    protobuf-compiler \
     librocksdb-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy source
-COPY . .
+# Copy workspace files first for better caching
+COPY Cargo.toml Cargo.lock ./
 
-# Build release
-RUN cargo build --release -p rope-node
+# Copy all crates
+COPY crates ./crates
 
-# Runtime image
+# Build all dependencies first (for caching)
+RUN cargo build --release --package rope-node 2>/dev/null || true
+
+# Build the actual rope-node binary
+RUN cargo build --release --package rope-node
+
+# Stage 2: Runtime image
 FROM debian:bookworm-slim
 
+# Install runtime dependencies
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     libssl3 \
+    librocksdb7.8 \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Create user
-RUN useradd -m -u 1000 rope
+# Create non-root user for security
+RUN useradd -m -u 1000 -s /bin/bash rope
 USER rope
 
 WORKDIR /home/rope
 
-# Copy binary
+# Copy binary from builder
 COPY --from=builder /app/target/release/rope-node /usr/local/bin/rope-node
 
-# Data directory
-RUN mkdir -p /home/rope/data
+# Create data directories
+RUN mkdir -p /home/rope/data \
+    && mkdir -p /home/rope/config \
+    && mkdir -p /home/rope/keys
 
-EXPOSE 8545 8546 9000
+# Copy default configuration (if exists)
+COPY --chown=rope:rope deploy/config/node.toml /home/rope/config/node.toml 2>/dev/null || true
 
+# Expose ports:
+# 9000 - P2P networking (QUIC/TCP)
+# 8545 - JSON-RPC HTTP
+# 8546 - JSON-RPC WebSocket
+# 9100 - Prometheus metrics
+EXPOSE 9000 8545 8546 9100
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8545/health || exit 1
+
+# Data volume
+VOLUME ["/home/rope/data", "/home/rope/keys"]
+
+# Environment variables
+ENV RUST_LOG=info
+ENV ROPE_DATA_DIR=/home/rope/data
+ENV ROPE_KEYS_DIR=/home/rope/keys
+ENV ROPE_P2P_PORT=9000
+ENV ROPE_RPC_PORT=8545
+ENV ROPE_WS_PORT=8546
+
+# Entry point
 ENTRYPOINT ["rope-node"]
-CMD ["--config", "/etc/rope/rope.toml"]
-
+CMD ["--config", "/home/rope/config/node.toml", "--data-dir", "/home/rope/data"]

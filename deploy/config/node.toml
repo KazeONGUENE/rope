@@ -1,0 +1,183 @@
+# =============================================================================
+# Datachain Rope Node Configuration
+# =============================================================================
+# Production configuration for rope-node validators and full nodes.
+# =============================================================================
+
+[node]
+# Node name (for logging and identification)
+name = "rope-node-1"
+
+# Node role: "validator" or "full"
+role = "validator"
+
+# Data directory
+data_dir = "/home/rope/data"
+
+# Keys directory
+keys_dir = "/home/rope/keys"
+
+# Log level: "error", "warn", "info", "debug", "trace"
+log_level = "info"
+
+# =============================================================================
+# Network Configuration
+# =============================================================================
+[network]
+# P2P listen address
+listen_addr = "/ip4/0.0.0.0/udp/9000/quic-v1"
+
+# TCP fallback listen address
+tcp_listen_addr = "/ip4/0.0.0.0/tcp/9000"
+
+# External address (for NAT traversal)
+# external_addr = "/ip4/YOUR_PUBLIC_IP/udp/9000/quic-v1"
+
+# Maximum connections
+max_connections = 1000
+
+# Enable QUIC transport (recommended)
+enable_quic = true
+
+# Enable TCP fallback
+enable_tcp = true
+
+# Enable relay for NAT traversal
+enable_relay = true
+
+# Bootstrap peers (mainnet)
+bootstrap_peers = [
+    # "/ip4/92.243.26.189/udp/9000/quic-v1/p2p/12D3KooW...",
+]
+
+# GossipSub heartbeat interval (milliseconds)
+gossip_heartbeat_ms = 1000
+
+# Kademlia replication factor
+kad_replication = 20
+
+# =============================================================================
+# Consensus Configuration
+# =============================================================================
+[consensus]
+# Validator set size
+validator_count = 21
+
+# Byzantine fault tolerance (f = (n-1)/3)
+byzantine_threshold = 6
+
+# Finality threshold (2f + 1)
+finality_threshold = 15
+
+# Maximum rounds before timeout
+max_rounds = 100
+
+# Testimony timeout (seconds)
+testimony_timeout_secs = 30
+
+# =============================================================================
+# Cryptography Configuration
+# =============================================================================
+[crypto]
+# Enable hybrid post-quantum signatures
+enable_pq_signatures = true
+
+# Enable hybrid post-quantum key exchange
+enable_pq_kem = true
+
+# OES evolution interval (anchors)
+oes_evolution_interval = 100
+
+# Signature algorithm: "hybrid" (Ed25519 + Dilithium3)
+signature_algorithm = "hybrid"
+
+# =============================================================================
+# RPC Configuration
+# =============================================================================
+[rpc]
+# HTTP RPC listen address
+http_addr = "0.0.0.0:8545"
+
+# WebSocket RPC listen address
+ws_addr = "0.0.0.0:8546"
+
+# Enable HTTP RPC
+enable_http = true
+
+# Enable WebSocket RPC
+enable_ws = true
+
+# CORS origins (comma-separated)
+cors_origins = "*"
+
+# Maximum request size (bytes)
+max_request_size = 10485760
+
+# Request timeout (seconds)
+request_timeout_secs = 30
+
+# =============================================================================
+# Metrics Configuration
+# =============================================================================
+[metrics]
+# Enable Prometheus metrics
+enable = true
+
+# Metrics listen address
+addr = "0.0.0.0:9100"
+
+# =============================================================================
+# Storage Configuration
+# =============================================================================
+[storage]
+# Database backend: "rocksdb" or "postgres"
+backend = "rocksdb"
+
+# RocksDB specific settings
+[storage.rocksdb]
+# Maximum open files
+max_open_files = 1000
+
+# Block cache size (bytes)
+block_cache_size = 536870912
+
+# Write buffer size (bytes)
+write_buffer_size = 67108864
+
+# =============================================================================
+# Genesis Configuration
+# =============================================================================
+[genesis]
+# Genesis timestamp (ISO 8601)
+timestamp = "2024-01-01T00:00:00Z"
+
+# Chain ID
+chain_id = 1
+
+# Network ID
+network_id = "datachain-rope-mainnet"
+
+# Initial validators (public keys)
+initial_validators = [
+    # Add validator public keys here
+]
+
+# Genesis strings (initial state)
+genesis_strings = []
+
+# =============================================================================
+# Security Configuration
+# =============================================================================
+[security]
+# Enable firewall rules
+enable_firewall = true
+
+# Rate limiting (requests per second)
+rate_limit = 100
+
+# Ban duration for misbehaving peers (seconds)
+ban_duration_secs = 3600
+
+# Maximum pending transactions
+max_pending_txs = 10000
+

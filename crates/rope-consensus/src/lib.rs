@@ -20,7 +20,15 @@
 pub mod testimony;
 pub mod anchor;
 pub mod finality_engine;
+pub mod virtual_voting_impl;
 
+// Re-export the full virtual voting implementation
+pub use virtual_voting_impl::{
+    VirtualVotingEngine, VirtualVote, VoteDecision, GossipHistory, GossipEvent,
+    VotingStats, strongly_sees,
+};
+
+/// Legacy virtual voting types for backward compatibility
 pub mod virtual_voting {
     //! Virtual voting mechanism - calculate votes from gossip history
     //! 
