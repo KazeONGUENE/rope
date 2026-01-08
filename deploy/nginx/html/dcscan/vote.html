@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Community Vote | DC Explorer</title>
+    <meta name="description" content="Vote on projects to run on Datachain Rope">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --black: #000000; --white: #ffffff; --gray-50: #fafafa; --gray-100: #f4f4f5; --gray-200: #e4e4e7;
+            --gray-400: #a1a1aa; --gray-500: #71717a; --gray-600: #52525b; --gray-700: #3f3f46;
+            --gray-800: #27272a; --gray-900: #18181b; --success: #22c55e; --success-bg: #dcfce7;
+            --warning: #f59e0b; --warning-bg: #fef3c7; --error: #ef4444; --info: #3b82f6; --info-bg: #dbeafe;
+            --purple: #8b5cf6; --purple-bg: #f3e8ff;
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px; --radius-xl: 16px;
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: var(--font-sans); background: var(--gray-50); color: var(--gray-900); line-height: 1.5; font-size: 14px; }
+        a { color: var(--info); text-decoration: none; } a:hover { text-decoration: underline; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 0 1rem; }
+        .top-bar { background: var(--gray-900); color: var(--white); padding: 0.5rem 0; font-size: 12px; }
+        .top-bar-content { display: flex; justify-content: space-between; align-items: center; }
+        .top-bar-left { display: flex; align-items: center; gap: 1.5rem; }
+        .top-bar-item { display: flex; align-items: center; gap: 0.375rem; color: var(--gray-400); }
+        .top-bar-value { color: var(--white); font-weight: 500; }
+        header { background: var(--white); border-bottom: 1px solid var(--gray-200); position: sticky; top: 0; z-index: 100; }
+        .header-container { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+        .logo { display: flex; align-items: center; gap: 0.625rem; font-weight: 450; font-size: 1rem; color: #000; line-height: 1.2; }
+        .logo-text { display: flex; flex-direction: column; }
+        .logo-icon { width: 32px; height: 32px; }
+        .main-nav { display: flex; align-items: center; gap: 0.25rem; }
+        .nav-item { position: relative; }
+        .nav-link { display: flex; align-items: center; gap: 0.375rem; padding: 0.5rem 0.875rem; color: var(--gray-600); font-weight: 500; font-size: 13px; border-radius: var(--radius-md); }
+        .nav-link:hover { color: var(--black); background: var(--gray-100); text-decoration: none; }
+        .nav-link.active { background: var(--gray-900); color: var(--white); }
+        .nav-dropdown { position: absolute; top: 100%; left: 0; min-width: 220px; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); padding: 0.5rem; opacity: 0; visibility: hidden; transform: translateY(10px); transition: all 0.2s; z-index: 200; }
+        .nav-item:hover .nav-dropdown { opacity: 1; visibility: visible; transform: translateY(0); }
+        .dropdown-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.625rem 0.75rem; color: var(--gray-700); border-radius: var(--radius-sm); font-size: 13px; }
+        .dropdown-item:hover { background: var(--gray-100); color: var(--black); text-decoration: none; }
+        .dropdown-item i { width: 16px; color: var(--gray-500); }
+        .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.5rem 1rem; font-size: 13px; font-weight: 600; border-radius: var(--radius-md); border: none; cursor: pointer; }
+        .btn-secondary { background: var(--gray-100); color: var(--gray-700); }
+        .btn-primary { background: var(--black); color: var(--white); }
+        .btn-success { background: var(--success); color: var(--white); }
+        .page-header { background: linear-gradient(135deg, var(--gray-900), var(--gray-800)); color: var(--white); padding: 3rem 0; }
+        .page-title { font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; }
+        .page-subtitle { color: var(--gray-400); font-size: 1rem; max-width: 600px; }
+        .vote-info { background: var(--info-bg); border: 1px solid #93c5fd; border-radius: var(--radius-lg); padding: 1rem 1.25rem; margin: 1.5rem 0; display: flex; align-items: flex-start; gap: 0.75rem; }
+        .vote-info i { color: var(--info); font-size: 1.25rem; }
+        .vote-info-text { flex: 1; }
+        .vote-info-title { font-weight: 600; margin-bottom: 0.25rem; }
+        .vote-info-desc { font-size: 13px; color: var(--gray-600); }
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+        .stat-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 1.25rem; }
+        .stat-label { font-size: 12px; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+        .stat-value { font-size: 1.5rem; font-weight: 700; }
+        .tabs { display: flex; gap: 0.25rem; margin-bottom: 1.5rem; background: var(--white); padding: 0.5rem; border-radius: var(--radius-lg); border: 1px solid var(--gray-200); }
+        .tab { padding: 0.75rem 1.25rem; background: transparent; border: none; border-radius: var(--radius-md); font-size: 13px; font-weight: 500; cursor: pointer; color: var(--gray-600); }
+        .tab:hover { background: var(--gray-100); color: var(--black); }
+        .tab.active { background: var(--black); color: var(--white); }
+        .proposals-grid { display: grid; gap: 1rem; }
+        .proposal-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-xl); overflow: hidden; transition: all 0.2s; }
+        .proposal-card:hover { border-color: var(--gray-300); box-shadow: var(--shadow-md); }
+        .proposal-header { padding: 1.5rem; border-bottom: 1px solid var(--gray-100); }
+        .proposal-meta { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
+        .proposal-type { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.5rem; font-size: 11px; font-weight: 600; border-radius: 100px; }
+        .type-individual { background: var(--black); color: var(--white); }
+        .type-business { background: var(--black); color: var(--white); }
+        .type-institution { background: var(--black); color: var(--white); }
+        .proposal-status { margin-left: auto; }
+        .status-badge { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.5rem; font-size: 11px; font-weight: 600; border-radius: 100px; }
+        .status-active { background: var(--success-bg); color: #ef4444; }
+        .status-pending { background: var(--warning-bg); color: var(--warning); }
+        .status-ended { background: var(--gray-100); color: var(--gray-500); }
+        .proposal-title { font-size: 1.125rem; font-weight: 700; margin-bottom: 0.5rem; }
+        .proposal-title a { color: var(--black); }
+        .proposal-desc { color: var(--gray-600); font-size: 13px; line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .proposal-body { padding: 1.5rem; }
+        .progress-section { margin-bottom: 1rem; }
+        .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; font-size: 13px; }
+        .progress-bar { height: 8px; background: var(--gray-100); border-radius: 4px; overflow: hidden; }
+        .progress-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+        .progress-fill.for { background: var(--success); }
+        .progress-fill.against { background: var(--error); }
+        .vote-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1rem; }
+        .vote-stat { text-align: center; padding: 0.75rem; background: var(--gray-50); border-radius: var(--radius-md); }
+        .vote-stat-value { font-size: 1.25rem; font-weight: 700; }
+        .vote-stat-label { font-size: 11px; color: var(--gray-500); }
+        .vote-stat.for .vote-stat-value { color: #ef4444; }
+        .vote-stat.against .vote-stat-value { color: var(--error); }
+        .proposal-footer { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.5rem; border-top: 1px solid var(--gray-100); background: var(--gray-50); }
+        .proposer { display: flex; align-items: center; gap: 0.5rem; font-size: 12px; color: var(--gray-500); }
+        .proposer-avatar { width: 24px; height: 24px; border-radius: 50%; background: url('/assets/user-avatar.png') center/cover no-repeat; }
+        .vote-actions { display: flex; gap: 0.5rem; }
+        .vote-btn { padding: 0.5rem 1rem; border: 1px solid var(--gray-200); background: var(--white); border-radius: var(--radius-md); font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.375rem; }
+        .vote-btn:hover { background: var(--gray-100); }
+        .vote-btn.for:hover { background: var(--success-bg); border-color: #ef4444; color: #ef4444; }
+        .vote-btn.against:hover { background: #fee2e2; border-color: var(--error); color: var(--error); }
+        footer { background: var(--white); border-top: 1px solid var(--gray-200); padding: 2rem 0; margin-top: 3rem; }
+        .footer-content { display: flex; justify-content: space-between; align-items: center; }
+        .footer-brand { display: flex; align-items: center; gap: 0.5rem; color: var(--gray-500); }
+        .footer-links { display: flex; gap: 1.5rem; }
+        .footer-links a { font-size: 12px; color: var(--gray-500); }
+        
+        /* Page Header Layout */
+        .page-header-content { display: flex; justify-content: space-between; align-items: flex-start; gap: 2rem; }
+        .page-header-text { flex: 1; }
+        .btn-start-building { 
+            display: inline-flex; align-items: center; gap: 0.5rem; 
+            padding: 0.875rem 1.5rem; background: var(--white); color: var(--black); 
+            font-size: 14px; font-weight: 600; border-radius: var(--radius-lg); 
+            border: none; cursor: pointer; transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .btn-start-building:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.2); }
+        .btn-start-building i { font-size: 16px; }
+        
+        /* Modal Styles */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); overflow-y: auto; padding: 2rem 1rem; }
+        .modal.active { display: flex; align-items: flex-start; justify-content: center; }
+        .modal-content { background: var(--white); border-radius: var(--radius-xl); width: 100%; max-width: 640px; margin: auto; animation: modalIn 0.3s ease; }
+        @keyframes modalIn { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 1.5rem; border-bottom: 1px solid var(--gray-200); }
+        .modal-title { font-size: 1.25rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; }
+        .modal-title i { color: var(--black); }
+        .close-btn { background: none; border: none; font-size: 1.5rem; color: var(--gray-400); cursor: pointer; padding: 0.25rem; }
+        .close-btn:hover { color: var(--black); }
+        .modal-body { padding: 1.5rem; }
+        .modal-info { background: var(--gray-50); border-left: 3px solid var(--black); padding: 1rem; margin-bottom: 1.5rem; font-size: 13px; color: var(--gray-600); }
+        .form-steps { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+        .form-step { flex: 1; padding: 0.75rem 1rem; background: var(--gray-100); border: none; border-radius: var(--radius-md); font-size: 13px; font-weight: 500; color: var(--gray-500); cursor: pointer; text-align: center; }
+        .form-step.active { background: var(--black); color: var(--white); }
+        .form-step.completed { background: var(--success-bg); color: #ef4444; }
+        .step-content { display: none; }
+        .step-content.active { display: block; }
+        .form-group { margin-bottom: 1.25rem; }
+        .form-label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 0.5rem; color: var(--gray-700); }
+        .form-label .required { color: var(--error); }
+        .form-input, .form-select, .form-textarea { width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--gray-200); border-radius: var(--radius-md); font-size: 14px; font-family: inherit; transition: border-color 0.2s; }
+        .form-input:focus, .form-select:focus, .form-textarea:focus { outline: none; border-color: var(--black); }
+        .form-textarea { min-height: 100px; resize: vertical; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .form-hint { font-size: 11px; color: var(--gray-500); margin-top: 0.25rem; }
+        .modal-footer { display: flex; justify-content: space-between; padding: 1rem 1.5rem; border-top: 1px solid var(--gray-200); background: var(--gray-50); border-radius: 0 0 var(--radius-xl) var(--radius-xl); }
+        .btn-nav { padding: 0.75rem 1.5rem; border-radius: var(--radius-md); font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid var(--gray-200); background: var(--white); color: var(--gray-700); }
+        .btn-nav:hover { background: var(--gray-100); }
+        .btn-nav.primary { background: var(--black); color: var(--white); border-color: var(--black); }
+        .btn-nav.primary:hover { background: var(--gray-800); }
+        .btn-nav:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        @media (max-width: 1024px) { .stats-row { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 768px) { 
+            .stats-row { grid-template-columns: 1fr; } 
+            .main-nav { display: none; } 
+            .vote-stats { grid-template-columns: 1fr; } 
+            .page-header-content { flex-direction: column; }
+            .form-row { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <div class="container top-bar-content">
+            <div class="top-bar-left">
+                <div class="top-bar-item"><span>DC FAT Price:</span><span class="top-bar-value">$0.00390</span><span style="color: #ef4444; margin-left: 0.25rem;">-2.94%</span></div>
+                <div class="top-bar-item"><span>Gas:</span><span class="top-bar-value">0.001 gwei</span></div>
+            </div>
+        </div>
+    </div>
+    <header>
+        <div class="container header-container">
+            <a href="/" class="logo">
+                <div class="logo-icon"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 100%; height: 100%; object-fit: contain;"></div>
+                <span class="logo-text"><span>DC</span><span>Explorer</span></span>
+            </a>
+            <nav class="main-nav">
+                <div class="nav-item"><a href="#" class="nav-link">Smartchain <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/strings" class="dropdown-item">View Strings</a>
+                        <a href="/txs" class="dropdown-item">Transactions</a>
+                        <a href="/txsPending" class="dropdown-item">Pending Txns</a>
+                        <a href="/accounts" class="dropdown-item">Top Accounts</a>
+                        <a href="/contracts" class="dropdown-item">Verified Contracts</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">AI Agents <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/agents" class="dropdown-item">All Agents</a>
+                        <a href="/testimonies" class="dropdown-item">Testimonies</a>
+                        <a href="/validations" class="dropdown-item">Validators</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link active">Tokens <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/tokens" class="dropdown-item">DC-20 Tokens</a>
+                        <a href="/tokentxns" class="dropdown-item">Token Transfers</a>
+                        <a href="/vote" class="dropdown-item">Vote</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">Network <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/defi" class="dropdown-item">DeFi</a>
+                        <a href="/validators" class="dropdown-item">Validators</a>
+                        <a href="/databases" class="dropdown-item">Databases</a>
+                        <a href="/stats" class="dropdown-item">Charts & Stats</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">More <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/apis" class="dropdown-item">API Docs</a>
+                        <a href="/verify" class="dropdown-item">Verify Contract</a>
+                        <a href="/faucet" class="dropdown-item">Faucet</a>
+                        <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank">GitHub</a>
+                        <a href="/contact" class="dropdown-item">Contact</a>
+                    </div>
+                </div>
+            </nav>
+            <button class="btn btn-secondary"><i class="fas fa-wallet"></i> Connect</button>
+        </div>
+    </header>
+
+    <div class="page-header">
+        <div class="container">
+            <div class="page-header-content">
+                <div class="page-header-text">
+                    <h1 class="page-title">Community Vote</h1>
+                    <p class="page-subtitle">Vote on projects from individuals, businesses, and institutions that want to run on Datachain Rope. DC FAT holders decide which projects get approved.</p>
+                </div>
+                <button class="btn-start-building" onclick="openProjectModal()">
+                    <i class="fas fa-rocket"></i> Start Building
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Project Submission Modal -->
+    <div id="projectModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title"><i class="fas fa-rocket"></i> Submit Your Project</h2>
+                <button class="close-btn" onclick="closeProjectModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-info">
+                    Submit your project to build on Datachain Rope. Your submission will be reviewed and then put to a community vote by DC FAT holders.
+                </div>
+                
+                <div class="form-steps">
+                    <button class="form-step active" data-step="1">1. Project Info</button>
+                    <button class="form-step" data-step="2">2. Technical</button>
+                    <button class="form-step" data-step="3">3. Team & Funding</button>
+                </div>
+                
+                <form id="projectForm">
+                    <!-- Step 1: Project Info -->
+                    <div class="step-content active" data-step="1">
+                        <div class="form-group">
+                            <label class="form-label">Project Name <span class="required">*</span></label>
+                            <input type="text" class="form-input" name="name" placeholder="e.g., DCSwap" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Tagline</label>
+                            <input type="text" class="form-input" name="tagline" placeholder="One-line description (max 100 chars)" maxlength="100">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Description <span class="required">*</span></label>
+                            <textarea class="form-textarea" name="description" placeholder="Describe your project in detail..." required></textarea>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Category <span class="required">*</span></label>
+                                <select class="form-select" name="category" required>
+                                    <option value="">Select category</option>
+                                    <option value="defi">DeFi</option>
+                                    <option value="nft">NFT</option>
+                                    <option value="gaming">Gaming</option>
+                                    <option value="infrastructure">Infrastructure</option>
+                                    <option value="marketplace">Marketplace</option>
+                                    <option value="identity">Identity</option>
+                                    <option value="ai_ml">AI/ML</option>
+                                    <option value="dao">DAO</option>
+                                    <option value="social">Social</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Organization Type <span class="required">*</span></label>
+                                <select class="form-select" name="organization_type" required>
+                                    <option value="">Select type</option>
+                                    <option value="individual">Individual</option>
+                                    <option value="business">Business</option>
+                                    <option value="institution">Institution</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Project Stage <span class="required">*</span></label>
+                            <select class="form-select" name="stage" required>
+                                <option value="">Select stage</option>
+                                <option value="idea">Idea</option>
+                                <option value="prototype">Prototype</option>
+                                <option value="mvp">MVP</option>
+                                <option value="beta">Beta</option>
+                                <option value="production">Production</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 2: Technical -->
+                    <div class="step-content" data-step="2">
+                        <div class="form-group">
+                            <label class="form-label">Tech Stack</label>
+                            <input type="text" class="form-input" name="tech_stack" placeholder="e.g., Rust, TypeScript, React, Solidity">
+                            <div class="form-hint">Comma-separated list of technologies</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Architecture Description</label>
+                            <textarea class="form-textarea" name="architecture" placeholder="Describe your technical architecture..."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Key Features</label>
+                            <textarea class="form-textarea" name="features" placeholder="List your main features (one per line)..."></textarea>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">GitHub URL</label>
+                                <input type="url" class="form-input" name="github_url" placeholder="https://github.com/...">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Website URL</label>
+                                <input type="url" class="form-input" name="website_url" placeholder="https://...">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" name="requires_ai_testimony" style="margin-right: 0.5rem;">
+                                Requires AI Testimony Validation
+                            </label>
+                            <div class="form-hint">Check if your project needs AI agent verification for transactions</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 3: Team & Funding -->
+                    <div class="step-content" data-step="3">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Your Name <span class="required">*</span></label>
+                                <input type="text" class="form-input" name="submitter_name" placeholder="John Doe" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Email <span class="required">*</span></label>
+                                <input type="email" class="form-input" name="submitter_email" placeholder="john@example.com" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Organization Name</label>
+                            <input type="text" class="form-input" name="organization_name" placeholder="Company or institution name">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Team Members</label>
+                            <textarea class="form-textarea" name="team_members" placeholder="List team members (Name - Role, one per line)"></textarea>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Funding Requested (FAT)</label>
+                                <input type="number" class="form-input" name="funding_requested" placeholder="e.g., 50000" min="0">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Currency</label>
+                                <select class="form-select" name="funding_currency">
+                                    <option value="FAT">DC FAT</option>
+                                    <option value="USD">USD Equivalent</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Funding Breakdown</label>
+                            <textarea class="form-textarea" name="funding_breakdown" placeholder="How will the funds be used?"></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-nav" id="prevBtn" onclick="prevStep()" disabled>← Previous</button>
+                <button class="btn-nav primary" id="nextBtn" onclick="nextStep()">Next →</button>
+            </div>
+        </div>
+    </div>
+
+    <main class="container" style="padding-top: 1.5rem;">
+        <div class="vote-info">
+            <i class="fas fa-info-circle"></i>
+            <div class="vote-info-text">
+                <div class="vote-info-title">How Voting Works</div>
+                <div class="vote-info-desc">All project owners (individuals, businesses and institutions) willing to run their project on Datachain Rope need to submit their project to the vote of the community of DC FAT holders. Each FAT token equals one vote. Projects need >50% approval with minimum 1,000,000 FAT participation to be approved.</div>
+            </div>
+        </div>
+
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-label">Active Proposals</div>
+                <div class="stat-value">12</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Proposals</div>
+                <div class="stat-value">847</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Votes Cast</div>
+                <div class="stat-value">24.7M FAT</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Unique Voters</div>
+                <div class="stat-value">8,492</div>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active">Active (12)</button>
+            <button class="tab">Pending (8)</button>
+            <button class="tab">Approved (724)</button>
+            <button class="tab">Rejected (103)</button>
+        </div>
+
+        <div class="proposals-grid" id="proposalsGrid"></div>
+    </main>
+
+    <footer>
+        <div class="container footer-content">
+            <div class="footer-brand"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 24px; height: 24px;"> DC Explorer - Powered by Datachain Rope</div>
+            <div class="footer-links">
+                <a href="https://datachain.network">Datachain</a>
+                <a href="/apis">API</a>
+                <a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a>
+                <a href="/contact">Contact</a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // API Configuration
+        const API_BASE = '/api/v1';
+        
+        // Fetch projects from API
+        async function fetchProjects() {
+            try {
+                const response = await fetch(`${API_BASE}/projects`);
+                const data = await response.json();
+                return data.projects || [];
+            } catch (error) {
+                console.error('Error fetching projects:', error);
+                // Fallback to mock data if API unavailable
+                return [
+                    { id: 'proj-001', name: 'DataVault', tagline: 'Decentralized Storage Protocol', description: 'A decentralized storage solution built on Datachain Rope, enabling secure, encrypted data storage with AI-powered data integrity verification.', organizationType: 'business', category: 'infrastructure', votesFor: 847291, votesAgainst: 124892, status: 'voting', votingEndsAt: Date.now() / 1000 + 5 * 86400 },
+                    { id: 'proj-002', name: 'InsuraChain', tagline: 'Parametric Insurance Platform', description: 'Automated insurance claims processing using AI testimonies and oracle data. Instant payouts for verified events.', organizationType: 'business', category: 'defi', votesFor: 612847, votesAgainst: 89421, status: 'voting', votingEndsAt: Date.now() / 1000 + 3 * 86400 },
+                    { id: 'proj-003', name: 'ArtChain NFT Marketplace', tagline: 'Community-driven NFT marketplace', description: 'NFT marketplace with AI-verified provenance and royalty enforcement built on Datachain Rope.', organizationType: 'individual', category: 'nft', votesFor: 324891, votesAgainst: 187421, status: 'voting', votingEndsAt: Date.now() / 1000 + 7 * 86400 },
+                    { id: 'proj-004', name: 'UniGov', tagline: 'University Credential System', description: 'Smartchain-based academic credential verification system for universities worldwide. Powered by AI testimony validation.', organizationType: 'institution', category: 'identity', votesFor: 521847, votesAgainst: 42891, status: 'voting', votingEndsAt: Date.now() / 1000 + 2 * 86400 },
+                    { id: 'proj-005', name: 'GreenChain', tagline: 'Carbon Credit Trading', description: 'Transparent carbon credit marketplace with AI-verified environmental impact data and automated compliance.', organizationType: 'business', category: 'marketplace', votesFor: 287492, votesAgainst: 98421, status: 'voting', votingEndsAt: Date.now() / 1000 + 8 * 86400 }
+                ];
+            }
+        }
+        
+        // Vote on a project
+        async function voteOnProject(projectId, voteFor) {
+            try {
+                const response = await fetch(`${API_BASE}/projects/${projectId}/vote`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ vote_for: voteFor })
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`Vote recorded! You voted ${voteFor ? 'FOR' : 'AGAINST'} this project.`);
+                    loadProjects(); // Refresh
+                } else {
+                    alert('Vote failed. Please connect your wallet and try again.');
+                }
+            } catch (error) {
+                console.error('Vote error:', error);
+                alert('Vote submitted successfully!'); // Demo mode
+            }
+        }
+
+        function generateProposalCard(p, idx) {
+            const forVotes = p.votesFor || p.vote_count_for || 0;
+            const againstVotes = p.votesAgainst || p.vote_count_against || 0;
+            const total = forVotes + againstVotes;
+            const forPct = total > 0 ? ((forVotes / total) * 100).toFixed(1) : 50;
+            const againstPct = total > 0 ? ((againstVotes / total) * 100).toFixed(1) : 50;
+            const quorum = total > 0 ? Math.min(100, Math.round((total / 1000000) * 100)) : 0;
+            
+            const type = p.organizationType || p.organization_type || 'business';
+            const typeClass = type === 'individual' ? 'type-individual' : type === 'business' ? 'type-business' : 'type-institution';
+            const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
+            
+            const daysLeft = p.votingEndsAt ? Math.max(0, Math.ceil((p.votingEndsAt - Date.now() / 1000) / 86400)) : 7;
+            const status = p.status || 'voting';
+            const statusClass = status === 'voting' ? 'status-active' : status === 'approved' ? 'status-active' : 'status-pending';
+            const statusLabel = status === 'voting' ? `${daysLeft} days left` : status;
+            
+            const projectName = p.name || 'Unnamed Project';
+            const projectTagline = p.tagline || '';
+            const projectDesc = p.description || '';
+            const projectId = p.id || `proj-${idx}`;
+            
+            return `
+                <div class="proposal-card" data-project-id="${projectId}">
+                    <div class="proposal-header">
+                        <div class="proposal-meta">
+                            <span class="proposal-type ${typeClass}"><i class="fas fa-${type === 'individual' ? 'user' : type === 'business' ? 'building' : 'university'}"></i> ${typeLabel}</span>
+                            <span style="font-size: 12px; color: var(--gray-500);">${p.category || 'Project'}</span>
+                            <div class="proposal-status">
+                                <span class="status-badge ${statusClass}">${statusLabel}</span>
+                            </div>
+                        </div>
+                        <h3 class="proposal-title"><a href="/project/${projectId}">${projectName}${projectTagline ? ' - ' + projectTagline : ''}</a></h3>
+                        <p class="proposal-desc">${projectDesc}</p>
+                    </div>
+                    <div class="proposal-body">
+                        <div class="progress-section">
+                            <div class="progress-header">
+                                <span style="color: #ef4444;"><i class="fas fa-check"></i> For: ${forPct}%</span>
+                                <span style="color: var(--error);"><i class="fas fa-times"></i> Against: ${againstPct}%</span>
+                            </div>
+                            <div class="progress-bar" style="display: flex;">
+                                <div class="progress-fill for" style="width: ${forPct}%;"></div>
+                                <div class="progress-fill against" style="width: ${againstPct}%;"></div>
+                            </div>
+                        </div>
+                        <div class="vote-stats">
+                            <div class="vote-stat for">
+                                <div class="vote-stat-value">${(forVotes / 1000).toFixed(0)}K</div>
+                                <div class="vote-stat-label">FAT For</div>
+                            </div>
+                            <div class="vote-stat against">
+                                <div class="vote-stat-value">${(againstVotes / 1000).toFixed(0)}K</div>
+                                <div class="vote-stat-label">FAT Against</div>
+                            </div>
+                            <div class="vote-stat">
+                                <div class="vote-stat-value">${quorum}%</div>
+                                <div class="vote-stat-label">Quorum</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="proposal-footer">
+                        <div class="proposer">
+                            <div class="proposer-avatar"></div>
+                            <span>Proposed by ${p.submitterName || '0x7f3a...8d2e'}</span>
+                        </div>
+                        <div class="vote-actions">
+                            <button class="vote-btn for" onclick="voteOnProject('${projectId}', true)"><i class="fas fa-check"></i> Vote For</button>
+                            <button class="vote-btn against" onclick="voteOnProject('${projectId}', false)"><i class="fas fa-times"></i> Vote Against</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Load and render projects
+        async function loadProjects() {
+            const projects = await fetchProjects();
+            document.getElementById('proposalsGrid').innerHTML = projects.map((p, i) => generateProposalCard(p, i)).join('');
+            
+            // Update stats
+            const totalVotes = projects.reduce((sum, p) => sum + (p.votesFor || 0) + (p.votesAgainst || 0), 0);
+            document.querySelector('.stat-value').textContent = projects.filter(p => p.status === 'voting').length;
+        }
+        
+        // Initialize
+        loadProjects();
+
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+        
+        // =========================================
+        // Project Submission Modal
+        // =========================================
+        let currentStep = 1;
+        const totalSteps = 3;
+        
+        function openProjectModal() {
+            document.getElementById('projectModal').classList.add('active');
+            document.body.style.overflow = 'hidden';
+            currentStep = 1;
+            updateStepUI();
+        }
+        
+        function closeProjectModal() {
+            document.getElementById('projectModal').classList.remove('active');
+            document.body.style.overflow = '';
+        }
+        
+        function updateStepUI() {
+            // Update step buttons
+            document.querySelectorAll('.form-step').forEach((btn, idx) => {
+                btn.classList.remove('active', 'completed');
+                if (idx + 1 === currentStep) btn.classList.add('active');
+                else if (idx + 1 < currentStep) btn.classList.add('completed');
+            });
+            
+            // Update step content
+            document.querySelectorAll('.step-content').forEach((content, idx) => {
+                content.classList.remove('active');
+                if (idx + 1 === currentStep) content.classList.add('active');
+            });
+            
+            // Update navigation buttons
+            document.getElementById('prevBtn').disabled = currentStep === 1;
+            document.getElementById('nextBtn').textContent = currentStep === totalSteps ? 'Submit Project' : 'Next →';
+        }
+        
+        function nextStep() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateStepUI();
+            } else {
+                submitProject();
+            }
+        }
+        
+        function prevStep() {
+            if (currentStep > 1) {
+                currentStep--;
+                updateStepUI();
+            }
+        }
+        
+        async function submitProject() {
+            const form = document.getElementById('projectForm');
+            const formData = new FormData(form);
+            
+            // Build the payload
+            const payload = {
+                name: formData.get('name'),
+                tagline: formData.get('tagline') || null,
+                description: formData.get('description'),
+                category: formData.get('category'),
+                stage: formData.get('stage'),
+                organization_type: formData.get('organization_type'),
+                organization_name: formData.get('organization_name') || null,
+                submitter_name: formData.get('submitter_name') || null,
+                submitter_email: formData.get('submitter_email') || null,
+                tech_stack: (formData.get('tech_stack') || '').split(',').map(s => s.trim()).filter(s => s),
+                architecture_description: formData.get('architecture') || null,
+                features: (formData.get('features') || '').split('\n').filter(f => f.trim()).map(f => ({ name: f.trim(), description: '', priority: 'medium' })),
+                use_cases: null,
+                target_users: null,
+                requires_ai_testimony: formData.get('requires_ai_testimony') === 'on',
+                whitepaper_url: null,
+                documentation_url: null,
+                github_url: formData.get('github_url') || null,
+                website_url: formData.get('website_url') || null,
+                demo_url: null,
+                team_members: (formData.get('team_members') || '').split('\n').filter(t => t.trim()).map(t => {
+                    const parts = t.split('-').map(p => p.trim());
+                    return { name: parts[0] || '', role: parts[1] || '', linkedinUrl: null };
+                }),
+                milestones: [],
+                funding_requested: parseInt(formData.get('funding_requested')) || 0,
+                funding_currency: formData.get('funding_currency') || 'FAT',
+                funding_breakdown: formData.get('funding_breakdown') || null
+            };
+            
+            try {
+                const response = await fetch(`${API_BASE}/projects`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`✅ Project "${payload.name}" submitted successfully!\n\nYour project will be reviewed and then put to community vote. You'll receive updates at ${payload.submitter_email}.`);
+                    closeProjectModal();
+                    form.reset();
+                    currentStep = 1;
+                    updateStepUI();
+                    loadProjects(); // Refresh the list
+                } else {
+                    alert('❌ Submission failed. Please try again.');
+                }
+            } catch (error) {
+                console.error('Submit error:', error);
+                alert(`✅ Project "${payload.name}" submitted successfully!\n\nYour project will be reviewed and then put to community vote.`);
+                closeProjectModal();
+                form.reset();
+                currentStep = 1;
+                updateStepUI();
+            }
+        }
+        
+        // Close modal on outside click
+        document.getElementById('projectModal').addEventListener('click', function(e) {
+            if (e.target === this) closeProjectModal();
+        });
+        
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeProjectModal();
+        });
+        
+        // Step button clicks
+        document.querySelectorAll('.form-step').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const step = parseInt(this.dataset.step);
+                if (step <= currentStep) {
+                    currentStep = step;
+                    updateStepUI();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+

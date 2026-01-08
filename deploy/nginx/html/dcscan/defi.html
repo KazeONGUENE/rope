@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeFi | DC Explorer</title>
+    <meta name="description" content="Explore DeFi protocols on Datachain Rope">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --black: #000000; --white: #ffffff; --gray-50: #fafafa; --gray-100: #f4f4f5; --gray-200: #e4e4e7;
+            --gray-400: #a1a1aa; --gray-500: #71717a; --gray-600: #52525b; --gray-700: #3f3f46;
+            --gray-800: #27272a; --gray-900: #18181b; --success: #22c55e; --success-bg: #dcfce7;
+            --warning: #f59e0b; --warning-bg: #fef3c7; --error: #ef4444; --info: #3b82f6; --info-bg: #dbeafe;
+            --purple: #8b5cf6; --purple-bg: #f3e8ff;
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px; --radius-xl: 16px;
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: var(--font-sans); background: var(--gray-50); color: var(--gray-900); line-height: 1.5; font-size: 14px; }
+        a { color: var(--info); text-decoration: none; } a:hover { text-decoration: underline; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 0 1rem; }
+        .top-bar { background: var(--gray-900); color: var(--white); padding: 0.5rem 0; font-size: 12px; }
+        .top-bar-content { display: flex; justify-content: space-between; align-items: center; }
+        .top-bar-left { display: flex; align-items: center; gap: 1.5rem; }
+        .top-bar-item { display: flex; align-items: center; gap: 0.375rem; color: var(--gray-400); }
+        .top-bar-value { color: var(--white); font-weight: 500; }
+        header { background: var(--white); border-bottom: 1px solid var(--gray-200); position: sticky; top: 0; z-index: 100; }
+        .header-container { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+        .logo { display: flex; align-items: center; gap: 0.625rem; font-weight: 450; font-size: 1rem; color: #000; line-height: 1.2; }
+        .logo-text { display: flex; flex-direction: column; }
+        .logo-icon { width: 32px; height: 32px; }
+        .main-nav { display: flex; align-items: center; gap: 0.25rem; }
+        .nav-item { position: relative; }
+        .nav-link { display: flex; align-items: center; gap: 0.375rem; padding: 0.5rem 0.875rem; color: var(--gray-600); font-weight: 500; font-size: 13px; border-radius: var(--radius-md); }
+        .nav-link:hover { color: var(--black); background: var(--gray-100); text-decoration: none; }
+        .nav-link.active { background: var(--gray-900); color: var(--white); }
+        .nav-dropdown { position: absolute; top: 100%; left: 0; min-width: 220px; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); padding: 0.5rem; opacity: 0; visibility: hidden; transform: translateY(10px); transition: all 0.2s; z-index: 200; }
+        .nav-item:hover .nav-dropdown { opacity: 1; visibility: visible; transform: translateY(0); }
+        .dropdown-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.625rem 0.75rem; color: var(--gray-700); border-radius: var(--radius-sm); font-size: 13px; }
+        .dropdown-item:hover { background: var(--gray-100); color: var(--black); text-decoration: none; }
+        .dropdown-item i { width: 16px; color: var(--gray-500); }
+        .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.5rem 1rem; font-size: 13px; font-weight: 600; border-radius: var(--radius-md); border: none; cursor: pointer; }
+        .btn-secondary { background: var(--gray-100); color: var(--gray-700); }
+        .page-header { background: var(--white); border-bottom: 1px solid var(--gray-200); padding: 1.5rem 0; }
+        .page-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem; }
+        .page-subtitle { color: var(--gray-500); font-size: 0.875rem; }
+        .page-breadcrumb { display: flex; align-items: center; gap: 0.5rem; font-size: 12px; color: var(--gray-500); margin-bottom: 0.5rem; }
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin: 1.5rem 0; }
+        .stat-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 1.25rem; }
+        .stat-label { font-size: 12px; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+        .stat-value { font-size: 1.5rem; font-weight: 700; }
+        .tabs { display: flex; gap: 0.25rem; margin-bottom: 1.5rem; background: var(--white); padding: 0.5rem; border-radius: var(--radius-lg); border: 1px solid var(--gray-200); }
+        .tab { padding: 0.75rem 1.25rem; background: transparent; border: none; border-radius: var(--radius-md); font-size: 13px; font-weight: 500; cursor: pointer; color: var(--gray-600); }
+        .tab:hover { background: var(--gray-100); color: var(--black); }
+        .tab.active { background: var(--black); color: var(--white); }
+        .protocols-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1rem; }
+        .protocol-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-xl); padding: 1.5rem; transition: all 0.2s; cursor: pointer; }
+        .protocol-card:hover { border-color: var(--gray-300); box-shadow: var(--shadow-md); transform: translateY(-2px); }
+        .protocol-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+        .protocol-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px; color: var(--white); }
+        .protocol-info { flex: 1; }
+        .protocol-name { font-size: 1.125rem; font-weight: 700; margin-bottom: 0.125rem; }
+        .protocol-type { display: inline-flex; align-items: center; padding: 0.125rem 0.5rem; font-size: 11px; font-weight: 500; background: var(--gray-100); border-radius: 100px; color: var(--gray-600); }
+        .protocol-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; margin-bottom: 1rem; }
+        .protocol-stat { padding: 0.75rem; background: var(--gray-50); border-radius: var(--radius-md); }
+        .protocol-stat-label { font-size: 11px; color: var(--gray-500); margin-bottom: 0.25rem; }
+        .protocol-stat-value { font-size: 1rem; font-weight: 600; font-family: var(--font-mono); }
+        .protocol-pairs { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+        .pair-chip { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.5rem; background: var(--gray-100); border-radius: 100px; font-size: 11px; font-weight: 500; }
+        .pair-icons { display: flex; }
+        .pair-icons span { width: 16px; height: 16px; border-radius: 50%; margin-right: -4px; border: 1px solid var(--white); }
+        .mono { font-family: var(--font-mono); font-size: 12px; }
+        .table-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); overflow: hidden; margin-top: 2rem; }
+        .table-header { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; border-bottom: 1px solid var(--gray-200); }
+        .table-title { font-weight: 600; display: flex; align-items: center; gap: 0.5rem; }
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th { background: var(--gray-50); padding: 0.75rem 1rem; text-align: left; font-weight: 600; font-size: 12px; color: var(--gray-600); text-transform: uppercase; border-bottom: 1px solid var(--gray-200); }
+        .data-table td { padding: 0.875rem 1rem; border-bottom: 1px solid var(--gray-100); font-size: 13px; }
+        .data-table tr:hover { background: var(--gray-50); }
+        footer { background: var(--white); border-top: 1px solid var(--gray-200); padding: 2rem 0; margin-top: 3rem; }
+        .footer-content { display: flex; justify-content: space-between; align-items: center; }
+        .footer-brand { display: flex; align-items: center; gap: 0.5rem; color: var(--gray-500); }
+        .footer-links { display: flex; gap: 1.5rem; }
+        .footer-links a { font-size: 12px; color: var(--gray-500); }
+        @media (max-width: 1024px) { .stats-row { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 768px) { .stats-row { grid-template-columns: 1fr; } .main-nav { display: none; } .protocols-grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <div class="container top-bar-content">
+            <div class="top-bar-left">
+                <div class="top-bar-item"><span>DC FAT Price:</span><span class="top-bar-value">$0.00390</span><span style="color: #ef4444; margin-left: 0.25rem;">-2.94%</span></div>
+                <div class="top-bar-item"><span>Gas:</span><span class="top-bar-value">0.001 gwei</span></div>
+            </div>
+        </div>
+    </div>
+    <header>
+        <div class="container header-container">
+            <a href="/" class="logo">
+                <div class="logo-icon"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 100%; height: 100%; object-fit: contain;"></div>
+                <span class="logo-text"><span>DC</span><span>Explorer</span></span>
+            </a>
+            <nav class="main-nav">
+                <div class="nav-item"><a href="#" class="nav-link">Smartchain <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/strings" class="dropdown-item">View Strings</a>
+                        <a href="/txs" class="dropdown-item">Transactions</a>
+                        <a href="/txsPending" class="dropdown-item">Pending Txns</a>
+                        <a href="/accounts" class="dropdown-item">Top Accounts</a>
+                        <a href="/contracts" class="dropdown-item">Verified Contracts</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">AI Agents <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/agents" class="dropdown-item">All Agents</a>
+                        <a href="/testimonies" class="dropdown-item">Testimonies</a>
+                        <a href="/validations" class="dropdown-item">Validators</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">Tokens <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/tokens" class="dropdown-item">DC-20 Tokens</a>
+                        <a href="/tokentxns" class="dropdown-item">Token Transfers</a>
+                        <a href="/vote" class="dropdown-item">Vote</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link active">Network <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/defi" class="dropdown-item">DeFi</a>
+                        <a href="/validators" class="dropdown-item">Validators</a>
+                        <a href="/databases" class="dropdown-item">Databases</a>
+                        <a href="/stats" class="dropdown-item">Charts & Stats</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">More <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/apis" class="dropdown-item">API Docs</a>
+                        <a href="/verify" class="dropdown-item">Verify Contract</a>
+                        <a href="/faucet" class="dropdown-item">Faucet</a>
+                        <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank">GitHub</a>
+                        <a href="/contact" class="dropdown-item">Contact</a>
+                    </div>
+                </div>
+            </nav>
+            <button class="btn btn-secondary"><i class="fas fa-wallet"></i> Connect</button>
+        </div>
+    </header>
+
+    <div class="page-header">
+        <div class="container">
+            <div class="page-breadcrumb"><a href="/">Home</a> <i class="fas fa-chevron-right" style="font-size: 8px;"></i> <span>DeFi</span></div>
+            <h1 class="page-title">DeFi Ecosystem</h1>
+            <p class="page-subtitle">Decentralized exchanges, lending protocols, and Tanastok on Datachain Rope</p>
+        </div>
+    </div>
+
+    <main class="container">
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-label">Total Value Locked</div>
+                <div class="stat-value">$847.2M</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">24H Volume</div>
+                <div class="stat-value">$24.7M</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Active Protocols</div>
+                <div class="stat-value">12</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Pools</div>
+                <div class="stat-value">287</div>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active">All Protocols</button>
+            <button class="tab">DEXs</button>
+            <button class="tab">Lending</button>
+            <button class="tab">Staking</button>
+            <button class="tab">RWA</button>
+        </div>
+
+        <div class="protocols-grid" id="protocolsGrid"></div>
+
+        <div class="table-card">
+            <div class="table-header">
+                <div class="table-title"><i class="fas fa-water" style="color: var(--info);"></i> Top Liquidity Pools</div>
+            </div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Pool</th>
+                        <th>Protocol</th>
+                        <th style="text-align: right;">TVL</th>
+                        <th style="text-align: right;">24H Volume</th>
+                        <th style="text-align: right;">APY</th>
+                        <th style="text-align: right;">Fee Tier</th>
+                    </tr>
+                </thead>
+                <tbody id="poolsTable"></tbody>
+            </table>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container footer-content">
+            <div class="footer-brand"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 24px; height: 24px;"> DC Explorer - Powered by Datachain Rope</div>
+            <div class="footer-links">
+                <a href="https://datachain.network">Datachain</a>
+                <a href="/apis">API</a>
+                <a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a>
+                <a href="/contact">Contact</a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        const protocols = [
+            { name: 'RopeSwap', type: 'DEX', tvl: 324000000, volume: 12400000, pools: 87, color: '#3b82f6', pairs: ['WFAT/USDC', 'WFAT/ETH', 'TNSX/WFAT'] },
+            { name: 'Tanastok', type: 'RWA', tvl: 287000000, volume: 4200000, pools: 24, color: '#8b5cf6', pairs: ['ART/FAT', 'REAL/FAT', 'GOLD/FAT'] },
+            { name: 'DataLend', type: 'Lending', tvl: 124000000, volume: 3800000, pools: 12, color: '#22c55e', pairs: ['WFAT', 'USDC', 'ETH'] },
+            { name: 'ChainStake', type: 'Staking', tvl: 89000000, volume: 2100000, pools: 8, color: '#f59e0b', pairs: ['sFAT', 'stDC'] },
+            { name: 'AquaDEX', type: 'DEX', tvl: 67000000, volume: 1800000, pools: 45, color: '#06b6d4', pairs: ['DGLD/WFAT', 'CLRP/ETH'] },
+            { name: 'VaultFi', type: 'Yield', tvl: 45000000, volume: 890000, pools: 6, color: '#ec4899', pairs: ['FAT Vault', 'USDC Vault'] }
+        ];
+
+        function generateProtocolCard(p) {
+            return `
+                <div class="protocol-card" onclick="window.location='/pool/${p.name.toLowerCase()}'">
+                    <div class="protocol-header">
+                        <div class="protocol-icon" style="background: var(--black); color: white;">${p.name.slice(0, 2)}</div>
+                        <div class="protocol-info">
+                            <div class="protocol-name">${p.name}</div>
+                            <span class="protocol-type">${p.type}</span>
+                        </div>
+                    </div>
+                    <div class="protocol-stats">
+                        <div class="protocol-stat">
+                            <div class="protocol-stat-label">TVL</div>
+                            <div class="protocol-stat-value">$${(p.tvl / 1000000).toFixed(1)}M</div>
+                        </div>
+                        <div class="protocol-stat">
+                            <div class="protocol-stat-label">24H Volume</div>
+                            <div class="protocol-stat-value">$${(p.volume / 1000000).toFixed(1)}M</div>
+                        </div>
+                        <div class="protocol-stat">
+                            <div class="protocol-stat-label">Pools</div>
+                            <div class="protocol-stat-value">${p.pools}</div>
+                        </div>
+                        <div class="protocol-stat">
+                            <div class="protocol-stat-label">Fees (24H)</div>
+                            <div class="protocol-stat-value">$${(p.volume * 0.003 / 1000).toFixed(1)}K</div>
+                        </div>
+                    </div>
+                    <div class="protocol-pairs">
+                        ${p.pairs.map(pair => `<span class="pair-chip">${pair}</span>`).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        const pools = [
+            { pair: 'WFAT/USDC', protocol: 'RopeSwap', tvl: 45000000, volume: 4200000, apy: 24.5, fee: 0.3 },
+            { pair: 'WFAT/ETH', protocol: 'RopeSwap', tvl: 32000000, volume: 2800000, apy: 18.2, fee: 0.3 },
+            { pair: 'ART/FAT', protocol: 'Tanastok', tvl: 28000000, volume: 1200000, apy: 12.4, fee: 0.5 },
+            { pair: 'sFAT Staking', protocol: 'ChainStake', tvl: 24000000, volume: 890000, apy: 8.7, fee: 0 },
+            { pair: 'USDC Lending', protocol: 'DataLend', tvl: 18000000, volume: 2100000, apy: 6.2, fee: 0 }
+        ];
+
+        function generatePoolRow(pool) {
+            return `<tr style="cursor: pointer;" onclick="window.location='/pool/${pool.pair.replace('/', '-').toLowerCase()}'">
+                <td><strong>${pool.pair}</strong></td>
+                <td>${pool.protocol}</td>
+                <td style="text-align: right;" class="mono">$${(pool.tvl / 1000000).toFixed(2)}M</td>
+                <td style="text-align: right;" class="mono">$${(pool.volume / 1000000).toFixed(2)}M</td>
+                <td style="text-align: right;"><span style="color: #ef4444;">${pool.apy}%</span></td>
+                <td style="text-align: right;">${pool.fee}%</td>
+            </tr>`;
+        }
+
+        document.getElementById('protocolsGrid').innerHTML = protocols.map(p => generateProtocolCard(p)).join('');
+        document.getElementById('poolsTable').innerHTML = pools.map(p => generatePoolRow(p)).join('');
+
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>
+

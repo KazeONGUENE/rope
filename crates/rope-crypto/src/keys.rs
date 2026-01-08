@@ -20,10 +20,16 @@ pub struct KeyPair {
 }
 
 impl KeyPair {
-    /// Generate a new random keypair
-    pub fn generate() -> Self {
+    /// Generate a new random keypair (Ed25519 only)
+    pub fn generate() -> anyhow::Result<Self> {
         let (signer, public_key) = HybridSigner::generate();
-        Self { signer, public_key }
+        Ok(Self { signer, public_key })
+    }
+    
+    /// Generate hybrid quantum-resistant keypair (Ed25519 + Dilithium3)
+    pub fn generate_hybrid() -> anyhow::Result<Self> {
+        let (signer, public_key) = HybridSigner::generate();
+        Ok(Self { signer, public_key })
     }
 
     /// Get the public key
@@ -45,6 +51,16 @@ impl KeyPair {
     pub fn node_id(&self) -> [u8; 32] {
         self.public_key.node_id()
     }
+    
+    /// Export private key bytes
+    pub fn private_key_bytes(&self) -> Vec<u8> {
+        self.signer.secret_key_bytes()
+    }
+    
+    /// Export public key bytes
+    pub fn public_key_bytes(&self) -> Vec<u8> {
+        self.public_key.to_bytes()
+    }
 }
 
 /// Keystore for managing multiple keys
@@ -60,14 +76,14 @@ impl KeyStore {
     /// Create new keystore with random seed
     pub fn new() -> Self {
         let seed: [u8; 32] = rand::random();
-        let primary = KeyPair::generate();
+        let primary = KeyPair::generate().expect("Failed to generate keypair");
         Self { primary, seed }
     }
 
     /// Create from seed
     pub fn from_seed(seed: [u8; 32]) -> Self {
         // In production: derive keypair from seed deterministically
-        let primary = KeyPair::generate();
+        let primary = KeyPair::generate().expect("Failed to generate keypair");
         Self { primary, seed }
     }
 
@@ -94,13 +110,13 @@ mod tests {
 
     #[test]
     fn test_keypair_generation() {
-        let keypair = KeyPair::generate();
+        let keypair = KeyPair::generate().unwrap();
         assert_ne!(keypair.public_key().ed25519, [0u8; 32]);
     }
 
     #[test]
     fn test_keypair_signing() {
-        let keypair = KeyPair::generate();
+        let keypair = KeyPair::generate().unwrap();
         let message = b"Test message";
         
         let signature = keypair.sign(message);

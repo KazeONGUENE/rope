@@ -12,6 +12,7 @@ members = [
     "crates/rope-smartchain",
     "crates/rope-node",
     "crates/rope-cli",
+    "crates/rope-explorer",
 ]
 resolver = "2"
 
@@ -41,6 +42,8 @@ ring = "0.17"
 ed25519-dalek = { version = "2.1", features = ["serde"] }
 x25519-dalek = { version = "2.0", features = ["serde"] }
 blake3 = "1.5"
+zeroize = { version = "1.7", features = ["derive"] }
+serde_bytes = "0.11"
 
 # Cryptography - Post-Quantum (NIST PQ-3)
 pqcrypto = "0.17"
@@ -50,6 +53,7 @@ pqcrypto-traits = "0.3"
 
 # Reed-Solomon Erasure Coding
 reed-solomon-erasure = "6.0"
+crc32fast = "1.3"
 
 # Networking
 libp2p = { version = "0.53", features = ["tokio", "tcp", "quic", "noise", "yamux", "gossipsub", "kad", "identify", "dns"] }

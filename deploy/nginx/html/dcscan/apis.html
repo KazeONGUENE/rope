@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Documentation | DC Explorer</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root { --black: #000; --white: #fff; --gray-50: #fafafa; --gray-100: #f4f4f5; --gray-200: #e4e4e7; --gray-500: #71717a; --gray-600: #52525b; --gray-700: #3f3f46; --gray-800: #27272a; --gray-900: #18181b; --success: #22c55e; --info: #3b82f6; --warning: #f59e0b; --font-sans: 'Inter', sans-serif; --font-mono: 'JetBrains Mono', monospace; --radius-md: 8px; --radius-lg: 12px; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: var(--font-sans); background: var(--gray-50); color: var(--gray-900); font-size: 14px; }
+        a { color: var(--info); text-decoration: none; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 0 1rem; }
+        .top-bar { background: var(--gray-900); color: var(--white); padding: 0.5rem 0; font-size: 12px; }
+        .top-bar-content { display: flex; justify-content: space-between; }
+        .top-bar-left { display: flex; gap: 1.5rem; }
+        .top-bar-item { display: flex; gap: 0.375rem; color: #a1a1aa; }
+        .top-bar-value { color: var(--white); font-weight: 500; }
+        header { background: var(--white); border-bottom: 1px solid var(--gray-200); position: sticky; top: 0; z-index: 100; }
+        .header-container { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+        .logo { display: flex; align-items: center; gap: 0.625rem; font-weight: 450; font-size: 1rem; color: #000; line-height: 1.2; }
+        .logo-text { display: flex; flex-direction: column; }
+        .logo-icon { width: 32px; height: 32px; }
+        .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.5rem 1rem; font-size: 13px; font-weight: 600; border-radius: var(--radius-md); border: none; cursor: pointer; }
+        .btn-secondary { background: var(--gray-100); color: var(--gray-700); }
+        .btn-primary { background: var(--black); color: var(--white); }
+        .page-header { background: linear-gradient(135deg, var(--gray-900), var(--gray-800)); color: var(--white); padding: 3rem 0; }
+        .page-title { font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; }
+        .page-subtitle { color: #a1a1aa; max-width: 600px; }
+        .content-grid { display: grid; grid-template-columns: 280px 1fr; gap: 2rem; margin-top: 2rem; }
+        .sidebar { position: sticky; top: 80px; height: fit-content; }
+        .sidebar-section { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 1rem; margin-bottom: 1rem; }
+        .sidebar-title { font-weight: 600; font-size: 12px; text-transform: uppercase; color: var(--gray-500); margin-bottom: 0.75rem; }
+        .sidebar-link { display: block; padding: 0.5rem 0.75rem; color: var(--gray-600); border-radius: var(--radius-md); font-size: 13px; margin-bottom: 0.25rem; }
+        .sidebar-link:hover { background: var(--gray-100); color: var(--black); text-decoration: none; }
+        .sidebar-link.active { background: var(--gray-900); color: var(--white); }
+        .main-content { }
+        .api-section { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 1.5rem; margin-bottom: 1.5rem; }
+        .section-title { font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem; }
+        .section-desc { color: var(--gray-600); margin-bottom: 1rem; }
+        .endpoint-card { border: 1px solid var(--gray-200); border-radius: var(--radius-md); margin-bottom: 1rem; overflow: hidden; }
+        .endpoint-header { display: flex; align-items: center; gap: 0.75rem; padding: 1rem; background: var(--gray-50); cursor: pointer; }
+        .method-badge { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 11px; font-weight: 700; font-family: var(--font-mono); }
+        .method-get { background: #dcfce7; color: #166534; }
+        .method-post { background: #dbeafe; color: #1e40af; }
+        .endpoint-path { font-family: var(--font-mono); font-size: 13px; flex: 1; }
+        .endpoint-desc { color: var(--gray-500); font-size: 12px; }
+        .code-block { background: var(--gray-900); color: #e5e7eb; border-radius: var(--radius-md); padding: 1rem; font-family: var(--font-mono); font-size: 12px; overflow-x: auto; margin-top: 1rem; }
+        .code-block .keyword { color: #f472b6; }
+        .code-block .string { color: #a5d6ff; }
+        .code-block .number { color: #79c0ff; }
+        footer { background: var(--white); border-top: 1px solid var(--gray-200); padding: 2rem 0; margin-top: 3rem; }
+        .footer-content { display: flex; justify-content: space-between; }
+        .footer-brand { display: flex; align-items: center; gap: 0.5rem; color: var(--gray-500); }
+        .footer-links { display: flex; gap: 1.5rem; }
+        .footer-links a { font-size: 12px; color: var(--gray-500); }
+        @media (max-width: 1024px) { .content-grid { grid-template-columns: 1fr; } .sidebar { display: none; } }
+    </style>
+</head>
+<body>
+    <div class="top-bar"><div class="container top-bar-content"><div class="top-bar-left"><div class="top-bar-item"><span>DC FAT Price:</span><span class="top-bar-value">$0.00390</span><span style="color: #ef4444; margin-left: 0.25rem;">-2.94%</span></div></div></div></div>
+    <header><div class="container header-container"><a href="/" class="logo"><div class="logo-icon"><img src="/assets/logo.svg" alt="DC Explorer" style="width:100%;height:100%;object-fit:contain;"></div><span class="logo-text"><span>DC</span><span>Explorer</span></span></a><button class="btn btn-primary"><i class="fas fa-key"></i> Get API Key</button></div></header>
+
+    <div class="page-header"><div class="container"><h1 class="page-title">API Documentation</h1><p class="page-subtitle">Build powerful applications with the DC Explorer API. Access blockchain data, transactions, tokens, and more.</p></div></div>
+
+    <main class="container">
+        <div class="content-grid">
+            <aside class="sidebar">
+                <div class="sidebar-section">
+                    <div class="sidebar-title">Getting Started</div>
+                    <a href="#intro" class="sidebar-link active">Introduction</a>
+                    <a href="#auth" class="sidebar-link">Authentication</a>
+                    <a href="#limits" class="sidebar-link">Rate Limits</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-title">Endpoints</div>
+                    <a href="#accounts" class="sidebar-link">Accounts</a>
+                    <a href="#transactions" class="sidebar-link">Transactions</a>
+                    <a href="#strings" class="sidebar-link">Strings</a>
+                    <a href="#tokens" class="sidebar-link">Tokens</a>
+                    <a href="#contracts" class="sidebar-link">Contracts</a>
+                    <a href="#stats" class="sidebar-link">Stats</a>
+                </div>
+            </aside>
+
+            <div class="main-content">
+                <div class="api-section" id="intro">
+                    <h2 class="section-title">Introduction</h2>
+                    <p class="section-desc">The DC Explorer API provides programmatic access to Datachain Rope blockchain data. Use REST endpoints to query accounts, transactions, tokens, and network statistics.</p>
+                    <div class="code-block"><span class="keyword">Base URL:</span> <span class="string">https://api.dcscan.io/v1</span></div>
+                </div>
+
+                <div class="api-section" id="auth">
+                    <h2 class="section-title">Authentication</h2>
+                    <p class="section-desc">Include your API key in the request header or as a query parameter.</p>
+                    <div class="code-block"><span class="keyword">curl</span> -H <span class="string">"X-API-Key: your_api_key"</span> https://api.dcscan.io/v1/stats</div>
+                </div>
+
+                <div class="api-section" id="accounts">
+                    <h2 class="section-title">Account Endpoints</h2>
+                    <div class="endpoint-card">
+                        <div class="endpoint-header"><span class="method-badge method-get">GET</span><span class="endpoint-path">/account/{address}</span><span class="endpoint-desc">Get account details</span></div>
+                    </div>
+                    <div class="endpoint-card">
+                        <div class="endpoint-header"><span class="method-badge method-get">GET</span><span class="endpoint-path">/account/{address}/txs</span><span class="endpoint-desc">Get account transactions</span></div>
+                    </div>
+                    <div class="endpoint-card">
+                        <div class="endpoint-header"><span class="method-badge method-get">GET</span><span class="endpoint-path">/account/{address}/tokens</span><span class="endpoint-desc">Get account token balances</span></div>
+                    </div>
+                </div>
+
+                <div class="api-section" id="transactions">
+                    <h2 class="section-title">Transaction Endpoints</h2>
+                    <div class="endpoint-card">
+                        <div class="endpoint-header"><span class="method-badge method-get">GET</span><span class="endpoint-path">/tx/{hash}</span><span class="endpoint-desc">Get transaction details</span></div>
+                    </div>
+                    <div class="endpoint-card">
+                        <div class="endpoint-header"><span class="method-badge method-get">GET</span><span class="endpoint-path">/txs</span><span class="endpoint-desc">List recent transactions</span></div>
+                    </div>
+                    <div class="endpoint-card">
+                        <div class="endpoint-header"><span class="method-badge method-post">POST</span><span class="endpoint-path">/tx/send</span><span class="endpoint-desc">Broadcast transaction</span></div>
+                    </div>
+                </div>
+
+                <div class="api-section" id="tokens">
+                    <h2 class="section-title">Token Endpoints</h2>
+                    <div class="endpoint-card">
+                        <div class="endpoint-header"><span class="method-badge method-get">GET</span><span class="endpoint-path">/tokens</span><span class="endpoint-desc">List all DC-20 tokens</span></div>
+                    </div>
+                    <div class="endpoint-card">
+                        <div class="endpoint-header"><span class="method-badge method-get">GET</span><span class="endpoint-path">/token/{address}</span><span class="endpoint-desc">Get token details</span></div>
+                    </div>
+                    <div class="endpoint-card">
+                        <div class="endpoint-header"><span class="method-badge method-get">GET</span><span class="endpoint-path">/token/{address}/holders</span><span class="endpoint-desc">Get token holders</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer><div class="container footer-content"><div class="footer-brand"><img src="/assets/logo.svg" alt="DC Explorer" style="width:24px;height:24px;"> DC Explorer</div><div class="footer-links"><a href="https://datachain.network">Datachain</a><a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a><a href="/contact">Contact</a></div></div></footer>
+</body>
+</html>
+

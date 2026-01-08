@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Token Transfers | DC Explorer</title>
+    <meta name="description" content="View DC-20 token transfers on Datachain Rope">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --black: #000000; --white: #ffffff; --gray-50: #fafafa; --gray-100: #f4f4f5; --gray-200: #e4e4e7;
+            --gray-400: #a1a1aa; --gray-500: #71717a; --gray-600: #52525b; --gray-700: #3f3f46;
+            --gray-800: #27272a; --gray-900: #18181b; --success: #22c55e; --success-bg: #dcfce7;
+            --warning: #f59e0b; --warning-bg: #fef3c7; --error: #ef4444; --info: #3b82f6; --info-bg: #dbeafe;
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px;
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: var(--font-sans); background: var(--gray-50); color: var(--gray-900); line-height: 1.5; font-size: 14px; }
+        a { color: var(--info); text-decoration: none; } a:hover { text-decoration: underline; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 0 1rem; }
+        .top-bar { background: var(--gray-900); color: var(--white); padding: 0.5rem 0; font-size: 12px; }
+        .top-bar-content { display: flex; justify-content: space-between; align-items: center; }
+        .top-bar-left { display: flex; align-items: center; gap: 1.5rem; }
+        .top-bar-item { display: flex; align-items: center; gap: 0.375rem; color: var(--gray-400); }
+        .top-bar-value { color: var(--white); font-weight: 500; }
+        header { background: var(--white); border-bottom: 1px solid var(--gray-200); position: sticky; top: 0; z-index: 100; }
+        .header-container { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+        .logo { display: flex; align-items: center; gap: 0.625rem; font-weight: 450; font-size: 1rem; color: #000; line-height: 1.2; }
+        .logo-text { display: flex; flex-direction: column; }
+        .logo-icon { width: 32px; height: 32px; }
+        .main-nav { display: flex; align-items: center; gap: 0.25rem; }
+        .nav-item { position: relative; }
+        .nav-link { display: flex; align-items: center; gap: 0.375rem; padding: 0.5rem 0.875rem; color: var(--gray-600); font-weight: 500; font-size: 13px; border-radius: var(--radius-md); }
+        .nav-link:hover { color: var(--black); background: var(--gray-100); text-decoration: none; }
+        .nav-link.active { background: var(--gray-900); color: var(--white); }
+        .nav-dropdown { position: absolute; top: 100%; left: 0; min-width: 220px; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); padding: 0.5rem; opacity: 0; visibility: hidden; transform: translateY(10px); transition: all 0.2s; z-index: 200; }
+        .nav-item:hover .nav-dropdown { opacity: 1; visibility: visible; transform: translateY(0); }
+        .dropdown-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.625rem 0.75rem; color: var(--gray-700); border-radius: var(--radius-sm); font-size: 13px; }
+        .dropdown-item:hover { background: var(--gray-100); color: var(--black); text-decoration: none; }
+        .dropdown-item i { width: 16px; color: var(--gray-500); }
+        .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.5rem 1rem; font-size: 13px; font-weight: 600; border-radius: var(--radius-md); border: none; cursor: pointer; }
+        .btn-secondary { background: var(--gray-100); color: var(--gray-700); }
+        .page-header { background: var(--white); border-bottom: 1px solid var(--gray-200); padding: 1.5rem 0; }
+        .page-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem; }
+        .page-subtitle { color: var(--gray-500); font-size: 0.875rem; }
+        .page-breadcrumb { display: flex; align-items: center; gap: 0.5rem; font-size: 12px; color: var(--gray-500); margin-bottom: 0.5rem; }
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin: 1.5rem 0; }
+        .stat-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 1.25rem; }
+        .stat-label { font-size: 12px; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+        .stat-value { font-size: 1.5rem; font-weight: 700; }
+        .stat-change { font-size: 12px; margin-top: 0.25rem; }
+        .stat-change.positive { color: #ef4444; }
+        .filters-bar { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+        .filter-select { padding: 0.5rem 0.75rem; border: 1px solid var(--gray-200); border-radius: var(--radius-md); font-size: 13px; background: var(--white); }
+        .filter-input { padding: 0.5rem 0.75rem; border: 1px solid var(--gray-200); border-radius: var(--radius-md); font-size: 13px; flex: 1; min-width: 200px; }
+        .table-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); overflow: hidden; }
+        .table-header { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; border-bottom: 1px solid var(--gray-200); }
+        .table-title { font-weight: 600; display: flex; align-items: center; gap: 0.5rem; }
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th { background: var(--gray-50); padding: 0.75rem 1rem; text-align: left; font-weight: 600; font-size: 12px; color: var(--gray-600); text-transform: uppercase; border-bottom: 1px solid var(--gray-200); white-space: nowrap; }
+        .data-table td { padding: 0.875rem 1rem; border-bottom: 1px solid var(--gray-100); font-size: 13px; }
+        .data-table tr:hover { background: var(--gray-50); }
+        .mono { font-family: var(--font-mono); font-size: 12px; }
+        .token-chip { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.5rem; background: var(--gray-100); border-radius: 100px; font-size: 11px; font-weight: 500; }
+        .token-chip-icon { width: 14px; height: 14px; border-radius: 50%; }
+        .direction-icon { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 4px; font-size: 10px; }
+        .direction-in { background: var(--success-bg); color: #ef4444; }
+        .direction-out { background: var(--warning-bg); color: var(--warning); }
+        .pagination { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; border-top: 1px solid var(--gray-200); }
+        .pagination-info { font-size: 13px; color: var(--gray-500); }
+        .pagination-controls { display: flex; align-items: center; gap: 0.25rem; }
+        .page-btn { padding: 0.5rem 0.75rem; border: 1px solid var(--gray-200); background: var(--white); border-radius: var(--radius-sm); font-size: 13px; cursor: pointer; }
+        .page-btn:hover { background: var(--gray-100); }
+        .page-btn.active { background: var(--black); color: var(--white); border-color: var(--black); }
+        footer { background: var(--white); border-top: 1px solid var(--gray-200); padding: 2rem 0; margin-top: 3rem; }
+        .footer-content { display: flex; justify-content: space-between; align-items: center; }
+        .footer-brand { display: flex; align-items: center; gap: 0.5rem; color: var(--gray-500); }
+        .footer-links { display: flex; gap: 1.5rem; }
+        .footer-links a { font-size: 12px; color: var(--gray-500); }
+        @media (max-width: 1024px) { .stats-row { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 768px) { .stats-row { grid-template-columns: 1fr; } .main-nav { display: none; } }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <div class="container top-bar-content">
+            <div class="top-bar-left">
+                <div class="top-bar-item"><span>DC FAT Price:</span><span class="top-bar-value">$0.00390</span><span style="color: #ef4444; margin-left: 0.25rem;">-2.94%</span></div>
+                <div class="top-bar-item"><span>Gas:</span><span class="top-bar-value">0.001 gwei</span></div>
+            </div>
+        </div>
+    </div>
+    <header>
+        <div class="container header-container">
+            <a href="/" class="logo">
+                <div class="logo-icon"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 100%; height: 100%; object-fit: contain;"></div>
+                <span class="logo-text"><span>DC</span><span>Explorer</span></span>
+            </a>
+            <nav class="main-nav">
+                <div class="nav-item"><a href="#" class="nav-link">Smartchain <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/strings" class="dropdown-item">View Strings</a>
+                        <a href="/txs" class="dropdown-item">Transactions</a>
+                        <a href="/txsPending" class="dropdown-item">Pending Txns</a>
+                        <a href="/accounts" class="dropdown-item">Top Accounts</a>
+                        <a href="/contracts" class="dropdown-item">Verified Contracts</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">AI Agents <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/agents" class="dropdown-item">All Agents</a>
+                        <a href="/testimonies" class="dropdown-item">Testimonies</a>
+                        <a href="/validations" class="dropdown-item">Validators</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link active">Tokens <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/tokens" class="dropdown-item">DC-20 Tokens</a>
+                        <a href="/tokentxns" class="dropdown-item">Token Transfers</a>
+                        <a href="/vote" class="dropdown-item">Vote</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">Network <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/defi" class="dropdown-item">DeFi</a>
+                        <a href="/validators" class="dropdown-item">Validators</a>
+                        <a href="/databases" class="dropdown-item">Databases</a>
+                        <a href="/stats" class="dropdown-item">Charts & Stats</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">More <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/apis" class="dropdown-item">API Docs</a>
+                        <a href="/verify" class="dropdown-item">Verify Contract</a>
+                        <a href="/faucet" class="dropdown-item">Faucet</a>
+                        <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank">GitHub</a>
+                        <a href="/contact" class="dropdown-item">Contact</a>
+                    </div>
+                </div>
+            </nav>
+            <button class="btn btn-secondary"><i class="fas fa-wallet"></i> Connect</button>
+        </div>
+    </header>
+
+    <div class="page-header">
+        <div class="container">
+            <div class="page-breadcrumb"><a href="/">Home</a> <i class="fas fa-chevron-right" style="font-size: 8px;"></i> <span>Token Transfers</span></div>
+            <h1 class="page-title">Token Transfers (DC-20)</h1>
+            <p class="page-subtitle">All DC-20 token transfers on the network</p>
+        </div>
+    </div>
+
+    <main class="container">
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-label">Total Transfers</div>
+                <div class="stat-value">48,729,182</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Transfers (24H)</div>
+                <div class="stat-value">847,291</div>
+                <div class="stat-change positive"><i class="fas fa-arrow-up"></i> 12.4%</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Unique Tokens</div>
+                <div class="stat-value">2,847</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Avg Transfer Value</div>
+                <div class="stat-value">$142.50</div>
+            </div>
+        </div>
+
+        <div class="filters-bar">
+            <select class="filter-select">
+                <option>All Tokens</option>
+                <option>WFAT</option>
+                <option>TNSX</option>
+                <option>DGLD</option>
+            </select>
+            <input type="text" class="filter-input" placeholder="Filter by address or txn hash...">
+        </div>
+
+        <div class="table-card">
+            <div class="table-header">
+                <div class="table-title"><i class="fas fa-exchange-alt" style="color: var(--info);"></i> Latest Token Transfers</div>
+            </div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Txn Hash</th>
+                        <th>Age</th>
+                        <th>From</th>
+                        <th></th>
+                        <th>To</th>
+                        <th style="text-align: right;">Value</th>
+                        <th>Token</th>
+                    </tr>
+                </thead>
+                <tbody id="transfersTable"></tbody>
+            </table>
+            <div class="pagination">
+                <div class="pagination-info">Showing 1 to 25 of 48,729,182 token transfers</div>
+                <div class="pagination-controls">
+                    <button class="page-btn" disabled><i class="fas fa-angle-left"></i></button>
+                    <button class="page-btn active">1</button>
+                    <button class="page-btn">2</button>
+                    <button class="page-btn">3</button>
+                    <button class="page-btn"><i class="fas fa-angle-right"></i></button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container footer-content">
+            <div class="footer-brand"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 24px; height: 24px;"> DC Explorer - Powered by Datachain Rope</div>
+            <div class="footer-links">
+                <a href="https://datachain.network">Datachain</a>
+                <a href="/apis">API</a>
+                <a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a>
+                <a href="/contact">Contact</a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        const tokens = [
+            { symbol: 'WFAT', color: '#3b82f6' },
+            { symbol: 'TNSX', color: '#8b5cf6' },
+            { symbol: 'DGLD', color: '#f59e0b' },
+            { symbol: 'RSWP', color: '#ec4899' },
+            { symbol: 'sFAT', color: '#06b6d4' }
+        ];
+        
+        function randomHash() { return '0x' + Array.from({length: 64}, () => Math.floor(Math.random() * 16).toString(16)).join(''); }
+        function randomAddr() { return '0x' + Array.from({length: 40}, () => Math.floor(Math.random() * 16).toString(16)).join(''); }
+        
+        function generateTransferRow() {
+            const hash = randomHash();
+            const from = randomAddr();
+            const to = randomAddr();
+            const token = tokens[Math.floor(Math.random() * tokens.length)];
+            const value = (Math.random() * 50000).toFixed(2);
+            const age = Math.floor(Math.random() * 300) + 's ago';
+            
+            return `<tr>
+                <td><a href="/tx/${hash}" class="mono" style="display: block; max-width: 120px; overflow: hidden; text-overflow: ellipsis;">${hash.slice(0, 18)}...</a></td>
+                <td style="color: var(--gray-500);">${age}</td>
+                <td><a href="/address/${from}" class="mono" style="display: block; max-width: 100px; overflow: hidden; text-overflow: ellipsis;">${from.slice(0, 12)}...</a></td>
+                <td><span class="direction-icon direction-out"><i class="fas fa-arrow-right"></i></span></td>
+                <td><a href="/address/${to}" class="mono" style="display: block; max-width: 100px; overflow: hidden; text-overflow: ellipsis;">${to.slice(0, 12)}...</a></td>
+                <td style="text-align: right;" class="mono">${parseFloat(value).toLocaleString()}</td>
+                <td>
+                    <span class="token-chip">
+                        <span class="token-chip-icon" style="background: var(--black);"></span>
+                        ${token.symbol}
+                    </span>
+                </td>
+            </tr>`;
+        }
+        
+        const tbody = document.getElementById('transfersTable');
+        let rows = '';
+        for (let i = 0; i < 25; i++) rows += generateTransferRow();
+        tbody.innerHTML = rows;
+    </script>
+</body>
+</html>
+

@@ -12,16 +12,39 @@ rope-crypto = { path = "../rope-crypto" }
 rope-consensus = { path = "../rope-consensus" }
 rope-network = { path = "../rope-network" }
 rope-storage = { path = "../rope-storage" }
+rope-protocols = { path = "../rope-protocols" }
+rope-smartchain = { path = "../rope-smartchain" }
+rope-bridge = { path = "../rope-bridge" }
 
 tokio = { workspace = true }
 async-trait = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 config = { workspace = true }
+toml = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
+hex = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+futures = { workspace = true }
+parking_lot = { workspace = true }
+blake3 = { workspace = true }
+
+# gRPC
+tonic = { workspace = true }
+prost = { workspace = true }
+
+# Networking
+libp2p = { workspace = true }
+
+# Metrics
+prometheus = { workspace = true }
+
+[build-dependencies]
+tonic-build = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
-

@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vote | DC Explorer</title>
+    <meta name="description" content="Participate in governance voting on the Datachain Rope network">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --black: #000000; --white: #ffffff; --gray-50: #fafafa; --gray-100: #f4f4f5; --gray-200: #e4e4e7;
+            --gray-400: #a1a1aa; --gray-500: #71717a; --gray-600: #52525b; --gray-700: #3f3f46; --gray-800: #27272a; --gray-900: #18181b;
+            --success: #22c55e; --success-bg: #dcfce7; --warning: #f59e0b; --info: #3b82f6; --error: #ef4444;
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --radius-md: 8px; --radius-lg: 12px; --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: var(--font-sans); background: var(--gray-50); color: var(--gray-900); line-height: 1.5; font-size: 14px; }
+        a { color: var(--black); text-decoration: none; transition: color 0.15s; }
+        a:hover { color: var(--gray-600); }
+        
+        .top-bar { background: var(--gray-900); color: var(--white); padding: 0.5rem 0; font-size: 12px; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 0 1rem; }
+        .top-bar-content { display: flex; justify-content: space-between; align-items: center; }
+        .top-bar-left { display: flex; align-items: center; gap: 1.5rem; }
+        .top-bar-item { display: flex; align-items: center; gap: 0.375rem; color: var(--gray-400); }
+        .top-bar-value { color: var(--white); font-weight: 500; }
+        
+        header { background: var(--white); border-bottom: 1px solid var(--gray-200); position: sticky; top: 0; z-index: 100; }
+        .header-container { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+        .logo { display: flex; align-items: center; gap: 0.625rem; font-weight: 450; font-size: 1rem; color: #000000; line-height: 1.2; }
+        .logo-text { display: flex; flex-direction: column; }
+        .logo-icon { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; }
+        
+        .main-nav { display: flex; align-items: center; gap: 0.25rem; }
+        .nav-item { position: relative; }
+        .nav-link { display: flex; align-items: center; gap: 0.375rem; padding: 0.5rem 0.75rem; font-size: 14px; font-weight: 500; color: var(--gray-700); border-radius: var(--radius-md); transition: all 0.15s; }
+        .nav-link:hover { background: var(--gray-100); color: var(--black); }
+        .nav-link.active { background: var(--gray-900); color: var(--white); }
+        .dropdown { position: absolute; top: 100%; left: 0; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); min-width: 200px; opacity: 0; visibility: hidden; transform: translateY(8px); transition: all 0.2s; z-index: 50; }
+        .nav-item:hover .dropdown { opacity: 1; visibility: visible; transform: translateY(0); }
+        .dropdown-link { display: block; padding: 0.625rem 1rem; font-size: 13px; color: var(--gray-700); }
+        .dropdown-link:hover { background: var(--gray-50); color: var(--black); }
+        .connect-btn { background: var(--black); color: var(--white); padding: 0.5rem 1rem; border-radius: var(--radius-md); font-weight: 500; font-size: 14px; border: none; cursor: pointer; }
+        
+        .page-header { background: var(--white); border-bottom: 1px solid var(--gray-200); padding: 2rem 0; }
+        .page-title { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.5rem; }
+        .page-description { color: var(--gray-500); }
+        .breadcrumb { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; font-size: 13px; color: var(--gray-500); }
+        .breadcrumb a { color: var(--gray-500); }
+        
+        .main-content { padding: 2rem 0; }
+        
+        .proposals-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 1.5rem; }
+        .proposal-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 1.5rem; }
+        .proposal-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; }
+        .proposal-id { font-size: 12px; color: var(--gray-500); margin-bottom: 0.25rem; }
+        .proposal-title { font-weight: 600; font-size: 1rem; margin-bottom: 0.5rem; }
+        .proposal-status { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.5rem; border-radius: 9999px; font-size: 11px; font-weight: 500; }
+        .proposal-status.active { background: var(--success-bg); color: #ef4444; }
+        .proposal-status.passed { background: #dbeafe; color: var(--info); }
+        .proposal-status.rejected { background: #fee2e2; color: var(--error); }
+        .proposal-description { font-size: 13px; color: var(--gray-600); margin-bottom: 1rem; }
+        .vote-progress { margin-bottom: 1rem; }
+        .vote-bar { height: 8px; background: var(--gray-200); border-radius: 4px; overflow: hidden; display: flex; }
+        .vote-yes { background: var(--success); }
+        .vote-no { background: var(--error); }
+        .vote-abstain { background: var(--gray-400); }
+        .vote-stats { display: flex; justify-content: space-between; font-size: 12px; margin-top: 0.5rem; }
+        .vote-stat { display: flex; align-items: center; gap: 0.25rem; }
+        .vote-stat.yes { color: #ef4444; }
+        .vote-stat.no { color: var(--error); }
+        .vote-stat.abstain { color: var(--gray-500); }
+        .proposal-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--gray-500); padding-top: 1rem; border-top: 1px solid var(--gray-100); }
+        
+        footer { background: var(--gray-900); color: var(--gray-400); padding: 2rem 0; margin-top: 4rem; }
+        .footer-content { display: flex; justify-content: space-between; align-items: center; }
+        .footer-brand { display: flex; align-items: center; gap: 0.5rem; font-weight: 400; font-size: 1rem; color: var(--gray-500); }
+        .footer-links { display: flex; gap: 1.5rem; }
+        .footer-links a { color: var(--gray-400); font-size: 13px; }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <div class="container top-bar-content">
+            <div class="top-bar-left">
+                <div class="top-bar-item"><span>DC FAT Price:</span><span class="top-bar-value">$0.00390</span><span style="color: #ef4444">-2.94%</span></div>
+                <div class="top-bar-item"><span>Gas:</span><span class="top-bar-value">0.001 gwei</span></div>
+                <div class="top-bar-item"><span>Finality:</span><span class="top-bar-value">&lt;5s</span></div>
+            </div>
+        </div>
+    </div>
+
+    <header>
+        <div class="container header-container">
+            <a href="/" class="logo">
+                <div class="logo-icon"><img src="/assets/logo.svg" alt="DC Explorer Logo" style="width: 100%; height: 100%; object-fit: contain;"></div>
+                <span class="logo-text"><span>DC</span><span>Explorer</span></span>
+            </a>
+            
+            <nav class="main-nav">
+                <div class="nav-item">
+                    <a href="#" class="nav-link">Smartchain <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="dropdown">
+                        <a href="/blockchain/strings" class="dropdown-link">View Strings</a>
+                        <a href="/blockchain/transactions" class="dropdown-link">Transactions</a>
+                        <a href="/blockchain/pending" class="dropdown-link">Pending Transactions</a>
+                        <a href="/blockchain/accounts" class="dropdown-link">Top Accounts</a>
+                        <a href="/blockchain/contracts" class="dropdown-link">Verified Contracts</a>
+                    </div>
+                </div>
+                <div class="nav-item">
+                    <a href="#" class="nav-link">AI Agents <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="dropdown">
+                        <a href="/agents" class="dropdown-link">All Agents</a>
+                        <a href="/agents/testimonies" class="dropdown-link">Testimonies</a>
+                        <a href="/agents/validators" class="dropdown-link">Validators</a>
+                    </div>
+                </div>
+                <div class="nav-item">
+                    <a href="#" class="nav-link active">Tokens <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="dropdown">
+                        <a href="/tokens" class="dropdown-link">DC-20 Tokens</a>
+                        <a href="/tokens/transfers" class="dropdown-link">Token Transfers</a>
+                        <a href="/tokens/vote" class="dropdown-link">Vote</a>
+                    </div>
+                </div>
+                <div class="nav-item">
+                    <a href="#" class="nav-link">Network <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="dropdown">
+                        <a href="/network/validators" class="dropdown-link">Validators</a>
+                        <a href="/network/databoxes" class="dropdown-link">Databoxes</a>
+                        <a href="/network/stats" class="dropdown-link">Charts & Stats</a>
+                    </div>
+                </div>
+                <div class="nav-item">
+                    <a href="#" class="nav-link">More <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="dropdown">
+                        <a href="/api" class="dropdown-link">API Documentation</a>
+                        <a href="/verify" class="dropdown-link">Verify Contract</a>
+                        <a href="/faucet" class="dropdown-link">Faucet</a>
+                        <a href="https://github.com/KazeONGUENE/rope" class="dropdown-link" target="_blank">GitHub</a>
+                        <a href="/contact" class="dropdown-link">Contact</a>
+                    </div>
+                </div>
+            </nav>
+            
+            <button class="connect-btn"><i class="fas fa-wallet"></i> Connect</button>
+        </div>
+    </header>
+
+    <div class="page-header">
+        <div class="container">
+            <div class="breadcrumb">
+                <a href="/"><i class="fas fa-home"></i></a><span>/</span><span>Tokens</span><span>/</span><span>Vote</span>
+            </div>
+            <h1 class="page-title">Governance Voting</h1>
+            <p class="page-description">Participate in network governance proposals</p>
+        </div>
+    </div>
+
+    <main class="main-content">
+        <div class="container">
+            <div class="proposals-grid">
+                <div class="proposal-card">
+                    <div class="proposal-header">
+                        <div>
+                            <div class="proposal-id">DCP-15</div>
+                            <h3 class="proposal-title">Increase Validator Rewards by 15%</h3>
+                        </div>
+                        <span class="proposal-status active"><i class="fas fa-circle" style="font-size: 6px;"></i> Active</span>
+                    </div>
+                    <p class="proposal-description">Proposal to increase validator rewards to incentivize more node operators and improve network decentralization.</p>
+                    <div class="vote-progress">
+                        <div class="vote-bar">
+                            <div class="vote-yes" style="width: 65%;"></div>
+                            <div class="vote-no" style="width: 25%;"></div>
+                            <div class="vote-abstain" style="width: 10%;"></div>
+                        </div>
+                        <div class="vote-stats">
+                            <span class="vote-stat yes"><i class="fas fa-check"></i> 65% Yes</span>
+                            <span class="vote-stat no"><i class="fas fa-times"></i> 25% No</span>
+                            <span class="vote-stat abstain"><i class="fas fa-minus"></i> 10% Abstain</span>
+                        </div>
+                    </div>
+                    <div class="proposal-meta">
+                        <span>Ends in 2 days</span>
+                        <span>1,234 voters</span>
+                    </div>
+                </div>
+                
+                <div class="proposal-card">
+                    <div class="proposal-header">
+                        <div>
+                            <div class="proposal-id">DCP-14</div>
+                            <h3 class="proposal-title">Add New AI Testimony Agent</h3>
+                        </div>
+                        <span class="proposal-status passed"><i class="fas fa-check"></i> Passed</span>
+                    </div>
+                    <p class="proposal-description">Integration of a new fraud detection AI agent to enhance transaction security and reduce malicious activity.</p>
+                    <div class="vote-progress">
+                        <div class="vote-bar">
+                            <div class="vote-yes" style="width: 78%;"></div>
+                            <div class="vote-no" style="width: 15%;"></div>
+                            <div class="vote-abstain" style="width: 7%;"></div>
+                        </div>
+                        <div class="vote-stats">
+                            <span class="vote-stat yes"><i class="fas fa-check"></i> 78% Yes</span>
+                            <span class="vote-stat no"><i class="fas fa-times"></i> 15% No</span>
+                            <span class="vote-stat abstain"><i class="fas fa-minus"></i> 7% Abstain</span>
+                        </div>
+                    </div>
+                    <div class="proposal-meta">
+                        <span>Ended 5 days ago</span>
+                        <span>2,456 voters</span>
+                    </div>
+                </div>
+                
+                <div class="proposal-card">
+                    <div class="proposal-header">
+                        <div>
+                            <div class="proposal-id">DCP-13</div>
+                            <h3 class="proposal-title">Reduce Gas Fees by 50%</h3>
+                        </div>
+                        <span class="proposal-status rejected"><i class="fas fa-times"></i> Rejected</span>
+                    </div>
+                    <p class="proposal-description">Proposal to significantly reduce network gas fees to improve accessibility for smaller transactions.</p>
+                    <div class="vote-progress">
+                        <div class="vote-bar">
+                            <div class="vote-yes" style="width: 35%;"></div>
+                            <div class="vote-no" style="width: 55%;"></div>
+                            <div class="vote-abstain" style="width: 10%;"></div>
+                        </div>
+                        <div class="vote-stats">
+                            <span class="vote-stat yes"><i class="fas fa-check"></i> 35% Yes</span>
+                            <span class="vote-stat no"><i class="fas fa-times"></i> 55% No</span>
+                            <span class="vote-stat abstain"><i class="fas fa-minus"></i> 10% Abstain</span>
+                        </div>
+                    </div>
+                    <div class="proposal-meta">
+                        <span>Ended 12 days ago</span>
+                        <span>1,890 voters</span>
+                    </div>
+                </div>
+                
+                <div class="proposal-card">
+                    <div class="proposal-header">
+                        <div>
+                            <div class="proposal-id">DCP-12</div>
+                            <h3 class="proposal-title">Treasury Allocation for Development</h3>
+                        </div>
+                        <span class="proposal-status passed"><i class="fas fa-check"></i> Passed</span>
+                    </div>
+                    <p class="proposal-description">Allocate 5% of treasury funds for ecosystem development grants and developer bounties.</p>
+                    <div class="vote-progress">
+                        <div class="vote-bar">
+                            <div class="vote-yes" style="width: 82%;"></div>
+                            <div class="vote-no" style="width: 12%;"></div>
+                            <div class="vote-abstain" style="width: 6%;"></div>
+                        </div>
+                        <div class="vote-stats">
+                            <span class="vote-stat yes"><i class="fas fa-check"></i> 82% Yes</span>
+                            <span class="vote-stat no"><i class="fas fa-times"></i> 12% No</span>
+                            <span class="vote-stat abstain"><i class="fas fa-minus"></i> 6% Abstain</span>
+                        </div>
+                    </div>
+                    <div class="proposal-meta">
+                        <span>Ended 18 days ago</span>
+                        <span>3,124 voters</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container footer-content">
+            <div class="footer-brand">
+                <div class="logo-icon" style="width: 24px; height: 24px;"><img src="/assets/logo.svg" alt="DC Explorer Logo" style="width: 100%; height: 100%; object-fit: contain;"></div>
+                DC Explorer - Powered by Datachain Rope
+            </div>
+            <div class="footer-links">
+                <a href="/api">Datachain API</a>
+                <a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a>
+                <a href="/contact">Contact</a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>
+
