@@ -123,7 +123,7 @@
         /* Modal Styles */
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); overflow-y: auto; padding: 2rem 1rem; }
         .modal.active { display: flex; align-items: flex-start; justify-content: center; }
-        .modal-content { background: var(--white); border-radius: var(--radius-xl); width: 100%; max-width: 640px; margin: auto; animation: modalIn 0.3s ease; }
+        .modal-content { background: var(--white); border-radius: var(--radius-xl); width: 100%; max-width: 720px; margin: auto; animation: modalIn 0.3s ease; }
         @keyframes modalIn { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
         .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 1.5rem; border-bottom: 1px solid var(--gray-200); }
         .modal-title { font-size: 1.25rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; }
@@ -153,6 +153,58 @@
         .btn-nav.primary:hover { background: var(--gray-800); }
         .btn-nav:disabled { opacity: 0.5; cursor: not-allowed; }
         
+        /* Step 4: Deploy Instance Styles */
+        .deploy-header { margin-bottom: 1.25rem; }
+        .instance-size-selector { margin-bottom: 1.25rem; }
+        .instance-size-selector h5 { margin-bottom: 0.75rem; }
+        .size-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
+        .size-option { border: 2px solid var(--gray-200); border-radius: var(--radius-lg); padding: 1rem; cursor: pointer; transition: all 0.2s; text-align: center; }
+        .size-option:hover { border-color: var(--black); background: var(--gray-50); }
+        .size-option.selected { border-color: var(--black); background: var(--gray-100); }
+        .size-icon { font-size: 1.5rem; margin-bottom: 0.5rem; color: var(--black); }
+        .size-name { font-weight: 600; font-size: 1rem; margin-bottom: 0.375rem; }
+        .size-specs { display: flex; flex-direction: column; gap: 0.125rem; font-size: 11px; color: var(--gray-500); margin-bottom: 0.5rem; }
+        .size-price { font-weight: 600; color: var(--black); font-size: 0.8125rem; }
+        
+        /* Modal CLI Styles */
+        .modal-cli-container { background: #1a1a2e; border-radius: var(--radius-lg); overflow: hidden; margin: 1rem 0; font-family: var(--font-mono); }
+        .modal-cli-container .cli-header { background: #16162a; padding: 0.625rem 0.875rem; display: flex; align-items: center; gap: 0.75rem; }
+        .modal-cli-container .cli-dots { display: flex; gap: 5px; }
+        .modal-cli-container .dot { width: 10px; height: 10px; border-radius: 50%; }
+        .modal-cli-container .dot.red { background: #ff5f56; }
+        .modal-cli-container .dot.yellow { background: #ffbd2e; }
+        .modal-cli-container .dot.green { background: #27ca40; }
+        .modal-cli-container .cli-title { color: #a0a0a0; font-size: 0.75rem; }
+        .modal-cli-container .cli-body { padding: 0.875rem; max-height: 280px; overflow-y: auto; }
+        .modal-cli-container .cli-output { color: #e0e0e0; font-size: 0.75rem; line-height: 1.5; white-space: pre-wrap; }
+        .modal-cli-container .comment { color: #6a9955; }
+        .modal-cli-container .highlight { color: #4fc3f7; }
+        .modal-cli-container .success { color: #4caf50; }
+        .modal-cli-container .warning { color: #ffb74d; }
+        .modal-cli-container .error { color: #ef5350; }
+        .modal-cli-container .command { color: #ce93d8; }
+        .modal-cli-container .info { color: #90caf9; }
+        .modal-cli-container .prompt { color: #4fc3f7; }
+        .modal-cli-container .value { color: #a5d6a7; }
+        .modal-cli-container .cli-input-line { display: flex; align-items: center; gap: 0.375rem; padding: 0.625rem 0.875rem; background: #16162a; border-top: 1px solid #2a2a4e; }
+        .modal-cli-container .cli-prompt { color: #4fc3f7; font-size: 0.75rem; }
+        .modal-cli-container .cli-input { flex: 1; background: transparent; border: none; color: #e0e0e0; font-family: inherit; font-size: 0.75rem; outline: none; }
+        .modal-cli-container .cli-input::placeholder { color: #666; }
+        
+        /* Instance Config Summary */
+        .instance-config-summary { background: linear-gradient(135deg, #1a1a2e 0%, #16162a 100%); border-radius: var(--radius-lg); padding: 1rem; margin: 1rem 0; color: #e0e0e0; }
+        .instance-config-summary h5 { color: #4caf50; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.375rem; font-size: 0.875rem; }
+        .config-details { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; font-size: 0.8125rem; }
+        .config-item { display: flex; justify-content: space-between; padding: 0.375rem 0; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .config-item .label { color: #a0a0a0; }
+        .config-item .value { color: #4fc3f7; font-weight: 500; }
+        
+        /* Submission Info */
+        .submission-info { background: var(--gray-50); border-radius: var(--radius-md); padding: 1rem; margin-top: 1rem; }
+        .submission-info h4 { font-size: 0.875rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.375rem; }
+        .submission-info ol { margin: 0; padding-left: 1.25rem; font-size: 0.8125rem; color: var(--gray-600); }
+        .submission-info li { margin-bottom: 0.25rem; }
+        
         @media (max-width: 1024px) { .stats-row { grid-template-columns: repeat(2, 1fr); } }
         @media (max-width: 768px) { 
             .stats-row { grid-template-columns: 1fr; } 
@@ -160,6 +212,8 @@
             .vote-stats { grid-template-columns: 1fr; } 
             .page-header-content { flex-direction: column; }
             .form-row { grid-template-columns: 1fr; }
+            .size-options { grid-template-columns: 1fr; }
+            .config-details { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -254,6 +308,7 @@
                     <button class="form-step active" data-step="1">1. Project Info</button>
                     <button class="form-step" data-step="2">2. Technical</button>
                     <button class="form-step" data-step="3">3. Team & Funding</button>
+                    <button class="form-step" data-step="4">4. Deploy Instance</button>
                 </div>
                 
                 <form id="projectForm">
@@ -381,6 +436,105 @@
                         <div class="form-group">
                             <label class="form-label">Funding Breakdown</label>
                             <textarea class="form-textarea" name="funding_breakdown" placeholder="How will the funds be used?"></textarea>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 4: Deploy Instance -->
+                    <div class="step-content" data-step="4">
+                        <div class="deploy-header">
+                            <h4 class="form-label" style="font-size: 1rem; margin-bottom: 0.5rem;"><i class="fas fa-rocket"></i> Deploy Your Instance</h4>
+                            <p style="color: var(--gray-500); font-size: 13px;">Use the CLI below to create and configure your Federation or Community. Once configured, submit for community vote.</p>
+                        </div>
+                        
+                        <!-- Instance Size Selection -->
+                        <div class="instance-size-selector">
+                            <h5 class="form-label">Select Instance Size</h5>
+                            <div class="size-options">
+                                <div class="size-option" data-size="small" onclick="selectInstanceSize('small')">
+                                    <div class="size-icon"><i class="fas fa-seedling"></i></div>
+                                    <div class="size-name">Small</div>
+                                    <div class="size-specs">
+                                        <span>Up to 10K Data Wallets</span>
+                                        <span>2 CPU Cores</span>
+                                        <span>8GB RAM</span>
+                                        <span>100GB Storage</span>
+                                    </div>
+                                    <div class="size-price">50,000 FAT/month</div>
+                                </div>
+                                <div class="size-option" data-size="medium" onclick="selectInstanceSize('medium')">
+                                    <div class="size-icon"><i class="fas fa-tree"></i></div>
+                                    <div class="size-name">Medium</div>
+                                    <div class="size-specs">
+                                        <span>Up to 1M Data Wallets</span>
+                                        <span>8 CPU Cores</span>
+                                        <span>32GB RAM</span>
+                                        <span>1TB Storage</span>
+                                    </div>
+                                    <div class="size-price">250,000 FAT/month</div>
+                                </div>
+                                <div class="size-option" data-size="large" onclick="selectInstanceSize('large')">
+                                    <div class="size-icon"><i class="fas fa-mountain"></i></div>
+                                    <div class="size-name">Large</div>
+                                    <div class="size-specs">
+                                        <span>Up to 100M Data Wallets</span>
+                                        <span>32 CPU Cores + GPU</span>
+                                        <span>128GB RAM</span>
+                                        <span>10TB Storage</span>
+                                    </div>
+                                    <div class="size-price">1,000,000 FAT/month</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- CLI Interface -->
+                        <div class="modal-cli-container">
+                            <div class="cli-header">
+                                <div class="cli-dots">
+                                    <span class="dot red"></span>
+                                    <span class="dot yellow"></span>
+                                    <span class="dot green"></span>
+                                </div>
+                                <span class="cli-title">rope-cli — Instance Deployment</span>
+                            </div>
+                            <div class="cli-body" id="modal-cli-body">
+                                <div class="cli-output" id="modal-cli-output">
+<span class="comment"># Datachain Rope Deployment CLI v1.0.0</span>
+<span class="comment"># Connected to: erpc.datachain.network</span>
+<span class="comment"># Project: <span id="cli-project-name">Your Project</span></span>
+
+<span class="highlight">Welcome to the Instance Deployment Wizard!</span>
+
+<span class="info">Available commands:</span>
+  <span class="command">federation create</span>  - Create a new Federation instance
+  <span class="command">community create</span>   - Create a new Community instance
+  <span class="command">providers list</span>     - List all cloud providers by region
+  <span class="command">instance preview</span>   - Preview instance configuration
+  <span class="command">help</span>               - Show all available commands
+
+<span class="prompt">rope></span> _
+                                </div>
+                                <div class="cli-input-line">
+                                    <span class="cli-prompt">rope></span>
+                                    <input type="text" class="cli-input" id="modal-cli-input" placeholder="Type 'federation create' or 'community create' to begin..." autocomplete="off">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Instance Configuration Summary -->
+                        <div class="instance-config-summary" id="instanceConfigSummary" style="display: none;">
+                            <h5><i class="fas fa-check-circle"></i> Instance Configuration Complete</h5>
+                            <div class="config-details" id="configDetails"></div>
+                        </div>
+                        
+                        <div class="submission-info">
+                            <h4><i class="fas fa-info-circle"></i> What happens next?</h4>
+                            <ol>
+                                <li>Your project and instance configuration will be reviewed by the Datachain Foundation</li>
+                                <li>Once approved, it enters a 7-day community voting period</li>
+                                <li>DC FAT holders vote to approve or reject your project</li>
+                                <li>If approved (51%+ votes with minimum 1,000,000 FAT), your instance is deployed</li>
+                                <li>You'll receive access credentials and can start leveraging Datachain Rope resources</li>
+                            </ol>
                         </div>
                     </div>
                 </form>
@@ -586,12 +740,88 @@
         // Project Submission Modal
         // =========================================
         let currentStep = 1;
-        const totalSteps = 3;
+        const totalSteps = 4;
+        let selectedInstanceSize = null;
+        let modalWizardState = { active: false, type: null, step: 0, config: {} };
+        let instanceConfigured = false;
+        
+        // Cloud Provider Registry
+        const cloudProviders = {
+            europe: [
+                { name: 'OVHcloud', country: 'France', contact: 'partners@ovhcloud.com' },
+                { name: 'Scaleway', country: 'France', contact: 'partnerships@scaleway.com' },
+                { name: 'Hetzner', country: 'Germany', contact: 'partnership@hetzner.com' },
+                { name: 'Infomaniak', country: 'Switzerland', contact: 'partners@infomaniak.com' },
+                { name: 'Exoscale', country: 'Switzerland', contact: 'sales@exoscale.com' }
+            ],
+            africa: [
+                { name: 'Africa Data Centres', country: 'South Africa', contact: 'sales@africadatacentres.com' },
+                { name: 'Liquid Intelligent Tech', country: 'Mauritius', contact: 'cloud@liquid.tech' },
+                { name: 'MainOne', country: 'Nigeria', contact: 'sales@mainone.net' },
+                { name: 'Teraco', country: 'South Africa', contact: 'sales@teraco.co.za' }
+            ],
+            asia: [
+                { name: 'Alibaba Cloud', country: 'China', contact: 'intl-sales@alibaba-inc.com' },
+                { name: 'Tencent Cloud', country: 'China', contact: 'cloudservice@tencent.com' },
+                { name: 'NTT Communications', country: 'Japan', contact: 'sales@ntt.com' },
+                { name: 'KT Cloud', country: 'South Korea', contact: 'ktcloud@kt.com' }
+            ],
+            russia_cis: [
+                { name: 'Yandex Cloud', country: 'Russia', contact: 'cloud@yandex-team.ru' },
+                { name: 'SberCloud', country: 'Russia', contact: 'info@sbercloud.ru' },
+                { name: 'Selectel', country: 'Russia', contact: 'sales@selectel.ru' }
+            ],
+            middle_east: [
+                { name: 'G42 Cloud', country: 'UAE', contact: 'info@g42cloud.com' },
+                { name: 'STC Cloud', country: 'Saudi Arabia', contact: 'cloud@stc.com.sa' },
+                { name: 'Etisalat Cloud', country: 'UAE', contact: 'business@etisalat.ae' }
+            ],
+            latam: [
+                { name: 'Claro Cloud', country: 'Mexico/Brazil', contact: 'empresas@claro.com' },
+                { name: 'Locaweb', country: 'Brazil', contact: 'comercial@locaweb.com.br' },
+                { name: 'KIO Networks', country: 'Mexico', contact: 'ventas@kio.tech' }
+            ]
+        };
+        
+        // Wizard steps with infrastructure
+        const infrastructureSteps = [
+            { prompt: 'Select Infrastructure Option:', field: 'infraOption', type: 'options', options: ['Managed Cloud (Select Provider)', 'Bring Your Own Infrastructure (SSH)'] },
+            { prompt: 'Select Cloud Region:', field: 'cloudRegion', type: 'options', options: ['Europe', 'Africa', 'Asia', 'Russia & CIS', 'Middle East', 'Latin America'], condition: (config) => config.infraOption === 'Managed Cloud (Select Provider)' },
+            { prompt: 'Select Cloud Provider:', field: 'cloudProvider', type: 'dynamic_options', getOptions: (config) => {
+                const regionMap = { 'Europe': 'europe', 'Africa': 'africa', 'Asia': 'asia', 'Russia & CIS': 'russia_cis', 'Middle East': 'middle_east', 'Latin America': 'latam' };
+                return cloudProviders[regionMap[config.cloudRegion]]?.map(p => `${p.name} (${p.country})`) || [];
+            }, condition: (config) => config.infraOption === 'Managed Cloud (Select Provider)' },
+            { prompt: 'Enter SSH Connection String (e.g., ssh -i ~/.ssh/key user@host):', field: 'sshConnection', type: 'text', condition: (config) => config.infraOption === 'Bring Your Own Infrastructure (SSH)' }
+        ];
+        
+        const modalFederationSteps = [
+            { prompt: 'Enter Federation Name:', field: 'name', type: 'text' },
+            { prompt: 'Select Structure Type:', field: 'structureType', type: 'options', options: ['Structured', 'Unstructured', 'Autonomous'] },
+            { prompt: 'Select Cell Type:', field: 'cellType', type: 'options', options: ['Monocellular', 'Multicellular'] },
+            { prompt: 'Select Protocol Invocations (comma-separated):', field: 'protocols', type: 'multiselect', options: ['Datachain Rope', 'Hyperledger', 'XDC Network', 'Solana', 'Polkadot', 'Bitcoin', 'Ethereum'] },
+            { prompt: 'Select eIdentity Protocol:', field: 'eIdentity', type: 'options', options: ['Datachain Foundation DID (W3C)', 'eIDAS', 'Mobile ID', 'None'] },
+            { prompt: 'Select AI Agents (comma-separated):', field: 'aiAgents', type: 'multiselect', options: ['InsightMiner', 'StructureMiner', 'ModelMiner', 'SentinelAI', 'OracleAI'] },
+            ...infrastructureSteps
+        ];
+        
+        const modalCommunitySteps = [
+            { prompt: 'Enter Community Name:', field: 'name', type: 'text' },
+            { prompt: 'Select Industry:', field: 'industry', type: 'options', options: ['Banking', 'Healthcare', 'Automotive', 'Mobility', 'Hospitality', 'Energy', 'Agricultural', 'Retail', 'Manufacturing'] },
+            { prompt: 'Select Scope:', field: 'scope', type: 'options', options: ['Global', 'Regional', 'Local'] },
+            { prompt: 'Select Cell Type:', field: 'cellType', type: 'options', options: ['Monocellular', 'Multicellular'] },
+            { prompt: 'Select Protocol Invocations (comma-separated):', field: 'protocols', type: 'multiselect', options: ['Datachain Rope', 'Hyperledger', 'XDC Network', 'Solana', 'Polkadot', 'Bitcoin', 'Ethereum'] },
+            { prompt: 'Select eIdentity Protocol:', field: 'eIdentity', type: 'options', options: ['Datachain Foundation DID (W3C)', 'eIDAS', 'Mobile ID', 'None'] },
+            { prompt: 'Select AI Agents (comma-separated):', field: 'aiAgents', type: 'multiselect', options: ['InsightMiner', 'StructureMiner', 'ModelMiner', 'SentinelAI', 'OracleAI'] },
+            ...infrastructureSteps
+        ];
         
         function openProjectModal() {
             document.getElementById('projectModal').classList.add('active');
             document.body.style.overflow = 'hidden';
             currentStep = 1;
+            instanceConfigured = false;
+            selectedInstanceSize = null;
+            modalWizardState = { active: false, type: null, step: 0, config: {} };
             updateStepUI();
         }
         
@@ -601,29 +831,38 @@
         }
         
         function updateStepUI() {
-            // Update step buttons
             document.querySelectorAll('.form-step').forEach((btn, idx) => {
                 btn.classList.remove('active', 'completed');
                 if (idx + 1 === currentStep) btn.classList.add('active');
                 else if (idx + 1 < currentStep) btn.classList.add('completed');
             });
             
-            // Update step content
             document.querySelectorAll('.step-content').forEach((content, idx) => {
                 content.classList.remove('active');
                 if (idx + 1 === currentStep) content.classList.add('active');
             });
             
-            // Update navigation buttons
             document.getElementById('prevBtn').disabled = currentStep === 1;
-            document.getElementById('nextBtn').textContent = currentStep === totalSteps ? 'Submit Project' : 'Next →';
+            
+            if (currentStep === 4) {
+                document.getElementById('nextBtn').textContent = instanceConfigured ? 'Submit for Community Vote' : 'Complete CLI Setup First';
+                document.getElementById('nextBtn').disabled = !instanceConfigured;
+            } else {
+                document.getElementById('nextBtn').textContent = 'Next →';
+                document.getElementById('nextBtn').disabled = false;
+            }
         }
         
         function nextStep() {
             if (currentStep < totalSteps) {
                 currentStep++;
                 updateStepUI();
-            } else {
+                if (currentStep === 4) {
+                    const projectName = document.querySelector('input[name="name"]')?.value || 'Your Project';
+                    const cliProjectName = document.getElementById('cli-project-name');
+                    if (cliProjectName) cliProjectName.textContent = projectName;
+                }
+            } else if (instanceConfigured) {
                 submitProject();
             }
         }
@@ -635,11 +874,229 @@
             }
         }
         
+        // Instance size selection
+        function selectInstanceSize(size) {
+            document.querySelectorAll('.size-option').forEach(opt => opt.classList.remove('selected'));
+            document.querySelector(`.size-option[data-size="${size}"]`).classList.add('selected');
+            selectedInstanceSize = size;
+            
+            const output = document.getElementById('modal-cli-output');
+            output.innerHTML += `\n<span class="success">✓ Instance size selected: ${size.toUpperCase()}</span>\n`;
+            output.innerHTML += `<span class="info">Now type 'federation create' or 'community create' to configure your instance.</span>\n`;
+            output.innerHTML += `<span class="prompt">rope></span> _`;
+            scrollCliToBottom();
+        }
+        
+        function scrollCliToBottom() {
+            const cliBody = document.getElementById('modal-cli-body');
+            if (cliBody) cliBody.scrollTop = cliBody.scrollHeight;
+        }
+        
+        function displayModalPrompt() {
+            const output = document.getElementById('modal-cli-output');
+            const steps = modalWizardState.type === 'federation' ? modalFederationSteps : modalCommunitySteps;
+            
+            while (modalWizardState.step < steps.length) {
+                const step = steps[modalWizardState.step];
+                if (step.condition && !step.condition(modalWizardState.config)) {
+                    modalWizardState.step++;
+                    continue;
+                }
+                break;
+            }
+            
+            if (modalWizardState.step < steps.length) {
+                const step = steps[modalWizardState.step];
+                let promptText = `\n<span class="highlight">${step.prompt}</span>\n`;
+                let options = step.options;
+                if (step.type === 'dynamic_options' && step.getOptions) {
+                    options = step.getOptions(modalWizardState.config);
+                }
+                if (step.type === 'options' || step.type === 'multiselect' || step.type === 'dynamic_options') {
+                    options.forEach((opt, idx) => {
+                        promptText += `  <span class="value">${idx + 1}.</span> ${opt}\n`;
+                    });
+                }
+                output.innerHTML += promptText + `<span class="prompt">rope></span> `;
+            } else {
+                completeModalWizard();
+            }
+            scrollCliToBottom();
+        }
+        
+        function processModalCommand(input) {
+            const output = document.getElementById('modal-cli-output');
+            const inputLower = input.toLowerCase().trim();
+            
+            output.innerHTML = output.innerHTML.replace(/<span class="prompt">rope><\/span> _?$/, '');
+            output.innerHTML += `<span class="prompt">rope></span> ${input}\n`;
+            
+            if (inputLower === 'clear') {
+                modalWizardState = { active: false, type: null, step: 0, config: {} };
+                output.innerHTML = `<span class="comment"># Datachain Rope Deployment CLI v1.0.0</span>\n<span class="comment"># Connected to: erpc.datachain.network</span>\n\n<span class="prompt">rope></span> _`;
+                return;
+            }
+            
+            if (inputLower === 'cancel' && modalWizardState.active) {
+                modalWizardState = { active: false, type: null, step: 0, config: {} };
+                output.innerHTML += `<span class="warning">⚠ Wizard cancelled.</span>\n<span class="prompt">rope></span> _`;
+                scrollCliToBottom();
+                return;
+            }
+            
+            if (!modalWizardState.active) {
+                if (inputLower === 'federation create') {
+                    if (!selectedInstanceSize) {
+                        output.innerHTML += `<span class="error">✗ Please select an instance size first.</span>\n<span class="prompt">rope></span> _`;
+                        scrollCliToBottom();
+                        return;
+                    }
+                    modalWizardState = { active: true, type: 'federation', step: 0, config: { instanceSize: selectedInstanceSize } };
+                    output.innerHTML += `<span class="success">⚡ Starting Federation Generation Wizard...</span>\n`;
+                    output.innerHTML += `<span class="info">Consensus: DkP (Delegated Keeper Proof)</span>\n`;
+                    displayModalPrompt();
+                } else if (inputLower === 'community create') {
+                    if (!selectedInstanceSize) {
+                        output.innerHTML += `<span class="error">✗ Please select an instance size first.</span>\n<span class="prompt">rope></span> _`;
+                        scrollCliToBottom();
+                        return;
+                    }
+                    modalWizardState = { active: true, type: 'community', step: 0, config: { instanceSize: selectedInstanceSize } };
+                    output.innerHTML += `<span class="success">⚡ Starting Community Generation Wizard...</span>\n`;
+                    output.innerHTML += `<span class="info">Consensus: PoA (Proof of Authority)</span>\n`;
+                    displayModalPrompt();
+                } else if (inputLower === 'help') {
+                    output.innerHTML += `<span class="highlight">Available Commands:</span>\n  <span class="command">federation create</span>  Create a new Federation instance\n  <span class="command">community create</span>   Create a new Community instance\n  <span class="command">providers list</span>     List all cloud providers\n  <span class="command">instance preview</span>   Preview instance configuration\n  <span class="command">clear</span>              Clear the terminal\n\n<span class="prompt">rope></span> _`;
+                } else if (inputLower === 'providers list') {
+                    output.innerHTML += `<span class="highlight">Cloud Provider Regions:</span>\n  Europe (5), Africa (4), Asia (4), Russia & CIS (3), Middle East (3), Latin America (3)\n<span class="info">Type 'providers [region]' to see details.</span>\n<span class="prompt">rope></span> _`;
+                } else {
+                    output.innerHTML += `<span class="error">Unknown command: ${input}</span>\n<span class="info">Type 'help' for available commands.</span>\n<span class="prompt">rope></span> _`;
+                }
+            } else {
+                const steps = modalWizardState.type === 'federation' ? modalFederationSteps : modalCommunitySteps;
+                const step = steps[modalWizardState.step];
+                let value = input;
+                let options = step.options;
+                if (step.type === 'dynamic_options' && step.getOptions) {
+                    options = step.getOptions(modalWizardState.config);
+                }
+                
+                if (step.type === 'options' || step.type === 'dynamic_options') {
+                    const idx = parseInt(input) - 1;
+                    if (isNaN(idx) || idx < 0 || idx >= options.length) {
+                        output.innerHTML += `<span class="error">Invalid selection. Enter 1-${options.length}.</span>\n`;
+                        displayModalPrompt();
+                        return;
+                    }
+                    value = options[idx];
+                } else if (step.type === 'multiselect') {
+                    const indices = input.split(',').map(s => parseInt(s.trim()) - 1);
+                    const selected = [];
+                    for (const idx of indices) {
+                        if (isNaN(idx) || idx < 0 || idx >= options.length) {
+                            output.innerHTML += `<span class="error">Invalid selection.</span>\n`;
+                            displayModalPrompt();
+                            return;
+                        }
+                        selected.push(options[idx]);
+                    }
+                    value = selected;
+                } else if (step.type === 'text' && !input.trim()) {
+                    output.innerHTML += `<span class="error">This field is required.</span>\n`;
+                    displayModalPrompt();
+                    return;
+                }
+                
+                modalWizardState.config[step.field] = value;
+                output.innerHTML += `<span class="success">✓ ${step.field}: ${Array.isArray(value) ? value.join(', ') : value}</span>\n`;
+                modalWizardState.step++;
+                displayModalPrompt();
+            }
+            scrollCliToBottom();
+        }
+        
+        function completeModalWizard() {
+            const output = document.getElementById('modal-cli-output');
+            const config = modalWizardState.config;
+            const isFederation = modalWizardState.type === 'federation';
+            const consensus = isFederation ? 'DkP' : 'PoA';
+            
+            let infraInfo = config.infraOption === 'Managed Cloud (Select Provider)' 
+                ? `${config.cloudProvider} (${config.cloudRegion})`
+                : 'BYOI (SSH)';
+            
+            output.innerHTML += `\n<span class="success">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>\n`;
+            output.innerHTML += `<span class="success">✓ ${isFederation ? 'FEDERATION' : 'COMMUNITY'} CONFIGURED!</span>\n`;
+            output.innerHTML += `<span class="success">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>\n\n`;
+            output.innerHTML += `<span class="highlight">Configuration Summary:</span>\n`;
+            output.innerHTML += `  Name: <span class="value">${config.name}</span>\n`;
+            output.innerHTML += `  Type: <span class="value">${isFederation ? 'Federation' : 'Community'}</span>\n`;
+            output.innerHTML += `  Size: <span class="value">${config.instanceSize.toUpperCase()}</span>\n`;
+            output.innerHTML += `  Consensus: <span class="value">${consensus}</span>\n`;
+            output.innerHTML += `  Protocols: <span class="value">${config.protocols?.join(', ') || 'N/A'}</span>\n`;
+            output.innerHTML += `  Infrastructure: <span class="value">${infraInfo}</span>\n\n`;
+            output.innerHTML += `<span class="info">✓ Click "Submit for Community Vote" to proceed.</span>\n`;
+            output.innerHTML += `<span class="prompt">rope></span> _`;
+            
+            instanceConfigured = true;
+            modalWizardState = { active: false, type: null, step: 0, config: {} };
+            
+            // Update button
+            document.getElementById('nextBtn').textContent = 'Submit for Community Vote';
+            document.getElementById('nextBtn').disabled = false;
+            
+            // Show config summary
+            const summary = document.getElementById('instanceConfigSummary');
+            const details = document.getElementById('configDetails');
+            summary.style.display = 'block';
+            details.innerHTML = `
+                <div class="config-item"><span class="label">Type:</span><span class="value">${isFederation ? 'Federation' : 'Community'}</span></div>
+                <div class="config-item"><span class="label">Name:</span><span class="value">${config.name}</span></div>
+                <div class="config-item"><span class="label">Size:</span><span class="value">${config.instanceSize?.toUpperCase()}</span></div>
+                <div class="config-item"><span class="label">Consensus:</span><span class="value">${consensus}</span></div>
+                <div class="config-item"><span class="label">Infrastructure:</span><span class="value">${infraInfo}</span></div>
+            `;
+            
+            window.instanceConfig = config;
+            window.instanceConfig.type = isFederation ? 'federation' : 'community';
+            window.instanceConfig.consensus = consensus;
+            
+            scrollCliToBottom();
+        }
+        
+        // CLI input handler - initialize after DOM
+        function initCliInput() {
+            const cliInput = document.getElementById('modal-cli-input');
+            if (cliInput) {
+                cliInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        const input = this.value.trim();
+                        if (input) {
+                            processModalCommand(input);
+                            this.value = '';
+                        }
+                    }
+                });
+            }
+        }
+        
+        // Initialize CLI when DOM is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            initCliInput();
+        });
+        
+        // Also initialize on modal open in case it's not ready yet
+        const originalOpenModal = openProjectModal;
+        openProjectModal = function() {
+            originalOpenModal();
+            setTimeout(initCliInput, 100);
+        };
+        
         async function submitProject() {
             const form = document.getElementById('projectForm');
             const formData = new FormData(form);
             
-            // Build the payload
+            // Build the payload with instance configuration
             const payload = {
                 name: formData.get('name'),
                 tagline: formData.get('tagline') || null,
@@ -668,7 +1125,9 @@
                 milestones: [],
                 funding_requested: parseInt(formData.get('funding_requested')) || 0,
                 funding_currency: formData.get('funding_currency') || 'FAT',
-                funding_breakdown: formData.get('funding_breakdown') || null
+                funding_breakdown: formData.get('funding_breakdown') || null,
+                // Instance configuration from Step 4
+                instance_config: window.instanceConfig || null
             };
             
             try {
@@ -681,23 +1140,44 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert(`✅ Project "${payload.name}" submitted successfully!\n\nYour project will be reviewed and then put to community vote. You'll receive updates at ${payload.submitter_email}.`);
-                    closeProjectModal();
-                    form.reset();
-                    currentStep = 1;
-                    updateStepUI();
-                    loadProjects(); // Refresh the list
+                    showSuccessMessage(payload);
                 } else {
                     alert('❌ Submission failed. Please try again.');
                 }
             } catch (error) {
                 console.error('Submit error:', error);
-                alert(`✅ Project "${payload.name}" submitted successfully!\n\nYour project will be reviewed and then put to community vote.`);
-                closeProjectModal();
-                form.reset();
-                currentStep = 1;
-                updateStepUI();
+                showSuccessMessage(payload);
             }
+        }
+        
+        function showSuccessMessage(payload) {
+            const instanceInfo = payload.instance_config ? `
+                <div style="background: #1a1a2e; border-radius: 8px; padding: 1rem; margin: 1rem 0; color: #e0e0e0; text-align: left; font-size: 13px;">
+                    <div style="color: #4fc3f7; font-weight: 600; margin-bottom: 0.5rem;"><i class="fas fa-server"></i> Instance Configuration</div>
+                    <div>Type: <span style="color: #a5d6a7;">${payload.instance_config.type || 'N/A'}</span></div>
+                    <div>Name: <span style="color: #a5d6a7;">${payload.instance_config.name || 'N/A'}</span></div>
+                    <div>Size: <span style="color: #a5d6a7;">${payload.instance_config.instanceSize?.toUpperCase() || 'N/A'}</span></div>
+                </div>
+            ` : '';
+            
+            document.querySelector('.modal-body').innerHTML = `
+                <div style="text-align: center; padding: 2rem;">
+                    <i class="fas fa-check-circle" style="font-size: 3rem; color: #22c55e; margin-bottom: 1rem;"></i>
+                    <h3 style="margin-bottom: 0.5rem;">Project Submitted Successfully!</h3>
+                    <p style="color: var(--gray-600);">Your project "${payload.name}" has been submitted for community vote.</p>
+                    ${instanceInfo}
+                    <div style="background: var(--gray-50); border-radius: 8px; padding: 1rem; margin: 1rem 0; text-align: left; font-size: 13px;">
+                        <div style="font-weight: 600; margin-bottom: 0.5rem;"><i class="fas fa-info-circle"></i> What happens next?</div>
+                        <ol style="padding-left: 1.25rem; margin: 0; color: var(--gray-600);">
+                            <li>Your project will be reviewed by the Datachain Foundation</li>
+                            <li>Once approved, it enters a 7-day community voting period</li>
+                            <li>DC FAT holders vote (minimum 1,000,000 FAT required)</li>
+                            <li>If approved (51%+ votes), your instance is deployed</li>
+                        </ol>
+                    </div>
+                    <button onclick="closeProjectModal(); location.reload();" class="btn btn-primary" style="margin-top: 1rem;">Close</button>
+                </div>
+            `;
         }
         
         // Close modal on outside click
