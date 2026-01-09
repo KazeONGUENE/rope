@@ -15,6 +15,7 @@ members = [
     "crates/rope-explorer",
     "crates/rope-benchmarks",
     "crates/rope-loadtest",
+    "crates/rope-economics",
 ]
 resolver = "2"
 

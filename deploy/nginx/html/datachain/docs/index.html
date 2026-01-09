@@ -269,6 +269,13 @@
             margin-bottom: 1rem;
         }
         
+        /* Feature Grid (Consensus Cards) */
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+        
         /* Code Blocks */
         pre {
             background: var(--gray-900);
@@ -318,15 +325,20 @@
             padding: 2rem;
             margin: 2rem 0;
             position: relative;
-            overflow: hidden;
-            min-height: 500px;
+        }
+        
+        .animation-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 2rem;
+            gap: 2rem;
         }
         
         .animation-title {
             color: var(--white);
             font-size: 1.25rem;
             font-weight: 600;
-            margin-bottom: 1.5rem;
             display: flex;
             align-items: center;
             gap: 0.75rem;
@@ -343,10 +355,26 @@
         /* Schema Animation Styles */
         .schema-flow {
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             overflow-x: auto;
-            padding: 2rem 0;
+            padding: 1rem 0 2rem;
             gap: 0;
+            scrollbar-width: thin;
+            scrollbar-color: var(--gray-600) var(--gray-800);
+        }
+        
+        .schema-flow::-webkit-scrollbar {
+            height: 8px;
+        }
+        
+        .schema-flow::-webkit-scrollbar-track {
+            background: var(--gray-800);
+            border-radius: 4px;
+        }
+        
+        .schema-flow::-webkit-scrollbar-thumb {
+            background: var(--gray-600);
+            border-radius: 4px;
         }
         
         .schema-node {
@@ -429,6 +457,7 @@
             background: linear-gradient(90deg, var(--gray-600), var(--white));
             flex-shrink: 0;
             position: relative;
+            margin-top: 2.5rem;
             animation: lineGrow 0.5s ease-out forwards;
             transform-origin: left;
             transform: scaleX(0);
@@ -462,31 +491,77 @@
         
         /* Generation Output */
         .generation-output {
-            position: absolute;
-            top: 2rem;
-            right: 2rem;
             background: var(--gray-800);
-            border-radius: 8px;
+            border-radius: 12px;
             padding: 1rem 1.25rem;
             min-width: 200px;
+            max-width: 280px;
+            flex-shrink: 0;
+            margin-bottom: 1.5rem;
         }
         
-        .generation-output h5 {
+        .generation-output-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .generation-output-header h5 {
             color: var(--white);
             font-size: 0.75rem;
             text-transform: uppercase;
-            margin-bottom: 0.75rem;
+            letter-spacing: 0.5px;
+            margin: 0;
+        }
+        
+        .generation-output-toggle {
+            color: var(--gray-400);
+            font-size: 1rem;
+            transition: color 0.2s ease, transform 0.2s ease;
+            padding: 0.25rem;
+        }
+        
+        .generation-output-header:hover .generation-output-toggle {
+            color: var(--white);
+        }
+        
+        .generation-output.collapsed .generation-output-toggle {
+            color: var(--gray-500);
+        }
+        
+        .generation-output-content {
+            max-height: 300px;
+            overflow: hidden;
+            transition: max-height 0.4s ease-out, opacity 0.3s ease-out, padding 0.3s ease-out;
+            opacity: 1;
+            padding-top: 1rem;
+            margin-top: 0.75rem;
+            border-top: 1px solid var(--gray-700);
+        }
+        
+        .generation-output.collapsed .generation-output-content {
+            max-height: 0;
+            opacity: 0;
+            padding-top: 0;
+            margin-top: 0;
+            border-top: none;
         }
         
         .generation-output .stat {
             display: flex;
             justify-content: space-between;
-            padding: 0.375rem 0;
+            align-items: center;
+            padding: 0.75rem 0;
+            gap: 2rem;
             border-bottom: 1px solid var(--gray-700);
+            margin-bottom: 0.25rem;
         }
         
-        .generation-output .stat:last-child {
+        .generation-output .stat:last-of-type {
             border-bottom: none;
+            margin-bottom: 0.75rem;
         }
         
         .generation-output .stat span {
@@ -510,7 +585,7 @@
             border-radius: 4px;
             font-size: 0.75rem;
             font-weight: 600;
-            margin-top: 1rem;
+            margin-top: 0.5rem;
         }
         
         /* CLI Terminal */
@@ -945,6 +1020,289 @@
                 </table>
             </section>
             
+            <!-- Core Concepts: String Lattice -->
+            <section id="string-lattice" class="content-section">
+                <h2>String Lattice Architecture</h2>
+                <p>The String Lattice is the foundational data structure of Datachain Rope, replacing traditional blockchain's linear chain with a multi-dimensional lattice inspired by DNA's double helix structure.</p>
+                
+                <h3>Key Properties</h3>
+                <ul style="margin: 1rem 0 1rem 1.5rem; color: var(--gray-700);">
+                    <li><strong>Parallel Processing</strong> – Multiple strings can be processed simultaneously, unlike sequential blockchain blocks</li>
+                    <li><strong>Intrinsic Ordering</strong> – Causally ordered events without global timestamps</li>
+                    <li><strong>Efficient Consensus</strong> – Virtual voting based on visibility, no message overhead</li>
+                    <li><strong>Self-Healing</strong> – Reed-Solomon erasure coding enables data recovery</li>
+                </ul>
+                
+                <h3>String Structure</h3>
+                <pre><code>RopeString {
+    id: StringId,               // Unique identifier (256-bit hash)
+    creator: ValidatorId,       // Creating validator's public key
+    timestamp: Timestamp,       // Logical timestamp (not wall clock)
+    payload: Payload,           // Transaction data or testimony
+    self_parent: Option&lt;StringId&gt;,   // Previous string from same creator
+    other_parent: Option&lt;StringId&gt;,  // Latest string from other validator
+    signature: Signature,       // Post-quantum signature (Dilithium3)
+    nucleotide: Nucleotide,     // A, T, C, G – encodes string type
+}</code></pre>
+                
+                <h3>Nucleotide Types</h3>
+                <table>
+                    <tr>
+                        <th>Nucleotide</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                    </tr>
+                    <tr>
+                        <td><code>A</code> (Adenine)</td>
+                        <td>Transaction</td>
+                        <td>Standard value transfer or smart contract call</td>
+                    </tr>
+                    <tr>
+                        <td><code>T</code> (Thymine)</td>
+                        <td>Testimony</td>
+                        <td>AI-generated validation proof</td>
+                    </tr>
+                    <tr>
+                        <td><code>C</code> (Cytosine)</td>
+                        <td>Consensus</td>
+                        <td>Virtual voting and anchor determination</td>
+                    </tr>
+                    <tr>
+                        <td><code>G</code> (Guanine)</td>
+                        <td>Genesis</td>
+                        <td>Network initialization or federation creation</td>
+                    </tr>
+                </table>
+            </section>
+            
+            <!-- Core Concepts: AI Testimony -->
+            <section id="testimony" class="content-section">
+                <h2>AI Testimony System</h2>
+                <p>AI Testimony is a unique validation layer where artificial intelligence agents provide semantic and business logic verification of transactions before they are finalized in the String Lattice.</p>
+                
+                <h3>Testimony Types</h3>
+                <ul style="margin: 1rem 0 1rem 1.5rem; color: var(--gray-700);">
+                    <li><strong>Semantic Validation</strong> – Verifies that transaction data makes logical sense</li>
+                    <li><strong>Business Logic</strong> – Ensures compliance with application-specific rules</li>
+                    <li><strong>Anomaly Detection</strong> – Identifies unusual patterns that may indicate fraud</li>
+                    <li><strong>Cross-Reference</strong> – Validates consistency with historical data</li>
+                </ul>
+                
+                <h3>Testimony Structure</h3>
+                <pre><code>Testimony {
+    string_id: StringId,        // String being validated
+    validator: ValidatorId,     // AI validator identity
+    verdict: Verdict,           // VALID, INVALID, or NEEDS_REVIEW
+    confidence: f64,            // Confidence score (0.0 - 1.0)
+    evidence: Vec&lt;Evidence&gt;,    // Supporting evidence
+    timestamp: Timestamp,       // When testimony was created
+    signature: Signature,       // Validator's signature
+}</code></pre>
+                
+                <h3>Validation Process</h3>
+                <ol style="margin: 1rem 0 1rem 1.5rem; color: var(--gray-700);">
+                    <li>Transaction submitted to network</li>
+                    <li>Assigned to AI testimony validators based on expertise</li>
+                    <li>Validators analyze transaction semantics and business logic</li>
+                    <li>Testimonies collected (minimum 2/3 supermajority required)</li>
+                    <li>Transaction finalized or rejected based on aggregate verdict</li>
+                </ol>
+            </section>
+            
+            <!-- Core Concepts: OES Cryptography -->
+            <section id="oes" class="content-section">
+                <h2>OES Cryptography</h2>
+                <p><strong>OES (Observability, Erasability, Sovereignty)</strong> is Datachain Rope's cryptographic framework that ensures data can be observed by authorized parties, erased when required (GDPR compliance), and sovereignty remains with data owners.</p>
+                
+                <h3>Key Components</h3>
+                <table>
+                    <tr>
+                        <th>Component</th>
+                        <th>Algorithm</th>
+                        <th>Purpose</th>
+                    </tr>
+                    <tr>
+                        <td>Digital Signatures</td>
+                        <td>CRYSTALS-Dilithium3</td>
+                        <td>Post-quantum secure authentication</td>
+                    </tr>
+                    <tr>
+                        <td>Key Exchange</td>
+                        <td>CRYSTALS-Kyber768</td>
+                        <td>Post-quantum secure key encapsulation</td>
+                    </tr>
+                    <tr>
+                        <td>Hashing</td>
+                        <td>BLAKE3</td>
+                        <td>Fast, secure cryptographic hashing</td>
+                    </tr>
+                    <tr>
+                        <td>Erasure Coding</td>
+                        <td>Reed-Solomon</td>
+                        <td>Data redundancy and self-healing</td>
+                    </tr>
+                </table>
+                
+                <h3>Controlled Erasure Protocol</h3>
+                <p>Datachain Rope supports GDPR-compliant data erasure through a unique protocol that allows data to be permanently removed while maintaining network integrity:</p>
+                <ul style="margin: 1rem 0 1rem 1.5rem; color: var(--gray-700);">
+                    <li><strong>Erasure Request</strong> – Data owner initiates erasure</li>
+                    <li><strong>Verification</strong> – Network verifies ownership and legal basis</li>
+                    <li><strong>Controlled Erasure</strong> – Data shards are zeroed across all nodes</li>
+                    <li><strong>Tombstone</strong> – Permanent record that data was lawfully erased</li>
+                </ul>
+            </section>
+            
+            <!-- Core Concepts: Consensus -->
+            <section id="consensus" class="content-section">
+                <h2>Consensus Mechanisms</h2>
+                <p>Datachain Rope employs a multi-layer consensus architecture tailored to different organizational structures within the network. Each consensus mechanism is optimized for specific use cases.</p>
+                
+                <div class="feature-grid" style="margin: 2rem 0;">
+                    <div class="feature-card" style="background: var(--gray-900); border-radius: 12px; padding: 1.5rem;">
+                        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                            <div style="width: 48px; height: 48px; background: var(--white); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-building" style="color: var(--black); font-size: 1.25rem;"></i>
+                            </div>
+                            <h3 style="color: var(--white); margin: 0; font-size: 1.25rem;">DkP Consensus</h3>
+                        </div>
+                        <p style="color: var(--gray-300); font-size: 0.9rem; margin-bottom: 1rem;"><strong>Delegated Keeper Proof</strong> – Used for Federation consensus</p>
+                        <ul style="color: var(--gray-400); font-size: 0.85rem; margin: 0 0 0 1rem; padding: 0;">
+                            <li>Validators are selected by federation stakeholders</li>
+                            <li>Keepers hold delegated authority to validate strings</li>
+                            <li>Weighted voting based on stake and reputation</li>
+                            <li>Optimized for enterprise federations</li>
+                            <li>High throughput with known validator set</li>
+                        </ul>
+                        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--gray-700);">
+                            <span style="color: var(--gray-500); font-size: 0.75rem;">FINALITY: ~2-3 seconds</span>
+                        </div>
+                    </div>
+                    
+                    <div class="feature-card" style="background: var(--gray-900); border-radius: 12px; padding: 1.5rem;">
+                        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                            <div style="width: 48px; height: 48px; background: var(--white); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-users" style="color: var(--black); font-size: 1.25rem;"></i>
+                            </div>
+                            <h3 style="color: var(--white); margin: 0; font-size: 1.25rem;">PoA Consensus</h3>
+                        </div>
+                        <p style="color: var(--gray-300); font-size: 0.9rem; margin-bottom: 1rem;"><strong>Proof of Authority</strong> – Used for Community consensus</p>
+                        <ul style="color: var(--gray-400); font-size: 0.85rem; margin: 0 0 0 1rem; padding: 0;">
+                            <li>Pre-approved validators with known identities</li>
+                            <li>Round-robin block production</li>
+                            <li>Reputation-based validator selection</li>
+                            <li>Ideal for industry-specific communities</li>
+                            <li>Lower energy consumption than PoW</li>
+                        </ul>
+                        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--gray-700);">
+                            <span style="color: var(--gray-500); font-size: 0.75rem;">FINALITY: ~3-5 seconds</span>
+                        </div>
+                    </div>
+                    
+                    <div class="feature-card" style="background: var(--gray-900); border-radius: 12px; padding: 1.5rem;">
+                        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                            <div style="width: 48px; height: 48px; background: var(--white); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-project-diagram" style="color: var(--black); font-size: 1.25rem;"></i>
+                            </div>
+                            <h3 style="color: var(--white); margin: 0; font-size: 1.25rem;">Virtual Voting</h3>
+                        </div>
+                        <p style="color: var(--gray-300); font-size: 0.9rem; margin-bottom: 1rem;"><strong>String Lattice Consensus</strong> – Global ordering</p>
+                        <ul style="color: var(--gray-400); font-size: 0.85rem; margin: 0 0 0 1rem; padding: 0;">
+                            <li>No explicit voting messages required</li>
+                            <li>Consensus derived from string visibility</li>
+                            <li>Strongly-sees relation for anchor determination</li>
+                            <li>Supermajority (2/3+) observation threshold</li>
+                            <li>Asynchronous Byzantine fault tolerance</li>
+                        </ul>
+                        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--gray-700);">
+                            <span style="color: var(--gray-500); font-size: 0.75rem;">FINALITY: Sub-5 seconds (aBFT)</span>
+                        </div>
+                    </div>
+                    
+                    <div class="feature-card" style="background: var(--gray-900); border-radius: 12px; padding: 1.5rem;">
+                        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                            <div style="width: 48px; height: 48px; background: var(--white); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-atom" style="color: var(--black); font-size: 1.25rem;"></i>
+                            </div>
+                            <h3 style="color: var(--white); margin: 0; font-size: 1.25rem;">Hashgraph</h3>
+                        </div>
+                        <p style="color: var(--gray-300); font-size: 0.9rem; margin-bottom: 1rem;"><strong>Hedera Integration</strong> – Coming soon</p>
+                        <ul style="color: var(--gray-400); font-size: 0.85rem; margin: 0 0 0 1rem; padding: 0;">
+                            <li>Gossip-about-gossip protocol</li>
+                            <li>Virtual voting with complete history</li>
+                            <li>Fair ordering guarantees</li>
+                            <li>Planned integration for cross-chain</li>
+                            <li>Mathematically proven consensus</li>
+                        </ul>
+                        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--gray-700);">
+                            <span style="color: var(--gray-500); font-size: 0.75rem;">STATUS: Planned Q3 2026</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <h3>Consensus Selection by Layer</h3>
+                <table>
+                    <tr>
+                        <th>Layer</th>
+                        <th>Consensus</th>
+                        <th>Validators</th>
+                        <th>Use Case</th>
+                    </tr>
+                    <tr>
+                        <td>Global (Network)</td>
+                        <td>Virtual Voting</td>
+                        <td>All active validators</td>
+                        <td>Cross-federation ordering, anchors</td>
+                    </tr>
+                    <tr>
+                        <td>Federation</td>
+                        <td>DkP (Delegated Keeper Proof)</td>
+                        <td>Federation-appointed keepers</td>
+                        <td>Enterprise data management</td>
+                    </tr>
+                    <tr>
+                        <td>Community</td>
+                        <td>PoA (Proof of Authority)</td>
+                        <td>KYC-verified validators</td>
+                        <td>Industry vertical governance</td>
+                    </tr>
+                    <tr>
+                        <td>Individual Chain</td>
+                        <td>Single-party</td>
+                        <td>Data wallet owner</td>
+                        <td>Personal data sovereignty</td>
+                    </tr>
+                </table>
+                
+                <h3>Virtual Voting Algorithm</h3>
+                <p>The Virtual Voting algorithm achieves consensus without explicit voting rounds by leveraging the String Lattice's gossip history:</p>
+                <pre><code>fn determine_consensus(string: &amp;RopeString, lattice: &amp;StringLattice) -&gt; bool {
+    // Find validators who can "strongly see" this string
+    let observers = lattice.find_strong_seers(string);
+    
+    // Calculate stake-weighted observation
+    let observed_stake: u64 = observers.iter()
+        .map(|v| v.stake)
+        .sum();
+    
+    // Consensus achieved if 2/3+ of stake observes
+    let total_stake = lattice.total_stake();
+    observed_stake * 3 &gt; total_stake * 2
+}
+
+// Strongly-sees: A string X strongly sees Y if:
+// 1. X can see Y (Y is an ancestor of X)
+// 2. X can see a supermajority of strings that can see Y</code></pre>
+                
+                <h3>Byzantine Fault Tolerance</h3>
+                <p>Datachain Rope maintains safety and liveness with up to <code>f &lt; n/3</code> Byzantine (malicious) validators:</p>
+                <ul style="margin: 1rem 0 1rem 1.5rem; color: var(--gray-700);">
+                    <li><strong>Safety</strong> – Two honest validators never finalize conflicting strings</li>
+                    <li><strong>Liveness</strong> – Honest transactions eventually get finalized</li>
+                    <li><strong>Asynchronous</strong> – No timing assumptions required</li>
+                </ul>
+            </section>
+            
             <!-- Federation Generation Section -->
             <section id="federation-generation" class="content-section">
                 <h2>Federation Generation Protocol</h2>
@@ -952,24 +1310,30 @@
                 
                 <!-- Animated Schema -->
                 <div class="animation-container" id="federation-animation">
-                    <div class="animation-title">
-                        Federation Generation Flow
-                        <span class="badge">Interactive</span>
-                    </div>
-                    
-                    <div class="generation-output">
-                        <h5>Generation Output</h5>
-                        <div class="stat">
-                            <span>DATA WALLETS</span>
-                            <strong id="fed-wallets">3,500,000</strong>
+                    <div class="animation-header">
+                        <div class="animation-title">
+                            Federation Generation Flow
+                            <span class="badge">Interactive</span>
                         </div>
-                        <div class="stat">
-                            <span>Individual Chains</span>
-                            <strong id="fed-chains">3,500,000</strong>
-                        </div>
-                        <div class="consensus-badge">
-                            <i class="fas fa-check-circle"></i>
-                            DkP Consensus Active
+                        <div class="generation-output" id="fed-output">
+                            <div class="generation-output-header" onclick="toggleGenerationOutput('fed-output')">
+                                <h5>Generation Output</h5>
+                                <i class="fas fa-eye generation-output-toggle"></i>
+                            </div>
+                            <div class="generation-output-content">
+                                <div class="stat">
+                                    <span>DATA WALLETS</span>
+                                    <strong id="fed-wallets">3,500,000</strong>
+                                </div>
+                                <div class="stat">
+                                    <span>Individual Chains</span>
+                                    <strong id="fed-chains">3,500,000</strong>
+                                </div>
+                                <div class="consensus-badge">
+                                    <i class="fas fa-check-circle"></i>
+                                    DkP Consensus Active
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
@@ -1005,19 +1369,15 @@
                 <h3>Protocol Invocations</h3>
                 <p>Federations can invoke multiple external protocols:</p>
                 <pre><code>// Available Protocol Invocations
-Native DC      // Datachain native protocol
+Datachain Rope // Native protocol (required)
 Hyperledger    // Enterprise blockchain
-NXT            // Proof-of-stake platform
-EOS            // High-performance chain
-Wanchain       // Cross-chain protocol
-Lisk           // Sidechain platform
+XDC Network    // XinFin hybrid chain
+Solana         // High-performance chain
+Polkadot       // Cross-chain protocol
+Bitcoin        // Store of value layer
 Ethereum       // Smart contracts
-Blockchain     // Generic blockchain
-Tangle         // IOTA DAG
-Hashgraph      // Hedera consensus
-Gnutella       // P2P file sharing
-GSM            // Mobile network
-BitTorrent     // Distributed file system</code></pre>
+Tangle         // IOTA DAG (coming soon)
+Hashgraph      // Hedera consensus (coming soon)</code></pre>
             </section>
             
             <!-- Community Generation Section -->
@@ -1027,24 +1387,30 @@ BitTorrent     // Distributed file system</code></pre>
                 
                 <!-- Animated Schema -->
                 <div class="animation-container" id="community-animation">
-                    <div class="animation-title">
-                        Community Generation Flow
-                        <span class="badge">Interactive</span>
-                    </div>
-                    
-                    <div class="generation-output">
-                        <h5>Generation Output</h5>
-                        <div class="stat">
-                            <span>DATA WALLETS</span>
-                            <strong id="comm-wallets">10,000,000</strong>
+                    <div class="animation-header">
+                        <div class="animation-title">
+                            Community Generation Flow
+                            <span class="badge">Interactive</span>
                         </div>
-                        <div class="stat">
-                            <span>Validator Chains</span>
-                            <strong id="comm-chains">10,000,000</strong>
-                        </div>
-                        <div class="consensus-badge">
-                            <i class="fas fa-check-circle"></i>
-                            PoA Consensus Active
+                        <div class="generation-output" id="comm-output">
+                            <div class="generation-output-header" onclick="toggleGenerationOutput('comm-output')">
+                                <h5>Generation Output</h5>
+                                <i class="fas fa-eye generation-output-toggle"></i>
+                            </div>
+                            <div class="generation-output-content">
+                                <div class="stat">
+                                    <span>DATA WALLETS</span>
+                                    <strong id="comm-wallets">10,000,000</strong>
+                                </div>
+                                <div class="stat">
+                                    <span>Validator Chains</span>
+                                    <strong id="comm-chains">10,000,000</strong>
+                                </div>
+                                <div class="consensus-badge">
+                                    <i class="fas fa-check-circle"></i>
+                                    PoA Consensus Active
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
@@ -1172,15 +1538,15 @@ BitTorrent     // Distributed file system</code></pre>
 <span class="prompt">rope&gt;</span> protocols list
 
 <span class="highlight">Available Protocol Invocations:</span>
-  ☑ Native DC     - Datachain native protocol
-  ☑ Hyperledger   - Enterprise blockchain  
-  ☑ NXT           - Proof-of-stake platform
-  ☑ EOS           - High-performance chain
-  ☑ Wanchain      - Cross-chain protocol
-  ☑ Lisk          - Sidechain platform
-  ☑ Ethereum      - Smart contracts
-  ☐ Tangle        - IOTA DAG (coming soon)
-  ☐ Hashgraph     - Hedera consensus (coming soon)
+  ☑ Datachain Rope - Native protocol (required)
+  ☑ Hyperledger    - Enterprise blockchain  
+  ☑ XDC Network    - XinFin hybrid chain
+  ☑ Solana         - High-performance chain
+  ☑ Polkadot       - Cross-chain protocol
+  ☑ Bitcoin        - Store of value layer
+  ☑ Ethereum       - Smart contracts
+  ☐ Tangle         - IOTA DAG (coming soon)
+  ☐ Hashgraph      - Hedera consensus (coming soon)
 
 <span class="prompt">rope&gt;</span> _
                         </div>
@@ -1364,6 +1730,24 @@ oes_generation = 1         # OES evolution epoch</code></pre>
     
     <script>
         // ========================================================================
+        // GENERATION OUTPUT TOGGLE
+        // ========================================================================
+        function toggleGenerationOutput(id) {
+            const element = document.getElementById(id);
+            const toggle = element.querySelector('.generation-output-toggle');
+            
+            element.classList.toggle('collapsed');
+            
+            if (element.classList.contains('collapsed')) {
+                toggle.classList.remove('fa-eye');
+                toggle.classList.add('fa-eye-slash');
+            } else {
+                toggle.classList.remove('fa-eye-slash');
+                toggle.classList.add('fa-eye');
+            }
+        }
+        
+        // ========================================================================
         // ANIMATION: Federation Generation Flow
         // ========================================================================
         function initFederationAnimation() {
@@ -1388,15 +1772,15 @@ oes_generation = 1         # OES evolution epoch</code></pre>
                     { text: 'Multicellular' }
                 ]},
                 { type: 'dark', title: 'Protocol Invocations', items: [
-                    { text: 'Native DC' },
+                    { text: 'Datachain Rope', checked: true },
                     { text: 'Hyperledger' },
-                    { text: 'NXT' },
-                    { text: 'EOS' },
-                    { text: 'Wanchain', checked: true },
-                    { text: 'Lisk' },
+                    { text: 'XDC Network' },
+                    { text: 'Solana' },
+                    { text: 'Polkadot', checked: true },
+                    { text: 'Bitcoin' },
                     { text: 'Ethereum' }
                 ]},
-                { type: 'dark', title: 'eCitizenship', items: [
+                { type: 'dark', title: 'eIdentity', items: [
                     { text: 'ISO/IEC-24760-1', checked: true },
                     { text: 'electronic ID' },
                     { text: 'ePassport Protocol' }
@@ -1449,13 +1833,13 @@ oes_generation = 1         # OES evolution epoch</code></pre>
                     { text: 'Local' }
                 ]},
                 { type: 'dark', title: 'Protocol Invocations', items: [
-                    { text: 'Native DC', checked: true },
+                    { text: 'Datachain Rope', checked: true },
                     { text: 'Hyperledger', checked: true },
-                    { text: 'NXT' },
-                    { text: 'EOS' },
-                    { text: 'Wanchain' },
+                    { text: 'XDC Network' },
+                    { text: 'Solana' },
+                    { text: 'Polkadot' },
+                    { text: 'Bitcoin' },
                     { text: 'Ethereum' },
-                    { text: 'Blockchain' },
                     { text: 'Tangle' },
                     { text: 'Hashgraph' }
                 ]},
@@ -1529,13 +1913,311 @@ oes_generation = 1         # OES evolution epoch</code></pre>
         }
         
         // ========================================================================
-        // CLI INTERFACE
+        // CLI INTERFACE - Interactive Wizard
         // ========================================================================
+        
+        // Wizard state management
+        let wizardState = {
+            active: false,
+            type: null, // 'federation' or 'community'
+            step: 0,
+            config: {}
+        };
+        
+        const wizardSteps = {
+            federation: [
+                { key: 'name', prompt: 'Enter Federation name:', validate: v => v.length >= 2 },
+                { key: 'structureType', prompt: 'Select structure type:\n  [1] Structured (organizational hierarchy)\n  [2] Unstructured (flat network)\n  [3] Autonomous (self-governing)\nEnter choice (1-3):', options: ['structured', 'unstructured', 'autonomous'] },
+                { key: 'dataWallets', prompt: 'Enter number of Data Wallets to generate:', validate: v => !isNaN(parseInt(v)) && parseInt(v) > 0, transform: v => parseInt(v) },
+                { key: 'cellType', prompt: 'Select Cell Type:\n  [1] Monocellular (single-chain per wallet)\n  [2] Multicellular (multi-chain per wallet)\nEnter choice (1-2):', options: ['monocellular', 'multicellular'] },
+                { key: 'protocols', prompt: 'Select Protocol Invocations (comma-separated numbers):\n  [1] Datachain Rope (native)\n  [2] Hyperledger\n  [3] XDC Network\n  [4] Solana\n  [5] Polkadot\n  [6] Bitcoin\n  [7] Ethereum\nExample: 1,2,7', multiSelect: true },
+                { key: 'eIdentity', prompt: 'Enable eIdentity (Decentralized Digital Identity)?\n  [1] Datachain Foundation DID (W3C compliant)\n  [2] European eIDAS\n  [3] Mobile ID\n  [4] None\nEnter choice (1-4):', options: ['datachain-did', 'eidas', 'mobile-id', 'none'] },
+                { key: 'analytics', prompt: 'Select Data Analytics capabilities (comma-separated):\n  [1] Pattern Recognition\n  [2] Predictive Analytics\n  [3] Anomaly Detection\n  [4] Time Series Analysis\n  [5] Sentiment Analysis\nExample: 1,2,3', multiSelect: true },
+                { key: 'aiAgents', prompt: 'Select AI Agents to attach (comma-separated):\n  [1] InsightMiner (data analysis)\n  [2] StructureMiner (pattern extraction)\n  [3] ModelMiner (ML models)\n  [4] SentinelAI (security)\n  [5] OracleAI (predictions)\nExample: 1,4,5', multiSelect: true }
+            ],
+            community: [
+                { key: 'name', prompt: 'Enter Community name:', validate: v => v.length >= 2 },
+                { key: 'industry', prompt: 'Select Industry vertical:\n  [1] Banking & Finance\n  [2] Healthcare\n  [3] Automotive\n  [4] Mobility\n  [5] Hospitality\n  [6] Energy\n  [7] Agricultural\n  [8] Public Sector\nEnter choice (1-8):', options: ['banking', 'healthcare', 'automotive', 'mobility', 'hospitality', 'energy', 'agricultural', 'public-sector'] },
+                { key: 'scope', prompt: 'Select geographic scope:\n  [1] Global\n  [2] Regional\n  [3] Local\nEnter choice (1-3):', options: ['global', 'regional', 'local'] },
+                { key: 'dataWallets', prompt: 'Enter number of Data Wallets to generate:', validate: v => !isNaN(parseInt(v)) && parseInt(v) > 0, transform: v => parseInt(v) },
+                { key: 'cellType', prompt: 'Select Cell Type:\n  [1] Monocellular (single-chain per wallet)\n  [2] Multicellular (multi-chain per wallet)\nEnter choice (1-2):', options: ['monocellular', 'multicellular'] },
+                { key: 'protocols', prompt: 'Select Protocol Invocations (comma-separated numbers):\n  [1] Datachain Rope (native)\n  [2] Hyperledger\n  [3] XDC Network\n  [4] Solana\n  [5] Polkadot\n  [6] Bitcoin\n  [7] Ethereum\nExample: 1,2,7', multiSelect: true },
+                { key: 'eIdentity', prompt: 'Enable eIdentity (Decentralized Digital Identity)?\n  [1] Datachain Foundation DID (W3C compliant)\n  [2] European eIDAS\n  [3] Mobile ID\n  [4] None\nEnter choice (1-4):', options: ['datachain-did', 'eidas', 'mobile-id', 'none'] },
+                { key: 'kyc', prompt: 'KYC/AML Requirements:\n  [1] Full KYC (identity + address + income)\n  [2] Standard KYC (identity + address)\n  [3] Light KYC (identity only)\n  [4] None\nEnter choice (1-4):', options: ['full', 'standard', 'light', 'none'] },
+                { key: 'analytics', prompt: 'Select Data Analytics capabilities (comma-separated):\n  [1] Pattern Recognition\n  [2] Predictive Analytics\n  [3] Anomaly Detection\n  [4] Time Series Analysis\n  [5] Sentiment Analysis\nExample: 1,2,3', multiSelect: true },
+                { key: 'aiAgents', prompt: 'Select AI Agents to attach (comma-separated):\n  [1] InsightMiner (data analysis)\n  [2] StructureMiner (pattern extraction)\n  [3] ModelMiner (ML models)\n  [4] SentinelAI (security)\n  [5] OracleAI (predictions)\nExample: 1,4,5', multiSelect: true }
+            ]
+        };
+        
+        const protocolNames = ['Datachain Rope', 'Hyperledger', 'XDC Network', 'Solana', 'Polkadot', 'Bitcoin', 'Ethereum'];
+        const analyticsNames = ['Pattern Recognition', 'Predictive Analytics', 'Anomaly Detection', 'Time Series', 'Sentiment Analysis'];
+        const aiAgentNames = ['InsightMiner', 'StructureMiner', 'ModelMiner', 'SentinelAI', 'OracleAI'];
+        const industryNames = ['Banking & Finance', 'Healthcare', 'Automotive', 'Mobility', 'Hospitality', 'Energy', 'Agricultural', 'Public Sector'];
+        const eIdentityNames = ['Datachain Foundation DID', 'European eIDAS', 'Mobile ID', 'None'];
+        
+        function processWizardInput(input, output) {
+            const steps = wizardSteps[wizardState.type];
+            const currentStep = steps[wizardState.step];
+            
+            // Process input based on step type
+            let value = input.trim();
+            
+            if (currentStep.options) {
+                const idx = parseInt(value) - 1;
+                if (idx >= 0 && idx < currentStep.options.length) {
+                    value = currentStep.options[idx];
+                } else {
+                    output.innerHTML += `<span class="warning">Invalid choice. Please enter a number between 1 and ${currentStep.options.length}.</span>\n`;
+                    output.innerHTML += `<span class="highlight">${currentStep.prompt}</span>\n<span class="prompt">rope&gt;</span> `;
+                    return;
+                }
+            } else if (currentStep.multiSelect) {
+                const indices = value.split(',').map(n => parseInt(n.trim()) - 1);
+                value = indices.filter(i => i >= 0);
+            } else if (currentStep.validate && !currentStep.validate(value)) {
+                output.innerHTML += `<span class="warning">Invalid input. Please try again.</span>\n`;
+                output.innerHTML += `<span class="highlight">${currentStep.prompt}</span>\n<span class="prompt">rope&gt;</span> `;
+                return;
+            }
+            
+            if (currentStep.transform) {
+                value = currentStep.transform(value);
+            }
+            
+            wizardState.config[currentStep.key] = value;
+            wizardState.step++;
+            
+            // Check if wizard is complete
+            if (wizardState.step >= steps.length) {
+                completeWizard(output);
+            } else {
+                // Show next step
+                const nextStep = steps[wizardState.step];
+                output.innerHTML += `\n<span class="success">✓ ${currentStep.key}: ${formatValue(currentStep.key, value)}</span>\n\n`;
+                output.innerHTML += `<span class="highlight">${nextStep.prompt}</span>\n<span class="prompt">rope&gt;</span> `;
+            }
+        }
+        
+        function formatValue(key, value) {
+            if (key === 'protocols') return value.map(i => protocolNames[i]).join(', ');
+            if (key === 'analytics') return value.map(i => analyticsNames[i]).join(', ');
+            if (key === 'aiAgents') return value.map(i => aiAgentNames[i]).join(', ');
+            if (key === 'dataWallets') return value.toLocaleString();
+            if (key === 'industry') return industryNames[['banking', 'healthcare', 'automotive', 'mobility', 'hospitality', 'energy', 'agricultural', 'public-sector'].indexOf(value)];
+            if (key === 'eIdentity') return eIdentityNames[['datachain-did', 'eidas', 'mobile-id', 'none'].indexOf(value)];
+            return value.charAt(0).toUpperCase() + value.slice(1);
+        }
+        
+        function completeWizard(output) {
+            const config = wizardState.config;
+            const isFederation = wizardState.type === 'federation';
+            const consensus = isFederation ? 'DkP (Delegated Keeper Proof)' : 'PoA (Proof of Authority)';
+            const genId = '0x' + Math.random().toString(16).slice(2, 10) + '...' + Math.random().toString(16).slice(2, 6);
+            const instanceId = config.name.toLowerCase().replace(/\s/g, '-');
+            
+            // Protocol deployment configurations
+            const protocolConfigs = {
+                0: { // Datachain Rope
+                    name: 'Datachain Rope',
+                    chainId: 314159,
+                    rpc: `https://${instanceId}.erpc.datachain.network`,
+                    ws: `wss://${instanceId}.ws.datachain.network`,
+                    explorer: `https://dcscan.io/${isFederation ? 'federation' : 'community'}/${genId}`,
+                    consensus: consensus,
+                    native: true
+                },
+                1: { // Hyperledger
+                    name: 'Hyperledger Fabric',
+                    version: '2.5',
+                    channel: `${instanceId}-channel`,
+                    peer: `peer0.${instanceId}.datachain.network:7051`,
+                    orderer: `orderer.${instanceId}.datachain.network:7050`,
+                    ca: `ca.${instanceId}.datachain.network:7054`
+                },
+                2: { // XDC Network
+                    name: 'XDC Network',
+                    chainId: 50,
+                    rpc: `https://${instanceId}.xdc.datachain.network`,
+                    bridge: `0x${Math.random().toString(16).slice(2, 42)}`,
+                    masternode: true
+                },
+                3: { // Solana
+                    name: 'Solana',
+                    cluster: 'mainnet-beta',
+                    rpc: `https://${instanceId}.sol.datachain.network`,
+                    program: `${Math.random().toString(36).slice(2, 46)}`,
+                    bridge: `0x${Math.random().toString(16).slice(2, 42)}`
+                },
+                4: { // Polkadot
+                    name: 'Polkadot',
+                    parachain: Math.floor(Math.random() * 1000) + 2000,
+                    rpc: `wss://${instanceId}.dot.datachain.network`,
+                    relay: 'polkadot',
+                    xcm: true
+                },
+                5: { // Bitcoin
+                    name: 'Bitcoin',
+                    network: 'mainnet',
+                    rpc: `https://${instanceId}.btc.datachain.network`,
+                    bridge: `bc1q${Math.random().toString(36).slice(2, 42)}`,
+                    lightning: true
+                },
+                6: { // Ethereum
+                    name: 'Ethereum',
+                    chainId: 1,
+                    rpc: `https://${instanceId}.eth.datachain.network`,
+                    bridge: `0x${Math.random().toString(16).slice(2, 42)}`,
+                    l2: 'optimism'
+                }
+            };
+            
+            // Calculate instance requirements based on protocols
+            const wallets = config.dataWallets;
+            const protocolCount = config.protocols.length;
+            const cpuCores = Math.ceil(wallets / 500000) * 4 + (protocolCount * 2);
+            const gpuUnits = config.aiAgents.length > 2 ? Math.ceil(wallets / 1000000) : 0;
+            const ramGB = Math.ceil(wallets / 100000) * 8 + (protocolCount * 4);
+            const storageGB = Math.ceil(wallets / 10000) + (protocolCount * 50);
+            
+            // Generate protocol deployment details
+            const selectedProtocols = config.protocols.map(i => protocolConfigs[i]);
+            const hasMultipleChains = config.protocols.length > 1;
+            
+            output.innerHTML += `\n<span class="success">✓ ${wizardState.step > 0 ? Object.keys(config).pop() : 'Configuration'}: Complete</span>\n`;
+            output.innerHTML += `
+<span class="warning">═══════════════════════════════════════════════════════════════</span>
+<span class="highlight">                ${isFederation ? 'FEDERATION' : 'COMMUNITY'} GENERATION SYNTHESIS</span>
+<span class="warning">═══════════════════════════════════════════════════════════════</span>
+
+<span class="comment">┌─ BASIC CONFIGURATION ─────────────────────────────────────────┐</span>
+  Name:            <span class="highlight">${config.name}</span>
+  Instance ID:     <span class="highlight">${instanceId}</span>
+  ${isFederation ? 'Structure' : 'Industry'}:       <span class="highlight">${isFederation ? formatValue('structureType', config.structureType) : formatValue('industry', config.industry)}</span>
+  ${isFederation ? '' : 'Scope:           <span class="highlight">' + formatValue('scope', config.scope) + '</span>\n  '}Consensus:       <span class="highlight">${consensus}</span>
+  Cell Type:       <span class="highlight">${formatValue('cellType', config.cellType)}</span>
+<span class="comment">└───────────────────────────────────────────────────────────────┘</span>
+
+<span class="comment">┌─ DATA INFRASTRUCTURE ─────────────────────────────────────────┐</span>
+  Data Wallets:    <span class="highlight">${config.dataWallets.toLocaleString()}</span>
+  Strings (Chains):<span class="highlight">${config.dataWallets.toLocaleString()}</span> <span class="comment">(auto-generated)</span>
+  Total Capacity:  <span class="highlight">${(config.dataWallets * 1024).toLocaleString()} MB</span>
+<span class="comment">└───────────────────────────────────────────────────────────────┘</span>
+
+<span class="comment">┌─ PROTOCOL DEPLOYMENTS (${protocolCount} protocols) ──────────────────────────┐</span>
+${selectedProtocols.map(p => {
+    if (p.native) {
+        return `
+  <span class="success">■ ${p.name}</span> <span class="comment">(Primary Protocol)</span>
+    Chain ID:    <span class="highlight">${p.chainId}</span>
+    RPC:         <span class="highlight">${p.rpc}</span>
+    WebSocket:   <span class="highlight">${p.ws}</span>
+    Explorer:    <span class="highlight">${p.explorer}</span>
+    Consensus:   <span class="highlight">${p.consensus}</span>
+    Status:      <span class="success">✓ DEPLOYED</span>`;
+    } else if (p.name === 'Hyperledger Fabric') {
+        return `
+  <span class="success">■ ${p.name}</span> <span class="comment">(Enterprise)</span>
+    Version:     <span class="highlight">${p.version}</span>
+    Channel:     <span class="highlight">${p.channel}</span>
+    Peer:        <span class="highlight">${p.peer}</span>
+    Orderer:     <span class="highlight">${p.orderer}</span>
+    CA:          <span class="highlight">${p.ca}</span>
+    Status:      <span class="success">✓ DEPLOYED</span>`;
+    } else if (p.name === 'XDC Network') {
+        return `
+  <span class="success">■ ${p.name}</span> <span class="comment">(XinFin Hybrid)</span>
+    Chain ID:    <span class="highlight">${p.chainId}</span>
+    RPC:         <span class="highlight">${p.rpc}</span>
+    Bridge:      <span class="highlight">${p.bridge}</span>
+    Masternode:  <span class="highlight">${p.masternode ? 'Enabled' : 'Disabled'}</span>
+    Status:      <span class="success">✓ DEPLOYED</span>`;
+    } else if (p.name === 'Solana') {
+        return `
+  <span class="success">■ ${p.name}</span> <span class="comment">(High-Performance)</span>
+    Cluster:     <span class="highlight">${p.cluster}</span>
+    RPC:         <span class="highlight">${p.rpc}</span>
+    Program ID:  <span class="highlight">${p.program}</span>
+    Bridge:      <span class="highlight">${p.bridge}</span>
+    Status:      <span class="success">✓ DEPLOYED</span>`;
+    } else if (p.name === 'Polkadot') {
+        return `
+  <span class="success">■ ${p.name}</span> <span class="comment">(Cross-Chain)</span>
+    Parachain:   <span class="highlight">#${p.parachain}</span>
+    RPC:         <span class="highlight">${p.rpc}</span>
+    Relay:       <span class="highlight">${p.relay}</span>
+    XCM:         <span class="highlight">${p.xcm ? 'Enabled' : 'Disabled'}</span>
+    Status:      <span class="success">✓ DEPLOYED</span>`;
+    } else if (p.name === 'Bitcoin') {
+        return `
+  <span class="success">■ ${p.name}</span> <span class="comment">(Store of Value)</span>
+    Network:     <span class="highlight">${p.network}</span>
+    RPC:         <span class="highlight">${p.rpc}</span>
+    Bridge:      <span class="highlight">${p.bridge}</span>
+    Lightning:   <span class="highlight">${p.lightning ? 'Enabled' : 'Disabled'}</span>
+    Status:      <span class="success">✓ DEPLOYED</span>`;
+    } else if (p.name === 'Ethereum') {
+        return `
+  <span class="success">■ ${p.name}</span> <span class="comment">(Smart Contracts)</span>
+    Chain ID:    <span class="highlight">${p.chainId}</span>
+    RPC:         <span class="highlight">${p.rpc}</span>
+    Bridge:      <span class="highlight">${p.bridge}</span>
+    L2 Support:  <span class="highlight">${p.l2}</span>
+    Status:      <span class="success">✓ DEPLOYED</span>`;
+    }
+    return '';
+}).join('\n')}
+${hasMultipleChains ? `
+  <span class="warning">⚡ CROSS-CHAIN BRIDGE</span>
+    Bridge Type: <span class="highlight">Atomic Swap + Message Relay</span>
+    Protocols:   <span class="highlight">${selectedProtocols.map(p => p.name).join(' ↔ ')}</span>
+    Status:      <span class="success">✓ ACTIVE</span>` : ''}
+<span class="comment">└───────────────────────────────────────────────────────────────┘</span>
+
+<span class="comment">┌─ eIDENTITY CONFIGURATION ─────────────────────────────────────┐</span>
+  Provider:        <span class="highlight">${formatValue('eIdentity', config.eIdentity)}</span>
+  ${config.eIdentity === 'datachain-did' ? `DID Method:      <span class="highlight">did:dc:${config.name.toLowerCase().replace(/\\s/g, '-')}</span>
+  W3C Compliant:   <span class="success">✓ Yes</span>
+  Verifiable Cred: <span class="success">✓ Enabled</span>` : config.eIdentity === 'none' ? 'Status:          <span class="warning">Disabled</span>' : `Standard:        <span class="highlight">${config.eIdentity.toUpperCase()}</span>`}
+  ${!isFederation && config.kyc ? `KYC Level:       <span class="highlight">${formatValue('kyc', config.kyc)}</span>` : ''}
+<span class="comment">└───────────────────────────────────────────────────────────────┘</span>
+
+<span class="comment">┌─ AI & ANALYTICS (PREDICTABILITY) ─────────────────────────────┐</span>
+  Analytics:
+${config.analytics.map(i => `    ☑ ${analyticsNames[i]}`).join('\n')}
+  
+  AI Agents:
+${config.aiAgents.map(i => `    ☑ ${aiAgentNames[i]}`).join('\n')}
+<span class="comment">└───────────────────────────────────────────────────────────────┘</span>
+
+<span class="comment">┌─ INSTANCE DEPLOYMENT ─────────────────────────────────────────┐</span>
+  Instance Type:   <span class="highlight">${gpuUnits > 0 ? 'GPU-Accelerated' : 'CPU-Optimized'}</span>
+  CPU Cores:       <span class="highlight">${cpuCores} vCPUs</span>
+  ${gpuUnits > 0 ? `GPU Units:       <span class="highlight">${gpuUnits} × NVIDIA A100</span>\n  ` : ''}RAM:             <span class="highlight">${ramGB} GB</span>
+  Storage:         <span class="highlight">${storageGB} GB SSD</span>
+  Data Wallet:     <span class="highlight">Integrated (OES Gen 1)</span>
+<span class="comment">└───────────────────────────────────────────────────────────────┘</span>
+
+<span class="warning">⚡ Initializing ${isFederation ? 'Federation' : 'Community'} Generation Protocol...</span>
+
+<span class="success">✓ ${isFederation ? 'Federation' : 'Community'} Generated Successfully!</span>
+  ID: <span class="highlight">${genId}</span>
+  Status: <span class="success">ACTIVE</span>
+  Genesis Block: <span class="highlight">#0</span>
+
+<span class="comment"># Your ${isFederation ? 'federation' : 'community'} is now live on Datachain Rope Network</span>
+<span class="comment"># Access dashboard: https://dcscan.io/${isFederation ? 'federation' : 'community'}/${genId}</span>
+`;
+            
+            // Reset wizard state
+            wizardState = { active: false, type: null, step: 0, config: {} };
+            output.innerHTML += `\n<span class="prompt">rope&gt;</span> `;
+        }
+        
         const cliCommands = {
             'help': `<span class="highlight">Available Commands:</span>
   status              Show network status
-  federation create   Create a new federation
-  community create    Create a new community  
+  federation create   Start Federation Generation Wizard
+  community create    Start Community Generation Wizard
   wallet create       Generate a new data wallet
   string submit       Submit a string to the lattice
   testimony request   Request AI testimony validation
@@ -1559,88 +2241,117 @@ oes_generation = 1         # OES evolution epoch</code></pre>
   ... and 123 more`,
             
             'protocols list': `<span class="highlight">Available Protocol Invocations:</span>
-  ☑ Native DC     - Datachain native protocol
-  ☑ Hyperledger   - Enterprise blockchain  
-  ☑ NXT           - Proof-of-stake platform
-  ☑ EOS           - High-performance chain
-  ☑ Wanchain      - Cross-chain protocol
-  ☑ Lisk          - Sidechain platform
-  ☑ Ethereum      - Smart contracts
-  ☐ Tangle        - IOTA DAG (coming soon)
-  ☐ Hashgraph     - Hedera consensus (coming soon)`,
+  ☑ Datachain Rope  - Native protocol (required)
+  ☑ Hyperledger     - Enterprise blockchain  
+  ☑ XDC Network     - XinFin hybrid chain
+  ☑ Solana          - High-performance chain
+  ☑ Polkadot        - Cross-chain protocol
+  ☑ Bitcoin         - Store of value layer
+  ☑ Ethereum        - Smart contracts
+  ☐ Hashgraph       - Hedera consensus (coming soon)`,
             
             'wallet create': `<span class="warning">⚡ Generating Data Wallet...</span>
 
 <span class="success">✓ Data Wallet Created</span>
   Address:    <span class="highlight">0x${Math.random().toString(16).slice(2, 10)}...${Math.random().toString(16).slice(2, 10)}</span>
   Public Key: <span class="highlight">dilithium3_pk_${Math.random().toString(16).slice(2, 16)}</span>
+  DID:        <span class="highlight">did:dc:wallet-${Date.now()}</span>
   OES Gen:    <span class="highlight">1</span>
   
 <span class="comment"># Save your keystore file securely!</span>`,
             
-            'federation create': `<span class="comment"># Usage: generate federation [type] [name]</span>
-<span class="comment"># Types: structured, unstructured, autonomous</span>
-<span class="comment"># Example: generate federation structured "City of Paris"</span>`,
+            'string submit': `<span class="warning">⚡ Submitting String to Lattice...</span>
+
+<span class="comment"># String submission requires authentication</span>
+<span class="comment"># Usage: rope string submit --payload "data" --parents [id1,id2]</span>
+
+<span class="highlight">Example:</span>
+  rope string submit \\
+    --payload "0x48656c6c6f20576f726c64" \\
+    --parents ["0xabc123...", "0xdef456..."] \\
+    --nucleotide A \\
+    --requires-testimony true
+
+<span class="success">✓ String Submitted</span>
+  String ID:   <span class="highlight">0x${Math.random().toString(16).slice(2, 10)}...${Math.random().toString(16).slice(2, 6)}</span>
+  Nucleotide:  <span class="highlight">A (Transaction)</span>
+  Status:      <span class="warning">Pending Testimony</span>
+  Estimated Finality: <span class="highlight">~4.2s</span>`,
             
-            'community create': `<span class="comment"># Usage: generate community [industry] [scope]</span>
-<span class="comment"># Industries: banking, healthcare, automotive, mobility, hospitality, energy, agricultural</span>
-<span class="comment"># Scopes: global, regional, local</span>
-<span class="comment"># Example: generate community banking global</span>`,
+            'testimony request': `<span class="warning">⚡ Requesting AI Testimony Validation...</span>
+
+<span class="highlight">AI Testimony Request</span>
+  String ID:   <span class="highlight">0x${Math.random().toString(16).slice(2, 10)}...</span>
+  Validators:  <span class="highlight">3 AI Agents assigned</span>
+  
+<span class="comment">Testimony Types:</span>
+  ☑ Semantic Validation    - Verifying logical consistency
+  ☑ Business Logic         - Checking compliance rules
+  ☑ Anomaly Detection      - Scanning for irregularities
+  
+<span class="success">✓ Testimonies Collected (3/3)</span>
+  Verdict:     <span class="success">VALID</span>
+  Confidence:  <span class="highlight">98.7%</span>
+  Finalized:   <span class="success">Yes</span>`,
             
             'clear': 'CLEAR'
         };
         
         document.getElementById('cli-input').addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
-                const input = this.value.trim().toLowerCase();
+                const input = this.value.trim();
+                const inputLower = input.toLowerCase();
                 const output = document.getElementById('cli-output');
                 
                 // Add command to output
-                output.innerHTML += `\n<span class="prompt">rope&gt;</span> ${this.value}\n`;
+                output.innerHTML += `\n<span class="prompt">rope&gt;</span> ${input}\n`;
                 
-                if (input === 'clear') {
-                    output.innerHTML = `<span class="comment"># Datachain Rope CLI v1.0.0</span>
+                // Check for clear/cancel commands first (always work, even in wizard)
+                if (inputLower === 'clear') {
+                    wizardState = { active: false, type: null, step: 0, config: {} };
+                    output.innerHTML = `<span class="comment"># Datachain Rope CLI v2.0.0</span>
 <span class="comment"># Connected to: erpc.datachain.network</span>
 <span class="comment"># Chain ID: 314159 | Genesis: 10B FAT</span>
 
 <span class="prompt">rope&gt;</span> _`;
-                } else if (input.startsWith('generate federation')) {
-                    const parts = input.match(/generate federation (\w+) "([^"]+)"/);
-                    if (parts) {
-                        output.innerHTML += `\n<span class="warning">⚡ Generating Federation...</span>
-  Type: ${parts[1].charAt(0).toUpperCase() + parts[1].slice(1)}
-  Name: ${parts[2]}
-  Consensus: DkP
-  
-<span class="success">✓ Federation Created Successfully</span>
-  Federation ID: <span class="highlight">0x${Math.random().toString(16).slice(2, 10)}...</span>
-  Data Wallets:  <span class="highlight">3,500,000</span>
-  Individual Chains: <span class="highlight">3,500,000</span>\n`;
-                    } else {
-                        output.innerHTML += `\n<span class="comment"># Usage: generate federation [type] "name"</span>
-<span class="comment"># Example: generate federation structured "City of Paris"</span>\n`;
-                    }
-                } else if (input.startsWith('generate community')) {
-                    const parts = input.split(' ');
-                    if (parts.length >= 4) {
-                        output.innerHTML += `\n<span class="warning">⚡ Generating Community...</span>
-  Industry: ${parts[2].charAt(0).toUpperCase() + parts[2].slice(1)}
-  Scope: ${parts[3].charAt(0).toUpperCase() + parts[3].slice(1)}
-  Consensus: PoA
-  
-<span class="success">✓ Community Created Successfully</span>
-  Community ID: <span class="highlight">0x${Math.random().toString(16).slice(2, 10)}...</span>
-  Data Wallets:  <span class="highlight">10,000,000</span>
-  Validator Chains: <span class="highlight">10,000,000</span>\n`;
-                    } else {
-                        output.innerHTML += `\n<span class="comment"># Usage: generate community [industry] [scope]</span>
-<span class="comment"># Example: generate community banking global</span>\n`;
-                    }
-                } else if (cliCommands[input]) {
-                    output.innerHTML += '\n' + cliCommands[input] + '\n';
+                } else if (inputLower === 'cancel' && wizardState.active) {
+                    wizardState = { active: false, type: null, step: 0, config: {} };
+                    output.innerHTML += `<span class="warning">Wizard cancelled.</span>\n<span class="prompt">rope&gt;</span> `;
+                } else if (wizardState.active) {
+                    // Process wizard input
+                    processWizardInput(input, output);
+                } else if (inputLower === 'federation create') {
+                    wizardState = { active: true, type: 'federation', step: 0, config: {} };
+                    output.innerHTML += `
+<span class="warning">═══════════════════════════════════════════════════════════════</span>
+<span class="highlight">          FEDERATION GENERATION PROTOCOL - WIZARD MODE</span>
+<span class="warning">═══════════════════════════════════════════════════════════════</span>
+<span class="comment"># This wizard will guide you through creating a new Federation</span>
+<span class="comment"># Consensus: DkP (Delegated Keeper Proof) - auto-assigned</span>
+<span class="comment"># Type 'cancel' at any time to abort</span>
+
+<span class="highlight">${wizardSteps.federation[0].prompt}</span>
+<span class="prompt">rope&gt;</span> `;
+                } else if (inputLower === 'community create') {
+                    wizardState = { active: true, type: 'community', step: 0, config: {} };
+                    output.innerHTML += `
+<span class="warning">═══════════════════════════════════════════════════════════════</span>
+<span class="highlight">          COMMUNITY GENERATION PROTOCOL - WIZARD MODE</span>
+<span class="warning">═══════════════════════════════════════════════════════════════</span>
+<span class="comment"># This wizard will guide you through creating a new Community</span>
+<span class="comment"># Consensus: PoA (Proof of Authority) - auto-assigned</span>
+<span class="comment"># Type 'cancel' at any time to abort</span>
+
+<span class="highlight">${wizardSteps.community[0].prompt}</span>
+<span class="prompt">rope&gt;</span> `;
+                } else if (inputLower === 'cancel' && wizardState.active) {
+                    wizardState = { active: false, type: null, step: 0, config: {} };
+                    output.innerHTML += `<span class="warning">Wizard cancelled.</span>\n<span class="prompt">rope&gt;</span> `;
+                } else if (cliCommands[inputLower]) {
+                    output.innerHTML += '\n' + cliCommands[inputLower] + '\n<span class="prompt">rope&gt;</span> ';
                 } else {
                     output.innerHTML += `\n<span class="warning">Unknown command: ${input}</span>
-Type <span class="highlight">help</span> for available commands.\n`;
+Type <span class="highlight">help</span> for available commands.\n<span class="prompt">rope&gt;</span> `;
                 }
                 
                 this.value = '';
