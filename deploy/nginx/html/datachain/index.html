@@ -2429,6 +2429,126 @@
             scrollCliToBottom();
         }
         
+        // Cloud Provider Registry by Region
+        const cloudProviders = {
+            europe: [
+                { name: 'OVHcloud', country: 'France', contact: 'partners@ovhcloud.com' },
+                { name: 'Scaleway', country: 'France', contact: 'partnerships@scaleway.com' },
+                { name: 'Hetzner', country: 'Germany', contact: 'partnership@hetzner.com' },
+                { name: 'Infomaniak', country: 'Switzerland', contact: 'partners@infomaniak.com' },
+                { name: 'Exoscale', country: 'Switzerland', contact: 'sales@exoscale.com' },
+                { name: 'UpCloud', country: 'Finland', contact: 'sales@upcloud.com' },
+                { name: 'Fuga Cloud', country: 'Netherlands', contact: 'info@fuga.cloud' },
+                { name: 'City Network', country: 'Sweden', contact: 'contact@citynetwork.eu' },
+                { name: '3DS OUTSCALE', country: 'France', contact: 'contact@outscale.com' }
+            ],
+            africa: [
+                { name: 'Africa Data Centres', country: 'South Africa', contact: 'sales@africadatacentres.com' },
+                { name: 'Liquid Intelligent Tech', country: 'Mauritius', contact: 'cloud@liquid.tech' },
+                { name: 'MainOne', country: 'Nigeria', contact: 'sales@mainone.net' },
+                { name: 'Teraco', country: 'South Africa', contact: 'sales@teraco.co.za' },
+                { name: 'SEACOM', country: 'Mauritius', contact: 'info@seacom.com' },
+                { name: 'Raxio Group', country: 'Uganda', contact: 'info@raxiogroup.com' },
+                { name: 'Galaxy Backbone', country: 'Nigeria', contact: 'info@galaxybackbone.com.ng' },
+                { name: 'WIOCC', country: 'Kenya', contact: 'sales@wiocc.net' },
+                { name: 'Paratus', country: 'Namibia', contact: 'info@paratus.africa' }
+            ],
+            asia: [
+                { name: 'Alibaba Cloud', country: 'China', contact: 'intl-sales@alibaba-inc.com' },
+                { name: 'Tencent Cloud', country: 'China', contact: 'cloudservice@tencent.com' },
+                { name: 'Huawei Cloud', country: 'China', contact: 'cloud@huawei.com' },
+                { name: 'NTT Communications', country: 'Japan', contact: 'sales@ntt.com' },
+                { name: 'KDDI', country: 'Japan', contact: 'global-sales@kddi.com' },
+                { name: 'KT Cloud', country: 'South Korea', contact: 'ktcloud@kt.com' },
+                { name: 'Naver Cloud', country: 'South Korea', contact: 'cloud_sales@navercorp.com' },
+                { name: 'VNPT Cloud', country: 'Vietnam', contact: 'support@vnpt.vn' },
+                { name: 'Viettel IDC', country: 'Vietnam', contact: 'idc@viettel.com.vn' },
+                { name: 'True IDC', country: 'Thailand', contact: 'sales@trueidc.com' },
+                { name: 'Biznet Gio', country: 'Indonesia', contact: 'sales@biznetgio.com' },
+                { name: 'AIMS Data Centre', country: 'Malaysia', contact: 'sales@aims.com.my' }
+            ],
+            russia_cis: [
+                { name: 'Yandex Cloud', country: 'Russia', contact: 'cloud@yandex-team.ru' },
+                { name: 'SberCloud', country: 'Russia', contact: 'info@sbercloud.ru' },
+                { name: 'VK Cloud', country: 'Russia', contact: 'sales@mcs.mail.ru' },
+                { name: 'Selectel', country: 'Russia', contact: 'sales@selectel.ru' },
+                { name: 'Rostelecom Cloud', country: 'Russia', contact: 'cloud@rt.ru' },
+                { name: 'MTS Cloud', country: 'Russia', contact: 'cloud@mts.ru' },
+                { name: 'PS Cloud', country: 'Kazakhstan', contact: 'info@ps.kz' },
+                { name: 'Kazakhtelecom', country: 'Kazakhstan', contact: 'info@telecom.kz' },
+                { name: 'UzCloud', country: 'Uzbekistan', contact: 'info@uzcloud.uz' }
+            ],
+            middle_east: [
+                { name: 'G42 Cloud', country: 'UAE', contact: 'info@g42cloud.com' },
+                { name: 'Khazna Data Centers', country: 'UAE', contact: 'info@khazna.ae' },
+                { name: 'du Cloud', country: 'UAE', contact: 'business@du.ae' },
+                { name: 'Etisalat Cloud', country: 'UAE', contact: 'business@etisalat.ae' },
+                { name: 'STC Cloud', country: 'Saudi Arabia', contact: 'cloud@stc.com.sa' },
+                { name: 'Mobily Cloud', country: 'Saudi Arabia', contact: 'business@mobily.com.sa' },
+                { name: 'NEOM Tech', country: 'Saudi Arabia', contact: 'info@neom.com' },
+                { name: 'Zain Cloud', country: 'Kuwait', contact: 'cloud@zain.com' },
+                { name: 'Ooredoo Cloud', country: 'Qatar', contact: 'business@ooredoo.qa' },
+                { name: 'Benya Group', country: 'Egypt', contact: 'info@benyagroup.com' },
+                { name: 'Arvancloud', country: 'Iran', contact: 'support@arvancloud.ir' },
+                { name: 'Türk Telekom Cloud', country: 'Turkey', contact: 'kurumsal@turktelekom.com.tr' }
+            ],
+            latam: [
+                { name: 'Claro Cloud', country: 'Mexico/Brazil', contact: 'empresas@claro.com' },
+                { name: 'Locaweb', country: 'Brazil', contact: 'comercial@locaweb.com.br' },
+                { name: 'UOL Diveo', country: 'Brazil', contact: 'comercial@diveo.com.br' },
+                { name: 'Mandic Cloud', country: 'Brazil', contact: 'contato@mandic.com.br' },
+                { name: 'KIO Networks', country: 'Mexico', contact: 'ventas@kio.tech' },
+                { name: 'Alestra', country: 'Mexico', contact: 'contacto@alestra.mx' },
+                { name: 'IFX Networks', country: 'Colombia', contact: 'info@ifxnetworks.com' },
+                { name: 'Cirion Technologies', country: 'Argentina', contact: 'info@ciriontechnologies.com' },
+                { name: 'ODATA', country: 'Brazil', contact: 'comercial@odata.com.br' },
+                { name: 'Ascenty', country: 'Brazil', contact: 'comercial@ascenty.com' },
+                { name: 'Gtd', country: 'Chile', contact: 'cloud@gtd.cl' },
+                { name: 'Entel', country: 'Chile', contact: 'empresas@entel.cl' }
+            ]
+        };
+        
+        // Infrastructure step (added after AI agents)
+        const infrastructureSteps = [
+            { 
+                prompt: 'Select Infrastructure Option:', 
+                field: 'infraOption', 
+                type: 'options', 
+                options: ['Managed Cloud (Select Provider)', 'Bring Your Own Infrastructure (SSH)'] 
+            },
+            { 
+                prompt: 'Select Cloud Region:', 
+                field: 'cloudRegion', 
+                type: 'options', 
+                options: ['Europe', 'Africa', 'Asia', 'Russia & CIS', 'Middle East', 'Latin America'],
+                condition: (config) => config.infraOption === 'Managed Cloud (Select Provider)'
+            },
+            { 
+                prompt: 'Select Cloud Provider:', 
+                field: 'cloudProvider', 
+                type: 'dynamic_options',
+                getOptions: (config) => {
+                    const regionMap = {
+                        'Europe': 'europe',
+                        'Africa': 'africa',
+                        'Asia': 'asia',
+                        'Russia & CIS': 'russia_cis',
+                        'Middle East': 'middle_east',
+                        'Latin America': 'latam'
+                    };
+                    const regionKey = regionMap[config.cloudRegion];
+                    return cloudProviders[regionKey]?.map(p => `${p.name} (${p.country})`) || [];
+                },
+                condition: (config) => config.infraOption === 'Managed Cloud (Select Provider)'
+            },
+            { 
+                prompt: 'Enter SSH Connection String (e.g., ssh -i ~/.ssh/key user@host):', 
+                field: 'sshConnection', 
+                type: 'text',
+                condition: (config) => config.infraOption === 'Bring Your Own Infrastructure (SSH)'
+            }
+        ];
+        
         // Modal CLI wizard steps
         const modalFederationSteps = [
             { prompt: 'Enter Federation Name:', field: 'name', type: 'text' },
@@ -2436,7 +2556,8 @@
             { prompt: 'Select Cell Type:', field: 'cellType', type: 'options', options: ['Monocellular', 'Multicellular'] },
             { prompt: 'Select Protocol Invocations (comma-separated):', field: 'protocols', type: 'multiselect', options: ['Datachain Rope', 'Hyperledger', 'XDC Network', 'Solana', 'Polkadot', 'Bitcoin', 'Ethereum'] },
             { prompt: 'Select eIdentity Protocol:', field: 'eIdentity', type: 'options', options: ['Datachain Foundation DID (W3C)', 'eIDAS', 'Mobile ID', 'None'] },
-            { prompt: 'Select AI Agents (comma-separated):', field: 'aiAgents', type: 'multiselect', options: ['InsightMiner', 'StructureMiner', 'ModelMiner', 'SentinelAI', 'OracleAI'] }
+            { prompt: 'Select AI Agents (comma-separated):', field: 'aiAgents', type: 'multiselect', options: ['InsightMiner', 'StructureMiner', 'ModelMiner', 'SentinelAI', 'OracleAI'] },
+            ...infrastructureSteps
         ];
         
         const modalCommunitySteps = [
@@ -2446,7 +2567,8 @@
             { prompt: 'Select Cell Type:', field: 'cellType', type: 'options', options: ['Monocellular', 'Multicellular'] },
             { prompt: 'Select Protocol Invocations (comma-separated):', field: 'protocols', type: 'multiselect', options: ['Datachain Rope', 'Hyperledger', 'XDC Network', 'Solana', 'Polkadot', 'Bitcoin', 'Ethereum'] },
             { prompt: 'Select eIdentity Protocol:', field: 'eIdentity', type: 'options', options: ['Datachain Foundation DID (W3C)', 'eIDAS', 'Mobile ID', 'None'] },
-            { prompt: 'Select AI Agents (comma-separated):', field: 'aiAgents', type: 'multiselect', options: ['InsightMiner', 'StructureMiner', 'ModelMiner', 'SentinelAI', 'OracleAI'] }
+            { prompt: 'Select AI Agents (comma-separated):', field: 'aiAgents', type: 'multiselect', options: ['InsightMiner', 'StructureMiner', 'ModelMiner', 'SentinelAI', 'OracleAI'] },
+            ...infrastructureSteps
         ];
         
         function scrollCliToBottom() {
@@ -2458,12 +2580,28 @@
             const output = document.getElementById('modal-cli-output');
             const steps = modalWizardState.type === 'federation' ? modalFederationSteps : modalCommunitySteps;
             
+            // Skip steps that don't meet their condition
+            while (modalWizardState.step < steps.length) {
+                const step = steps[modalWizardState.step];
+                if (step.condition && !step.condition(modalWizardState.config)) {
+                    modalWizardState.step++;
+                    continue;
+                }
+                break;
+            }
+            
             if (modalWizardState.step < steps.length) {
                 const step = steps[modalWizardState.step];
                 let promptText = `\n<span class="highlight">${step.prompt}</span>\n`;
                 
-                if (step.type === 'options' || step.type === 'multiselect') {
-                    step.options.forEach((opt, idx) => {
+                // Get options based on type
+                let options = step.options;
+                if (step.type === 'dynamic_options' && step.getOptions) {
+                    options = step.getOptions(modalWizardState.config);
+                }
+                
+                if (step.type === 'options' || step.type === 'multiselect' || step.type === 'dynamic_options') {
+                    options.forEach((opt, idx) => {
                         promptText += `  <span class="value">${idx + 1}.</span> ${opt}\n`;
                     });
                 }
@@ -2529,10 +2667,57 @@
   <span class="command">federation create</span>  Create a new Federation instance
   <span class="command">community create</span>   Create a new Community instance
   <span class="command">instance preview</span>   Preview instance configuration
+  <span class="command">providers list</span>     List all cloud providers by region
+  <span class="command">providers [region]</span> List providers for a specific region
   <span class="command">clear</span>              Clear the terminal
   <span class="command">help</span>               Show this help message
 
+<span class="info">Regions:</span> europe, africa, asia, russia_cis, middle_east, latam
+
 <span class="prompt">rope></span> _`;
+                } else if (inputLower === 'providers list' || inputLower === 'providers') {
+                    output.innerHTML += `<span class="highlight">Cloud Provider Regions:</span>
+  <span class="value">1.</span> Europe (9 providers)
+  <span class="value">2.</span> Africa (9 providers)
+  <span class="value">3.</span> Asia (12 providers)
+  <span class="value">4.</span> Russia & CIS (9 providers)
+  <span class="value">5.</span> Middle East (12 providers)
+  <span class="value">6.</span> Latin America (12 providers)
+
+<span class="info">Type 'providers [region]' to see providers in that region.</span>
+<span class="info">Example: providers europe</span>
+
+<span class="prompt">rope></span> _`;
+                } else if (inputLower.startsWith('providers ')) {
+                    const region = inputLower.replace('providers ', '').trim();
+                    const regionMap = {
+                        'europe': cloudProviders.europe,
+                        'africa': cloudProviders.africa,
+                        'asia': cloudProviders.asia,
+                        'russia': cloudProviders.russia_cis,
+                        'russia_cis': cloudProviders.russia_cis,
+                        'cis': cloudProviders.russia_cis,
+                        'middle_east': cloudProviders.middle_east,
+                        'middleeast': cloudProviders.middle_east,
+                        'middle east': cloudProviders.middle_east,
+                        'latam': cloudProviders.latam,
+                        'latin_america': cloudProviders.latam,
+                        'latin america': cloudProviders.latam
+                    };
+                    const providers = regionMap[region];
+                    if (providers) {
+                        const regionName = region.charAt(0).toUpperCase() + region.slice(1).replace('_', ' & ');
+                        output.innerHTML += `<span class="highlight">Cloud Providers - ${regionName}:</span>\n`;
+                        providers.forEach((p, idx) => {
+                            output.innerHTML += `  <span class="value">${idx + 1}.</span> <span class="command">${p.name}</span> <span class="comment">(${p.country})</span>\n`;
+                            output.innerHTML += `     <span class="info">Contact: ${p.contact}</span>\n`;
+                        });
+                        output.innerHTML += `\n<span class="prompt">rope></span> _`;
+                    } else {
+                        output.innerHTML += `<span class="error">Unknown region: ${region}</span>
+<span class="info">Available regions: europe, africa, asia, russia_cis, middle_east, latam</span>
+<span class="prompt">rope></span> _`;
+                    }
                 } else if (inputLower === 'instance preview') {
                     if (!selectedInstanceSize) {
                         output.innerHTML += `<span class="warning">No instance size selected yet.</span>\n<span class="prompt">rope></span> _`;
@@ -2562,24 +2747,30 @@
                 let value = input;
                 let isValid = true;
                 
-                if (step.type === 'options') {
+                // Get options based on type
+                let options = step.options;
+                if (step.type === 'dynamic_options' && step.getOptions) {
+                    options = step.getOptions(modalWizardState.config);
+                }
+                
+                if (step.type === 'options' || step.type === 'dynamic_options') {
                     const idx = parseInt(input) - 1;
-                    if (isNaN(idx) || idx < 0 || idx >= step.options.length) {
-                        output.innerHTML += `<span class="error">Invalid selection. Please enter a number from 1 to ${step.options.length}.</span>\n`;
+                    if (isNaN(idx) || idx < 0 || idx >= options.length) {
+                        output.innerHTML += `<span class="error">Invalid selection. Please enter a number from 1 to ${options.length}.</span>\n`;
                         displayModalPrompt();
                         return;
                     }
-                    value = step.options[idx];
+                    value = options[idx];
                 } else if (step.type === 'multiselect') {
                     const indices = input.split(',').map(s => parseInt(s.trim()) - 1);
                     const selected = [];
                     for (const idx of indices) {
-                        if (isNaN(idx) || idx < 0 || idx >= step.options.length) {
-                            output.innerHTML += `<span class="error">Invalid selection. Please enter numbers from 1 to ${step.options.length}.</span>\n`;
+                        if (isNaN(idx) || idx < 0 || idx >= options.length) {
+                            output.innerHTML += `<span class="error">Invalid selection. Please enter numbers from 1 to ${options.length}.</span>\n`;
                             displayModalPrompt();
                             return;
                         }
-                        selected.push(step.options[idx]);
+                        selected.push(options[idx]);
                     }
                     value = selected;
                 } else if (step.type === 'text' && !input.trim()) {
@@ -2589,7 +2780,17 @@
                 }
                 
                 modalWizardState.config[step.field] = value;
-                output.innerHTML += `<span class="success">✓ ${step.field}: ${Array.isArray(value) ? value.join(', ') : value}</span>\n`;
+                
+                // Special handling for SSH connection validation
+                if (step.field === 'sshConnection') {
+                    if (!value.startsWith('ssh ')) {
+                        output.innerHTML += `<span class="warning">⚠ Warning: SSH string should start with 'ssh '. Using as-is.</span>\n`;
+                    }
+                    output.innerHTML += `<span class="success">✓ SSH Connection configured (credentials secured)</span>\n`;
+                } else {
+                    output.innerHTML += `<span class="success">✓ ${step.field}: ${Array.isArray(value) ? value.join(', ') : value}</span>\n`;
+                }
+                
                 modalWizardState.step++;
                 displayModalPrompt();
             }
@@ -2609,10 +2810,40 @@
             };
             const specs = sizeSpecs[config.instanceSize] || sizeSpecs.medium;
             
+            // Build infrastructure section
+            let infraSection = '';
+            if (config.infraOption === 'Managed Cloud (Select Provider)') {
+                // Find provider details
+                const regionMap = {
+                    'Europe': 'europe', 'Africa': 'africa', 'Asia': 'asia',
+                    'Russia & CIS': 'russia_cis', 'Middle East': 'middle_east', 'Latin America': 'latam'
+                };
+                const regionKey = regionMap[config.cloudRegion];
+                const providerName = config.cloudProvider?.split(' (')[0];
+                const provider = cloudProviders[regionKey]?.find(p => p.name === providerName);
+                
+                infraSection = `
+<span class="highlight">INFRASTRUCTURE (MANAGED CLOUD)</span>
+  Region:         <span class="value">${config.cloudRegion}</span>
+  Provider:       <span class="value">${config.cloudProvider}</span>
+  Contact:        <span class="value">${provider?.contact || 'N/A'}</span>
+  Status:         <span class="warning">Pending Provider Approval</span>`;
+            } else {
+                // SSH / Bring Your Own
+                const sshMasked = config.sshConnection ? 
+                    config.sshConnection.replace(/(-i\s+)[^\s]+/, '$1***') 
+                        .replace(/@[^\s]+/, '@***') : 'Not provided';
+                infraSection = `
+<span class="highlight">INFRASTRUCTURE (BYOI - Bring Your Own Infrastructure)</span>
+  SSH Connection: <span class="value">${sshMasked}</span>
+  Status:         <span class="warning">Pending Validation</span>
+  <span class="comment"># Your server will be validated for compatibility during review</span>`;
+            }
+            
             output.innerHTML += `
-<span class="success">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
-<span class="success">✓ ${isFederation ? 'FEDERATION' : 'COMMUNITY'} INSTANCE CONFIGURED!</span>
-<span class="success">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+<span class="success">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+<span class="success">✓ ${isFederation ? 'FEDERATION' : 'COMMUNITY'} INSTANCE FULLY CONFIGURED!</span>
+<span class="success">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
 
 <span class="highlight">BASIC CONFIGURATION</span>
   Name:           <span class="value">${config.name}</span>
@@ -2636,11 +2867,14 @@ ${config.protocols.map(p => `  ✓ <span class="value">${p}</span>`).join('\n')}
 
 <span class="highlight">AI AGENTS</span>
 ${config.aiAgents.map(a => `  ✓ <span class="value">${a}</span>`).join('\n')}
+${infraSection}
 
 <span class="warning">Instance ID: 0x${Math.random().toString(16).slice(2, 10)}...${Math.random().toString(16).slice(2, 6)}</span>
-<span class="success">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+<span class="success">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
 
-<span class="info">Configuration complete! Click "Submit for Community Vote" to proceed.</span>
+<span class="info">✓ Configuration complete!</span>
+<span class="info">  Click "Submit for Community Vote" to proceed.</span>
+<span class="info">  Your project requires minimum 1,000,000 FAT approval to go live.</span>
 <span class="prompt">rope></span> _`;
             
             // Update UI
@@ -2654,6 +2888,11 @@ ${config.aiAgents.map(a => `  ✓ <span class="value">${a}</span>`).join('\n')}
             const summary = document.getElementById('instanceConfigSummary');
             const details = document.getElementById('configDetails');
             summary.style.display = 'block';
+            
+            const infraLabel = config.infraOption === 'Managed Cloud (Select Provider)' 
+                ? `${config.cloudProvider?.split(' (')[0]} (${config.cloudRegion})`
+                : 'BYOI (SSH)';
+            
             details.innerHTML = `
                 <div class="config-item"><span class="label">Instance Type:</span><span class="value">${isFederation ? 'Federation' : 'Community'}</span></div>
                 <div class="config-item"><span class="label">Name:</span><span class="value">${config.name}</span></div>
@@ -2661,6 +2900,7 @@ ${config.aiAgents.map(a => `  ✓ <span class="value">${a}</span>`).join('\n')}
                 <div class="config-item"><span class="label">Consensus:</span><span class="value">${consensus}</span></div>
                 <div class="config-item"><span class="label">Protocols:</span><span class="value">${config.protocols.length}</span></div>
                 <div class="config-item"><span class="label">AI Agents:</span><span class="value">${config.aiAgents.length}</span></div>
+                <div class="config-item"><span class="label">Infrastructure:</span><span class="value">${infraLabel}</span></div>
             `;
             
             // Store config for submission
