@@ -32,6 +32,7 @@ dashmap = { workspace = true }
 chrono = { workspace = true }
 blake3 = { workspace = true }
 rand = { workspace = true }
+hex = { workspace = true }
 
 [build-dependencies]
 tonic-build = { workspace = true }

@@ -655,6 +655,19 @@ impl OrganicEncryptionState {
         }
     }
 
+    /// Convert a floating-point value to fixed-point for cross-platform determinism
+    ///
+    /// Uses 1_000_000 scale factor (6 decimal places precision) and truncates to i64.
+    /// This ensures that minor floating-point differences across platforms don't
+    /// affect the resulting hash.
+    #[inline]
+    fn float_to_fixed_point(value: f64) -> i64 {
+        // Clamp to a reasonable range to avoid overflow
+        let clamped = value.clamp(-1e12, 1e12);
+        // Scale by 1_000_000 for 6 decimal places precision, then truncate
+        (clamped * 1_000_000.0) as i64
+    }
+
     /// Calculate comprehensive synchronization hash
     fn calculate_sync_hash(&self) -> [u8; 32] {
         let mut content = Vec::new();
@@ -665,17 +678,18 @@ impl OrganicEncryptionState {
         // Genome hash
         content.extend_from_slice(blake3::hash(&self.genome).as_bytes());
         
-        // Lorenz state (truncated for determinism)
-        content.extend_from_slice(&(self.lorenz.x as f32).to_le_bytes());
-        content.extend_from_slice(&(self.lorenz.y as f32).to_le_bytes());
-        content.extend_from_slice(&(self.lorenz.z as f32).to_le_bytes());
-        
+        // Lorenz state - use fixed-point for cross-platform determinism
+        // Scale by 1_000_000 and truncate to i64 for consistent representation
+        content.extend_from_slice(&Self::float_to_fixed_point(self.lorenz.x).to_le_bytes());
+        content.extend_from_slice(&Self::float_to_fixed_point(self.lorenz.y).to_le_bytes());
+        content.extend_from_slice(&Self::float_to_fixed_point(self.lorenz.z).to_le_bytes());
+
         // Cellular hash
         content.extend_from_slice(&self.cellular.hash());
-        
-        // Fractal state
-        content.extend_from_slice(&(self.fractal.z_real as f32).to_le_bytes());
-        content.extend_from_slice(&(self.fractal.z_imag as f32).to_le_bytes());
+
+        // Fractal state - use fixed-point for cross-platform determinism
+        content.extend_from_slice(&Self::float_to_fixed_point(self.fractal.z_real).to_le_bytes());
+        content.extend_from_slice(&Self::float_to_fixed_point(self.fractal.z_imag).to_le_bytes());
         
         // Quantum hash
         content.extend_from_slice(&self.quantum.hash());

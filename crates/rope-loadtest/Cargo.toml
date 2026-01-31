@@ -23,6 +23,7 @@ reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
 # Serialization
 serde = { workspace = true }
 serde_json = { workspace = true }
+bincode = { workspace = true }
 
 # Utilities
 chrono = { workspace = true }
@@ -32,6 +33,7 @@ rand = { workspace = true }
 blake3 = { workspace = true }
 hex = { workspace = true }
 clap = { version = "4.4", features = ["derive"] }
+parking_lot = { workspace = true }
 
 # Metrics
 prometheus = "0.13"

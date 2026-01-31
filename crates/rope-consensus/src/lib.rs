@@ -18,14 +18,19 @@
 //! Finality requires 2f + 1 = 15 testimonies.
 
 pub mod testimony;
+pub mod ai_testimony;
 pub mod anchor;
 pub mod finality_engine;
 pub mod virtual_voting_impl;
 
 // Re-export the full virtual voting implementation
+// Note: VirtualVote and VoteDecision are defined in the local virtual_voting module
+// for backward compatibility. Use virtual_voting_impl directly for the full implementation.
 pub use virtual_voting_impl::{
-    VirtualVotingEngine, VirtualVote, VoteDecision, GossipHistory, GossipEvent,
+    VirtualVotingEngine, GossipHistory, GossipEvent,
     VotingStats, strongly_sees,
+    VirtualVote as ImplVirtualVote,
+    VoteDecision as ImplVoteDecision,
 };
 
 /// Legacy virtual voting types for backward compatibility
@@ -196,4 +201,13 @@ pub use finality::FinalityStatus;
 pub use finality_engine::{
     FinalityEngine, FinalityConfig, FinalityState,
     StringFinalityInfo, AnchorInfo, FinalityStats,
+};
+
+// AI Testimony exports
+pub use ai_testimony::{
+    AITestimony, AITestimonyCollector, AITestimonyCollection, AITestimonyConfig,
+    AgentId, AIAgentType, AuditScope,
+    SemanticVerdict, ApprovalConditions, TemporalCondition, ValueLimit,
+    RiskAssessment, RiskLevel, RiskFactor, RiskFactorType,
+    ConsensusResult,
 };

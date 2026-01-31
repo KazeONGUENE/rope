@@ -24,6 +24,7 @@ criterion = { version = "0.5", features = ["async_tokio", "html_reports"] }
 # Utilities
 serde = { workspace = true }
 serde_json = { workspace = true }
+bincode = { workspace = true }
 chrono = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }

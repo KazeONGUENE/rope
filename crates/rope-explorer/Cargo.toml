@@ -40,6 +40,12 @@ uuid = { version = "1.6", features = ["v4"] }
 hex = { workspace = true }
 blake3 = { workspace = true }
 
+# HTTP client for price fetching
+reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+
+# Caching
+tokio-util = { version = "0.7", features = ["time"] }
+
 # Configuration
 clap = { workspace = true }
 config = { workspace = true }

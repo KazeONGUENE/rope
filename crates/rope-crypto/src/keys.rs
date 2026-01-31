@@ -13,10 +13,10 @@ pub type SecretKey = HybridSecretKey;
 /// Complete keypair for a node
 pub struct KeyPair {
     /// Signer for creating signatures
-    signer: HybridSigner,
-    
+    pub(crate) signer: HybridSigner,
+
     /// Public key for verification
-    public_key: HybridPublicKey,
+    pub(crate) public_key: HybridPublicKey,
 }
 
 impl KeyPair {
@@ -67,23 +67,44 @@ impl KeyPair {
 pub struct KeyStore {
     /// Primary signing keypair
     primary: KeyPair,
-    
+
     /// Key derivation seed
     seed: [u8; 32],
 }
 
 impl KeyStore {
     /// Create new keystore with random seed
+    ///
+    /// This generates a cryptographically random seed and derives the primary
+    /// keypair from it. The seed is stored for deriving child keys.
     pub fn new() -> Self {
-        let seed: [u8; 32] = rand::random();
-        let primary = KeyPair::generate().expect("Failed to generate keypair");
-        Self { primary, seed }
+        use rand::RngCore;
+        let mut seed = [0u8; 32];
+        rand::rngs::OsRng.fill_bytes(&mut seed);
+        Self::from_seed(seed)
     }
 
-    /// Create from seed
+    /// Create from seed (deterministic key generation)
+    ///
+    /// The primary keypair is derived deterministically from the seed.
+    /// This allows for key recovery if the seed is backed up.
+    ///
+    /// # Security Note
+    /// The seed MUST be cryptographically random and kept secret.
     pub fn from_seed(seed: [u8; 32]) -> Self {
-        // In production: derive keypair from seed deterministically
-        let primary = KeyPair::generate().expect("Failed to generate keypair");
+        // Derive primary key seed from master seed
+        let primary_seed = {
+            let mut input = seed.to_vec();
+            input.extend_from_slice(b"primary_keypair");
+            *blake3::hash(&input).as_bytes()
+        };
+
+        let (signer, public_key) = HybridSigner::from_seed(&primary_seed);
+        let primary = KeyPair {
+            signer,
+            public_key,
+        };
+
         Self { primary, seed }
     }
 
@@ -92,9 +113,28 @@ impl KeyStore {
         &self.primary
     }
 
+    /// Get the master seed (for backup purposes)
+    ///
+    /// # Security Warning
+    /// This returns the master seed. Handle with extreme care.
+    /// Anyone with this seed can derive all keys.
+    pub fn seed(&self) -> &[u8; 32] {
+        &self.seed
+    }
+
     /// Derive a child key for specific purpose
     pub fn derive_key(&self, purpose: &str) -> [u8; 32] {
         crate::hash::derive_key(purpose, &self.seed)
+    }
+
+    /// Derive a child keypair for specific purpose
+    ///
+    /// This creates a deterministic keypair for a specific purpose,
+    /// allowing for key hierarchies.
+    pub fn derive_keypair(&self, purpose: &str) -> KeyPair {
+        let child_seed = self.derive_key(purpose);
+        let (signer, public_key) = HybridSigner::from_seed(&child_seed);
+        KeyPair { signer, public_key }
     }
 }
 

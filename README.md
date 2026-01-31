@@ -5,7 +5,7 @@
 ![Datachain Rope](https://img.shields.io/badge/Datachain-Rope-blue?style=for-the-badge)
 ![Rust](https://img.shields.io/badge/Rust-1.75+-orange?style=for-the-badge&logo=rust)
 ![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)
-![Chain ID](https://img.shields.io/badge/Chain%20ID-314159-purple?style=for-the-badge)
+![Chain ID](https://img.shields.io/badge/Chain%20ID-271828-purple?style=for-the-badge)
 
 **The First Smartchain - An Intelligent Distributed Information Protocol**
 
@@ -53,7 +53,7 @@ Add **Datachain Rope** to MetaMask or any EVM-compatible wallet:
 | Parameter | Value |
 |-----------|-------|
 | **Network Name** | Datachain Rope Testnet |
-| **Chain ID** | `314160` (0x4CB30) |
+| **Chain ID** | `271829` (0x425D5) |
 | **Currency Symbol** | `DCR FAT` |
 | **RPC URL** | `https://testnet.erpc.datachain.network` |
 | **Block Explorer** | `https://testnet.dcscan.io` |

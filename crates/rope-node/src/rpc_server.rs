@@ -86,8 +86,8 @@ pub struct RpcHandlers {
     /// Network version
     network_version: String,
     
-    /// Block number (simulated for now)
-    block_number: RwLock<u64>,
+    /// Block number (shared with node)
+    block_number: Arc<parking_lot::RwLock<u64>>,
     
     /// Gas price in wei
     gas_price: u64,
@@ -96,6 +96,15 @@ pub struct RpcHandlers {
 impl RpcServer {
     /// Create new RPC server
     pub async fn new(config: &RpcSettings) -> anyhow::Result<Self> {
+        Self::new_with_state(config, 271828, Arc::new(parking_lot::RwLock::new(0))).await
+    }
+    
+    /// Create new RPC server with shared state
+    pub async fn new_with_state(
+        config: &RpcSettings, 
+        chain_id: u64,
+        current_round: Arc<parking_lot::RwLock<u64>>,
+    ) -> anyhow::Result<Self> {
         let rate_limiter = Arc::new(RateLimiter {
             requests_per_second: 100,
             burst: 200,
@@ -103,9 +112,9 @@ impl RpcServer {
         });
         
         let handlers = Arc::new(RpcHandlers {
-            chain_id: 314159, // Datachain Rope mainnet
+            chain_id,
             network_version: "0.1.0".to_string(),
-            block_number: RwLock::new(1),
+            block_number: current_round,
             gas_price: 1_000_000_000, // 1 Gwei
         });
         
@@ -297,7 +306,7 @@ impl RpcHandlers {
                 serde_json::json!(format!("0x{:x}", self.chain_id))
             }
             "eth_blockNumber" => {
-                let num = *self.block_number.read().await;
+                let num = *self.block_number.read();
                 serde_json::json!(format!("0x{:x}", num))
             }
             "eth_gasPrice" => {
@@ -416,7 +425,7 @@ impl RpcHandlers {
     
     /// Get mock block (placeholder)
     async fn get_mock_block(&self) -> serde_json::Value {
-        let block_num = *self.block_number.read().await;
+        let block_num = *self.block_number.read();
         serde_json::json!({
             "number": format!("0x{:x}", block_num),
             "hash": format!("0x{}", hex::encode(&[0u8; 32])),
@@ -430,8 +439,8 @@ impl RpcHandlers {
     }
     
     /// Increment block number (for testing)
-    pub async fn increment_block(&self) {
-        let mut num = self.block_number.write().await;
+    pub fn increment_block(&self) {
+        let mut num = self.block_number.write();
         *num += 1;
     }
 }
@@ -530,16 +539,16 @@ mod tests {
     #[tokio::test]
     async fn test_json_rpc_chain_id() {
         let handlers = RpcHandlers {
-            chain_id: 314159,
+            chain_id: 271828,
             network_version: "0.1.0".to_string(),
-            block_number: RwLock::new(1),
+            block_number: Arc::new(parking_lot::RwLock::new(1)),
             gas_price: 1_000_000_000,
         };
         
         let request = r#"{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}"#;
         let response = handlers.handle_json_rpc(request).await;
         
-        assert!(response.contains("0x4cb2f")); // 314159 in hex
+        assert!(response.contains("0x425d4")); // 271828 in hex
     }
     
     #[tokio::test]

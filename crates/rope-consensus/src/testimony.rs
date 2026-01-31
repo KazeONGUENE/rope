@@ -222,7 +222,7 @@ impl Testimony {
         // Target string ID
         let target_bytes: [u8; 32] = content[pos..pos+32].try_into()
             .map_err(|_| TestimonyError::InvalidFormat("Invalid target ID".to_string()))?;
-        let target_string_id = StringId::from_bytes(target_bytes);
+        let target_string_id = StringId::new(target_bytes);
         pos += 32;
         
         // Validator ID
@@ -298,7 +298,7 @@ impl Testimony {
     
     /// Get string ID for this testimony when stored in lattice
     pub fn as_string_id(&self) -> StringId {
-        StringId::from_bytes(self.id)
+        StringId::new(self.id)
     }
     
     /// Get parent string IDs (references the target string)

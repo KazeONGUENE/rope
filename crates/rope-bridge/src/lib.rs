@@ -5,9 +5,22 @@
 //! - Databases and APIs
 //! - IoT networks
 //! - Financial protocols (banks, asset management)
+//!
+//! ## EVM Invocation Bridge
+//! 
+//! The EVM Invocation Bridge (`evm_invocation` module) provides the critical
+//! translation layer between Datachain Rope's Layer 0 DAG architecture and
+//! EVM-compatible chains. This enables:
+//! 
+//! - Wallet compatibility (MetaMask, etc.) via JSON-RPC
+//! - Cross-chain asset transfers
+//! - Smart contract invocations from the DAG
+//! - State proof generation for trustless verification
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+
+pub mod evm_invocation;
 
 pub mod common {
     //! Common bridge utilities and traits

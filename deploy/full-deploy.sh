@@ -164,7 +164,7 @@ NEON_DATABASE_URL=postgresql://neondb_owner:npg_Gr7mLYdpaI9S@ep-noisy-sun-a9xwa3
 
 # Node Configuration
 ROPE_NODE_ID=
-ROPE_CHAIN_ID=314159
+ROPE_CHAIN_ID=271828
 ROPE_NETWORK=mainnet
 
 # RPC Configuration

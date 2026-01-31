@@ -476,7 +476,10 @@ pub mod consensus {
             10,
             Some(5_000_000), // 5ms
             || {
-                let _testimony = blake3::hash(&rand::random::<[u8; 64]>());
+                use rand::Rng;
+                let mut data = [0u8; 64];
+                rand::thread_rng().fill(&mut data);
+                let _testimony = blake3::hash(&data);
             },
         )
     }

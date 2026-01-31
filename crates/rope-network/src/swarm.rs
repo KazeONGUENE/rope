@@ -51,7 +51,7 @@ use libp2p::{
     noise,
     request_response::{self, ProtocolSupport},
     swarm::{NetworkBehaviour, SwarmEvent},
-    tcp, yamux, Multiaddr, PeerId, Swarm, SwarmBuilder,
+    tcp, yamux, Multiaddr, PeerId, Swarm, SwarmBuilder, StreamProtocol,
 };
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -234,8 +234,46 @@ pub enum SwarmError {
 // ROPE NETWORK BEHAVIOUR
 // ============================================================================
 
+/// Events produced by the combined RopeBehaviour
+#[derive(Debug)]
+pub enum RopeBehaviourEvent {
+    /// GossipSub event
+    Gossipsub(gossipsub::Event),
+    /// Kademlia event
+    Kademlia(kad::Event),
+    /// Identify event
+    Identify(identify::Event),
+    /// Request-Response event
+    RequestResponse(request_response::Event<RopeRequest, RopeResponse>),
+}
+
+impl From<gossipsub::Event> for RopeBehaviourEvent {
+    fn from(event: gossipsub::Event) -> Self {
+        RopeBehaviourEvent::Gossipsub(event)
+    }
+}
+
+impl From<kad::Event> for RopeBehaviourEvent {
+    fn from(event: kad::Event) -> Self {
+        RopeBehaviourEvent::Kademlia(event)
+    }
+}
+
+impl From<identify::Event> for RopeBehaviourEvent {
+    fn from(event: identify::Event) -> Self {
+        RopeBehaviourEvent::Identify(event)
+    }
+}
+
+impl From<request_response::Event<RopeRequest, RopeResponse>> for RopeBehaviourEvent {
+    fn from(event: request_response::Event<RopeRequest, RopeResponse>) -> Self {
+        RopeBehaviourEvent::RequestResponse(event)
+    }
+}
+
 /// Combined network behaviour for Datachain Rope
 #[derive(NetworkBehaviour)]
+#[behaviour(out_event = "RopeBehaviourEvent")]
 pub struct RopeBehaviour {
     /// GossipSub for pub/sub messaging
     pub gossipsub: gossipsub::Behaviour,
@@ -415,7 +453,7 @@ pub struct PeerInfo {
 // ============================================================================
 
 /// Events emitted by the swarm for application processing
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum SwarmNetworkEvent {
     /// New peer connected
     PeerConnected { peer_id: PeerId },
@@ -426,7 +464,7 @@ pub enum SwarmNetworkEvent {
     /// Gossip message received
     GossipMessage { topic: String, data: Vec<u8>, source: PeerId },
 
-    /// Request received
+    /// Request received (note: channel is not Clone, so this variant is not clonable)
     RequestReceived {
         peer_id: PeerId,
         request: RopeRequest,
@@ -438,6 +476,43 @@ pub enum SwarmNetworkEvent {
 
     /// DHT providers found
     DhtProvidersFound { key: Vec<u8>, providers: Vec<PeerId> },
+}
+
+impl Clone for SwarmNetworkEvent {
+    fn clone(&self) -> Self {
+        match self {
+            SwarmNetworkEvent::PeerConnected { peer_id } => {
+                SwarmNetworkEvent::PeerConnected { peer_id: *peer_id }
+            }
+            SwarmNetworkEvent::PeerDisconnected { peer_id } => {
+                SwarmNetworkEvent::PeerDisconnected { peer_id: *peer_id }
+            }
+            SwarmNetworkEvent::GossipMessage { topic, data, source } => {
+                SwarmNetworkEvent::GossipMessage {
+                    topic: topic.clone(),
+                    data: data.clone(),
+                    source: *source,
+                }
+            }
+            SwarmNetworkEvent::RequestReceived { .. } => {
+                // Cannot clone RequestReceived due to oneshot channel
+                // This should never be called in practice as requests use mpsc
+                panic!("RequestReceived events cannot be cloned")
+            }
+            SwarmNetworkEvent::DhtRecordFound { key, value } => {
+                SwarmNetworkEvent::DhtRecordFound {
+                    key: key.clone(),
+                    value: value.clone(),
+                }
+            }
+            SwarmNetworkEvent::DhtProvidersFound { key, providers } => {
+                SwarmNetworkEvent::DhtProvidersFound {
+                    key: key.clone(),
+                    providers: providers.clone(),
+                }
+            }
+        }
+    }
 }
 
 // ============================================================================
@@ -605,11 +680,11 @@ impl RopeSwarmRuntime {
         ));
 
         // Request-Response protocol
+        let protocol = StreamProtocol::try_from_owned(
+            self.config.request_response.protocol_name.clone()
+        ).expect("Invalid protocol name");
         let request_response = request_response::cbor::Behaviour::new(
-            [(
-                request_response::ProtocolId::from(&self.config.request_response.protocol_name[..]),
-                ProtocolSupport::Full,
-            )],
+            [(protocol, ProtocolSupport::Full)],
             request_response::Config::default()
                 .with_request_timeout(self.config.request_response.request_timeout),
         );

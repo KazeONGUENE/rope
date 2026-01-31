@@ -8,7 +8,7 @@
 //! | Parameter | Value |
 //! |-----------|-------|
 //! | Network Name | Datachain Rope |
-//! | Chain ID | 314159 (0x4CB2F) |
+//! | Chain ID | 271828 (0x425D4) |
 //! | Currency Symbol | FAT |
 //! | Currency Name | DC FAT |
 //! | RPC URL | https://erpc.datachain.network |
@@ -16,10 +16,10 @@
 //! 
 //! ## Chain ID Selection Rationale
 //! 
-//! 314159 was chosen because:
-//! - Represents π (pi) × 100000 - symbolizing the organic, DNA-inspired nature
+//! 271828 was chosen because:
+//! - Represents Euler's number e ≈ 2.71828 - symbolizing exponential growth
 //! - Not conflicting with any existing EVM chain IDs
-//! - Memorable and meaningful
+//! - Memorable and mathematically meaningful
 //! - Within the safe range for wallet compatibility (< 2^31)
 
 use serde::{Deserialize, Serialize};
@@ -30,15 +30,15 @@ use std::collections::HashMap;
 // ============================================================================
 
 /// Primary Chain ID for Datachain Rope Smartchain Mainnet
-/// 314159 = π × 100000 (organic symbolism)
-pub const CHAIN_ID_MAINNET: u64 = 314159;
+/// 271828 = Euler's number e ≈ 2.71828 (exponential growth symbolism)
+pub const CHAIN_ID_MAINNET: u64 = 271828;
 
 /// Testnet Chain ID
-/// 314160 = Mainnet + 1
-pub const CHAIN_ID_TESTNET: u64 = 314160;
+/// 271829 = Mainnet + 1
+pub const CHAIN_ID_TESTNET: u64 = 271829;
 
 /// Development/Local Chain ID
-pub const CHAIN_ID_DEVNET: u64 = 314161;
+pub const CHAIN_ID_DEVNET: u64 = 271830;
 
 /// Network Name
 pub const NETWORK_NAME: &str = "Datachain Rope";
@@ -686,7 +686,7 @@ mod tests {
     fn test_wallet_config() {
         let config = WalletChainConfig::mainnet();
         
-        assert_eq!(config.chain_id, "0x4CB2F"); // 314159 in hex
+        assert_eq!(config.chain_id, "0x425D4"); // 271828 in hex
         assert_eq!(config.native_currency.symbol, "FAT");
         assert_eq!(config.native_currency.decimals, 18);
         
