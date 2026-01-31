@@ -16,6 +16,7 @@ members = [
     "crates/rope-benchmarks",
     "crates/rope-loadtest",
     "crates/rope-economics",
+    "crates/rope-agent-runtime",
 ]
 resolver = "2"
 
@@ -43,7 +44,7 @@ prost-types = "0.12"
 # Cryptography - Classical
 ring = "0.17"
 ed25519-dalek = { version = "2.1", features = ["serde"] }
-x25519-dalek = { version = "2.0", features = ["serde"] }
+x25519-dalek = { version = "2.0", features = ["serde", "static_secrets"] }
 blake3 = "1.5"
 zeroize = { version = "1.7", features = ["derive"] }
 serde_bytes = "0.11"
@@ -59,7 +60,7 @@ reed-solomon-erasure = "6.0"
 crc32fast = "1.3"
 
 # Networking
-libp2p = { version = "0.53", features = ["tokio", "tcp", "quic", "noise", "yamux", "gossipsub", "kad", "identify", "dns"] }
+libp2p = { version = "0.53", features = ["tokio", "tcp", "quic", "noise", "yamux", "gossipsub", "kad", "identify", "dns", "request-response", "cbor", "macros"] }
 tonic = "0.10"
 tonic-build = "0.10"
 

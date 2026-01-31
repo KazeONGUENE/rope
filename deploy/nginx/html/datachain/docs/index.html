@@ -947,7 +947,7 @@
             <header class="docs-header">
                 <h1>Datachain Rope Documentation</h1>
                 <p>Technical documentation for building on Datachain Rope - a revolutionary protocol inspired by DNA's double helix structure with sub-5 second finality and quantum-resistant cryptography.</p>
-                <span class="status-badge live">Mainnet Live - Chain ID 314159</span>
+                <span class="status-badge live">Mainnet Live - Chain ID 271828</span>
             </header>
             
             <!-- Quick Links -->
@@ -988,6 +988,8 @@
                 </ul>
                 
                 <h3>Network Configuration</h3>
+                
+                <h4>Mainnet</h4>
                 <table>
                     <tr>
                         <th>Parameter</th>
@@ -995,11 +997,11 @@
                     </tr>
                     <tr>
                         <td>Network Name</td>
-                        <td>Datachain Rope</td>
+                        <td>Datachain Rope Mainnet</td>
                     </tr>
                     <tr>
                         <td>Chain ID</td>
-                        <td><code>314159</code> (0x4CB2F)</td>
+                        <td><code>271828</code> (0x425D4)</td>
                     </tr>
                     <tr>
                         <td>RPC URL</td>
@@ -1018,6 +1020,69 @@
                         <td><a href="https://dcscan.io">https://dcscan.io</a></td>
                     </tr>
                 </table>
+                
+                <h4>Testnet</h4>
+                <table>
+                    <tr>
+                        <th>Parameter</th>
+                        <th>Value</th>
+                    </tr>
+                    <tr>
+                        <td>Network Name</td>
+                        <td>Datachain Rope Testnet</td>
+                    </tr>
+                    <tr>
+                        <td>Chain ID</td>
+                        <td><code>271829</code> (0x425D5)</td>
+                    </tr>
+                    <tr>
+                        <td>RPC URL</td>
+                        <td><code>https://testnet.erpc.datachain.network</code></td>
+                    </tr>
+                    <tr>
+                        <td>WebSocket</td>
+                        <td><code>wss://testnet.ws.datachain.network</code></td>
+                    </tr>
+                    <tr>
+                        <td>Block Explorer</td>
+                        <td><a href="https://testnet.dcscan.io">https://testnet.dcscan.io</a></td>
+                    </tr>
+                    <tr>
+                        <td>Faucet</td>
+                        <td><a href="https://faucet.testnet.datachain.network">https://faucet.testnet.datachain.network</a></td>
+                    </tr>
+                </table>
+                
+                <h4>Bootstrap Nodes</h4>
+                <table>
+                    <tr>
+                        <th>Network</th>
+                        <th>Multiaddr</th>
+                    </tr>
+                    <tr>
+                        <td>Testnet Boot1</td>
+                        <td><code>/ip4/92.243.26.189/tcp/9000/p2p/12D3KooWBXNzc2E4Z9CLypkRXro5iSdbM5oTnTkmf8ncZAqjhAfM</code></td>
+                    </tr>
+                </table>
+                
+                <h4>Running a Validator Node</h4>
+                <pre><code># 1. Install rope-cli
+cargo install rope-cli
+
+# 2. Generate node keys (with post-quantum cryptography)
+./rope keygen --quantum --output ~/.rope/keys
+
+# 3. Get your Peer ID
+./rope peer-id --key ~/.rope/keys/node.key --ip YOUR_IP --port 9000
+
+# 4. Start a validator node on testnet
+./rope node --network testnet --mode validator --data-dir ~/.rope/testnet
+
+# Node will:
+# - Connect to bootstrap nodes automatically
+# - Produce anchor strings every ~4.2 seconds
+# - Participate in Testimony consensus
+# - Serve JSON-RPC on port 9001</code></pre>
             </section>
             
             <!-- Core Concepts: String Lattice -->
@@ -1493,7 +1558,7 @@ Hashgraph      // Hedera consensus (coming soon)</code></pre>
                         <div class="cli-output" id="cli-output">
 <span class="comment"># Datachain Rope CLI v1.0.0</span>
 <span class="comment"># Connected to: erpc.datachain.network</span>
-<span class="comment"># Chain ID: 314159 | Genesis: 10B FAT</span>
+<span class="comment"># Chain ID: 271828 | Genesis: 10B FAT</span>
 
 <span class="prompt">rope&gt;</span> help
 
@@ -1575,7 +1640,7 @@ cargo build --release
 [network]
 rpc_url = "https://erpc.datachain.network"
 ws_url = "wss://ws.datachain.network"
-chain_id = 314159
+chain_id = 271828
 
 [wallet]
 keystore_path = "~/.rope/keystore"
@@ -2019,7 +2084,7 @@ oes_generation = 1         # OES evolution epoch</code></pre>
             const protocolConfigs = {
                 0: { // Datachain Rope
                     name: 'Datachain Rope',
-                    chainId: 314159,
+                    chainId: 271828,
                     rpc: `https://${instanceId}.erpc.datachain.network`,
                     ws: `wss://${instanceId}.ws.datachain.network`,
                     explorer: `https://dcscan.io/${isFederation ? 'federation' : 'community'}/${genId}`,
@@ -2311,7 +2376,7 @@ ${config.aiAgents.map(i => `    ☑ ${aiAgentNames[i]}`).join('\n')}
                     wizardState = { active: false, type: null, step: 0, config: {} };
                     output.innerHTML = `<span class="comment"># Datachain Rope CLI v2.0.0</span>
 <span class="comment"># Connected to: erpc.datachain.network</span>
-<span class="comment"># Chain ID: 314159 | Genesis: 10B FAT</span>
+<span class="comment"># Chain ID: 271828 | Genesis: 10B FAT</span>
 
 <span class="prompt">rope&gt;</span> _`;
                 } else if (inputLower === 'cancel' && wizardState.active) {

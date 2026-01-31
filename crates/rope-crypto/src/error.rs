@@ -39,7 +39,11 @@ pub enum CryptoError {
     /// Decapsulation failed
     #[error("Key decapsulation failed: {0}")]
     DecapsulationFailed(String),
-    
+
+    /// Decryption failed
+    #[error("Decryption failed: {0}")]
+    DecryptionError(String),
+
     /// Random number generation failed
     #[error("RNG failed: {0}")]
     RNGFailed(String),

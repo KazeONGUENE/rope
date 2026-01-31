@@ -2,9 +2,9 @@
   "network": {
     "name": "Datachain Rope",
     "shortName": "Datachain",
-    "chainId": 314159,
-    "chainIdHex": "0x4CB2F",
-    "networkId": 314159,
+    "chainId": 271828,
+    "chainIdHex": "0x425D4",
+    "networkId": 271828,
     "type": "mainnet"
   },
   "domains": {
@@ -80,7 +80,7 @@
     }
   },
   "walletConfig": {
-    "chainId": "0x4CB2F",
+    "chainId": "0x425D4",
     "chainName": "Datachain Rope",
     "nativeCurrency": {
       "name": "DC FAT",

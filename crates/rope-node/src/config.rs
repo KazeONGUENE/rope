@@ -152,14 +152,14 @@ impl NodeConfig {
             node: NodeSettings {
                 name: "rope-mainnet-node".to_string(),
                 mode: NodeMode::Relay,
-                chain_id: 314159,
+                chain_id: 271828,
                 external_ip: None,
             },
             network: NetworkSettings {
-                listen_addr: "/ip4/0.0.0.0/tcp/30303".to_string(),
+                listen_addr: "0.0.0.0:9000".to_string(),
                 bootstrap_nodes: vec![
-                    "/dns4/boot1.datachain.network/tcp/30303/p2p/12D3KooWBootstrap1".to_string(),
-                    "/dns4/boot2.datachain.network/tcp/30303/p2p/12D3KooWBootstrap2".to_string(),
+                    // Primary bootstrap node on VPS
+                    "/ip4/92.243.26.189/tcp/9000/p2p/12D3KooWBXNzc2E4Z9CLypkRXro5iSdbM5oTnTkmf8ncZAqjhAfM".to_string(),
                 ],
                 max_peers: 50,
                 enable_quic: true,
@@ -201,11 +201,16 @@ impl NodeConfig {
     pub fn testnet() -> Self {
         let mut config = Self::mainnet();
         config.node.name = "rope-testnet-node".to_string();
-        config.node.chain_id = 314160;
+        config.node.chain_id = 271829;
         config.network.bootstrap_nodes = vec![
-            "/dns4/testnet-boot1.datachain.network/tcp/30303/p2p/12D3KooWTestBoot1".to_string(),
+            // Primary testnet bootstrap node on VPS
+            "/ip4/92.243.26.189/tcp/9000/p2p/12D3KooWBXNzc2E4Z9CLypkRXro5iSdbM5oTnTkmf8ncZAqjhAfM".to_string(),
         ];
         config.storage.db_path = "~/.rope/testnet/db".to_string();
+        // Enable consensus for testnet validators
+        config.consensus.enabled = true;
+        config.consensus.min_testimonies = 1;
+        config.consensus.block_time_ms = 4200; // ~4.2 seconds per anchor
         config
     }
 }

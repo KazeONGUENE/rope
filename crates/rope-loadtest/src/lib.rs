@@ -31,6 +31,7 @@ use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use futures::stream::{FuturesUnordered, StreamExt};
+use futures::FutureExt;
 use hdrhistogram::Histogram;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -98,7 +99,7 @@ impl Default for LoadTestConfig {
 // ============================================================================
 
 /// Load test metrics
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct LoadTestMetrics {
     /// Total requests sent
     pub total_requests: AtomicU64,
@@ -128,13 +129,26 @@ pub struct LoadTestMetrics {
     pub start_time: RwLock<Option<Instant>>,
 }
 
+impl Default for LoadTestMetrics {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LoadTestMetrics {
     pub fn new() -> Self {
         Self {
+            total_requests: AtomicU64::new(0),
+            successful_requests: AtomicU64::new(0),
+            failed_requests: AtomicU64::new(0),
+            bytes_sent: AtomicU64::new(0),
+            bytes_received: AtomicU64::new(0),
             latency_histogram: RwLock::new(
                 Histogram::new_with_bounds(1, 60_000_000, 3).unwrap(), // 1µs to 60s
             ),
-            ..Default::default()
+            error_counts: RwLock::new(HashMap::new()),
+            current_rps: AtomicU64::new(0),
+            start_time: RwLock::new(None),
         }
     }
 
@@ -170,7 +184,7 @@ impl LoadTestMetrics {
         let duration = self
             .start_time
             .read()
-            .map(|t| t.elapsed().as_secs_f64())
+            .map(|t: Instant| t.elapsed().as_secs_f64())
             .unwrap_or(1.0);
 
         let total = self.total_requests.load(Ordering::Relaxed);

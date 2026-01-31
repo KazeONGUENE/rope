@@ -27,13 +27,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-pub mod genesis;
-pub mod evolution;
-pub mod governance;
-pub mod community;
-pub mod project;
-
-// Re-exports
+// Re-exports from inline modules (defined below)
 pub use genesis::{GenesisConfig, GenesisValidator, FederationParams};
 pub use evolution::{MembershipChange, FederationState};
 pub use governance::{Proposal, ProposalStatus, Vote, VoteDecision, GovernanceState};

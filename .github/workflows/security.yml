@@ -1,0 +1,154 @@
+name: Security Checks
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run weekly on Monday at 00:00 UTC
+    - cron: '0 0 * * 1'
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  # ============================================================================
+  # Dependency Audit
+  # ============================================================================
+  audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+
+      - name: Run cargo audit
+        run: cargo audit --deny warnings
+
+      - name: Install cargo-deny
+        run: cargo install cargo-deny
+
+      - name: Run cargo deny
+        run: cargo deny check
+        continue-on-error: true  # Don't fail the build, just report
+
+  # ============================================================================
+  # SAST (Static Application Security Testing)
+  # ============================================================================
+  sast:
+    name: Static Security Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+        with:
+          components: clippy
+
+      - name: Run security-focused Clippy lints
+        run: |
+          cargo clippy --workspace --all-features -- \
+            -W clippy::unwrap_used \
+            -W clippy::expect_used \
+            -W clippy::panic \
+            -W clippy::todo \
+            -W clippy::unimplemented \
+            -W clippy::unreachable \
+            -D clippy::mem_forget
+
+  # ============================================================================
+  # Cryptographic Implementation Checks
+  # ============================================================================
+  crypto-security:
+    name: Cryptographic Security Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+
+      - name: Check for weak crypto patterns
+        run: |
+          # Search for potentially weak cryptographic patterns
+          echo "Checking for weak crypto patterns..."
+
+          # Check for use of MD5 or SHA1 for security purposes
+          if grep -r "md5\|sha1" --include="*.rs" crates/ | grep -v "test\|example\|comment"; then
+            echo "Warning: Found potential use of weak hash algorithms"
+          fi
+
+          # Check for hardcoded secrets
+          if grep -rE "(password|secret|key)\s*=\s*\"[^\"]+\"" --include="*.rs" crates/ | grep -v "test\|example"; then
+            echo "Warning: Found potential hardcoded secrets"
+          fi
+
+          echo "Crypto security checks completed"
+
+      - name: Run rope-crypto tests with address sanitizer
+        run: |
+          RUSTFLAGS="-Zsanitizer=address" cargo +nightly test -p rope-crypto --target x86_64-unknown-linux-gnu
+        continue-on-error: true  # ASAN may not be available on all systems
+
+  # ============================================================================
+  # Fuzzing (optional, runs on schedule)
+  # ============================================================================
+  fuzz:
+    name: Fuzz Testing
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust nightly
+        uses: dtolnay/rust-action@nightly
+
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz
+
+      - name: Run fuzzing for 5 minutes
+        run: |
+          cd crates/rope-crypto
+          cargo +nightly fuzz run fuzz_hybrid_sign -- -max_total_time=300
+        continue-on-error: true
+
+  # ============================================================================
+  # License Compliance
+  # ============================================================================
+  license:
+    name: License Compliance
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+
+      - name: Install cargo-license
+        run: cargo install cargo-license
+
+      - name: Check licenses
+        run: |
+          cargo license --json > licenses.json
+          # Check for copyleft licenses that might be incompatible
+          if grep -E "GPL|AGPL|LGPL" licenses.json; then
+            echo "Warning: Found copyleft licenses in dependencies"
+          fi

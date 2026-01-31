@@ -13,7 +13,7 @@
 //! | Parameter | Value |
 //! |-----------|-------|
 //! | **Network Name** | Datachain Rope |
-//! | **Chain ID** | 314159 (0x4CB2F) |
+//! | **Chain ID** | 271828 (0x425D4) |
 //! | **Currency Symbol** | FAT |
 //! | **Currency Name** | DC FAT |
 //! | **Decimals** | 18 |
@@ -79,6 +79,7 @@
 //! ```
 
 pub mod testimony_agent;
+pub mod testimony_policy;
 pub mod tool_registry;
 pub mod invocation_engine;
 pub mod security_policy;
@@ -89,6 +90,7 @@ pub mod network_config;
 
 // Re-exports
 pub use testimony_agent::*;
+pub use testimony_policy::*;
 pub use tool_registry::*;
 pub use invocation_engine::*;
 pub use security_policy::*;

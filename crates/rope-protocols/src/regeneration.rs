@@ -1154,17 +1154,23 @@ impl ReedSolomonCodec {
         if !rs_data.can_recover() {
             return Ok(false);
         }
-        
+
         // Clone and reconstruct to verify
         let mut verify_shards = rs_data.shards.clone();
-        
+
         if rs_data.missing_shards() > 0 {
             self.encoder.reconstruct(&mut verify_shards)
                 .map_err(|e| format!("Verification reconstruction failed: {:?}", e))?;
         }
-        
+
+        // Convert Option<Vec<u8>> to Vec<u8> for verify (all shards should be Some after reconstruct)
+        let unwrapped_shards: Vec<Vec<u8>> = verify_shards
+            .into_iter()
+            .map(|s| s.unwrap_or_default())
+            .collect();
+
         // Verify parity
-        self.encoder.verify(&verify_shards)
+        self.encoder.verify(&unwrapped_shards)
             .map_err(|e| format!("Parity verification failed: {:?}", e))
     }
 }

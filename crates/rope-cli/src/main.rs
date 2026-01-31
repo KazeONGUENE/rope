@@ -7,6 +7,7 @@ use rope_node::{RopeNode, NodeConfig};
 use rope_crypto::keys::KeyPair;
 use std::path::PathBuf;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use libp2p::identity::Keypair as LibP2pKeypair;
 
 #[derive(Parser)]
 #[command(name = "rope")]
@@ -68,7 +69,7 @@ enum Commands {
         validators: u32,
         
         /// Chain ID
-        #[arg(long, default_value = "314159")]
+        #[arg(long, default_value = "271828")]
         chain_id: u64,
         
         /// Output file for genesis
@@ -90,6 +91,21 @@ enum Commands {
     
     /// Version information
     Version,
+    
+    /// Get peer ID from key file
+    PeerId {
+        /// Path to node.key file
+        #[arg(short, long)]
+        key: PathBuf,
+        
+        /// VPS IP address (optional, for multiaddr output)
+        #[arg(long)]
+        ip: Option<String>,
+        
+        /// Port (default: 9000)
+        #[arg(long, default_value = "9000")]
+        port: u16,
+    },
 }
 
 #[derive(Subcommand)]
@@ -171,7 +187,7 @@ async fn main() -> anyhow::Result<()> {
             tracing::info!("Data: {:?}", data_dir);
             
             // Load or create config
-            let node_config = if config_path.exists() {
+            let mut node_config: NodeConfig = if config_path.exists() {
                 let content = std::fs::read_to_string(&config_path)?;
                 toml::from_str(&content)?
             } else {
@@ -179,11 +195,22 @@ async fn main() -> anyhow::Result<()> {
                 NodeConfig::for_network(&network)?
             };
             
+            // Override mode from CLI
+            node_config.node.mode = match mode.to_lowercase().as_str() {
+                "validator" => rope_node::config::NodeMode::Validator,
+                "relay" => rope_node::config::NodeMode::Relay,
+                "seeder" => rope_node::config::NodeMode::Seeder,
+                _ => {
+                    tracing::warn!("Unknown mode '{}', defaulting to relay", mode);
+                    rope_node::config::NodeMode::Relay
+                }
+            };
+            
             // Create data directory
             std::fs::create_dir_all(&data_dir)?;
             
             // Start node
-            let node = RopeNode::new(node_config, data_dir).await?;
+            let mut node = RopeNode::new(node_config, data_dir).await?;
             node.run().await?;
         }
         
@@ -243,8 +270,8 @@ async fn main() -> anyhow::Result<()> {
             
             println!("");
             println!("Network Info:");
-            println!("  Mainnet Chain ID: 314159");
-            println!("  Testnet Chain ID: 314160");
+            println!("  Mainnet Chain ID: 271828");
+            println!("  Testnet Chain ID: 271829");
             println!("  RPC: https://erpc.datachain.network");
             println!("  Explorer: https://dcscan.io");
             println!("");
@@ -320,6 +347,43 @@ async fn main() -> anyhow::Result<()> {
             println!("  - Hybrid Quantum-Resistant Cryptography");
             println!("  - DC FAT Native Token");
             println!("  - AI Testimony Agents");
+        }
+        
+        Commands::PeerId { key, ip, port } => {
+            let key_path = expand_path(&key);
+            
+            if !key_path.exists() {
+                anyhow::bail!("Key file not found: {:?}", key_path);
+            }
+            
+            let key_bytes = std::fs::read(&key_path)?;
+            if key_bytes.len() < 32 {
+                anyhow::bail!("Key file too short, need at least 32 bytes");
+            }
+            
+            let seed: [u8; 32] = key_bytes[..32].try_into()?;
+            let keypair = LibP2pKeypair::ed25519_from_bytes(seed)
+                .map_err(|e| anyhow::anyhow!("Invalid seed: {:?}", e))?;
+            let peer_id = keypair.public().to_peer_id();
+            
+            println!("╔══════════════════════════════════════════════════════════════╗");
+            println!("║              DATACHAIN ROPE PEER ID                          ║");
+            println!("╚══════════════════════════════════════════════════════════════╝");
+            println!("");
+            println!("Peer ID: {}", peer_id);
+            println!("");
+            
+            if let Some(ip_addr) = ip {
+                println!("Multiaddr (TCP):  /ip4/{}/tcp/{}/p2p/{}", ip_addr, port, peer_id);
+                println!("Multiaddr (QUIC): /ip4/{}/udp/{}/quic-v1/p2p/{}", ip_addr, port, peer_id);
+                println!("");
+                println!("Add to bootstrap_nodes in config:");
+                println!("  \"/ip4/{}/tcp/{}/p2p/{}\"", ip_addr, port, peer_id);
+            } else {
+                println!("Multiaddr (localhost TCP):  /ip4/127.0.0.1/tcp/{}/p2p/{}", port, peer_id);
+                println!("");
+                println!("Use --ip <IP_ADDRESS> for full multiaddr");
+            }
         }
     }
     
