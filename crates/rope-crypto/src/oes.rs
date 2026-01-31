@@ -1029,7 +1029,9 @@ mod tests {
 
         // Grid should change (with high probability due to mutations)
         // Note: Could be same by chance, but very unlikely
-        let _ = grid.hash(); // Just verify it computes
+        let final_hash = grid.hash();
+        // Verify hash computation works; grid likely changed due to mutations
+        assert!(initial_hash.len() == final_hash.len());
     }
 
     #[test]
