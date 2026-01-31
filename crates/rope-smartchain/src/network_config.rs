@@ -11,8 +11,8 @@
 //! | Chain ID | 271828 (0x425D4) |
 //! | Currency Symbol | FAT |
 //! | Currency Name | DC FAT |
-//! | RPC URL | https://erpc.datachain.network |
-//! | Block Explorer | https://dcscan.io |
+//! | RPC URL | <https://erpc.datachain.network> |
+//! | Block Explorer | <https://dcscan.io> |
 //!
 //! ## Chain ID Selection Rationale
 //!
