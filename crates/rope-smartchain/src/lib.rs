@@ -17,10 +17,10 @@
 //! | **Currency Symbol** | FAT |
 //! | **Currency Name** | DC FAT |
 //! | **Decimals** | 18 |
-//! | **RPC URL** | https://erpc.datachain.network |
-//! | **RPC URL (Alt)** | https://erpc.rope.network |
-//! | **WebSocket** | wss://ws.datachain.network |
-//! | **Block Explorer** | https://dcscan.io |
+//! | **RPC URL** | <https://erpc.datachain.network> |
+//! | **RPC URL (Alt)** | <https://erpc.rope.network> |
+//! | **WebSocket** | <wss://ws.datachain.network> |
+//! | **Block Explorer** | <https://dcscan.io> |
 //! | **Primary Domain** | datachain.network |
 //! | **Secondary Domain** | rope.network |
 //!
