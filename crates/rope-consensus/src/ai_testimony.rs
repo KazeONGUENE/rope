@@ -482,7 +482,12 @@ impl AITestimonyCollection {
     }
 
     /// Check if consensus threshold is reached
-    pub fn check_consensus(&mut self, min_approvals: u32, min_confidence: f64, max_risk: RiskLevel) -> bool {
+    pub fn check_consensus(
+        &mut self,
+        min_approvals: u32,
+        min_confidence: f64,
+        max_risk: RiskLevel,
+    ) -> bool {
         if self.approvals >= min_approvals
             && self.avg_confidence >= min_confidence
             && self.max_risk_level.as_u8() <= max_risk.as_u8()

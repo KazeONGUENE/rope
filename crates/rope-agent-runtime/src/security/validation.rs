@@ -144,7 +144,9 @@ impl InputValidator {
             "override",
         ];
 
-        injection_patterns.iter().any(|pattern| lower.contains(pattern))
+        injection_patterns
+            .iter()
+            .any(|pattern| lower.contains(pattern))
     }
 
     /// Validate URL
@@ -175,7 +177,10 @@ impl InputValidator {
     }
 
     /// Validate message length
-    pub fn validate_message_length(message: &str, max_length: usize) -> Result<(), ValidationError> {
+    pub fn validate_message_length(
+        message: &str,
+        max_length: usize,
+    ) -> Result<(), ValidationError> {
         if message.len() > max_length {
             return Err(ValidationError::MessageTooLong {
                 length: message.len(),
@@ -227,25 +232,22 @@ mod tests {
     #[test]
     fn test_validate_address() {
         // Valid address
-        assert!(InputValidator::validate_address(
-            "0x1234567890abcdef1234567890abcdef12345678"
-        )
-        .is_ok());
+        assert!(
+            InputValidator::validate_address("0x1234567890abcdef1234567890abcdef12345678").is_ok()
+        );
 
         // Invalid - wrong length
         assert!(InputValidator::validate_address("0x1234").is_err());
 
         // Invalid - no prefix
-        assert!(InputValidator::validate_address(
-            "1234567890abcdef1234567890abcdef12345678"
-        )
-        .is_err());
+        assert!(
+            InputValidator::validate_address("1234567890abcdef1234567890abcdef12345678").is_err()
+        );
 
         // Invalid - non-hex
-        assert!(InputValidator::validate_address(
-            "0xGGGG567890abcdef1234567890abcdef12345678"
-        )
-        .is_err());
+        assert!(
+            InputValidator::validate_address("0xGGGG567890abcdef1234567890abcdef12345678").is_err()
+        );
     }
 
     #[test]

@@ -32,10 +32,7 @@ impl MessageRouter {
     }
 
     /// Register a channel
-    pub async fn register_channel(
-        &self,
-        channel: MessageChannel,
-    ) -> Result<(), ChannelError> {
+    pub async fn register_channel(&self, channel: MessageChannel) -> Result<(), ChannelError> {
         let channel_id = channel.id();
 
         // Check not already registered

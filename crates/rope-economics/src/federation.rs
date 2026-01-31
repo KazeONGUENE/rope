@@ -11,10 +11,10 @@
 //! | Silver | Medium | 20% | 100K+ tx/month, 10K+ users |
 //! | Bronze | Low | 10% | <100K tx/month |
 
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use crate::constants::*;
 use crate::emission::AnchorReward;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Activity tier classification
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
@@ -39,7 +39,7 @@ impl ActivityTier {
             Self::Bronze => 10,
         }
     }
-    
+
     /// Get reward multiplier for tier
     pub fn reward_multiplier(&self) -> f64 {
         match self {
@@ -49,7 +49,7 @@ impl ActivityTier {
             Self::Bronze => 0.5,
         }
     }
-    
+
     /// Determine tier from activity metrics
     pub fn from_activity(monthly_transactions: u64, active_users: u64) -> Self {
         if monthly_transactions >= 10_000_000 && active_users >= 1_000_000 {
@@ -62,7 +62,7 @@ impl ActivityTier {
             Self::Bronze
         }
     }
-    
+
     /// Get tier name
     pub fn name(&self) -> &'static str {
         match self {
@@ -79,31 +79,31 @@ impl ActivityTier {
 pub struct ActivityMetrics {
     /// Federation/Community ID
     pub entity_id: [u8; 32],
-    
+
     /// Number of active data wallets
     pub active_wallets: u64,
-    
+
     /// Monthly transactions
     pub monthly_transactions: u64,
-    
+
     /// Monthly strings stored
     pub monthly_strings: u64,
-    
+
     /// Monthly testimonies validated
     pub monthly_testimonies: u64,
-    
+
     /// Active users in last 30 days
     pub active_users_30d: u64,
-    
+
     /// Total storage used (GB)
     pub storage_used_gb: u64,
-    
+
     /// API calls this month
     pub api_calls: u64,
-    
+
     /// Measurement period start
     pub period_start: i64,
-    
+
     /// Measurement period end
     pub period_end: i64,
 }
@@ -116,10 +116,11 @@ impl ActivityMetrics {
         let user_score = (self.active_users_30d as f64).log10().min(8.0) * 10.0;
         let storage_score = (self.storage_used_gb as f64).log10().min(5.0) * 10.0;
         let testimony_score = (self.monthly_testimonies as f64).log10().min(7.0) * 10.0;
-        
-        (tx_score * 0.4 + user_score * 0.3 + storage_score * 0.15 + testimony_score * 0.15).min(100.0)
+
+        (tx_score * 0.4 + user_score * 0.3 + storage_score * 0.15 + testimony_score * 0.15)
+            .min(100.0)
     }
-    
+
     /// Get tier based on metrics
     pub fn tier(&self) -> ActivityTier {
         ActivityTier::from_activity(self.monthly_transactions, self.active_users_30d)
@@ -131,25 +132,25 @@ impl ActivityMetrics {
 pub struct FederationRewardState {
     /// Federation ID
     pub federation_id: [u8; 32],
-    
+
     /// Federation name
     pub name: String,
-    
+
     /// Current activity tier
     pub tier: ActivityTier,
-    
+
     /// Total rewards earned (lifetime)
     pub total_rewards: u128,
-    
+
     /// Pending rewards
     pub pending_rewards: u128,
-    
+
     /// Last reward timestamp
     pub last_reward_time: i64,
-    
+
     /// Activity metrics
     pub metrics: ActivityMetrics,
-    
+
     /// Is eligible for rewards
     pub is_eligible: bool,
 }
@@ -158,10 +159,10 @@ pub struct FederationRewardState {
 pub struct FederationRewards {
     /// Federation states
     federations: HashMap<[u8; 32], FederationRewardState>,
-    
+
     /// Minimum activity threshold for rewards
     pub min_transactions_threshold: u64,
-    
+
     /// Minimum users threshold
     pub min_users_threshold: u64,
 }
@@ -170,8 +171,8 @@ impl Default for FederationRewards {
     fn default() -> Self {
         Self {
             federations: HashMap::new(),
-            min_transactions_threshold: 1_000,  // Minimum 1000 tx/month
-            min_users_threshold: 100,            // Minimum 100 users
+            min_transactions_threshold: 1_000, // Minimum 1000 tx/month
+            min_users_threshold: 100,          // Minimum 100 users
         }
     }
 }
@@ -181,25 +182,28 @@ impl FederationRewards {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     /// Register federation for rewards
     pub fn register_federation(&mut self, id: [u8; 32], name: String, metrics: ActivityMetrics) {
         let tier = metrics.tier();
         let is_eligible = metrics.monthly_transactions >= self.min_transactions_threshold
             && metrics.active_users_30d >= self.min_users_threshold;
-        
-        self.federations.insert(id, FederationRewardState {
-            federation_id: id,
-            name,
-            tier,
-            total_rewards: 0,
-            pending_rewards: 0,
-            last_reward_time: 0,
-            metrics,
-            is_eligible,
-        });
+
+        self.federations.insert(
+            id,
+            FederationRewardState {
+                federation_id: id,
+                name,
+                tier,
+                total_rewards: 0,
+                pending_rewards: 0,
+                last_reward_time: 0,
+                metrics,
+                is_eligible,
+            },
+        );
     }
-    
+
     /// Update federation metrics
     pub fn update_metrics(&mut self, id: &[u8; 32], metrics: ActivityMetrics) {
         if let Some(state) = self.federations.get_mut(id) {
@@ -209,7 +213,7 @@ impl FederationRewards {
             state.metrics = metrics;
         }
     }
-    
+
     /// Distribute rewards for an epoch
     pub fn distribute_epoch_rewards(
         &mut self,
@@ -218,11 +222,11 @@ impl FederationRewards {
     ) -> Vec<([u8; 32], u128)> {
         // Total federation pool from all anchors
         let total_pool: u128 = anchor_rewards.iter().map(|r| r.federation_pool).sum();
-        
+
         if total_pool == 0 {
             return Vec::new();
         }
-        
+
         // Get eligible federations grouped by tier
         let mut by_tier: HashMap<ActivityTier, Vec<[u8; 32]>> = HashMap::new();
         for (id, state) in &self.federations {
@@ -230,18 +234,23 @@ impl FederationRewards {
                 by_tier.entry(state.tier).or_default().push(*id);
             }
         }
-        
+
         let mut distributions = Vec::new();
-        
+
         // Distribute pool by tier shares
-        for tier in [ActivityTier::Platinum, ActivityTier::Gold, ActivityTier::Silver, ActivityTier::Bronze] {
+        for tier in [
+            ActivityTier::Platinum,
+            ActivityTier::Gold,
+            ActivityTier::Silver,
+            ActivityTier::Bronze,
+        ] {
             let tier_share = total_pool * tier.pool_share_percent() as u128 / 100;
-            
+
             if let Some(fed_ids) = by_tier.get(&tier) {
                 if !fed_ids.is_empty() {
                     // Equal distribution within tier (could be weighted by activity score)
                     let per_federation = tier_share / fed_ids.len() as u128;
-                    
+
                     for id in fed_ids {
                         if let Some(state) = self.federations.get_mut(id) {
                             state.pending_rewards += per_federation;
@@ -252,10 +261,10 @@ impl FederationRewards {
                 }
             }
         }
-        
+
         distributions
     }
-    
+
     /// Claim pending rewards
     pub fn claim_rewards(&mut self, id: &[u8; 32]) -> u128 {
         if let Some(state) = self.federations.get_mut(id) {
@@ -267,17 +276,20 @@ impl FederationRewards {
             0
         }
     }
-    
+
     /// Get federation state
     pub fn get_federation(&self, id: &[u8; 32]) -> Option<&FederationRewardState> {
         self.federations.get(id)
     }
-    
+
     /// Get all eligible federations
     pub fn eligible_federations(&self) -> Vec<&FederationRewardState> {
-        self.federations.values().filter(|f| f.is_eligible).collect()
+        self.federations
+            .values()
+            .filter(|f| f.is_eligible)
+            .collect()
     }
-    
+
     /// Count federations by tier
     pub fn count_by_tier(&self) -> HashMap<ActivityTier, u64> {
         let mut counts = HashMap::new();
@@ -293,22 +305,22 @@ impl FederationRewards {
 pub struct CommunityRewardState {
     /// Community ID
     pub community_id: [u8; 32],
-    
+
     /// Community name
     pub name: String,
-    
+
     /// Current activity tier
     pub tier: ActivityTier,
-    
+
     /// Total rewards earned (lifetime)
     pub total_rewards: u128,
-    
+
     /// Pending rewards
     pub pending_rewards: u128,
-    
+
     /// Industry sector
     pub industry: String,
-    
+
     /// Activity metrics
     pub metrics: ActivityMetrics,
 }
@@ -317,7 +329,7 @@ pub struct CommunityRewardState {
 pub struct CommunityRewards {
     /// Community states
     communities: HashMap<[u8; 32], CommunityRewardState>,
-    
+
     /// Minimum activity threshold
     pub min_transactions_threshold: u64,
 }
@@ -336,7 +348,7 @@ impl CommunityRewards {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     /// Register community
     pub fn register_community(
         &mut self,
@@ -346,18 +358,21 @@ impl CommunityRewards {
         metrics: ActivityMetrics,
     ) {
         let tier = metrics.tier();
-        
-        self.communities.insert(id, CommunityRewardState {
-            community_id: id,
-            name,
-            tier,
-            total_rewards: 0,
-            pending_rewards: 0,
-            industry,
-            metrics,
-        });
+
+        self.communities.insert(
+            id,
+            CommunityRewardState {
+                community_id: id,
+                name,
+                tier,
+                total_rewards: 0,
+                pending_rewards: 0,
+                industry,
+                metrics,
+            },
+        );
     }
-    
+
     /// Get community
     pub fn get_community(&self, id: &[u8; 32]) -> Option<&CommunityRewardState> {
         self.communities.get(id)
@@ -367,7 +382,7 @@ impl CommunityRewards {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_activity_tiers() {
         assert_eq!(
@@ -387,7 +402,7 @@ mod tests {
             ActivityTier::Bronze
         );
     }
-    
+
     #[test]
     fn test_tier_shares() {
         let total = 100u128;
@@ -395,23 +410,23 @@ mod tests {
         let gold = total * ActivityTier::Gold.pool_share_percent() as u128 / 100;
         let silver = total * ActivityTier::Silver.pool_share_percent() as u128 / 100;
         let bronze = total * ActivityTier::Bronze.pool_share_percent() as u128 / 100;
-        
+
         assert_eq!(platinum + gold + silver + bronze, 100);
     }
-    
+
     #[test]
     fn test_federation_registration() {
         let mut rewards = FederationRewards::new();
-        
+
         let metrics = ActivityMetrics {
             entity_id: [1u8; 32],
             monthly_transactions: 1_000_000,
             active_users_30d: 100_000,
             ..Default::default()
         };
-        
+
         rewards.register_federation([1u8; 32], "Test Fed".to_string(), metrics);
-        
+
         let fed = rewards.get_federation(&[1u8; 32]).unwrap();
         assert_eq!(fed.tier, ActivityTier::Gold);
         assert!(fed.is_eligible);

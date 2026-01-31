@@ -1,5 +1,5 @@
 //! # Gossip-about-Gossip Protocol
-//! 
+//!
 //! Nodes share communication history for virtual voting.
 //! Each gossip event references its parents, forming a DAG.
 
@@ -33,7 +33,7 @@ impl GossipDag {
             round: 0,
         }
     }
-    
+
     pub fn add_event(&mut self, event: GossipEvent) {
         // Remove parents from heads
         if let Some(p) = event.self_parent {
@@ -42,27 +42,28 @@ impl GossipDag {
         if let Some(p) = event.other_parent {
             self.heads.remove(&p);
         }
-        
+
         let id = event.id;
         self.heads.insert(id);
-        
+
         if event.round > self.round {
             self.round = event.round;
         }
-        
+
         self.events.insert(id, event);
     }
-    
+
     pub fn get_event(&self, id: &[u8; 32]) -> Option<&GossipEvent> {
         self.events.get(id)
     }
-    
+
     pub fn current_round(&self) -> u64 {
         self.round
     }
-    
+
     pub fn head_events(&self) -> Vec<&GossipEvent> {
-        self.heads.iter()
+        self.heads
+            .iter()
             .filter_map(|id| self.events.get(id))
             .collect()
     }
@@ -73,4 +74,3 @@ impl Default for GossipDag {
         Self::new()
     }
 }
-

@@ -1,25 +1,25 @@
 //! Complement - Verification string paired with each primary string
-//! 
+//!
 //! Inspired by DNA's complementary strand pairing (A-T, G-C),
 //! each string in Datachain Rope has a complement that:
 //! - Enables integrity verification without original data
 //! - Provides error correction capability
 //! - Supports regeneration of damaged strings
 
-use serde::{Deserialize, Serialize};
-use reed_solomon_erasure::galois_8::ReedSolomon;
-use crate::types::StringId;
 use crate::string::RopeString;
+use crate::types::StringId;
+use reed_solomon_erasure::galois_8::ReedSolomon;
+use serde::{Deserialize, Serialize};
 
 /// Regeneration hint for complement-based reconstruction
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RegenerationHint {
     /// Related string ID that can help with regeneration
     pub related_string_id: StringId,
-    
+
     /// Type of relationship
     pub relationship: RelationshipType,
-    
+
     /// Segment range that can be regenerated from this source
     pub segment_range: (u64, u64),
 }
@@ -29,32 +29,32 @@ pub struct RegenerationHint {
 pub enum RelationshipType {
     /// Direct parent in DAG
     Parent,
-    
+
     /// Direct child in DAG
     Child,
-    
+
     /// Sibling (shares parent)
     Sibling,
-    
+
     /// Related through content similarity
     ContentRelated,
-    
+
     /// Previous version of same data
     PreviousVersion,
 }
 
 /// Entanglement proof linking string and complement
-/// 
+///
 /// Proves that the complement was correctly generated for the string,
 /// preventing malicious complement substitution.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EntanglementProof {
     /// Hash binding string and complement
     pub binding_hash: [u8; 32],
-    
+
     /// Timestamp of entanglement
     pub created_at: u64,
-    
+
     /// Creator node signature
     pub signature: Vec<u8>,
 }
@@ -65,9 +65,9 @@ impl EntanglementProof {
         let mut binding_content = Vec::new();
         binding_content.extend_from_slice(string.id().as_bytes());
         binding_content.extend_from_slice(complement_data);
-        
+
         let binding_hash = blake3::hash(&binding_content);
-        
+
         Self {
             binding_hash: *binding_hash.as_bytes(),
             created_at: std::time::SystemTime::now()
@@ -83,14 +83,14 @@ impl EntanglementProof {
         let mut binding_content = Vec::new();
         binding_content.extend_from_slice(string.id().as_bytes());
         binding_content.extend_from_slice(complement_data);
-        
+
         let expected_hash = blake3::hash(&binding_content);
         self.binding_hash == *expected_hash.as_bytes()
     }
 }
 
 /// Complement - Verification and regeneration partner for a string
-/// 
+///
 /// Like DNA's complementary strand, the Complement enables:
 /// 1. Integrity verification through hash comparison
 /// 2. Error correction through Reed-Solomon decoding
@@ -99,16 +99,16 @@ impl EntanglementProof {
 pub struct Complement {
     /// ID of the primary string this complements
     primary_id: StringId,
-    
+
     /// Reed-Solomon encoded parity data
     complement_data: Vec<u8>,
-    
+
     /// BLAKE3 hash of primary content for verification
     verification_hash: [u8; 32],
-    
+
     /// Hints for multi-source regeneration
     regeneration_hints: Vec<RegenerationHint>,
-    
+
     /// Proof linking this complement to its string
     entanglement_proof: EntanglementProof,
 }
@@ -117,16 +117,17 @@ impl Complement {
     /// Generate a complement for a string
     pub fn generate(string: &RopeString) -> Self {
         let content = string.content();
-        
+
         // Generate Reed-Solomon parity
-        let complement_data = Self::generate_reed_solomon_parity(&content, string.replication_factor());
-        
+        let complement_data =
+            Self::generate_reed_solomon_parity(&content, string.replication_factor());
+
         // Compute verification hash
         let verification_hash = *blake3::hash(&content).as_bytes();
-        
+
         // Generate entanglement proof
         let entanglement_proof = EntanglementProof::generate(string, &complement_data);
-        
+
         // Collect regeneration hints from parentage
         let regeneration_hints = string
             .parentage()
@@ -158,7 +159,7 @@ impl Complement {
         // For replication_factor 5: 3 data shards, 2 parity shards
         let data_shards = (replication_factor as usize * 3) / 5;
         let parity_shards = replication_factor as usize - data_shards;
-        
+
         let data_shards = data_shards.max(1);
         let parity_shards = parity_shards.max(1);
 
@@ -172,7 +173,7 @@ impl Complement {
             .chunks(shard_size)
             .map(|chunk| chunk.to_vec())
             .collect();
-        
+
         // Add empty parity shards
         for _ in 0..parity_shards {
             shards.push(vec![0u8; shard_size]);
@@ -180,9 +181,8 @@ impl Complement {
 
         // Encode with Reed-Solomon
         if let Ok(rs) = ReedSolomon::new(data_shards, parity_shards) {
-            let mut shard_refs: Vec<&mut [u8]> = shards.iter_mut()
-                .map(|s| s.as_mut_slice())
-                .collect();
+            let mut shard_refs: Vec<&mut [u8]> =
+                shards.iter_mut().map(|s| s.as_mut_slice()).collect();
             let _ = rs.encode(&mut shard_refs);
         }
 
@@ -228,7 +228,9 @@ impl Complement {
     /// Verify entanglement with string
     pub fn verify_entanglement(&self, string: &RopeString) -> bool {
         string.id() == self.primary_id
-            && self.entanglement_proof.verify(string, &self.complement_data)
+            && self
+                .entanglement_proof
+                .verify(string, &self.complement_data)
     }
 
     /// Add a regeneration hint
@@ -249,29 +251,29 @@ impl Complement {
         // Reed-Solomon parameters
         let data_shards = (replication_factor as usize * 3) / 5;
         let parity_shards = replication_factor as usize - data_shards;
-        
+
         let data_shards = data_shards.max(1);
         let parity_shards = parity_shards.max(1);
 
         // Calculate shard size from parity data
         let parity_total_size = self.complement_data.len();
         let shard_size = parity_total_size / parity_shards;
-        
+
         if shard_size == 0 {
             return None;
         }
 
         // Reconstruct shards
         let mut shards: Vec<Option<Vec<u8>>> = Vec::new();
-        
+
         // Add data shards (may be damaged)
         let mut padded_damaged = damaged_content.to_vec();
         padded_damaged.resize(shard_size * data_shards, 0);
-        
+
         for chunk in padded_damaged.chunks(shard_size) {
             shards.push(Some(chunk.to_vec()));
         }
-        
+
         // Add parity shards from complement
         for chunk in self.complement_data.chunks(shard_size) {
             shards.push(Some(chunk.to_vec()));
@@ -283,7 +285,7 @@ impl Complement {
                 .into_iter()
                 .map(|s| s.map(|v| v.into_boxed_slice()))
                 .collect();
-            
+
             if rs.reconstruct(&mut shard_refs).is_ok() {
                 // Collect reconstructed data shards
                 let reconstructed: Vec<u8> = shard_refs[..data_shards]
@@ -291,7 +293,7 @@ impl Complement {
                     .filter_map(|s| s.as_ref())
                     .flat_map(|s| s.iter().copied())
                     .collect();
-                
+
                 // Verify reconstruction
                 if self.verify_content(&reconstructed) {
                     return Some(reconstructed);
@@ -307,7 +309,7 @@ impl Complement {
 mod tests {
     use super::*;
     use crate::clock::LamportClock;
-    use crate::string::{RopeString, PublicKey};
+    use crate::string::{PublicKey, RopeString};
     use crate::types::NodeId;
 
     fn make_test_string(content: &[u8]) -> RopeString {
@@ -356,7 +358,7 @@ mod tests {
     #[test]
     fn test_regeneration_hints() {
         let parent_id = StringId::from_content(b"parent");
-        
+
         let string = RopeString::builder()
             .content(b"Child content".to_vec())
             .temporal_marker(LamportClock::new(NodeId::new([0u8; 32])))
@@ -366,9 +368,11 @@ mod tests {
             .unwrap();
 
         let complement = Complement::generate(&string);
-        
+
         assert_eq!(complement.regeneration_hints().len(), 1);
-        assert_eq!(complement.regeneration_hints()[0].related_string_id, parent_id);
+        assert_eq!(
+            complement.regeneration_hints()[0].related_string_id,
+            parent_id
+        );
     }
 }
-

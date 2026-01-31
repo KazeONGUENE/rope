@@ -140,13 +140,26 @@ async fn main() {
     info!("Datachain Rope Load Test Tool v1.0.0");
 
     match cli.command {
-        Some(Commands::Basic { target, duration, rps }) => {
+        Some(Commands::Basic {
+            target,
+            duration,
+            rps,
+        }) => {
             run_basic_test(&target, duration, rps).await;
         }
-        Some(Commands::Stress { target, max_rps, step_duration }) => {
+        Some(Commands::Stress {
+            target,
+            max_rps,
+            step_duration,
+        }) => {
             run_stress_test(&target, max_rps, step_duration).await;
         }
-        Some(Commands::Soak { target, duration_hours, rps, checkpoint_interval }) => {
+        Some(Commands::Soak {
+            target,
+            duration_hours,
+            rps,
+            checkpoint_interval,
+        }) => {
             run_soak_test(&target, rps, duration_hours, checkpoint_interval).await;
         }
         Some(Commands::SpecCheck { target }) => {
@@ -254,4 +267,3 @@ async fn run_spec_check(target: &str) {
         std::process::exit(1);
     }
 }
-

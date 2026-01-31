@@ -1,7 +1,7 @@
 //! String Lattice - The core DAG data structure replacing blockchain
-//! 
+//!
 //! L = (S, ≺, ⊗, R)
-//! 
+//!
 //! Where:
 //! - S: Set of all strings in the Rope
 //! - ≺ (Precedes): Partial ordering capturing causal dependencies
@@ -16,25 +16,25 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 use crate::complement::Complement;
-use crate::error::{RopeError, Result};
+use crate::error::{Result, RopeError};
 use crate::string::RopeString;
-use crate::types::{FinalityStatus, StringId, constants};
+use crate::types::{constants, FinalityStatus, StringId};
 
 /// Anchor String - Synchronization point in the lattice
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AnchorString {
     /// The underlying string
     pub string: RopeString,
-    
+
     /// Consensus round number
     pub round: u64,
-    
+
     /// Previous anchors this one strongly sees
     pub strongly_sees: Vec<StringId>,
-    
+
     /// Number of testimonies received
     pub testimony_count: u32,
-    
+
     /// Whether this is a famous anchor (achieved consensus)
     pub is_famous: bool,
 }
@@ -57,31 +57,31 @@ impl AnchorString {
 }
 
 /// String Lattice - The core data structure of Datachain Rope
-/// 
+///
 /// Replaces blockchain's linear chain with a multi-dimensional lattice
 /// of intertwined strings that can be added, verified, and erased.
 pub struct StringLattice {
     /// All strings in the lattice: StringId -> RopeString
     strings: RwLock<HashMap<StringId, RopeString>>,
-    
+
     /// Complements for each string: StringId -> Complement
     complements: RwLock<HashMap<StringId, Complement>>,
-    
+
     /// DAG structure for ordering (petgraph)
     ordering: RwLock<LatticeDAG>,
-    
+
     /// Anchor strings for consensus
     anchors: RwLock<Vec<AnchorString>>,
-    
+
     /// Pending strings awaiting finality (ordered by Lamport clock)
     pending_strings: RwLock<BTreeMap<u64, HashSet<StringId>>>,
-    
+
     /// Finalized strings
     finalized_strings: RwLock<HashSet<StringId>>,
-    
+
     /// Erased strings (tombstones)
     erased_strings: RwLock<HashSet<StringId>>,
-    
+
     /// Current round number
     current_round: RwLock<u64>,
 }
@@ -103,7 +103,7 @@ impl LatticeDAG {
     fn add_node(&mut self, id: StringId, parents: &[StringId]) {
         let node_idx = self.graph.add_node(id);
         self.id_to_index.insert(id, node_idx);
-        
+
         // Add edges from parents to this node
         for parent_id in parents {
             if let Some(&parent_idx) = self.id_to_index.get(parent_id) {
@@ -135,11 +135,13 @@ impl LatticeDAG {
     }
 
     /// Check if a string exists in the DAG
+    #[allow(dead_code)]
     pub fn contains(&self, id: &StringId) -> bool {
         self.id_to_index.contains_key(id)
     }
 
     /// Get the number of nodes in the DAG
+    #[allow(dead_code)]
     pub fn node_count(&self) -> usize {
         self.graph.node_count()
     }
@@ -161,7 +163,7 @@ impl StringLattice {
     }
 
     /// Add a string to the lattice
-    /// 
+    ///
     /// This is the primary operation for string creation:
     /// 1. Verify parentage exists
     /// 2. Verify OES generation is current
@@ -172,7 +174,7 @@ impl StringLattice {
     pub fn add_string(&self, string: RopeString) -> Result<StringId> {
         let strings = self.strings.read();
         let erased = self.erased_strings.read();
-        
+
         // Step 1: Verify parentage exists
         for parent in string.parentage() {
             if !strings.contains_key(parent) && !parent.as_bytes().iter().all(|&b| b == 0) {
@@ -182,48 +184,48 @@ impl StringLattice {
                 return Err(RopeError::ParentErased(*parent));
             }
         }
-        
+
         drop(strings);
         drop(erased);
-        
+
         // Step 2: Verify OES generation is within acceptable window
         // (Placeholder - actual verification would involve OES state)
         // if !self.verify_oes_generation(string.oes_generation()) {
         //     return Err(RopeError::InvalidOESGeneration);
         // }
-        
+
         // Step 3: Verify hybrid signature
         // (Placeholder - actual verification would involve crypto module)
         // if !verify_hybrid_signature(&string) {
         //     return Err(RopeError::InvalidSignature);
         // }
-        
+
         // Step 4: Generate complement
         let complement = Complement::generate(&string);
-        
+
         // Step 5: Add to lattice structures
         let id = string.id();
         let timestamp = string.temporal_marker().time();
-        
+
         {
             let mut strings = self.strings.write();
             let mut complements = self.complements.write();
             let mut ordering = self.ordering.write();
             let mut pending = self.pending_strings.write();
-            
+
             strings.insert(id, string.clone());
             complements.insert(id, complement);
             ordering.add_node(id, string.parentage());
-            
+
             pending
                 .entry(timestamp)
                 .or_insert_with(HashSet::new)
                 .insert(id);
         }
-        
+
         // Step 6: Check if this creates new anchor
         self.check_anchor_creation(&string)?;
-        
+
         Ok(id)
     }
 
@@ -233,7 +235,7 @@ impl StringLattice {
         if self.erased_strings.read().contains(id) {
             return None;
         }
-        
+
         self.strings.read().get(id).cloned()
     }
 
@@ -242,14 +244,14 @@ impl StringLattice {
         if self.erased_strings.read().contains(id) {
             return None;
         }
-        
+
         self.complements.read().get(id).cloned()
     }
 
     /// Check finality status of a string
     pub fn check_finality(&self, id: &StringId) -> FinalityStatus {
         let anchor_refs = self.count_anchor_references(id);
-        
+
         if anchor_refs >= constants::FINALITY_ANCHORS {
             FinalityStatus::finalized(anchor_refs)
         } else {
@@ -267,8 +269,7 @@ impl StringLattice {
 
     /// Check if a string exists in the lattice
     pub fn contains(&self, id: &StringId) -> bool {
-        !self.erased_strings.read().contains(id) 
-            && self.strings.read().contains_key(id)
+        !self.erased_strings.read().contains(id) && self.strings.read().contains_key(id)
     }
 
     /// Get the number of strings in the lattice
@@ -321,28 +322,28 @@ impl StringLattice {
         let mut erased = self.erased_strings.write();
         let mut strings = self.strings.write();
         let mut complements = self.complements.write();
-        
+
         if !strings.contains_key(&id) {
             return Err(RopeError::StringNotFound(id));
         }
-        
+
         // Remove from active storage
         strings.remove(&id);
         complements.remove(&id);
-        
+
         // Add to erased set (tombstone)
         erased.insert(id);
-        
+
         Ok(())
     }
 
     /// Verify string integrity using complement
     pub fn verify_string(&self, id: &StringId) -> Result<bool> {
-        let string = self.get_string(id)
-            .ok_or(RopeError::StringNotFound(*id))?;
-        let complement = self.get_complement(id)
+        let string = self.get_string(id).ok_or(RopeError::StringNotFound(*id))?;
+        let complement = self
+            .get_complement(id)
             .ok_or(RopeError::ComplementNotFound(*id))?;
-        
+
         // Verify content against complement
         let content = string.content();
         Ok(complement.verify_content(&content))
@@ -350,24 +351,24 @@ impl StringLattice {
 
     /// Attempt to regenerate a damaged string
     pub fn regenerate_string(&self, id: &StringId) -> Result<RopeString> {
-        let complement = self.get_complement(id)
+        let complement = self
+            .get_complement(id)
             .ok_or(RopeError::ComplementNotFound(*id))?;
-        
+
         // Get the damaged string (or empty if completely lost)
-        let damaged_content = self.get_string(id)
-            .map(|s| s.content())
-            .unwrap_or_default();
-        
+        let damaged_content = self.get_string(id).map(|s| s.content()).unwrap_or_default();
+
         // Get replication factor (default if not found)
-        let replication_factor = self.get_string(id)
+        let replication_factor = self
+            .get_string(id)
             .map(|s| s.replication_factor())
             .unwrap_or(constants::DEFAULT_REPLICATION_FACTOR);
-        
+
         // Attempt regeneration
         let _regenerated_content = complement
             .regenerate_content(&damaged_content, replication_factor)
             .ok_or(RopeError::RegenerationFailed(*id))?;
-        
+
         // We need the original string metadata to rebuild
         // For now, return error if completely lost
         Err(RopeError::RegenerationFailed(*id))
@@ -377,8 +378,9 @@ impl StringLattice {
     fn count_anchor_references(&self, id: &StringId) -> u32 {
         let anchors = self.anchors.read();
         let ordering = self.ordering.read();
-        
-        anchors.iter()
+
+        anchors
+            .iter()
             .filter(|anchor| {
                 // Check if anchor references this string (directly or transitively)
                 self.is_ancestor_of(id, &anchor.id(), &ordering)
@@ -391,21 +393,21 @@ impl StringLattice {
         if ancestor == descendant {
             return true;
         }
-        
+
         // BFS to find path
         let mut visited = HashSet::new();
         let mut queue = vec![*descendant];
-        
+
         while let Some(current) = queue.pop() {
             if current == *ancestor {
                 return true;
             }
-            
+
             if visited.insert(current) {
                 queue.extend(dag.get_parents(&current));
             }
         }
-        
+
         false
     }
 
@@ -413,35 +415,37 @@ impl StringLattice {
     fn check_anchor_creation(&self, string: &RopeString) -> Result<()> {
         // Simplified anchor creation logic
         // Real implementation would involve virtual voting
-        
+
         let anchors = self.anchors.read();
         if let Some(last_anchor) = anchors.last() {
             // Check if enough time has passed since last anchor
-            let time_diff = string.temporal_marker().time()
+            let time_diff = string
+                .temporal_marker()
+                .time()
                 .saturating_sub(last_anchor.string.temporal_marker().time());
-            
+
             if time_diff > 10 {
                 drop(anchors);
-                
+
                 let mut anchors = self.anchors.write();
                 let mut round = self.current_round.write();
-                
+
                 *round += 1;
                 let new_anchor = AnchorString::new(string.clone(), *round);
                 anchors.push(new_anchor);
-                
+
                 // Mark strings as finalized
                 self.update_finality();
             }
         } else {
             // First anchor (genesis)
             drop(anchors);
-            
+
             let mut anchors = self.anchors.write();
             let anchor = AnchorString::new(string.clone(), 0);
             anchors.push(anchor);
         }
-        
+
         Ok(())
     }
 
@@ -449,14 +453,14 @@ impl StringLattice {
     fn update_finality(&self) {
         let anchors = self.anchors.read();
         let pending = self.pending_strings.read();
-        
+
         if anchors.len() < constants::FINALITY_ANCHORS as usize {
             return;
         }
-        
+
         // Get strings that have enough anchor confirmations
         let mut newly_finalized = Vec::new();
-        
+
         for (_, string_ids) in pending.iter() {
             for id in string_ids {
                 let refs = self.count_anchor_references(id);
@@ -465,14 +469,14 @@ impl StringLattice {
                 }
             }
         }
-        
+
         drop(anchors);
         drop(pending);
-        
+
         // Mark as finalized
         let mut finalized = self.finalized_strings.write();
         let mut pending = self.pending_strings.write();
-        
+
         for id in newly_finalized {
             finalized.insert(id);
             // Remove from pending (find and remove)
@@ -480,7 +484,7 @@ impl StringLattice {
                 string_ids.remove(&id);
             }
         }
-        
+
         // Clean up empty pending entries
         pending.retain(|_, ids| !ids.is_empty());
     }
@@ -527,11 +531,11 @@ mod tests {
             .content(content.to_vec())
             .temporal_marker(LamportClock::new(NodeId::new([0u8; 32])))
             .creator(PublicKey::from_ed25519([0u8; 32]));
-        
+
         for parent in parents {
             builder = builder.add_parent(parent);
         }
-        
+
         builder.build().unwrap()
     }
 
@@ -545,9 +549,9 @@ mod tests {
     fn test_add_string() {
         let lattice = StringLattice::new();
         let string = make_test_string(b"Hello, Rope!", vec![]);
-        
+
         let id = lattice.add_string(string.clone()).unwrap();
-        
+
         assert!(lattice.contains(&id));
         assert_eq!(lattice.string_count(), 1);
     }
@@ -557,10 +561,10 @@ mod tests {
         let lattice = StringLattice::new();
         let content = b"Test content";
         let string = make_test_string(content, vec![]);
-        
+
         let id = lattice.add_string(string).unwrap();
         let retrieved = lattice.get_string(&id).unwrap();
-        
+
         // Content is stored in nucleotides (32-byte chunks), so we check prefix
         let retrieved_content = retrieved.content();
         assert!(retrieved_content.starts_with(content));
@@ -569,13 +573,13 @@ mod tests {
     #[test]
     fn test_parent_child_relationship() {
         let lattice = StringLattice::new();
-        
+
         let parent = make_test_string(b"Parent", vec![]);
         let parent_id = lattice.add_string(parent).unwrap();
-        
+
         let child = make_test_string(b"Child", vec![parent_id]);
         let child_id = lattice.add_string(child).unwrap();
-        
+
         assert_eq!(lattice.get_parents(&child_id), vec![parent_id]);
         assert_eq!(lattice.get_children(&parent_id), vec![child_id]);
     }
@@ -584,10 +588,10 @@ mod tests {
     fn test_missing_parent_error() {
         let lattice = StringLattice::new();
         let fake_parent = StringId::from_content(b"nonexistent");
-        
+
         let string = make_test_string(b"Orphan", vec![fake_parent]);
         let result = lattice.add_string(string);
-        
+
         assert!(matches!(result, Err(RopeError::MissingParent(_))));
     }
 
@@ -595,10 +599,10 @@ mod tests {
     fn test_erasure() {
         let lattice = StringLattice::new();
         let string = make_test_string(b"To be erased", vec![]);
-        
+
         let id = lattice.add_string(string).unwrap();
         assert!(lattice.contains(&id));
-        
+
         lattice.mark_erased(id).unwrap();
         assert!(!lattice.contains(&id));
         assert!(lattice.get_string(&id).is_none());
@@ -608,10 +612,9 @@ mod tests {
     fn test_complement_verification() {
         let lattice = StringLattice::new();
         let string = make_test_string(b"Verifiable content", vec![]);
-        
+
         let id = lattice.add_string(string).unwrap();
-        
+
         assert!(lattice.verify_string(&id).unwrap());
     }
 }
-

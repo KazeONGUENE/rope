@@ -18,16 +18,16 @@ use tokio::sync::RwLock;
 pub struct RpcServer {
     /// Configuration
     config: RpcSettings,
-    
+
     /// TLS configuration (if enabled)
     tls_config: Option<TlsConfig>,
-    
+
     /// Rate limiter
     rate_limiter: Arc<RateLimiter>,
-    
+
     /// Request handlers
     handlers: Arc<RpcHandlers>,
-    
+
     /// Metrics
     metrics: Arc<RwLock<RpcMetrics>>,
 }
@@ -37,13 +37,13 @@ pub struct RpcServer {
 pub struct TlsConfig {
     /// Server certificate (PEM)
     pub server_cert: Vec<u8>,
-    
+
     /// Server private key (PEM)
     pub server_key: Vec<u8>,
-    
+
     /// CA certificate for client verification (PEM)
     pub ca_cert: Option<Vec<u8>>,
-    
+
     /// Require client certificate (mTLS)
     pub require_client_cert: bool,
 }
@@ -52,10 +52,10 @@ pub struct TlsConfig {
 pub struct RateLimiter {
     /// Requests per second per IP
     requests_per_second: u32,
-    
+
     /// Burst allowance
     burst: u32,
-    
+
     /// Request counts by IP
     request_counts: RwLock<HashMap<String, RequestCounter>>,
 }
@@ -82,13 +82,13 @@ pub struct RpcMetrics {
 pub struct RpcHandlers {
     /// Chain ID
     chain_id: u64,
-    
+
     /// Network version
     network_version: String,
-    
+
     /// Block number (shared with node)
     block_number: Arc<parking_lot::RwLock<u64>>,
-    
+
     /// Gas price in wei
     gas_price: u64,
 }
@@ -98,10 +98,10 @@ impl RpcServer {
     pub async fn new(config: &RpcSettings) -> anyhow::Result<Self> {
         Self::new_with_state(config, 271828, Arc::new(parking_lot::RwLock::new(0))).await
     }
-    
+
     /// Create new RPC server with shared state
     pub async fn new_with_state(
-        config: &RpcSettings, 
+        config: &RpcSettings,
         chain_id: u64,
         current_round: Arc<parking_lot::RwLock<u64>>,
     ) -> anyhow::Result<Self> {
@@ -110,14 +110,14 @@ impl RpcServer {
             burst: 200,
             request_counts: RwLock::new(HashMap::new()),
         });
-        
+
         let handlers = Arc::new(RpcHandlers {
             chain_id,
             network_version: "0.1.0".to_string(),
             block_number: current_round,
             gas_price: 1_000_000_000, // 1 Gwei
         });
-        
+
         Ok(Self {
             config: config.clone(),
             tls_config: None,
@@ -126,15 +126,20 @@ impl RpcServer {
             metrics: Arc::new(RwLock::new(RpcMetrics::default())),
         })
     }
-    
+
     /// Configure TLS
     pub fn with_tls(mut self, tls_config: TlsConfig) -> Self {
         self.tls_config = Some(tls_config);
         self
     }
-    
+
     /// Configure mTLS (mutual TLS)
-    pub fn with_mtls(mut self, server_cert: Vec<u8>, server_key: Vec<u8>, ca_cert: Vec<u8>) -> Self {
+    pub fn with_mtls(
+        mut self,
+        server_cert: Vec<u8>,
+        server_key: Vec<u8>,
+        ca_cert: Vec<u8>,
+    ) -> Self {
         self.tls_config = Some(TlsConfig {
             server_cert,
             server_key,
@@ -143,47 +148,52 @@ impl RpcServer {
         });
         self
     }
-    
+
     /// Run the RPC server
     pub async fn run(&self) -> anyhow::Result<()> {
         let addr: SocketAddr = self.config.grpc_addr.parse()?;
-        
+
         tracing::info!("Starting RPC server on {}", addr);
-        
+
         if self.tls_config.is_some() {
-            tracing::info!("TLS enabled, mTLS: {}", 
-                self.tls_config.as_ref().map(|c| c.require_client_cert).unwrap_or(false));
+            tracing::info!(
+                "TLS enabled, mTLS: {}",
+                self.tls_config
+                    .as_ref()
+                    .map(|c| c.require_client_cert)
+                    .unwrap_or(false)
+            );
         }
-        
+
         let listener = tokio::net::TcpListener::bind(&addr).await?;
         tracing::info!("RPC server ready (JSON-RPC + gRPC compatible)");
-        
+
         loop {
             let (stream, peer_addr) = listener.accept().await?;
-            
+
             let handlers = self.handlers.clone();
             let rate_limiter = self.rate_limiter.clone();
             let metrics = self.metrics.clone();
-            
+
             {
                 let mut m = metrics.write().await;
                 m.active_connections += 1;
             }
-            
+
             tokio::spawn(async move {
                 let peer_ip = peer_addr.ip().to_string();
-                
+
                 // Check rate limit
                 if !rate_limiter.check(&peer_ip).await {
                     let mut m = metrics.write().await;
                     m.rate_limited_requests += 1;
                     return;
                 }
-                
+
                 if let Err(e) = handle_connection(stream, handlers, metrics.clone()).await {
                     tracing::error!("Connection error from {}: {}", peer_addr, e);
                 }
-                
+
                 {
                     let mut m = metrics.write().await;
                     m.active_connections = m.active_connections.saturating_sub(1);
@@ -191,7 +201,7 @@ impl RpcServer {
             });
         }
     }
-    
+
     /// Get current metrics
     pub async fn metrics(&self) -> RpcMetrics {
         self.metrics.read().await.clone()
@@ -203,20 +213,20 @@ impl RateLimiter {
     async fn check(&self, ip: &str) -> bool {
         let now = chrono::Utc::now().timestamp();
         let mut counts = self.request_counts.write().await;
-        
+
         let counter = counts.entry(ip.to_string()).or_default();
-        
+
         // Reset window if expired
         if now - counter.window_start >= 1 {
             counter.count = 0;
             counter.window_start = now;
         }
-        
+
         // Check limit
         if counter.count >= self.requests_per_second + self.burst {
             return false;
         }
-        
+
         counter.count += 1;
         true
     }
@@ -231,27 +241,27 @@ async fn handle_connection(
     let start = std::time::Instant::now();
     let mut buf = [0u8; 8192];
     let n = stream.read(&mut buf).await?;
-    
+
     if n == 0 {
         return Ok(());
     }
-    
+
     let request = String::from_utf8_lossy(&buf[..n]);
-    
+
     // Update metrics
     {
         let mut m = metrics.write().await;
         m.total_requests += 1;
     }
-    
+
     let response = if request.contains("POST") || request.contains("GET /") {
         // Extract JSON-RPC body if present
         let body_start = request.find("\r\n\r\n").map(|i| i + 4).unwrap_or(0);
         let body = &request[body_start..];
-        
+
         // Handle JSON-RPC request
         let json_response = handlers.handle_json_rpc(body).await;
-        
+
         format!(
             "HTTP/1.1 200 OK\r\n\
             Content-Type: application/json\r\n\
@@ -266,22 +276,24 @@ async fn handle_connection(
         "HTTP/1.1 204 No Content\r\n\
         Access-Control-Allow-Origin: *\r\n\
         Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n\
-        Access-Control-Allow-Headers: Content-Type\r\n\r\n".to_string()
+        Access-Control-Allow-Headers: Content-Type\r\n\r\n"
+            .to_string()
     } else {
         "HTTP/1.1 404 Not Found\r\n\r\n".to_string()
     };
-    
+
     stream.write_all(response.as_bytes()).await?;
-    
+
     // Update metrics
     {
         let elapsed = start.elapsed().as_millis() as f64;
         let mut m = metrics.write().await;
         m.successful_requests += 1;
-        m.avg_response_time_ms = (m.avg_response_time_ms * (m.successful_requests - 1) as f64 + elapsed) 
+        m.avg_response_time_ms = (m.avg_response_time_ms * (m.successful_requests - 1) as f64
+            + elapsed)
             / m.successful_requests as f64;
     }
-    
+
     Ok(())
 }
 
@@ -296,10 +308,10 @@ impl RpcHandlers {
                 return self.get_chain_info().await;
             }
         };
-        
+
         let method = request.get("method").and_then(|m| m.as_str()).unwrap_or("");
         let id = request.get("id").cloned().unwrap_or(serde_json::json!(1));
-        
+
         let result = match method {
             // Standard Ethereum JSON-RPC methods
             "eth_chainId" => {
@@ -348,13 +360,9 @@ impl RpcHandlers {
             "eth_getTransactionReceipt" => {
                 serde_json::json!(null)
             }
-            "eth_getBlockByNumber" => {
-                self.get_mock_block().await
-            }
-            "eth_getBlockByHash" => {
-                self.get_mock_block().await
-            }
-            
+            "eth_getBlockByNumber" => self.get_mock_block().await,
+            "eth_getBlockByHash" => self.get_mock_block().await,
+
             // Datachain Rope native methods
             "rope_getStringById" => {
                 serde_json::json!({
@@ -387,7 +395,7 @@ impl RpcHandlers {
                     "oracleAgent": "active"
                 })
             }
-            
+
             _ => {
                 // Unknown method
                 return serde_json::json!({
@@ -397,17 +405,19 @@ impl RpcHandlers {
                         "message": format!("Method not found: {}", method)
                     },
                     "id": id
-                }).to_string();
+                })
+                .to_string();
             }
         };
-        
+
         serde_json::json!({
             "jsonrpc": "2.0",
             "result": result,
             "id": id
-        }).to_string()
+        })
+        .to_string()
     }
-    
+
     /// Get chain info (default response)
     async fn get_chain_info(&self) -> String {
         serde_json::json!({
@@ -420,9 +430,10 @@ impl RpcHandlers {
                 "features": ["ai-testimony", "dna-regeneration", "gdpr-erasure"]
             },
             "id": 1
-        }).to_string()
+        })
+        .to_string()
     }
-    
+
     /// Get mock block (placeholder)
     async fn get_mock_block(&self) -> serde_json::Value {
         let block_num = *self.block_number.read();
@@ -437,7 +448,7 @@ impl RpcHandlers {
             "miner": format!("0x{}", hex::encode(&[0u8; 20]))
         })
     }
-    
+
     /// Increment block number (for testing)
     pub fn increment_block(&self) {
         let mut num = self.block_number.write();
@@ -454,16 +465,16 @@ impl RpcHandlers {
 pub trait RopeNodeService: Send + Sync {
     /// Get string by ID
     async fn get_string(&self, id: [u8; 32]) -> Result<Option<StringInfo>, RpcError>;
-    
+
     /// Submit a new string
     async fn submit_string(&self, content: Vec<u8>) -> Result<[u8; 32], RpcError>;
-    
+
     /// Get testimony status
     async fn get_testimony_status(&self, string_id: [u8; 32]) -> Result<TestimonyStatus, RpcError>;
-    
+
     /// Get network peers
     async fn get_peers(&self) -> Result<Vec<PeerInfo>, RpcError>;
-    
+
     /// Health check
     async fn health_check(&self) -> Result<HealthStatus, RpcError>;
 }
@@ -535,7 +546,7 @@ impl std::error::Error for RpcError {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_json_rpc_chain_id() {
         let handlers = RpcHandlers {
@@ -544,13 +555,13 @@ mod tests {
             block_number: Arc::new(parking_lot::RwLock::new(1)),
             gas_price: 1_000_000_000,
         };
-        
+
         let request = r#"{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}"#;
         let response = handlers.handle_json_rpc(request).await;
-        
+
         assert!(response.contains("0x425d4")); // 271828 in hex
     }
-    
+
     #[tokio::test]
     async fn test_rate_limiter() {
         let limiter = RateLimiter {
@@ -558,15 +569,15 @@ mod tests {
             burst: 1,
             request_counts: RwLock::new(HashMap::new()),
         };
-        
+
         // First 3 requests should pass (2 + 1 burst)
         assert!(limiter.check("127.0.0.1").await);
         assert!(limiter.check("127.0.0.1").await);
         assert!(limiter.check("127.0.0.1").await);
-        
+
         // 4th request should be rate limited
         assert!(!limiter.check("127.0.0.1").await);
-        
+
         // Different IP should work
         assert!(limiter.check("192.168.1.1").await);
     }

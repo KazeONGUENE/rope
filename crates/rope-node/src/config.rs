@@ -145,7 +145,7 @@ impl NodeConfig {
             _ => anyhow::bail!("Unknown network: {}", network),
         }
     }
-    
+
     /// Mainnet configuration
     pub fn mainnet() -> Self {
         Self {
@@ -196,7 +196,7 @@ impl NodeConfig {
             },
         }
     }
-    
+
     /// Testnet configuration
     pub fn testnet() -> Self {
         let mut config = Self::mainnet();
@@ -204,7 +204,8 @@ impl NodeConfig {
         config.node.chain_id = 271829;
         config.network.bootstrap_nodes = vec![
             // Primary testnet bootstrap node on VPS
-            "/ip4/92.243.26.189/tcp/9000/p2p/12D3KooWBXNzc2E4Z9CLypkRXro5iSdbM5oTnTkmf8ncZAqjhAfM".to_string(),
+            "/ip4/92.243.26.189/tcp/9000/p2p/12D3KooWBXNzc2E4Z9CLypkRXro5iSdbM5oTnTkmf8ncZAqjhAfM"
+                .to_string(),
         ];
         config.storage.db_path = "~/.rope/testnet/db".to_string();
         // Enable consensus for testnet validators

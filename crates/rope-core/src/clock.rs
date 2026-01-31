@@ -1,16 +1,16 @@
 //! Lamport Clock implementation for causal ordering
-//! 
+//!
 //! τ (Tau) - Temporal Marker using Lamport clock extended with causal ordering.
-//! 
+//!
 //! Unlike synchronized wall clocks, Lamport clocks provide a logical ordering
 //! that respects causality: if event A caused event B, then clock(A) < clock(B).
 
+use crate::types::NodeId;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
-use crate::types::NodeId;
 
 /// Extended Lamport Clock with causal parent tracking
-/// 
+///
 /// This implementation extends the basic Lamport clock with:
 /// - Node identification for tie-breaking
 /// - Causal parent references for DAG construction
@@ -18,10 +18,10 @@ use crate::types::NodeId;
 pub struct LamportClock {
     /// Logical time counter
     logical_time: u64,
-    
+
     /// Node that created this timestamp
     node_id: NodeId,
-    
+
     /// Causal parents: (NodeId, logical_time) pairs
     causal_parents: Vec<(NodeId, u64)>,
 }
@@ -70,18 +70,20 @@ impl LamportClock {
     /// Update clock upon receiving a message (observe remote clock)
     pub fn observe(&mut self, other: &LamportClock) {
         self.logical_time = self.logical_time.max(other.logical_time) + 1;
-        self.causal_parents.push((other.node_id, other.logical_time));
+        self.causal_parents
+            .push((other.node_id, other.logical_time));
     }
 
     /// Observe multiple clocks and update
     pub fn observe_many<'a>(&mut self, others: impl Iterator<Item = &'a LamportClock>) {
         let mut max_time = self.logical_time;
-        
+
         for other in others {
             max_time = max_time.max(other.logical_time);
-            self.causal_parents.push((other.node_id, other.logical_time));
+            self.causal_parents
+                .push((other.node_id, other.logical_time));
         }
-        
+
         self.logical_time = max_time + 1;
     }
 
@@ -91,15 +93,17 @@ impl LamportClock {
     }
 
     /// Check if this clock happened-before another
-    /// 
+    ///
     /// Returns true if this clock definitely precedes `other` causally
     pub fn happened_before(&self, other: &LamportClock) -> bool {
         if self.logical_time >= other.logical_time {
             return false;
         }
-        
+
         // Check if we're in the causal parents
-        other.causal_parents.iter()
+        other
+            .causal_parents
+            .iter()
             .any(|(node, time)| *node == self.node_id && *time >= self.logical_time)
     }
 
@@ -114,12 +118,12 @@ impl LamportClock {
         bytes.extend_from_slice(&self.logical_time.to_be_bytes());
         bytes.extend_from_slice(self.node_id.as_bytes());
         bytes.extend_from_slice(&(self.causal_parents.len() as u32).to_be_bytes());
-        
+
         for (node, time) in &self.causal_parents {
             bytes.extend_from_slice(node.as_bytes());
             bytes.extend_from_slice(&time.to_be_bytes());
         }
-        
+
         bytes
     }
 }
@@ -206,7 +210,7 @@ mod tests {
     #[test]
     fn test_clock_increment() {
         let mut clock = LamportClock::new(make_node_id(1));
-        
+
         assert_eq!(clock.time(), 0);
         clock.increment();
         assert_eq!(clock.time(), 1);
@@ -218,13 +222,13 @@ mod tests {
     fn test_clock_observe() {
         let mut clock_a = LamportClock::new(make_node_id(1));
         let mut clock_b = LamportClock::new(make_node_id(2));
-        
+
         // A increments a few times
         clock_a.increment();
         clock_a.increment();
         clock_a.increment();
         assert_eq!(clock_a.time(), 3);
-        
+
         // B observes A's clock
         clock_b.observe(&clock_a);
         assert_eq!(clock_b.time(), 4); // max(0, 3) + 1
@@ -234,23 +238,22 @@ mod tests {
     fn test_clock_ordering() {
         let mut clock_a = LamportClock::new(make_node_id(1));
         let mut clock_b = LamportClock::new(make_node_id(2));
-        
+
         clock_a.increment();
         clock_b.observe(&clock_a);
-        
+
         assert!(clock_a < clock_b);
     }
 
     #[test]
     fn test_clock_manager() {
         let manager = ClockManager::new(make_node_id(1));
-        
+
         let t1 = manager.tick();
         let t2 = manager.tick();
         let t3 = manager.tick();
-        
+
         assert!(t1 < t2);
         assert!(t2 < t3);
     }
 }
-

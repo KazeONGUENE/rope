@@ -20,8 +20,8 @@
 //! - Average: 1.0x (baseline)
 //! - Minimum: 0.3x (poor performance)
 
-use serde::{Deserialize, Serialize};
 use crate::constants::*;
+use serde::{Deserialize, Serialize};
 
 /// Performance metrics weights
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -52,12 +52,12 @@ impl Default for PerformanceWeights {
 impl PerformanceWeights {
     /// Verify weights sum to 1.0
     pub fn verify(&self) -> bool {
-        let sum = self.uptime 
-            + self.testimony_speed 
-            + self.bandwidth 
-            + self.storage 
-            + self.green_energy 
-            + self.security 
+        let sum = self.uptime
+            + self.testimony_speed
+            + self.bandwidth
+            + self.storage
+            + self.green_energy
+            + self.security
             + self.geographic;
         (sum - 1.0).abs() < 0.001
     }
@@ -68,34 +68,34 @@ impl PerformanceWeights {
 pub struct PerformanceMetrics {
     /// Uptime percentage (0-100)
     pub uptime_percent: f64,
-    
+
     /// Average testimony response time in milliseconds
     pub testimony_latency_ms: u64,
-    
+
     /// Bandwidth in Gbps
     pub bandwidth_gbps: f64,
-    
+
     /// Storage in TB
     pub storage_tb: f64,
-    
+
     /// Green energy percentage (0-100)
     pub green_energy_percent: u8,
-    
+
     /// Security score (0-100)
     pub security_score: u8,
-    
+
     /// Is in underserved geographic region
     pub is_underserved_region: bool,
-    
+
     /// Number of testimonies provided this epoch
     pub testimonies_provided: u64,
-    
+
     /// Users served this epoch
     pub users_served: u64,
-    
+
     /// Strings stored
     pub strings_stored: u64,
-    
+
     /// Measurement timestamp
     pub measured_at: i64,
 }
@@ -105,22 +105,22 @@ pub struct PerformanceMetrics {
 pub struct PerformanceScore {
     /// Uptime score (0-1)
     pub uptime: f64,
-    
+
     /// Testimony speed score (0-1)
     pub testimony_speed: f64,
-    
+
     /// Bandwidth score (0-1)
     pub bandwidth: f64,
-    
+
     /// Storage score (0-1)
     pub storage: f64,
-    
+
     /// Green energy score (0-1)
     pub green_energy: f64,
-    
+
     /// Security score (0-1)
     pub security: f64,
-    
+
     /// Geographic bonus score (0-1)
     pub geographic: f64,
 }
@@ -135,10 +135,14 @@ impl PerformanceScore {
             storage: Self::calculate_storage_score(metrics.storage_tb),
             green_energy: Self::calculate_green_energy_score(metrics.green_energy_percent),
             security: Self::calculate_security_score(metrics.security_score),
-            geographic: if metrics.is_underserved_region { 1.0 } else { 0.0 },
+            geographic: if metrics.is_underserved_region {
+                1.0
+            } else {
+                0.0
+            },
         }
     }
-    
+
     /// Calculate uptime score
     /// 99.9% = 1.0, 99% = 0.9, 98% = 0.7, 95% = 0.5, <90% = 0
     fn calculate_uptime_score(uptime_percent: f64) -> f64 {
@@ -158,7 +162,7 @@ impl PerformanceScore {
             0.0
         }
     }
-    
+
     /// Calculate testimony speed score
     /// <100ms = 1.0, <200ms = 0.8, <500ms = 0.5, <1000ms = 0.3, >1000ms = 0.1
     fn calculate_testimony_score(latency_ms: u64) -> f64 {
@@ -174,7 +178,7 @@ impl PerformanceScore {
             0.1
         }
     }
-    
+
     /// Calculate bandwidth score
     /// 25+ Gbps = 1.0, 10 Gbps = 0.8, 1 Gbps = 0.5, 100 Mbps = 0.3
     fn calculate_bandwidth_score(bandwidth_gbps: f64) -> f64 {
@@ -190,7 +194,7 @@ impl PerformanceScore {
             0.1
         }
     }
-    
+
     /// Calculate storage score
     /// 100+ TB = 1.0, 50 TB = 0.8, 10 TB = 0.5, 1 TB = 0.3
     fn calculate_storage_score(storage_tb: f64) -> f64 {
@@ -206,22 +210,22 @@ impl PerformanceScore {
             0.1
         }
     }
-    
+
     /// Calculate green energy score
     /// 100% = 1.0, 75% = 0.75, 50% = 0.5, 25% = 0.25, 0% = 0
     fn calculate_green_energy_score(green_percent: u8) -> f64 {
         green_percent as f64 / 100.0
     }
-    
+
     /// Calculate security score (0-100 scale to 0-1)
     fn calculate_security_score(score: u8) -> f64 {
         score as f64 / 100.0
     }
-    
+
     /// Calculate weighted total score (0.0 - 1.0)
     pub fn weighted_total(&self) -> f64 {
         let weights = PerformanceWeights::default();
-        
+
         self.uptime * weights.uptime
             + self.testimony_speed * weights.testimony_speed
             + self.bandwidth * weights.bandwidth
@@ -230,12 +234,13 @@ impl PerformanceScore {
             + self.security * weights.security
             + self.geographic * weights.geographic
     }
-    
+
     /// Calculate performance multiplier (0.3 - 2.0)
     pub fn multiplier(&self) -> f64 {
         let raw = self.weighted_total();
         // Scale from [0, 1] to [0.3, 2.0]
-        MIN_PERFORMANCE_MULTIPLIER + (raw * (MAX_PERFORMANCE_MULTIPLIER - MIN_PERFORMANCE_MULTIPLIER))
+        MIN_PERFORMANCE_MULTIPLIER
+            + (raw * (MAX_PERFORMANCE_MULTIPLIER - MIN_PERFORMANCE_MULTIPLIER))
     }
 }
 
@@ -244,25 +249,25 @@ impl PerformanceScore {
 pub struct PerformanceMultiplier {
     /// Base multiplier from performance score
     pub base_multiplier: f64,
-    
+
     /// Green energy bonus (up to 1.25x)
     pub green_energy_bonus: f64,
-    
+
     /// Federation operator bonus (1.3x)
     pub federation_bonus: f64,
-    
+
     /// Community operator bonus (1.2x)
     pub community_bonus: f64,
-    
+
     /// Long-term commitment bonus (1.2x for >12 months)
     pub long_term_bonus: f64,
-    
+
     /// Geographic diversity bonus (1.1x)
     pub geographic_bonus: f64,
-    
+
     /// Hardware security bonus (1.15x)
     pub hardware_security_bonus: f64,
-    
+
     /// Final combined multiplier
     pub final_multiplier: f64,
 }
@@ -277,7 +282,7 @@ impl PerformanceMultiplier {
         has_hardware_security: bool,
     ) -> Self {
         let base_multiplier = score.multiplier();
-        
+
         // Green energy bonus: 100% = 1.25x, 75% = 1.15x, 50% = 1.10x
         let green_energy_bonus = if score.green_energy >= 1.0 {
             1.25
@@ -290,22 +295,32 @@ impl PerformanceMultiplier {
         } else {
             1.0
         };
-        
+
         let federation_bonus = if is_federation_operator { 1.3 } else { 1.0 };
-        let community_bonus = if is_community_operator && !is_federation_operator { 1.2 } else { 1.0 };
-        let long_term_bonus = if months_active >= 12 { 1.2 } else if months_active >= 6 { 1.1 } else { 1.0 };
+        let community_bonus = if is_community_operator && !is_federation_operator {
+            1.2
+        } else {
+            1.0
+        };
+        let long_term_bonus = if months_active >= 12 {
+            1.2
+        } else if months_active >= 6 {
+            1.1
+        } else {
+            1.0
+        };
         let geographic_bonus = if score.geographic >= 0.5 { 1.1 } else { 1.0 };
         let hardware_security_bonus = if has_hardware_security { 1.15 } else { 1.0 };
-        
+
         // Combine multipliers
-        let final_multiplier = base_multiplier 
-            * green_energy_bonus 
-            * federation_bonus 
-            * community_bonus 
-            * long_term_bonus 
-            * geographic_bonus 
+        let final_multiplier = base_multiplier
+            * green_energy_bonus
+            * federation_bonus
+            * community_bonus
+            * long_term_bonus
+            * geographic_bonus
             * hardware_security_bonus;
-        
+
         Self {
             base_multiplier,
             green_energy_bonus,
@@ -317,7 +332,7 @@ impl PerformanceMultiplier {
             final_multiplier,
         }
     }
-    
+
     /// Create with just performance score (no bonuses)
     pub fn from_score(score: &PerformanceScore) -> Self {
         Self::calculate(score, false, false, 0, false)
@@ -358,7 +373,7 @@ impl PerformanceTier {
             Self::Poor
         }
     }
-    
+
     /// Get tier name
     pub fn name(&self) -> &'static str {
         match self {
@@ -375,13 +390,13 @@ impl PerformanceTier {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_weights_sum_to_one() {
         let weights = PerformanceWeights::default();
         assert!(weights.verify());
     }
-    
+
     #[test]
     fn test_perfect_score_multiplier() {
         let score = PerformanceScore {
@@ -393,18 +408,18 @@ mod tests {
             security: 1.0,
             geographic: 1.0,
         };
-        
+
         let multiplier = score.multiplier();
         assert!((multiplier - 2.0).abs() < 0.01);
     }
-    
+
     #[test]
     fn test_zero_score_multiplier() {
         let score = PerformanceScore::default();
         let multiplier = score.multiplier();
         assert!((multiplier - 0.3).abs() < 0.01);
     }
-    
+
     #[test]
     fn test_average_score() {
         let score = PerformanceScore {
@@ -416,11 +431,11 @@ mod tests {
             security: 0.5,
             geographic: 0.5,
         };
-        
+
         let total = score.weighted_total();
         assert!((total - 0.5).abs() < 0.01);
     }
-    
+
     #[test]
     fn test_federation_bonus() {
         let score = PerformanceScore {
@@ -432,14 +447,14 @@ mod tests {
             security: 1.0,
             geographic: 0.0,
         };
-        
+
         let base = PerformanceMultiplier::from_score(&score);
         let with_federation = PerformanceMultiplier::calculate(&score, true, false, 0, false);
-        
+
         assert!(with_federation.final_multiplier > base.final_multiplier);
         assert!((with_federation.federation_bonus - 1.3).abs() < 0.01);
     }
-    
+
     #[test]
     fn test_uptime_scoring() {
         assert_eq!(PerformanceScore::calculate_uptime_score(99.95), 1.0);

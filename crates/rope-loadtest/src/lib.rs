@@ -307,7 +307,10 @@ impl MetricsSummary {
             println!("╠══════════════════════════════════════════════════════════════╣");
             println!("║ ERRORS                                                       ║");
             for (error_type, count) in &self.error_counts {
-                println!("║   {:20}: {:>10}                         ║", error_type, count);
+                println!(
+                    "║   {:20}: {:>10}                         ║",
+                    error_type, count
+                );
             }
         }
 
@@ -832,7 +835,10 @@ pub async fn run_stress_test(
 
         // Stop if p99 latency exceeds 1 second
         if summary.latency_p99_us > 1_000_000 {
-            warn!("P99 latency exceeded 1s at {} RPS. Stopping stress test.", rps);
+            warn!(
+                "P99 latency exceeded 1s at {} RPS. Stopping stress test.",
+                rps
+            );
             break;
         }
     }
@@ -841,7 +847,10 @@ pub async fn run_stress_test(
     println!("\n═══════════════════════════════════════════════════════════════");
     println!("                    STRESS TEST RESULTS");
     println!("═══════════════════════════════════════════════════════════════");
-    println!("{:>10} {:>10} {:>12} {:>12}", "RPS", "Success%", "p99 (µs)", "Avg RPS");
+    println!(
+        "{:>10} {:>10} {:>12} {:>12}",
+        "RPS", "Success%", "p99 (µs)", "Avg RPS"
+    );
     println!("───────────────────────────────────────────────────────────────");
 
     for (rps, summary) in &results {
@@ -917,4 +926,3 @@ pub async fn run_soak_test(
 
     checkpoints
 }
-

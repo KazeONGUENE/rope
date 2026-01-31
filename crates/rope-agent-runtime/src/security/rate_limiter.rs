@@ -37,11 +37,14 @@ impl RateLimiter {
     /// Check if request is allowed
     pub fn check(&self, key: &str) -> bool {
         let rate = self.rate;
-        let bucket = self.buckets.entry(key.to_string()).or_insert_with(|| TokenBucket {
-            tokens: AtomicU64::new(rate as u64),
-            last_refill: parking_lot::Mutex::new(Instant::now()),
-            rate,
-        });
+        let bucket = self
+            .buckets
+            .entry(key.to_string())
+            .or_insert_with(|| TokenBucket {
+                tokens: AtomicU64::new(rate as u64),
+                last_refill: parking_lot::Mutex::new(Instant::now()),
+                rate,
+            });
 
         // Refill tokens if needed
         let mut last_refill = bucket.last_refill.lock();

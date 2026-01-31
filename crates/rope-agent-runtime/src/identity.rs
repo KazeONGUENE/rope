@@ -350,7 +350,9 @@ mod tests {
         };
 
         // First use should succeed
-        assert!(identity.verify_and_consume_token(&token.id, &action).is_ok());
+        assert!(identity
+            .verify_and_consume_token(&token.id, &action)
+            .is_ok());
 
         // Second use should fail
         assert!(matches!(

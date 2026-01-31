@@ -1,5 +1,5 @@
 //! Nucleotide - Individual information unit within a string
-//! 
+//!
 //! Analogous to DNA bases (A, T, G, C), nucleotides are the atomic units
 //! of information in Datachain Rope. Each nucleotide carries:
 //! - 256-bit data chunk
@@ -9,17 +9,17 @@
 use serde::{Deserialize, Serialize};
 
 /// Nucleotide - Fundamental unit of information within a string
-/// 
+///
 /// Like DNA nucleotides that carry genetic information through base pairs,
 /// Rope nucleotides carry data with built-in error detection.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Nucleotide {
     /// 256-bit (32-byte) data chunk
     value: [u8; 32],
-    
+
     /// Position in the sequence (0-indexed)
     position: u64,
-    
+
     /// Parity bits for error detection (CRC32)
     parity: [u8; 4],
 }
@@ -28,7 +28,11 @@ impl Nucleotide {
     /// Create a new nucleotide from raw data
     pub fn new(value: [u8; 32], position: u64) -> Self {
         let parity = Self::compute_parity(&value, position);
-        Self { value, position, parity }
+        Self {
+            value,
+            position,
+            parity,
+        }
     }
 
     /// Create from a slice (will be zero-padded if less than 32 bytes)
@@ -62,14 +66,14 @@ impl Nucleotide {
 
     /// Compute CRC32 parity for error detection
     fn compute_parity(value: &[u8; 32], position: u64) -> [u8; 4] {
-        use std::hash::{Hash, Hasher};
         use std::collections::hash_map::DefaultHasher;
-        
+        use std::hash::{Hash, Hasher};
+
         let mut hasher = DefaultHasher::new();
         value.hash(&mut hasher);
         position.hash(&mut hasher);
         let hash = hasher.finish();
-        
+
         // Take lower 32 bits as parity
         (hash as u32).to_be_bytes()
     }
@@ -88,16 +92,20 @@ impl Nucleotide {
         if bytes.len() != 44 {
             return None;
         }
-        
+
         let mut value = [0u8; 32];
         value.copy_from_slice(&bytes[0..32]);
-        
+
         let position = u64::from_be_bytes(bytes[32..40].try_into().ok()?);
-        
+
         let mut parity = [0u8; 4];
         parity.copy_from_slice(&bytes[40..44]);
-        
-        Some(Self { value, position, parity })
+
+        Some(Self {
+            value,
+            position,
+            parity,
+        })
     }
 }
 
@@ -110,7 +118,9 @@ pub struct NucleotideSequence {
 impl NucleotideSequence {
     /// Create empty sequence
     pub fn new() -> Self {
-        Self { nucleotides: Vec::new() }
+        Self {
+            nucleotides: Vec::new(),
+        }
     }
 
     /// Create sequence from raw bytes
@@ -120,7 +130,7 @@ impl NucleotideSequence {
             .enumerate()
             .map(|(i, chunk)| Nucleotide::from_slice(chunk, i as u64))
             .collect();
-        
+
         Self { nucleotides }
     }
 
@@ -214,7 +224,7 @@ mod tests {
     fn test_nucleotide_creation() {
         let value = [0xAB; 32];
         let nucleotide = Nucleotide::new(value, 0);
-        
+
         assert_eq!(nucleotide.value(), &value);
         assert_eq!(nucleotide.position(), 0);
         assert!(nucleotide.verify());
@@ -224,7 +234,7 @@ mod tests {
     fn test_nucleotide_from_slice() {
         let data = b"Hello, Datachain Rope!";
         let nucleotide = Nucleotide::from_slice(data, 0);
-        
+
         assert!(nucleotide.verify());
         assert!(nucleotide.value().starts_with(data));
     }
@@ -233,7 +243,7 @@ mod tests {
     fn test_nucleotide_corruption_detection() {
         let mut nucleotide = Nucleotide::new([0xAB; 32], 0);
         assert!(nucleotide.verify());
-        
+
         // Corrupt the value
         nucleotide.value[0] = 0xFF;
         assert!(!nucleotide.verify());
@@ -243,7 +253,7 @@ mod tests {
     fn test_sequence_from_bytes() {
         let data = vec![0u8; 100];
         let sequence = NucleotideSequence::from_bytes(&data);
-        
+
         // 100 bytes = 4 nucleotides (32 bytes each, last one padded)
         assert_eq!(sequence.len(), 4);
         assert!(sequence.verify_all());
@@ -254,9 +264,8 @@ mod tests {
         let original = b"This is test data for the Datachain Rope nucleotide sequence";
         let sequence = NucleotideSequence::from_bytes(original);
         let recovered = sequence.to_raw_bytes();
-        
+
         // Should start with original data (may have padding at end)
         assert!(recovered.starts_with(original));
     }
 }
-

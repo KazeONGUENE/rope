@@ -12,7 +12,10 @@ use std::time::Instant;
 #[async_trait]
 pub trait AIProvider: Send + Sync {
     /// Complete a prompt
-    async fn complete(&self, request: CompletionRequest) -> Result<CompletionResponse, RuntimeError>;
+    async fn complete(
+        &self,
+        request: CompletionRequest,
+    ) -> Result<CompletionResponse, RuntimeError>;
 
     /// Check if provider is available
     async fn is_available(&self) -> bool;
@@ -72,7 +75,10 @@ struct OllamaResponseMessage {
 
 #[async_trait]
 impl AIProvider for OllamaProvider {
-    async fn complete(&self, request: CompletionRequest) -> Result<CompletionResponse, RuntimeError> {
+    async fn complete(
+        &self,
+        request: CompletionRequest,
+    ) -> Result<CompletionResponse, RuntimeError> {
         let start = Instant::now();
 
         let mut messages = vec![OllamaMessage {
@@ -186,7 +192,10 @@ struct OpenAIUsage {
 
 #[async_trait]
 impl AIProvider for OpenAIProvider {
-    async fn complete(&self, request: CompletionRequest) -> Result<CompletionResponse, RuntimeError> {
+    async fn complete(
+        &self,
+        request: CompletionRequest,
+    ) -> Result<CompletionResponse, RuntimeError> {
         let start = Instant::now();
 
         let mut messages = vec![OpenAIMessage {
@@ -303,7 +312,10 @@ struct AnthropicUsage {
 
 #[async_trait]
 impl AIProvider for AnthropicProvider {
-    async fn complete(&self, request: CompletionRequest) -> Result<CompletionResponse, RuntimeError> {
+    async fn complete(
+        &self,
+        request: CompletionRequest,
+    ) -> Result<CompletionResponse, RuntimeError> {
         let start = Instant::now();
 
         let messages: Vec<AnthropicMessage> = request
@@ -331,7 +343,9 @@ impl AIProvider for AnthropicProvider {
             .json(&anthropic_request)
             .send()
             .await
-            .map_err(|e| RuntimeError::ExecutionError(format!("Anthropic request failed: {}", e)))?;
+            .map_err(|e| {
+                RuntimeError::ExecutionError(format!("Anthropic request failed: {}", e))
+            })?;
 
         if !response.status().is_success() {
             let error_text = response.text().await.unwrap_or_default();
@@ -354,7 +368,8 @@ impl AIProvider for AnthropicProvider {
 
         Ok(CompletionResponse {
             content,
-            tokens_used: anthropic_response.usage.input_tokens + anthropic_response.usage.output_tokens,
+            tokens_used: anthropic_response.usage.input_tokens
+                + anthropic_response.usage.output_tokens,
             model: self.model.clone(),
             latency_ms: start.elapsed().as_millis() as u64,
         })

@@ -143,11 +143,13 @@ impl SandboxedExecutor {
         // Check if path is allowed
         let normalized = normalize_path(path);
 
-        let allowed = self.allowed_paths.iter().any(|allowed| {
-            normalized.starts_with(allowed)
-        }) || self
-            .allowed_capabilities
-            .contains(&Capability::PathAccess(normalized.clone()));
+        let allowed = self
+            .allowed_paths
+            .iter()
+            .any(|allowed| normalized.starts_with(allowed))
+            || self
+                .allowed_capabilities
+                .contains(&Capability::PathAccess(normalized.clone()));
 
         if !allowed {
             return Err(SandboxError::PathNotAllowed(path.to_string()));

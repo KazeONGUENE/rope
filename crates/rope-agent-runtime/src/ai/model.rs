@@ -66,7 +66,10 @@ impl AIModelManager {
     }
 
     /// Complete a request using appropriate model
-    pub async fn complete(&self, request: CompletionRequest) -> Result<CompletionResponse, RuntimeError> {
+    pub async fn complete(
+        &self,
+        request: CompletionRequest,
+    ) -> Result<CompletionResponse, RuntimeError> {
         // Check cache
         let cache_key = self.compute_cache_key(&request);
         if let Some(cached) = self.get_cached(&cache_key) {
@@ -74,7 +77,11 @@ impl AIModelManager {
         }
 
         // Determine complexity
-        let last_message = request.messages.last().map(|m| m.content.as_str()).unwrap_or("");
+        let last_message = request
+            .messages
+            .last()
+            .map(|m| m.content.as_str())
+            .unwrap_or("");
         let complexity = TaskComplexity::classify(last_message);
 
         // Select provider based on strategy
@@ -156,16 +163,14 @@ impl AIModelManager {
         complexity: &TaskComplexity,
     ) -> Result<Arc<dyn AIProvider>, RuntimeError> {
         match &self.config.strategy {
-            ModelStrategy::LocalOnly => {
-                self.local_provider.clone().ok_or_else(|| {
-                    RuntimeError::ConfigError("Local model not configured".to_string())
-                })
-            }
-            ModelStrategy::CloudOnly => {
-                self.cloud_provider.clone().ok_or_else(|| {
-                    RuntimeError::ConfigError("Cloud model not configured".to_string())
-                })
-            }
+            ModelStrategy::LocalOnly => self
+                .local_provider
+                .clone()
+                .ok_or_else(|| RuntimeError::ConfigError("Local model not configured".to_string())),
+            ModelStrategy::CloudOnly => self
+                .cloud_provider
+                .clone()
+                .ok_or_else(|| RuntimeError::ConfigError("Cloud model not configured".to_string())),
             ModelStrategy::LocalFirst => {
                 if let Some(local) = &self.local_provider {
                     if local.is_available().await {
@@ -250,14 +255,13 @@ impl AIModelManager {
         })
     }
 
-    fn map_intent_type(
-        &self,
-        intent_type: &str,
-        params: &HashMap<String, String>,
-    ) -> IntentType {
+    fn map_intent_type(&self, intent_type: &str, params: &HashMap<String, String>) -> IntentType {
         match intent_type.to_lowercase().as_str() {
             "transfer" => IntentType::Transfer {
-                asset: params.get("asset").cloned().unwrap_or_else(|| "FAT".to_string()),
+                asset: params
+                    .get("asset")
+                    .cloned()
+                    .unwrap_or_else(|| "FAT".to_string()),
                 amount: params
                     .get("amount")
                     .and_then(|s| s.parse().ok())
@@ -386,7 +390,10 @@ mod tests {
     #[test]
     fn test_task_complexity() {
         assert_eq!(TaskComplexity::classify("help"), TaskComplexity::Simple);
-        assert_eq!(TaskComplexity::classify("transfer 100 FAT"), TaskComplexity::Medium);
+        assert_eq!(
+            TaskComplexity::classify("transfer 100 FAT"),
+            TaskComplexity::Medium
+        );
         assert_eq!(
             TaskComplexity::classify("explain the difference between proof of work and proof of stake and compare their environmental impact"),
             TaskComplexity::Complex

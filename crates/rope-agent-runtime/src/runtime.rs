@@ -93,14 +93,17 @@ impl RopeAgentRuntime {
     /// Connect a messaging channel
     pub async fn connect_channel(&self, channel: MessageChannel) -> Result<(), RuntimeError> {
         // Register with message router
-        self.message_router.register_channel(channel.clone()).await?;
+        self.message_router
+            .register_channel(channel.clone())
+            .await?;
 
         // Register with agent
         self.agent.write().await.connect_channel(channel.id());
 
         // Store in memory
         if let Some(creds) = channel.credentials() {
-            self.memory.store_credentials(&channel.id(), &creds.ciphertext)?;
+            self.memory
+                .store_credentials(&channel.id(), &creds.ciphertext)?;
         }
 
         tracing::info!("Connected channel: {}", channel.id());
@@ -182,13 +185,18 @@ impl RopeAgentRuntime {
 
     /// Handle incoming message
     async fn handle_message(&self, message: UserMessage) -> Result<(), RuntimeError> {
-        tracing::debug!("Received message from {}: {:?}", message.sender, message.content);
+        tracing::debug!(
+            "Received message from {}: {:?}",
+            message.sender,
+            message.content
+        );
 
         // Log to memory
-        self.memory.log_event(crate::memory::Event::MessageReceived {
-            channel: message.channel.clone(),
-            timestamp: message.timestamp,
-        })?;
+        self.memory
+            .log_event(crate::memory::Event::MessageReceived {
+                channel: message.channel.clone(),
+                timestamp: message.timestamp,
+            })?;
 
         // Process through agent
         let response = self.agent.write().await.process_message(message).await?;
@@ -223,14 +231,16 @@ impl RopeAgentRuntime {
                 )?;
 
                 // Log event
-                self.memory.log_event(crate::memory::Event::TestimonyReceived {
-                    action_id,
-                    approved,
-                })?;
+                self.memory
+                    .log_event(crate::memory::Event::TestimonyReceived {
+                        action_id,
+                        approved,
+                    })?;
 
                 // If approved, execute action
                 if let TestimonyStatus::Approved { authorization } = status {
-                    self.execute_authorized_action(action_id, authorization).await?;
+                    self.execute_authorized_action(action_id, authorization)
+                        .await?;
                 }
             }
 
@@ -243,7 +253,10 @@ impl RopeAgentRuntime {
                 // In production: Auto-update if configured
             }
 
-            LatticeEvent::SecurityAlert { alert_type, details } => {
+            LatticeEvent::SecurityAlert {
+                alert_type,
+                details,
+            } => {
                 tracing::warn!("Security alert: {} - {}", alert_type, details);
                 self.memory.log_event(crate::memory::Event::SecurityAlert {
                     alert_type,
@@ -257,7 +270,14 @@ impl RopeAgentRuntime {
             }
 
             LatticeEvent::NetworkStatus { connected } => {
-                tracing::info!("Network status: {}", if connected { "connected" } else { "disconnected" });
+                tracing::info!(
+                    "Network status: {}",
+                    if connected {
+                        "connected"
+                    } else {
+                        "disconnected"
+                    }
+                );
             }
         }
 
@@ -270,7 +290,10 @@ impl RopeAgentRuntime {
         action_id: [u8; 32],
         authorization: crate::lattice_client::ExecutionAuthorization,
     ) -> Result<(), RuntimeError> {
-        tracing::info!("Executing authorized action {}", hex::encode(&action_id[..8]));
+        tracing::info!(
+            "Executing authorized action {}",
+            hex::encode(&action_id[..8])
+        );
 
         // Get pending action from agent
         let pending = self.agent.read().await.get_pending_action(&action_id);
@@ -290,20 +313,22 @@ impl RopeAgentRuntime {
                 timestamp: chrono::Utc::now().timestamp(),
             };
 
-            self.lattice_client.read().await.record_execution(record).await?;
+            self.lattice_client
+                .read()
+                .await
+                .record_execution(record)
+                .await?;
 
             // Notify user
             let response = AgentResponse {
                 channel: action.message.channel.clone(),
-                content: crate::channels::ResponseContent::Text(
-                    format!(
-                        "✅ Action completed successfully!\n\n\
+                content: crate::channels::ResponseContent::Text(format!(
+                    "✅ Action completed successfully!\n\n\
                          Action ID: {}\n\
                          Approved by: {} agents",
-                        hex::encode(&action_id[..8]),
-                        authorization.authorized_by.len()
-                    )
-                ),
+                    hex::encode(&action_id[..8]),
+                    authorization.authorized_by.len()
+                )),
                 reply_to: action.message.message_id.clone(),
             };
 
@@ -379,7 +404,9 @@ mod tests {
         let config = RuntimeConfig::development();
         let identity = test_identity();
 
-        let runtime = RopeAgentRuntime::initialize(identity, config).await.unwrap();
+        let runtime = RopeAgentRuntime::initialize(identity, config)
+            .await
+            .unwrap();
 
         let channel = MessageChannel::Telegram {
             bot_token: crate::channels::EncryptedCredentials::placeholder(),

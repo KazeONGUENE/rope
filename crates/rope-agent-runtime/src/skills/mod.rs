@@ -89,7 +89,9 @@ impl Skill {
             return Err(SkillError::NotApproved);
         }
         if self.governance.suspended {
-            return Err(SkillError::Suspended(self.governance.suspension_reason.clone()));
+            return Err(SkillError::Suspended(
+                self.governance.suspension_reason.clone(),
+            ));
         }
         Ok(())
     }
@@ -98,9 +100,10 @@ impl Skill {
     pub fn verify_security_audit(&self) -> Result<(), SkillError> {
         if let Some(audit) = &self.audit {
             if audit.score < 70 {
-                return Err(SkillError::ValidationFailed(
-                    format!("Audit score too low: {}", audit.score)
-                ));
+                return Err(SkillError::ValidationFailed(format!(
+                    "Audit score too low: {}",
+                    audit.score
+                )));
             }
             Ok(())
         } else {
@@ -381,11 +384,13 @@ impl SkillRegistry {
                     match trigger.pattern_type {
                         PatternType::Exact => lower == trigger.pattern.to_lowercase(),
                         PatternType::Contains => lower.contains(&trigger.pattern.to_lowercase()),
-                        PatternType::StartsWith => lower.starts_with(&trigger.pattern.to_lowercase()),
-                        PatternType::Keywords => {
-                            trigger.pattern.split(',')
-                                .any(|kw| lower.contains(kw.trim().to_lowercase().as_str()))
+                        PatternType::StartsWith => {
+                            lower.starts_with(&trigger.pattern.to_lowercase())
                         }
+                        PatternType::Keywords => trigger
+                            .pattern
+                            .split(',')
+                            .any(|kw| lower.contains(kw.trim().to_lowercase().as_str())),
                         PatternType::Regex => {
                             // Simplified - would use regex crate in production
                             lower.contains(&trigger.pattern.to_lowercase())

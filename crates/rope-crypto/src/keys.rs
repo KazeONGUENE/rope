@@ -25,7 +25,7 @@ impl KeyPair {
         let (signer, public_key) = HybridSigner::generate();
         Ok(Self { signer, public_key })
     }
-    
+
     /// Generate hybrid quantum-resistant keypair (Ed25519 + Dilithium3)
     pub fn generate_hybrid() -> anyhow::Result<Self> {
         let (signer, public_key) = HybridSigner::generate();
@@ -51,12 +51,12 @@ impl KeyPair {
     pub fn node_id(&self) -> [u8; 32] {
         self.public_key.node_id()
     }
-    
+
     /// Export private key bytes
     pub fn private_key_bytes(&self) -> Vec<u8> {
         self.signer.secret_key_bytes()
     }
-    
+
     /// Export public key bytes
     pub fn public_key_bytes(&self) -> Vec<u8> {
         self.public_key.to_bytes()
@@ -100,10 +100,7 @@ impl KeyStore {
         };
 
         let (signer, public_key) = HybridSigner::from_seed(&primary_seed);
-        let primary = KeyPair {
-            signer,
-            public_key,
-        };
+        let primary = KeyPair { signer, public_key };
 
         Self { primary, seed }
     }
@@ -158,7 +155,7 @@ mod tests {
     fn test_keypair_signing() {
         let keypair = KeyPair::generate().unwrap();
         let message = b"Test message";
-        
+
         let signature = keypair.sign(message);
         assert!(!signature.is_empty());
     }
@@ -166,11 +163,10 @@ mod tests {
     #[test]
     fn test_keystore() {
         let store = KeyStore::new();
-        
+
         let key1 = store.derive_key("purpose1");
         let key2 = store.derive_key("purpose2");
-        
+
         assert_ne!(key1, key2);
     }
 }
-

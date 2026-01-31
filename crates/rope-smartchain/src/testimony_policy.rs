@@ -164,7 +164,10 @@ impl TestimonyPolicy {
     /// Check if agents satisfy requirements
     pub fn agents_satisfy_requirements(&self, agent_types: &[AIAgentType]) -> bool {
         for required in &self.required_agents {
-            if !agent_types.iter().any(|a| Self::agent_type_matches(a, required)) {
+            if !agent_types
+                .iter()
+                .any(|a| Self::agent_type_matches(a, required))
+            {
                 return false;
             }
         }
@@ -272,7 +275,10 @@ impl PolicyRegistry {
     pub fn new() -> Self {
         let mut policies = std::collections::HashMap::new();
 
-        policies.insert("informational".to_string(), TestimonyPolicy::informational());
+        policies.insert(
+            "informational".to_string(),
+            TestimonyPolicy::informational(),
+        );
         policies.insert("low_value".to_string(), TestimonyPolicy::low_value());
         policies.insert("standard".to_string(), TestimonyPolicy::standard());
         policies.insert("high_value".to_string(), TestimonyPolicy::high_value());
@@ -304,9 +310,18 @@ impl PolicyRegistry {
         // Fall back to value-based policy
         if let Some(value) = value_usd {
             return match value {
-                0..=100 => self.policies.get("low_value").unwrap_or(&self.default_policy),
-                101..=10_000 => self.policies.get("standard").unwrap_or(&self.default_policy),
-                _ => self.policies.get("high_value").unwrap_or(&self.default_policy),
+                0..=100 => self
+                    .policies
+                    .get("low_value")
+                    .unwrap_or(&self.default_policy),
+                101..=10_000 => self
+                    .policies
+                    .get("standard")
+                    .unwrap_or(&self.default_policy),
+                _ => self
+                    .policies
+                    .get("high_value")
+                    .unwrap_or(&self.default_policy),
             };
         }
 
@@ -387,7 +402,10 @@ mod tests {
 
         // Has rejection
         let result = policy.validate_consensus(7, 1, 0.98, &RiskLevel::Low);
-        assert!(matches!(result, PolicyValidationResult::NotUnanimous { .. }));
+        assert!(matches!(
+            result,
+            PolicyValidationResult::NotUnanimous { .. }
+        ));
     }
 
     #[test]

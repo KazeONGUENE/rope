@@ -174,7 +174,9 @@ impl EncryptedMemoryStore {
         mac_input.extend_from_slice(&plaintext);
         let expected_mac = blake3::hash(&mac_input);
         if &expected_mac.as_bytes()[..16] != mac {
-            return Err(RuntimeError::CryptoError("MAC verification failed".to_string()));
+            return Err(RuntimeError::CryptoError(
+                "MAC verification failed".to_string(),
+            ));
         }
 
         Ok(plaintext)

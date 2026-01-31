@@ -1,12 +1,12 @@
 //! Cryptography Benchmarks for Datachain Rope
-//! 
+//!
 //! Benchmarks post-quantum cryptography operations against specification requirements.
 
-use criterion::{criterion_group, criterion_main, Criterion, BenchmarkId, Throughput};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 
 fn crypto_benchmarks(c: &mut Criterion) {
     let mut group = c.benchmark_group("crypto");
-    
+
     // Placeholder benchmark
     group.bench_function("placeholder", |b| {
         b.iter(|| {
@@ -14,7 +14,7 @@ fn crypto_benchmarks(c: &mut Criterion) {
             std::hint::black_box(42)
         })
     });
-    
+
     group.finish();
 }
 
