@@ -623,7 +623,7 @@ mod tests {
     use super::*;
     use crate::testimony::Testimony;
     use rope_core::clock::LamportClock;
-    use rope_core::types::AttestationType;
+    use rope_core::types::{AttestationType, NodeId};
 
     fn test_testimony() -> Testimony {
         let string_id = StringId::from_content(b"test");
