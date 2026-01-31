@@ -13,7 +13,6 @@ pub mod lattice_db {
 
     use parking_lot::RwLock;
     use std::collections::HashMap;
-    use std::sync::Arc;
 
     /// Simple in-memory lattice storage (RocksDB will replace this in production)
     pub struct LatticeStore {

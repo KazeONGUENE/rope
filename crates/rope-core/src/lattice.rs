@@ -217,10 +217,7 @@ impl StringLattice {
             complements.insert(id, complement);
             ordering.add_node(id, string.parentage());
 
-            pending
-                .entry(timestamp)
-                .or_insert_with(HashSet::new)
-                .insert(id);
+            pending.entry(timestamp).or_default().insert(id);
         }
 
         // Step 6: Check if this creates new anchor

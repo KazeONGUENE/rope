@@ -9,9 +9,8 @@
 //! 3. **Node Operator Rewards** (20%): Storage and bandwidth providers
 //! 4. **Federation/Community Pool** (5%): Activity-based distribution
 
-use crate::constants::*;
 use crate::emission::{AnchorReward, EmissionSchedule};
-use crate::performance::{PerformanceMetrics, PerformanceMultiplier, PerformanceScore};
+use crate::performance::{PerformanceMetrics, PerformanceScore};
 use crate::staking::ValidatorStake;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -186,10 +185,10 @@ impl RewardCalculator {
 
         // Calculate individual reward components
         // Storage: based on TB stored
-        let storage_weight = (metrics.storage_tb as f64).sqrt();
+        let storage_weight = metrics.storage_tb.sqrt();
 
         // Bandwidth: based on Gbps provided
-        let bandwidth_weight = (metrics.bandwidth_gbps as f64).sqrt();
+        let bandwidth_weight = metrics.bandwidth_gbps.sqrt();
 
         // Regeneration: based on participation
         let regen_weight = (metrics.strings_stored as f64).sqrt() * 0.1;
@@ -286,7 +285,7 @@ impl RewardCalculator {
     pub fn calculate_epoch_rewards(
         &mut self,
         anchors_in_epoch: u64,
-        validators: &[(([u8; 32], u64, u64))], // (id, anchors_proposed, testimonies)
+        validators: &[([u8; 32], u64, u64)], // (id, anchors_proposed, testimonies)
         timestamp: i64,
     ) -> EpochRewardSummary {
         let anchor_dist = self.emission.get_anchor_reward_distribution(timestamp);

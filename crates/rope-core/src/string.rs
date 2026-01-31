@@ -220,7 +220,7 @@ impl RopeString {
     /// Check if string is an anchor string
     pub fn is_anchor(&self) -> bool {
         // Anchor strings have special marker in mutability class
-        matches!(self.mutability_class, MutabilityClass::Immutable) && self.sequence.len() > 0
+        matches!(self.mutability_class, MutabilityClass::Immutable) && !self.sequence.is_empty()
     }
 
     /// Compute the signing message (for signature verification)

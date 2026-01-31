@@ -160,6 +160,7 @@ impl SlashingPenalty {
 }
 
 /// Slashing engine
+#[derive(Default)]
 pub struct SlashingEngine {
     /// Pending penalties
     pending: HashMap<[u8; 32], SlashingPenalty>,
@@ -175,18 +176,6 @@ pub struct SlashingEngine {
 
     /// Permanently banned validators
     banned: Vec<[u8; 32]>,
-}
-
-impl Default for SlashingEngine {
-    fn default() -> Self {
-        Self {
-            pending: HashMap::new(),
-            executed: Vec::new(),
-            jailed: HashMap::new(),
-            offense_counts: HashMap::new(),
-            banned: Vec::new(),
-        }
-    }
 }
 
 impl SlashingEngine {

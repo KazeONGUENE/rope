@@ -94,7 +94,7 @@ pub mod merkle {
         let mut current_level = leaves.to_vec();
 
         while current_level.len() > 1 {
-            let mut next_level = Vec::with_capacity((current_level.len() + 1) / 2);
+            let mut next_level = Vec::with_capacity(current_level.len().div_ceil(2));
 
             for chunk in current_level.chunks(2) {
                 if chunk.len() == 2 {
@@ -121,7 +121,7 @@ pub mod merkle {
         let mut current_index = index;
 
         while current_level.len() > 1 {
-            let sibling_index = if current_index % 2 == 0 {
+            let sibling_index = if current_index.is_multiple_of(2) {
                 current_index + 1
             } else {
                 current_index - 1
@@ -132,7 +132,7 @@ pub mod merkle {
             }
 
             // Move to next level
-            let mut next_level = Vec::with_capacity((current_level.len() + 1) / 2);
+            let mut next_level = Vec::with_capacity(current_level.len().div_ceil(2));
             for chunk in current_level.chunks(2) {
                 if chunk.len() == 2 {
                     next_level.push(hash_concat(&[&chunk[0], &chunk[1]]));
@@ -154,7 +154,7 @@ pub mod merkle {
         let mut current_index = index;
 
         for sibling in proof {
-            if current_index % 2 == 0 {
+            if current_index.is_multiple_of(2) {
                 current = hash_concat(&[&current, sibling]);
             } else {
                 current = hash_concat(&[sibling, &current]);
