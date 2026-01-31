@@ -51,7 +51,7 @@ use libp2p::{
     noise,
     request_response::{self, ProtocolSupport},
     swarm::{NetworkBehaviour, SwarmEvent},
-    tcp, yamux, Multiaddr, PeerId, Swarm, SwarmBuilder, StreamProtocol,
+    tcp, yamux, Multiaddr, PeerId, StreamProtocol, Swarm, SwarmBuilder,
 };
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -462,7 +462,11 @@ pub enum SwarmNetworkEvent {
     PeerDisconnected { peer_id: PeerId },
 
     /// Gossip message received
-    GossipMessage { topic: String, data: Vec<u8>, source: PeerId },
+    GossipMessage {
+        topic: String,
+        data: Vec<u8>,
+        source: PeerId,
+    },
 
     /// Request received (note: channel is not Clone, so this variant is not clonable)
     RequestReceived {
@@ -475,7 +479,10 @@ pub enum SwarmNetworkEvent {
     DhtRecordFound { key: Vec<u8>, value: Vec<u8> },
 
     /// DHT providers found
-    DhtProvidersFound { key: Vec<u8>, providers: Vec<PeerId> },
+    DhtProvidersFound {
+        key: Vec<u8>,
+        providers: Vec<PeerId>,
+    },
 }
 
 impl Clone for SwarmNetworkEvent {
@@ -487,24 +494,24 @@ impl Clone for SwarmNetworkEvent {
             SwarmNetworkEvent::PeerDisconnected { peer_id } => {
                 SwarmNetworkEvent::PeerDisconnected { peer_id: *peer_id }
             }
-            SwarmNetworkEvent::GossipMessage { topic, data, source } => {
-                SwarmNetworkEvent::GossipMessage {
-                    topic: topic.clone(),
-                    data: data.clone(),
-                    source: *source,
-                }
-            }
+            SwarmNetworkEvent::GossipMessage {
+                topic,
+                data,
+                source,
+            } => SwarmNetworkEvent::GossipMessage {
+                topic: topic.clone(),
+                data: data.clone(),
+                source: *source,
+            },
             SwarmNetworkEvent::RequestReceived { .. } => {
                 // Cannot clone RequestReceived due to oneshot channel
                 // This should never be called in practice as requests use mpsc
                 panic!("RequestReceived events cannot be cloned")
             }
-            SwarmNetworkEvent::DhtRecordFound { key, value } => {
-                SwarmNetworkEvent::DhtRecordFound {
-                    key: key.clone(),
-                    value: value.clone(),
-                }
-            }
+            SwarmNetworkEvent::DhtRecordFound { key, value } => SwarmNetworkEvent::DhtRecordFound {
+                key: key.clone(),
+                value: value.clone(),
+            },
             SwarmNetworkEvent::DhtProvidersFound { key, providers } => {
                 SwarmNetworkEvent::DhtProvidersFound {
                     key: key.clone(),
@@ -680,9 +687,9 @@ impl RopeSwarmRuntime {
         ));
 
         // Request-Response protocol
-        let protocol = StreamProtocol::try_from_owned(
-            self.config.request_response.protocol_name.clone()
-        ).expect("Invalid protocol name");
+        let protocol =
+            StreamProtocol::try_from_owned(self.config.request_response.protocol_name.clone())
+                .expect("Invalid protocol name");
         let request_response = request_response::cbor::Behaviour::new(
             [(protocol, ProtocolSupport::Full)],
             request_response::Config::default()
@@ -738,10 +745,13 @@ impl RopeSwarmRuntime {
         }
 
         // Also try QUIC
-        let quic_addr: Multiaddr =
-            format!("/ip4/{}/udp/{}/quic-v1", listen_addr.ip(), listen_addr.port())
-                .parse()
-                .expect("Valid QUIC multiaddr");
+        let quic_addr: Multiaddr = format!(
+            "/ip4/{}/udp/{}/quic-v1",
+            listen_addr.ip(),
+            listen_addr.port()
+        )
+        .parse()
+        .expect("Valid QUIC multiaddr");
 
         if let Err(e) = swarm.listen_on(quic_addr.clone()) {
             warn!("Failed to listen on QUIC {}: {}", quic_addr, e);
@@ -827,10 +837,9 @@ impl RopeSwarmRuntime {
                 });
             }
 
-            SwarmEvent::Behaviour(RopeBehaviourEvent::Gossipsub(gossipsub::Event::Subscribed {
-                peer_id,
-                topic,
-            })) => {
+            SwarmEvent::Behaviour(RopeBehaviourEvent::Gossipsub(
+                gossipsub::Event::Subscribed { peer_id, topic },
+            )) => {
                 debug!("Peer {} subscribed to {}", peer_id, topic);
             }
 
@@ -952,11 +961,8 @@ impl RopeSwarmRuntime {
                 match swarm.behaviour_mut().gossipsub.subscribe(&ident_topic) {
                     Ok(_) => {
                         subscriptions.write().insert(topic.clone());
-                        stats.write().active_subscriptions = subscriptions
-                            .read()
-                            .iter()
-                            .cloned()
-                            .collect();
+                        stats.write().active_subscriptions =
+                            subscriptions.read().iter().cloned().collect();
                         info!("Subscribed to topic: {}", topic);
                     }
                     Err(e) => {
@@ -970,11 +976,8 @@ impl RopeSwarmRuntime {
                 match swarm.behaviour_mut().gossipsub.unsubscribe(&ident_topic) {
                     Ok(_) => {
                         subscriptions.write().remove(&topic);
-                        stats.write().active_subscriptions = subscriptions
-                            .read()
-                            .iter()
-                            .cloned()
-                            .collect();
+                        stats.write().active_subscriptions =
+                            subscriptions.read().iter().cloned().collect();
                         info!("Unsubscribed from topic: {}", topic);
                     }
                     Err(e) => {
@@ -985,7 +988,11 @@ impl RopeSwarmRuntime {
 
             SwarmCommand::Publish { topic, data } => {
                 let ident_topic = IdentTopic::new(&topic);
-                match swarm.behaviour_mut().gossipsub.publish(ident_topic, data.clone()) {
+                match swarm
+                    .behaviour_mut()
+                    .gossipsub
+                    .publish(ident_topic, data.clone())
+                {
                     Ok(_) => {
                         stats.write().messages_published += 1;
                         stats.write().bytes_sent += data.len() as u64;
@@ -997,16 +1004,14 @@ impl RopeSwarmRuntime {
                 }
             }
 
-            SwarmCommand::Dial { addr } => {
-                match swarm.dial(addr.clone()) {
-                    Ok(_) => {
-                        info!("Dialing {}", addr);
-                    }
-                    Err(e) => {
-                        warn!("Failed to dial {}: {:?}", addr, e);
-                    }
+            SwarmCommand::Dial { addr } => match swarm.dial(addr.clone()) {
+                Ok(_) => {
+                    info!("Dialing {}", addr);
                 }
-            }
+                Err(e) => {
+                    warn!("Failed to dial {}: {:?}", addr, e);
+                }
+            },
 
             SwarmCommand::Disconnect { peer_id } => {
                 let _ = swarm.disconnect_peer_id(peer_id);
@@ -1020,7 +1025,10 @@ impl RopeSwarmRuntime {
                     publisher: None,
                     expires: None,
                 };
-                let _ = swarm.behaviour_mut().kademlia.put_record(record, kad::Quorum::One);
+                let _ = swarm
+                    .behaviour_mut()
+                    .kademlia
+                    .put_record(record, kad::Quorum::One);
                 stats.write().dht_queries += 1;
             }
 
@@ -1076,10 +1084,7 @@ impl RopeSwarmRuntime {
                     .connected_peers()
                     .map(|peer_id| PeerInfo {
                         peer_id: peer_id.to_string(),
-                        addresses: swarm
-                            .external_addresses()
-                            .map(|a| a.to_string())
-                            .collect(),
+                        addresses: swarm.external_addresses().map(|a| a.to_string()).collect(),
                         agent_version: None,
                         protocol_version: None,
                         latency_ms: None,
@@ -1210,4 +1215,3 @@ mod tests {
         matches!(decoded, RopeRequest::GetStatus);
     }
 }
-

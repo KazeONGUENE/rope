@@ -46,7 +46,9 @@ impl LatticeClient {
     /// Connect to lattice network
     pub async fn connect(&mut self) -> Result<(), RuntimeError> {
         if self.endpoints.is_empty() {
-            return Err(RuntimeError::LatticeError("No endpoints configured".to_string()));
+            return Err(RuntimeError::LatticeError(
+                "No endpoints configured".to_string(),
+            ));
         }
 
         // Try each endpoint
@@ -197,7 +199,10 @@ impl LatticeClient {
         let string_id = Self::compute_execution_record_id(&result);
 
         // In production: Submit to network
-        tracing::info!("Recording execution {} on lattice", hex::encode(&string_id[..8]));
+        tracing::info!(
+            "Recording execution {} on lattice",
+            hex::encode(&string_id[..8])
+        );
 
         Ok(string_id)
     }
@@ -317,7 +322,9 @@ pub enum LatticeEvent {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum TestimonyStatus {
     /// Approved by consensus
-    Approved { authorization: ExecutionAuthorization },
+    Approved {
+        authorization: ExecutionAuthorization,
+    },
 
     /// Rejected by consensus
     Rejected { reasons: Vec<String> },

@@ -25,8 +25,11 @@
 use ed25519_dalek::{Signature as Ed25519Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use pqcrypto_dilithium::dilithium3;
 use pqcrypto_kyber::kyber768;
+use pqcrypto_traits::kem::{
+    Ciphertext, PublicKey as KemPublicKey, SecretKey as KemSecretKey,
+    SharedSecret as PqSharedSecret,
+};
 use pqcrypto_traits::sign::{PublicKey as PqPublicKey, SecretKey as PqSecretKey, SignedMessage};
-use pqcrypto_traits::kem::{PublicKey as KemPublicKey, SecretKey as KemSecretKey, Ciphertext, SharedSecret as PqSharedSecret};
 use rand::rngs::OsRng;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -85,7 +88,10 @@ pub struct HybridSignature {
 impl HybridSignature {
     /// Create a new hybrid signature
     pub fn new(ed25519_sig: [u8; 64], dilithium_sig: Vec<u8>) -> Self {
-        Self { ed25519_sig: ed25519_sig.to_vec(), dilithium_sig }
+        Self {
+            ed25519_sig: ed25519_sig.to_vec(),
+            dilithium_sig,
+        }
     }
 
     /// Create empty signature
@@ -108,8 +114,9 @@ impl HybridSignature {
 
     /// Validate signature structure
     pub fn is_valid_structure(&self) -> bool {
-        self.ed25519_sig.len() == 64 &&
-        (self.dilithium_sig.is_empty() || self.dilithium_sig.len() >= DILITHIUM3_SIGNATURE_SIZE)
+        self.ed25519_sig.len() == 64
+            && (self.dilithium_sig.is_empty()
+                || self.dilithium_sig.len() >= DILITHIUM3_SIGNATURE_SIZE)
     }
 }
 
@@ -138,7 +145,12 @@ pub struct HybridPublicKey {
 impl HybridPublicKey {
     /// Create new hybrid public key with all components
     pub fn new(ed25519: [u8; 32], x25519: [u8; 32], dilithium: Vec<u8>, kyber: Vec<u8>) -> Self {
-        Self { ed25519, x25519, dilithium, kyber }
+        Self {
+            ed25519,
+            x25519,
+            dilithium,
+            kyber,
+        }
     }
 
     /// Create new signing-only public key (Ed25519 + Dilithium)
@@ -200,31 +212,38 @@ impl HybridPublicKey {
 
     /// Deserialize from bytes
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        if bytes.len() < 72 { // 32 + 32 + 4 + 4
+        if bytes.len() < 72 {
+            // 32 + 32 + 4 + 4
             return Err(CryptoError::InvalidPublicKey("Too short".to_string()));
         }
 
-        let ed25519: [u8; 32] = bytes[0..32].try_into()
+        let ed25519: [u8; 32] = bytes[0..32]
+            .try_into()
             .map_err(|_| CryptoError::InvalidPublicKey("Ed25519 key invalid".to_string()))?;
 
-        let x25519: [u8; 32] = bytes[32..64].try_into()
+        let x25519: [u8; 32] = bytes[32..64]
+            .try_into()
             .map_err(|_| CryptoError::InvalidPublicKey("X25519 key invalid".to_string()))?;
 
-        let dilithium_len = u32::from_le_bytes(
-            bytes[64..68].try_into()
-                .map_err(|_| CryptoError::InvalidPublicKey("Dilithium length field invalid".to_string()))?
-        ) as usize;
+        let dilithium_len = u32::from_le_bytes(bytes[64..68].try_into().map_err(|_| {
+            CryptoError::InvalidPublicKey("Dilithium length field invalid".to_string())
+        })?) as usize;
 
         if bytes.len() < 68 + dilithium_len + 4 {
-            return Err(CryptoError::InvalidPublicKey("Dilithium key truncated".to_string()));
+            return Err(CryptoError::InvalidPublicKey(
+                "Dilithium key truncated".to_string(),
+            ));
         }
 
         let dilithium = bytes[68..68 + dilithium_len].to_vec();
 
         let kyber_start = 68 + dilithium_len;
         let kyber_len = u32::from_le_bytes(
-            bytes[kyber_start..kyber_start + 4].try_into()
-                .map_err(|_| CryptoError::InvalidPublicKey("Kyber length field invalid".to_string()))?
+            bytes[kyber_start..kyber_start + 4]
+                .try_into()
+                .map_err(|_| {
+                    CryptoError::InvalidPublicKey("Kyber length field invalid".to_string())
+                })?,
         ) as usize;
         let kyber = if kyber_len > 0 && bytes.len() >= kyber_start + 4 + kyber_len {
             bytes[kyber_start + 4..kyber_start + 4 + kyber_len].to_vec()
@@ -232,7 +251,12 @@ impl HybridPublicKey {
             Vec::new()
         };
 
-        Ok(Self { ed25519, x25519, dilithium, kyber })
+        Ok(Self {
+            ed25519,
+            x25519,
+            dilithium,
+            kyber,
+        })
     }
 
     /// Check if post-quantum signature keys are available
@@ -274,7 +298,12 @@ pub struct HybridSecretKey {
 impl HybridSecretKey {
     /// Create new secret key
     pub fn new(ed25519: [u8; 32], x25519: [u8; 32], dilithium: Vec<u8>, kyber: Vec<u8>) -> Self {
-        Self { ed25519, x25519, dilithium, kyber }
+        Self {
+            ed25519,
+            x25519,
+            dilithium,
+            kyber,
+        }
     }
 
     /// Create signing-only secret key
@@ -396,12 +425,7 @@ impl HybridSigner {
             kyber_pk: kyber_pk.clone(),
         };
 
-        let public_key = HybridPublicKey::new(
-            ed25519_public,
-            x25519_pk,
-            dilithium_pk,
-            kyber_pk,
-        );
+        let public_key = HybridPublicKey::new(ed25519_public, x25519_pk, dilithium_pk, kyber_pk);
 
         (signer, public_key)
     }
@@ -487,12 +511,7 @@ impl HybridSigner {
             kyber_pk: kyber_pk.clone(),
         };
 
-        let public_key = HybridPublicKey::new(
-            ed25519_public,
-            x25519_pk,
-            dilithium_pk,
-            kyber_pk,
-        );
+        let public_key = HybridPublicKey::new(ed25519_public, x25519_pk, dilithium_pk, kyber_pk);
 
         (signer, public_key)
     }
@@ -654,7 +673,8 @@ impl HybridVerifier {
         signature: &HybridSignature,
     ) -> Result<bool> {
         // ALWAYS verify Ed25519 signature first
-        let ed25519_valid = Self::verify_ed25519(&public_key.ed25519, message, &signature.ed25519_sig)?;
+        let ed25519_valid =
+            Self::verify_ed25519(&public_key.ed25519, message, &signature.ed25519_sig)?;
 
         if !ed25519_valid {
             tracing::debug!("Ed25519 signature verification failed");
@@ -669,11 +689,8 @@ impl HybridVerifier {
                 return Ok(false);
             }
 
-            let dilithium_valid = Self::verify_dilithium(
-                &public_key.dilithium,
-                message,
-                &signature.dilithium_sig
-            )?;
+            let dilithium_valid =
+                Self::verify_dilithium(&public_key.dilithium, message, &signature.dilithium_sig)?;
 
             if !dilithium_valid {
                 tracing::debug!("Dilithium signature verification failed");
@@ -694,8 +711,9 @@ impl HybridVerifier {
         let verifying_key = VerifyingKey::from_bytes(public_key)
             .map_err(|e| CryptoError::InvalidPublicKey(e.to_string()))?;
 
-        let sig_bytes: [u8; 64] = signature.try_into()
-            .map_err(|_| CryptoError::InvalidSignature("Invalid Ed25519 signature length".to_string()))?;
+        let sig_bytes: [u8; 64] = signature.try_into().map_err(|_| {
+            CryptoError::InvalidSignature("Invalid Ed25519 signature length".to_string())
+        })?;
         let sig = Ed25519Signature::from_bytes(&sig_bytes);
 
         Ok(verifying_key.verify(message, &sig).is_ok())
@@ -717,18 +735,16 @@ impl HybridVerifier {
         }
 
         // Parse Dilithium public key - NO FALLBACK on failure
-        let pk = dilithium3::PublicKey::from_bytes(public_key)
-            .map_err(|e| {
-                tracing::error!("Failed to parse Dilithium public key: {:?}", e);
-                CryptoError::InvalidPublicKey("Invalid Dilithium public key format".to_string())
-            })?;
+        let pk = dilithium3::PublicKey::from_bytes(public_key).map_err(|e| {
+            tracing::error!("Failed to parse Dilithium public key: {:?}", e);
+            CryptoError::InvalidPublicKey("Invalid Dilithium public key format".to_string())
+        })?;
 
         // Parse signed message - NO FALLBACK on failure
-        let signed_msg = dilithium3::SignedMessage::from_bytes(signature)
-            .map_err(|e| {
-                tracing::error!("Failed to parse Dilithium signature: {:?}", e);
-                CryptoError::InvalidSignature("Invalid Dilithium signature format".to_string())
-            })?;
+        let signed_msg = dilithium3::SignedMessage::from_bytes(signature).map_err(|e| {
+            tracing::error!("Failed to parse Dilithium signature: {:?}", e);
+            CryptoError::InvalidSignature("Invalid Dilithium signature format".to_string())
+        })?;
 
         // Verify and extract original message
         match dilithium3::open(&signed_msg, &pk) {
@@ -842,7 +858,9 @@ impl HybridKEM {
                 }
                 Err(e) => {
                     tracing::error!("Failed to parse Kyber public key: {:?}", e);
-                    return Err(CryptoError::InvalidPublicKey("Invalid Kyber public key".to_string()));
+                    return Err(CryptoError::InvalidPublicKey(
+                        "Invalid Kyber public key".to_string(),
+                    ));
                 }
             }
         } else {
@@ -893,15 +911,16 @@ impl HybridKEM {
         };
 
         // Kyber768 decapsulation (REAL post-quantum KEM!)
-        let kyber_shared = if !secret_key.kyber.is_empty() && !encapsulated.kyber_ciphertext.is_empty() {
-            let sk = kyber768::SecretKey::from_bytes(&secret_key.kyber)
-                .map_err(|e| {
-                    tracing::error!("Failed to parse Kyber secret key: {:?}", e);
-                    CryptoError::InvalidSecretKey("Invalid Kyber secret key".to_string())
-                })?;
+        let kyber_shared = if !secret_key.kyber.is_empty()
+            && !encapsulated.kyber_ciphertext.is_empty()
+        {
+            let sk = kyber768::SecretKey::from_bytes(&secret_key.kyber).map_err(|e| {
+                tracing::error!("Failed to parse Kyber secret key: {:?}", e);
+                CryptoError::InvalidSecretKey("Invalid Kyber secret key".to_string())
+            })?;
 
-            let ct = kyber768::Ciphertext::from_bytes(&encapsulated.kyber_ciphertext)
-                .map_err(|e| {
+            let ct =
+                kyber768::Ciphertext::from_bytes(&encapsulated.kyber_ciphertext).map_err(|e| {
                     tracing::error!("Failed to parse Kyber ciphertext: {:?}", e);
                     CryptoError::DecryptionError("Invalid Kyber ciphertext".to_string())
                 })?;

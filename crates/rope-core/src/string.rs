@@ -1,7 +1,7 @@
 //! RopeString - The fundamental unit of information in Datachain Rope
-//! 
+//!
 //! String S = (σ, τ, π, ρ, μ)
-//! 
+//!
 //! Where:
 //! - σ (Sigma): Sequence - ordered nucleotides comprising content
 //! - τ (Tau): Temporal Marker - Lamport clock timestamp
@@ -9,11 +9,11 @@
 //! - ρ (Rho): Replication Factor - redundancy level (default: 5)
 //! - μ (Mu): Mutability Class - erasure policy
 
+use crate::clock::LamportClock;
+use crate::nucleotide::NucleotideSequence;
+use crate::types::{constants, MutabilityClass, NodeId, StringId};
 use serde::{Deserialize, Serialize};
 use serde_bytes;
-use crate::types::{StringId, NodeId, MutabilityClass, constants};
-use crate::nucleotide::NucleotideSequence;
-use crate::clock::LamportClock;
 
 /// Hybrid signature combining classical and post-quantum algorithms
 /// Ed25519 + CRYSTALS-Dilithium3
@@ -22,7 +22,7 @@ pub struct HybridSignature {
     /// Ed25519 signature (64 bytes) - stored as Vec for serde compatibility
     #[serde(with = "serde_bytes")]
     pub ed25519_sig: Vec<u8>,
-    
+
     /// CRYSTALS-Dilithium3 signature (~2420 bytes)
     #[serde(with = "serde_bytes")]
     pub dilithium_sig: Vec<u8>,
@@ -31,7 +31,10 @@ pub struct HybridSignature {
 impl HybridSignature {
     /// Create a new hybrid signature
     pub fn new(ed25519_sig: [u8; 64], dilithium_sig: Vec<u8>) -> Self {
-        Self { ed25519_sig: ed25519_sig.to_vec(), dilithium_sig }
+        Self {
+            ed25519_sig: ed25519_sig.to_vec(),
+            dilithium_sig,
+        }
     }
 
     /// Create empty/placeholder signature (for unsigned strings)
@@ -59,13 +62,13 @@ impl Default for HybridSignature {
 pub struct OESProof {
     /// OES generation epoch
     pub generation: u64,
-    
+
     /// Commitment to OES state
     pub state_commitment: [u8; 32],
-    
+
     /// Merkle proof of inclusion
     pub merkle_proof: Vec<[u8; 32]>,
-    
+
     /// Dilithium signature over the proof
     pub signature: Vec<u8>,
 }
@@ -93,7 +96,7 @@ impl Default for OESProof {
 pub struct PublicKey {
     /// Ed25519 public key (32 bytes)
     pub ed25519: [u8; 32],
-    
+
     /// CRYSTALS-Dilithium3 public key (~1952 bytes)
     pub dilithium: Vec<u8>,
 }
@@ -118,37 +121,37 @@ impl PublicKey {
 }
 
 /// RopeString - The fundamental unit of information
-/// 
+///
 /// Named `RopeString` to avoid conflict with std::string::String
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RopeString {
     /// Unique identifier (computed from content hash)
     id: StringId,
-    
+
     /// σ - Sequence: ordered nucleotides comprising content
     sequence: NucleotideSequence,
-    
+
     /// τ - Temporal Marker: Lamport clock timestamp
     temporal_marker: LamportClock,
-    
+
     /// π - Parentage: parent StringIds (forms DAG)
     parentage: Vec<StringId>,
-    
+
     /// ρ - Replication Factor: redundancy level
     replication_factor: u32,
-    
+
     /// μ - Mutability Class: erasure policy
     mutability_class: MutabilityClass,
-    
+
     /// OES generation epoch marker
     oes_generation: u64,
-    
+
     /// OES proof of synchronized creation
     oes_proof: OESProof,
-    
+
     /// Hybrid quantum-resistant signature
     signature: HybridSignature,
-    
+
     /// Creating node's public key
     creator: PublicKey,
 }
@@ -217,8 +220,7 @@ impl RopeString {
     /// Check if string is an anchor string
     pub fn is_anchor(&self) -> bool {
         // Anchor strings have special marker in mutability class
-        matches!(self.mutability_class, MutabilityClass::Immutable)
-            && self.sequence.len() > 0
+        matches!(self.mutability_class, MutabilityClass::Immutable) && self.sequence.len() > 0
     }
 
     /// Compute the signing message (for signature verification)
@@ -259,7 +261,7 @@ impl RopeString {
             MutabilityClass::GDPRCompliant => 4u8,
         };
         content.push(mc_byte);
-        
+
         StringId::from_content(&content)
     }
 
@@ -362,7 +364,7 @@ impl RopeStringBuilder {
         }
 
         let sequence = NucleotideSequence::from_bytes(&content);
-        
+
         let id = RopeString::compute_id(
             &sequence,
             &temporal_marker,
@@ -415,14 +417,17 @@ mod tests {
             .expect("Failed to build string");
 
         assert!(!string.id().as_bytes().iter().all(|&b| b == 0));
-        assert_eq!(string.replication_factor(), constants::DEFAULT_REPLICATION_FACTOR);
+        assert_eq!(
+            string.replication_factor(),
+            constants::DEFAULT_REPLICATION_FACTOR
+        );
         assert!(string.parentage().is_empty());
     }
 
     #[test]
     fn test_string_with_parents() {
         let parent_id = StringId::from_content(b"parent");
-        
+
         let string = RopeString::builder()
             .content(b"Child string".to_vec())
             .temporal_marker(make_test_clock())
@@ -439,7 +444,7 @@ mod tests {
     fn test_string_id_deterministic() {
         let clock = make_test_clock();
         let creator = make_test_creator();
-        
+
         let string1 = RopeString::builder()
             .content(b"Same content".to_vec())
             .temporal_marker(clock.clone())
@@ -469,4 +474,3 @@ mod tests {
         assert!(string.verify_sequence());
     }
 }
-

@@ -1,10 +1,10 @@
 //! # Datachain Rope Network Configuration
-//! 
+//!
 //! Defines network parameters for wallet and tool integration.
 //! Compatible with EVM-style JSON-RPC interfaces for MetaMask, etc.
-//! 
+//!
 //! ## Network Information
-//! 
+//!
 //! | Parameter | Value |
 //! |-----------|-------|
 //! | Network Name | Datachain Rope |
@@ -13,9 +13,9 @@
 //! | Currency Name | DC FAT |
 //! | RPC URL | https://erpc.datachain.network |
 //! | Block Explorer | https://dcscan.io |
-//! 
+//!
 //! ## Chain ID Selection Rationale
-//! 
+//!
 //! 271828 was chosen because:
 //! - Represents Euler's number e ≈ 2.71828 - symbolizing exponential growth
 //! - Not conflicting with any existing EVM chain IDs
@@ -109,37 +109,37 @@ pub const BRIDGE_URL: &str = "https://bridge.datachain.network";
 pub struct NetworkConfig {
     /// Chain ID
     pub chain_id: u64,
-    
+
     /// Network name
     pub network_name: String,
-    
+
     /// Network name short
     pub network_name_short: String,
-    
+
     /// Currency symbol
     pub currency_symbol: String,
-    
+
     /// Currency name
     pub currency_name: String,
-    
+
     /// Currency decimals
     pub currency_decimals: u8,
-    
+
     /// RPC URLs
     pub rpc_urls: Vec<String>,
-    
+
     /// WebSocket URLs
     pub ws_urls: Vec<String>,
-    
+
     /// Block explorer URL
     pub block_explorer_url: String,
-    
+
     /// Is testnet
     pub is_testnet: bool,
-    
+
     /// Genesis hash
     pub genesis_hash: [u8; 32],
-    
+
     /// Genesis timestamp
     pub genesis_timestamp: i64,
 }
@@ -154,21 +154,15 @@ impl NetworkConfig {
             currency_symbol: CURRENCY_SYMBOL.to_string(),
             currency_name: CURRENCY_NAME.to_string(),
             currency_decimals: CURRENCY_DECIMALS,
-            rpc_urls: vec![
-                RPC_URL_PRIMARY.to_string(),
-                RPC_URL_SECONDARY.to_string(),
-            ],
-            ws_urls: vec![
-                WS_URL_PRIMARY.to_string(),
-                WS_URL_SECONDARY.to_string(),
-            ],
+            rpc_urls: vec![RPC_URL_PRIMARY.to_string(), RPC_URL_SECONDARY.to_string()],
+            ws_urls: vec![WS_URL_PRIMARY.to_string(), WS_URL_SECONDARY.to_string()],
             block_explorer_url: BLOCK_EXPLORER_URL.to_string(),
             is_testnet: false,
             genesis_hash: Self::mainnet_genesis_hash(),
             genesis_timestamp: Self::mainnet_genesis_timestamp(),
         }
     }
-    
+
     /// Create testnet configuration
     pub fn testnet() -> Self {
         Self {
@@ -182,16 +176,14 @@ impl NetworkConfig {
                 "https://testnet.erpc.datachain.network".to_string(),
                 "https://testnet.erpc.rope.network".to_string(),
             ],
-            ws_urls: vec![
-                "wss://testnet.ws.datachain.network".to_string(),
-            ],
+            ws_urls: vec!["wss://testnet.ws.datachain.network".to_string()],
             block_explorer_url: "https://testnet.dcscan.io".to_string(),
             is_testnet: true,
             genesis_hash: Self::testnet_genesis_hash(),
             genesis_timestamp: 0, // To be set at testnet launch
         }
     }
-    
+
     /// Create devnet configuration
     pub fn devnet() -> Self {
         Self {
@@ -201,31 +193,28 @@ impl NetworkConfig {
             currency_symbol: format!("d{}", CURRENCY_SYMBOL),
             currency_name: format!("Dev {}", CURRENCY_NAME),
             currency_decimals: CURRENCY_DECIMALS,
-            rpc_urls: vec![
-                "http://localhost:8545".to_string(),
-            ],
-            ws_urls: vec![
-                "ws://localhost:8546".to_string(),
-            ],
+            rpc_urls: vec!["http://localhost:8545".to_string()],
+            ws_urls: vec!["ws://localhost:8546".to_string()],
             block_explorer_url: "http://localhost:4000".to_string(),
             is_testnet: true,
             genesis_hash: [0u8; 32],
             genesis_timestamp: 0,
         }
     }
-    
+
     /// Mainnet genesis hash (to be updated at mainnet launch)
     fn mainnet_genesis_hash() -> [u8; 32] {
         // Hash of "Datachain Rope - Smartchain Genesis - Powering The Future of Internet"
-        *blake3::hash(b"Datachain Rope - Smartchain Genesis - Powering The Future of Internet").as_bytes()
+        *blake3::hash(b"Datachain Rope - Smartchain Genesis - Powering The Future of Internet")
+            .as_bytes()
     }
-    
+
     /// Mainnet genesis timestamp (placeholder - TBD at launch)
     fn mainnet_genesis_timestamp() -> i64 {
         // Placeholder: January 1, 2026 00:00:00 UTC
         1767225600
     }
-    
+
     /// Testnet genesis hash
     fn testnet_genesis_hash() -> [u8; 32] {
         *blake3::hash(b"Datachain Rope Smartchain Testnet Genesis").as_bytes()
@@ -249,19 +238,19 @@ impl Default for NetworkConfig {
 pub struct WalletChainConfig {
     /// Chain ID in hex format (e.g., "0x4CB2F")
     pub chain_id: String,
-    
+
     /// Chain name
     pub chain_name: String,
-    
+
     /// Native currency info
     pub native_currency: NativeCurrency,
-    
+
     /// RPC URLs
     pub rpc_urls: Vec<String>,
-    
+
     /// Block explorer URLs
     pub block_explorer_urls: Vec<String>,
-    
+
     /// Icon URLs (optional)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icon_urls: Option<Vec<String>>,
@@ -272,10 +261,10 @@ pub struct WalletChainConfig {
 pub struct NativeCurrency {
     /// Currency name
     pub name: String,
-    
+
     /// Currency symbol
     pub symbol: String,
-    
+
     /// Decimals
     pub decimals: u8,
 }
@@ -291,20 +280,15 @@ impl WalletChainConfig {
                 symbol: CURRENCY_SYMBOL.to_string(),
                 decimals: CURRENCY_DECIMALS,
             },
-            rpc_urls: vec![
-                RPC_URL_PRIMARY.to_string(),
-                RPC_URL_SECONDARY.to_string(),
-            ],
-            block_explorer_urls: vec![
-                BLOCK_EXPLORER_URL.to_string(),
-            ],
+            rpc_urls: vec![RPC_URL_PRIMARY.to_string(), RPC_URL_SECONDARY.to_string()],
+            block_explorer_urls: vec![BLOCK_EXPLORER_URL.to_string()],
             icon_urls: Some(vec![
                 "https://datachain.network/assets/icons/dc-fat-logo.svg".to_string(),
                 "https://datachain.network/assets/icons/dc-fat-logo-128.png".to_string(),
             ]),
         }
     }
-    
+
     /// Create testnet wallet configuration
     pub fn testnet() -> Self {
         Self {
@@ -315,16 +299,12 @@ impl WalletChainConfig {
                 symbol: "DCR FAT".to_string(),
                 decimals: CURRENCY_DECIMALS,
             },
-            rpc_urls: vec![
-                "https://testnet.erpc.datachain.network".to_string(),
-            ],
-            block_explorer_urls: vec![
-                "https://testnet.dcscan.io".to_string(),
-            ],
+            rpc_urls: vec!["https://testnet.erpc.datachain.network".to_string()],
+            block_explorer_urls: vec!["https://testnet.dcscan.io".to_string()],
             icon_urls: None,
         }
     }
-    
+
     /// Serialize to JSON for wallet_addEthereumChain
     pub fn to_json(&self) -> String {
         serde_json::to_string_pretty(self).unwrap_or_default()
@@ -340,31 +320,31 @@ impl WalletChainConfig {
 pub struct GenesisConfig {
     /// Chain configuration
     pub config: ChainParams,
-    
+
     /// Initial allocations (address -> balance)
     pub alloc: HashMap<String, GenesisAllocation>,
-    
+
     /// Coinbase address
     pub coinbase: String,
-    
+
     /// Difficulty (for PoW compatibility - set to 1 for PoS/Testimony)
     pub difficulty: String,
-    
+
     /// Extra data
     pub extra_data: String,
-    
+
     /// Gas limit
     pub gas_limit: String,
-    
+
     /// Nonce
     pub nonce: String,
-    
+
     /// Mixhash (for compatibility)
     pub mix_hash: String,
-    
+
     /// Parent hash (zero for genesis)
     pub parent_hash: String,
-    
+
     /// Timestamp
     pub timestamp: String,
 }
@@ -375,37 +355,37 @@ pub struct GenesisConfig {
 pub struct ChainParams {
     /// Chain ID
     pub chain_id: u64,
-    
+
     /// Homestead block
     pub homestead_block: u64,
-    
+
     /// EIP-150 block
     pub eip150_block: u64,
-    
+
     /// EIP-155 block
     pub eip155_block: u64,
-    
+
     /// EIP-158 block
     pub eip158_block: u64,
-    
+
     /// Byzantium block
     pub byzantium_block: u64,
-    
+
     /// Constantinople block
     pub constantinople_block: u64,
-    
+
     /// Petersburg block
     pub petersburg_block: u64,
-    
+
     /// Istanbul block
     pub istanbul_block: u64,
-    
+
     /// Berlin block
     pub berlin_block: u64,
-    
+
     /// London block
     pub london_block: u64,
-    
+
     /// Testimony consensus config (our custom consensus)
     pub testimony: TestimonyConfig,
 }
@@ -415,19 +395,19 @@ pub struct ChainParams {
 pub struct TestimonyConfig {
     /// String production interval (milliseconds)
     pub string_interval_ms: u64,
-    
+
     /// Epoch length (number of strings)
     pub epoch_length: u64,
-    
+
     /// Minimum validators
     pub min_validators: u32,
-    
+
     /// Maximum validators
     pub max_validators: u32,
-    
+
     /// Minimum stake for validator
     pub min_stake: String,
-    
+
     /// AI testimony agents required
     pub ai_agents_required: u32,
 }
@@ -437,11 +417,11 @@ pub struct TestimonyConfig {
 pub struct GenesisAllocation {
     /// Balance in wei
     pub balance: String,
-    
+
     /// Optional: code
     #[serde(skip_serializing_if = "Option::is_none")]
     pub code: Option<String>,
-    
+
     /// Optional: storage
     #[serde(skip_serializing_if = "Option::is_none")]
     pub storage: Option<HashMap<String, String>>,
@@ -451,7 +431,7 @@ impl GenesisConfig {
     /// Create mainnet genesis
     pub fn mainnet() -> Self {
         let mut alloc = HashMap::new();
-        
+
         // Datachain Foundation allocation (40%)
         alloc.insert(
             "0x0000000000000000000000000000000000000001".to_string(),
@@ -461,7 +441,7 @@ impl GenesisConfig {
                 storage: None,
             },
         );
-        
+
         // Ecosystem Development (25%)
         alloc.insert(
             "0x0000000000000000000000000000000000000002".to_string(),
@@ -471,7 +451,7 @@ impl GenesisConfig {
                 storage: None,
             },
         );
-        
+
         // Community & Incentives (20%)
         alloc.insert(
             "0x0000000000000000000000000000000000000003".to_string(),
@@ -481,7 +461,7 @@ impl GenesisConfig {
                 storage: None,
             },
         );
-        
+
         // Team & Advisors (10%)
         alloc.insert(
             "0x0000000000000000000000000000000000000004".to_string(),
@@ -491,7 +471,7 @@ impl GenesisConfig {
                 storage: None,
             },
         );
-        
+
         // Initial Liquidity (5%)
         alloc.insert(
             "0x0000000000000000000000000000000000000005".to_string(),
@@ -501,7 +481,7 @@ impl GenesisConfig {
                 storage: None,
             },
         );
-        
+
         Self {
             config: ChainParams {
                 chain_id: CHAIN_ID_MAINNET,
@@ -517,7 +497,7 @@ impl GenesisConfig {
                 london_block: 0,
                 testimony: TestimonyConfig {
                     string_interval_ms: 1000, // 1 second per string
-                    epoch_length: 43200, // ~12 hours
+                    epoch_length: 43200,      // ~12 hours
                     min_validators: 21,
                     max_validators: 100,
                     min_stake: "1000000000000000000000".to_string(), // 1000 FAT
@@ -527,15 +507,22 @@ impl GenesisConfig {
             alloc,
             coinbase: "0x0000000000000000000000000000000000000000".to_string(),
             difficulty: "0x1".to_string(),
-            extra_data: format!("0x{}", hex::encode("Datachain Rope - Smartchain Genesis - Powering The Future of Internet")),
+            extra_data: format!(
+                "0x{}",
+                hex::encode(
+                    "Datachain Rope - Smartchain Genesis - Powering The Future of Internet"
+                )
+            ),
             gas_limit: "0x2fefd8".to_string(), // 30M gas
             nonce: "0x0000000000000000".to_string(),
-            mix_hash: "0x0000000000000000000000000000000000000000000000000000000000000000".to_string(),
-            parent_hash: "0x0000000000000000000000000000000000000000000000000000000000000000".to_string(),
+            mix_hash: "0x0000000000000000000000000000000000000000000000000000000000000000"
+                .to_string(),
+            parent_hash: "0x0000000000000000000000000000000000000000000000000000000000000000"
+                .to_string(),
             timestamp: format!("0x{:X}", NetworkConfig::mainnet_genesis_timestamp()),
         }
     }
-    
+
     /// Serialize to JSON
     pub fn to_json(&self) -> String {
         serde_json::to_string_pretty(self).unwrap_or_default()
@@ -551,16 +538,16 @@ impl GenesisConfig {
 pub struct NetworkEndpoints {
     /// JSON-RPC endpoints
     pub rpc: RpcEndpoints,
-    
+
     /// WebSocket endpoints
     pub websocket: WsEndpoints,
-    
+
     /// GraphQL endpoint
     pub graphql: Option<String>,
-    
+
     /// IPFS gateway
     pub ipfs: Option<String>,
-    
+
     /// Bridge endpoints
     pub bridges: BridgeEndpoints,
 }
@@ -570,13 +557,13 @@ pub struct NetworkEndpoints {
 pub struct RpcEndpoints {
     /// Primary RPC
     pub primary: String,
-    
+
     /// Secondary RPC
     pub secondary: String,
-    
+
     /// Archive node RPC
     pub archive: Option<String>,
-    
+
     /// Debug RPC (admin only)
     pub debug: Option<String>,
 }
@@ -586,7 +573,7 @@ pub struct RpcEndpoints {
 pub struct WsEndpoints {
     /// Primary WebSocket
     pub primary: String,
-    
+
     /// Secondary WebSocket
     pub secondary: Option<String>,
 }
@@ -596,10 +583,10 @@ pub struct WsEndpoints {
 pub struct BridgeEndpoints {
     /// Ethereum bridge
     pub ethereum: Option<BridgeConfig>,
-    
+
     /// XDC bridge
     pub xdc: Option<BridgeConfig>,
-    
+
     /// Polkadot bridge
     pub polkadot: Option<BridgeConfig>,
 }
@@ -609,10 +596,10 @@ pub struct BridgeEndpoints {
 pub struct BridgeConfig {
     /// Endpoint URL
     pub endpoint: String,
-    
+
     /// Contract address (if applicable)
     pub contract_address: Option<String>,
-    
+
     /// Is enabled
     pub enabled: bool,
 }
@@ -636,12 +623,16 @@ impl NetworkEndpoints {
             bridges: BridgeEndpoints {
                 ethereum: Some(BridgeConfig {
                     endpoint: "https://bridge.datachain.network/ethereum".to_string(),
-                    contract_address: Some("0x0b44547be0a0df5dcd5327de8ea73680517c5a54".to_string()),
+                    contract_address: Some(
+                        "0x0b44547be0a0df5dcd5327de8ea73680517c5a54".to_string(),
+                    ),
                     enabled: true,
                 }),
                 xdc: Some(BridgeConfig {
                     endpoint: "https://bridge.datachain.network/xdc".to_string(),
-                    contract_address: Some("0x20b59e6c5deb7d7ced2ca823c6ca81dd3f7e9a3a".to_string()),
+                    contract_address: Some(
+                        "0x20b59e6c5deb7d7ced2ca823c6ca81dd3f7e9a3a".to_string(),
+                    ),
                     enabled: true,
                 }),
                 polkadot: Some(BridgeConfig {
@@ -661,63 +652,64 @@ impl NetworkEndpoints {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_chain_id() {
         assert_eq!(CHAIN_ID_MAINNET, 314159);
         assert_eq!(CHAIN_ID_TESTNET, 314160);
-        
+
         // Chain ID should be unique and not conflict with known chains
         // See: https://chainlist.org/
         assert!(CHAIN_ID_MAINNET > 100000); // Avoid common chain IDs
     }
-    
+
     #[test]
     fn test_network_config() {
         let config = NetworkConfig::mainnet();
-        
+
         assert_eq!(config.chain_id, CHAIN_ID_MAINNET);
         assert_eq!(config.currency_symbol, "FAT");
         assert_eq!(config.currency_decimals, 18);
         assert!(!config.is_testnet);
     }
-    
+
     #[test]
     fn test_wallet_config() {
         let config = WalletChainConfig::mainnet();
-        
+
         assert_eq!(config.chain_id, "0x425D4"); // 271828 in hex
         assert_eq!(config.native_currency.symbol, "FAT");
         assert_eq!(config.native_currency.decimals, 18);
-        
+
         // Test JSON serialization
         let json = config.to_json();
         assert!(json.contains("chainId"));
         assert!(json.contains("FAT"));
     }
-    
+
     #[test]
     fn test_genesis_config() {
         let genesis = GenesisConfig::mainnet();
-        
+
         assert_eq!(genesis.config.chain_id, CHAIN_ID_MAINNET);
         assert_eq!(genesis.config.testimony.ai_agents_required, 5);
-        
+
         // Check allocations sum to 10B
-        let total: u128 = genesis.alloc.values()
+        let total: u128 = genesis
+            .alloc
+            .values()
             .map(|a| a.balance.parse::<u128>().unwrap_or(0))
             .sum();
-        
+
         // 10B FAT in wei (10^9 * 10^18 = 10^27)
         assert_eq!(total, 10_000_000_000_000_000_000_000_000_000u128);
     }
-    
+
     #[test]
     fn test_network_endpoints() {
         let endpoints = NetworkEndpoints::mainnet();
-        
+
         assert!(endpoints.rpc.primary.contains("datachain.network"));
         assert!(endpoints.websocket.primary.starts_with("wss://"));
     }
 }
-

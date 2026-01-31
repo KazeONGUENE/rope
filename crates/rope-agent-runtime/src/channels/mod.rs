@@ -162,7 +162,10 @@ pub enum MessageContent {
     Text(String),
 
     /// Image with optional caption
-    Image { url: String, caption: Option<String> },
+    Image {
+        url: String,
+        caption: Option<String>,
+    },
 
     /// Audio message (voice note)
     Audio {

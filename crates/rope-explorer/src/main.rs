@@ -17,8 +17,8 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 
 mod api;
 mod db;
-mod models;
 mod indexer;
+mod models;
 
 use api::*;
 
@@ -116,75 +116,69 @@ async fn main() -> anyhow::Result<()> {
         .route("/", get(root))
         .route("/health", get(health))
         .route("/api/v1/status", get(status))
-        
         // Stats
         .route("/api/v1/stats", get(stats))
         .route("/api/v1/stats/charts/:chart_type", get(chart_data))
-        
         // Strings (Blocks)
         .route("/api/v1/strings", get(list_strings))
         .route("/api/v1/strings/latest", get(latest_strings))
         .route("/api/v1/strings/:id", get(get_string))
-        
         // Transactions
         .route("/api/v1/transactions", get(list_transactions))
         .route("/api/v1/transactions/latest", get(latest_transactions))
         .route("/api/v1/transactions/:hash", get(get_transaction))
-        
         // Accounts
         .route("/api/v1/accounts/:address", get(get_account))
-        .route("/api/v1/accounts/:address/transactions", get(account_transactions))
+        .route(
+            "/api/v1/accounts/:address/transactions",
+            get(account_transactions),
+        )
         .route("/api/v1/accounts/:address/tokens", get(account_tokens))
-        
         // Tokens
         .route("/api/v1/tokens", get(list_tokens))
         .route("/api/v1/tokens/:address", get(get_token))
         .route("/api/v1/tokens/:address/holders", get(token_holders))
         .route("/api/v1/tokens/:address/transfers", get(token_transfers))
-        
         // Validators
         .route("/api/v1/validators", get(list_validators))
         .route("/api/v1/validators/:address", get(get_validator))
-        
         // AI Agents
         .route("/api/v1/ai-agents", get(list_ai_agents))
         .route("/api/v1/ai-agents/:id", get(get_ai_agent))
         .route("/api/v1/ai-agents/:id/testimonies", get(agent_testimonies))
-        
         // Databoxes (Nodes)
         .route("/api/v1/databoxes", get(list_databoxes))
         .route("/api/v1/databoxes/:id", get(get_databox))
         .route("/api/v1/databoxes/map", get(databox_map))
-        
         // Search
         .route("/api/v1/search", get(search))
-        
         // Gas & Prices
         .route("/api/v1/gas/price", get(gas_price))
         .route("/api/v1/gas/oracle", get(gas_oracle))
-        
         // DC FAT Token Price (real data from XDCScan & XSPSwap)
         .route("/api/v1/dcfat/price", get(dcfat_price))
-        
         // ============================================
         // Federation & Community Generation APIs
         // ============================================
-        
         // Federations
         .route("/api/v1/federations", get(list_federations))
         .route("/api/v1/federations", post(create_federation))
         .route("/api/v1/federations/:id", get(get_federation))
-        .route("/api/v1/federations/:id/communities", get(federation_communities))
+        .route(
+            "/api/v1/federations/:id/communities",
+            get(federation_communities),
+        )
         .route("/api/v1/federations/:id/vote", post(vote_federation))
-        
         // Communities
         .route("/api/v1/communities", get(list_communities))
         .route("/api/v1/communities", post(create_community))
         .route("/api/v1/communities/:id", get(get_community))
         .route("/api/v1/communities/:id/wallets", get(community_wallets))
-        .route("/api/v1/communities/:id/wallets/generate", post(generate_wallets))
+        .route(
+            "/api/v1/communities/:id/wallets/generate",
+            post(generate_wallets),
+        )
         .route("/api/v1/communities/:id/vote", post(vote_community))
-        
         // Project Submissions (Start Building)
         .route("/api/v1/projects", get(list_projects))
         .route("/api/v1/projects", post(submit_project))
@@ -192,11 +186,12 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/v1/projects/:id/vote", post(vote_project))
         .route("/api/v1/projects/categories", get(project_categories))
         .route("/api/v1/projects/voting", get(voting_projects))
-        
         // Votes
         .route("/api/v1/votes", get(list_votes))
-        .route("/api/v1/votes/:target_type/:target_id", get(get_votes_for_target))
-        
+        .route(
+            "/api/v1/votes/:target_type/:target_id",
+            get(get_votes_for_target),
+        )
         .layer(cors)
         .with_state(state);
 
@@ -221,43 +216,66 @@ async fn fetch_from_xdcscan(client: &reqwest::Client) -> Result<PriceData, anyho
     let response = client.get(&api_url).send().await?;
 
     if !response.status().is_success() {
-        return Err(anyhow::anyhow!("XDCScan API returned status: {}", response.status()));
+        return Err(anyhow::anyhow!(
+            "XDCScan API returned status: {}",
+            response.status()
+        ));
     }
 
     let data: serde_json::Value = response.json().await?;
-    
+
     // Parse exchange_rate (this is the USD price)
-    let price = data.get("exchange_rate")
+    let price = data
+        .get("exchange_rate")
         .or_else(|| data.get("stats").and_then(|s| s.get("fiat_value")))
-        .and_then(|v| v.as_str().and_then(|s| s.parse::<f64>().ok()).or_else(|| v.as_f64()))
+        .and_then(|v| {
+            v.as_str()
+                .and_then(|s| s.parse::<f64>().ok())
+                .or_else(|| v.as_f64())
+        })
         .unwrap_or(0.0);
 
     if price <= 0.0 {
         return Err(anyhow::anyhow!("Invalid price from XDCScan"));
     }
 
-    let change_24h = data.get("price_change_24h")
-        .and_then(|v| v.as_str().and_then(|s| s.parse::<f64>().ok()).or_else(|| v.as_f64()))
+    let change_24h = data
+        .get("price_change_24h")
+        .and_then(|v| {
+            v.as_str()
+                .and_then(|s| s.parse::<f64>().ok())
+                .or_else(|| v.as_f64())
+        })
         .unwrap_or(0.0);
 
-    let volume_24h = data.get("volume_24h")
+    let volume_24h = data
+        .get("volume_24h")
         .or_else(|| data.get("stats").and_then(|s| s.get("last_24h_volume")))
-        .and_then(|v| v.as_str().and_then(|s| s.parse::<f64>().ok()).or_else(|| v.as_f64()))
+        .and_then(|v| {
+            v.as_str()
+                .and_then(|s| s.parse::<f64>().ok())
+                .or_else(|| v.as_f64())
+        })
         .unwrap_or(0.0);
 
-    let symbol = data.get("symbol")
+    let symbol = data
+        .get("symbol")
         .and_then(|v| v.as_str())
         .unwrap_or("DC")
         .to_string();
 
-    let name = data.get("name")
+    let name = data
+        .get("name")
         .and_then(|v| v.as_str())
         .unwrap_or("DATACHAIN FOUNDATION")
         .to_string();
 
     tracing::info!(
         "XDCScan data - Symbol: {}, Price: ${:.8}, Change 24h: {:.2}%, Volume: ${:.2}",
-        symbol, price, change_24h, volume_24h
+        symbol,
+        price,
+        change_24h,
+        volume_24h
     );
 
     Ok(PriceData {
@@ -282,7 +300,7 @@ async fn fetch_and_cache_price(state: &Arc<AppState>) -> Result<PriceData, anyho
         }
         Err(e) => {
             tracing::warn!("XDCScan fetch failed: {}, using fallback price", e);
-            
+
             // Use fallback with slight variation
             let variation = (rand_variation() - 0.5) * 0.1;
             PriceData {
@@ -383,7 +401,7 @@ async fn stats(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
 async fn dcfat_price(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     // Check cache first
     let cache = state.price_cache.read().await;
-    
+
     let price_data = if let Some(cached) = &*cache {
         // Check if cache is still valid (within TTL)
         let now = chrono::Utc::now().timestamp();
@@ -391,7 +409,7 @@ async fn dcfat_price(State(state): State<Arc<AppState>>) -> Json<serde_json::Val
             cached.clone()
         } else {
             drop(cache); // Release read lock before fetching
-            // Cache expired, fetch new data
+                         // Cache expired, fetch new data
             match fetch_and_cache_price(&state).await {
                 Ok(data) => data,
                 Err(_) => PriceData::default(),
@@ -399,17 +417,17 @@ async fn dcfat_price(State(state): State<Arc<AppState>>) -> Json<serde_json::Val
         }
     } else {
         drop(cache); // Release read lock before fetching
-        // No cache, fetch new data
+                     // No cache, fetch new data
         match fetch_and_cache_price(&state).await {
             Ok(data) => data,
             Err(_) => PriceData::default(),
         }
     };
 
-    let next_update = chrono::DateTime::from_timestamp(
-        price_data.timestamp + PRICE_CACHE_TTL_SECS as i64,
-        0
-    ).map(|dt| dt.to_rfc3339()).unwrap_or_default();
+    let next_update =
+        chrono::DateTime::from_timestamp(price_data.timestamp + PRICE_CACHE_TTL_SECS as i64, 0)
+            .map(|dt| dt.to_rfc3339())
+            .unwrap_or_default();
 
     Json(serde_json::json!({
         "price": price_data.price,
@@ -440,7 +458,7 @@ async fn chart_data(
     Query(params): Query<ChartParams>,
 ) -> Json<serde_json::Value> {
     let _period = params.period.unwrap_or_else(|| "7d".to_string());
-    
+
     // Generate sample chart data
     let data: Vec<serde_json::Value> = (0..7)
         .map(|i| {
@@ -450,7 +468,7 @@ async fn chart_data(
             })
         })
         .collect();
-    
+
     Json(serde_json::json!({
         "chartType": chart_type,
         "data": data
@@ -466,7 +484,7 @@ struct PaginationParams {
 async fn list_strings(Query(params): Query<PaginationParams>) -> Json<serde_json::Value> {
     let page = params.page.unwrap_or(1);
     let limit = params.limit.unwrap_or(20);
-    
+
     let strings: Vec<serde_json::Value> = (0..limit)
         .map(|i| {
             let num = 1247893 - (page - 1) * limit - i;
@@ -481,7 +499,7 @@ async fn list_strings(Query(params): Query<PaginationParams>) -> Json<serde_json
             })
         })
         .collect();
-    
+
     Json(serde_json::json!({
         "strings": strings,
         "pagination": {
@@ -505,7 +523,7 @@ async fn latest_strings() -> Json<serde_json::Value> {
             })
         })
         .collect();
-    
+
     Json(serde_json::json!({ "strings": strings }))
 }
 
@@ -528,7 +546,7 @@ async fn get_string(Path(id): Path<String>) -> Json<serde_json::Value> {
 async fn list_transactions(Query(params): Query<PaginationParams>) -> Json<serde_json::Value> {
     let page = params.page.unwrap_or(1);
     let limit = params.limit.unwrap_or(20);
-    
+
     let txs: Vec<serde_json::Value> = (0..limit)
         .map(|i| {
             serde_json::json!({
@@ -543,7 +561,7 @@ async fn list_transactions(Query(params): Query<PaginationParams>) -> Json<serde
             })
         })
         .collect();
-    
+
     Json(serde_json::json!({
         "transactions": txs,
         "pagination": {
@@ -567,7 +585,7 @@ async fn latest_transactions() -> Json<serde_json::Value> {
             })
         })
         .collect();
-    
+
     Json(serde_json::json!({ "transactions": txs }))
 }
 
@@ -620,7 +638,7 @@ async fn account_transactions(
             })
         })
         .collect();
-    
+
     Json(serde_json::json!({
         "address": address,
         "transactions": txs
@@ -677,8 +695,8 @@ async fn get_token(
     State(state): State<Arc<AppState>>,
 ) -> Json<serde_json::Value> {
     // Check if this is the DC FAT token
-    let is_dcfat = address.to_lowercase() == DC_FAT_CONTRACT.to_lowercase() ||
-                   address == "0x0000000000000000000000000000000000000001";
+    let is_dcfat = address.to_lowercase() == DC_FAT_CONTRACT.to_lowercase()
+        || address == "0x0000000000000000000000000000000000000001";
 
     let (price_str, market_cap_str) = if is_dcfat {
         let cache = state.price_cache.read().await;
@@ -688,7 +706,10 @@ async fn get_token(
                 format!("${:.0}", price_data.price * 10_000_000_000.0),
             )
         } else {
-            (format!("${:.6}", FALLBACK_PRICE), format!("${:.0}", FALLBACK_PRICE * 10_000_000_000.0))
+            (
+                format!("${:.6}", FALLBACK_PRICE),
+                format!("${:.0}", FALLBACK_PRICE * 10_000_000_000.0),
+            )
         }
     } else {
         ("$0.00".to_string(), "$0".to_string())
@@ -719,7 +740,7 @@ async fn token_holders(Path(address): Path<String>) -> Json<serde_json::Value> {
             })
         })
         .collect();
-    
+
     Json(serde_json::json!({
         "token": address,
         "holders": holders
@@ -737,7 +758,7 @@ async fn token_transfers(Path(address): Path<String>) -> Json<serde_json::Value>
             })
         })
         .collect();
-    
+
     Json(serde_json::json!({
         "token": address,
         "transfers": transfers
@@ -757,7 +778,7 @@ async fn list_validators() -> Json<serde_json::Value> {
             })
         })
         .collect();
-    
+
     Json(serde_json::json!({
         "validators": validators,
         "totalStaked": "127,000,000 FAT",
@@ -851,7 +872,7 @@ async fn agent_testimonies(Path(id): Path<String>) -> Json<serde_json::Value> {
             })
         })
         .collect();
-    
+
     Json(serde_json::json!({
         "agentId": id,
         "testimonies": testimonies
@@ -869,7 +890,7 @@ async fn list_databoxes() -> Json<serde_json::Value> {
                 ("Singapore", 1.3521, 103.8198),
             ];
             let (city, lat, lng) = locations[i % 5];
-            
+
             serde_json::json!({
                 "id": format!("databox-{}", i + 1),
                 "name": format!("Databox {}", i + 1),
@@ -884,7 +905,7 @@ async fn list_databoxes() -> Json<serde_json::Value> {
             })
         })
         .collect();
-    
+
     Json(serde_json::json!({
         "databoxes": databoxes,
         "totalCount": 284
@@ -920,7 +941,7 @@ async fn databox_map() -> Json<serde_json::Value> {
         serde_json::json!({"city": "Sydney", "lat": -33.8688, "lng": 151.2093, "count": 11}),
         serde_json::json!({"city": "Dubai", "lat": 25.2048, "lng": 55.2708, "count": 9}),
     ];
-    
+
     Json(serde_json::json!({
         "markers": markers,
         "totalDataboxes": 284
@@ -934,7 +955,7 @@ struct SearchQuery {
 
 async fn search(Query(query): Query<SearchQuery>) -> Json<serde_json::Value> {
     let q = query.q.to_lowercase();
-    
+
     let result_type = if q.starts_with("0x") && q.len() == 66 {
         "transaction"
     } else if q.starts_with("0x") && q.len() == 42 {
@@ -944,7 +965,7 @@ async fn search(Query(query): Query<SearchQuery>) -> Json<serde_json::Value> {
     } else {
         "unknown"
     };
-    
+
     Json(serde_json::json!({
         "query": query.q,
         "type": result_type,
@@ -985,7 +1006,7 @@ async fn gas_oracle() -> Json<serde_json::Value> {
 async fn list_federations(Query(params): Query<PaginationParams>) -> Json<serde_json::Value> {
     let page = params.page.unwrap_or(1);
     let limit = params.limit.unwrap_or(20);
-    
+
     let federations: Vec<serde_json::Value> = vec![
         serde_json::json!({
             "id": "fed-001",
@@ -1060,7 +1081,7 @@ async fn list_federations(Query(params): Query<PaginationParams>) -> Json<serde_
             "votesAgainst": 892
         }),
     ];
-    
+
     Json(serde_json::json!({
         "federations": federations,
         "pagination": {
@@ -1092,29 +1113,39 @@ async fn create_federation(
     // 1. Verify DC FAT stake
     // 2. Create federation in database
     // 3. Start voting period
-    
-    let federation_id = format!("fed-{}", uuid::Uuid::new_v4().to_string().split('-').next().unwrap_or("000"));
-    
-    (StatusCode::CREATED, Json(serde_json::json!({
-        "success": true,
-        "message": "Federation created and submitted for community vote",
-        "federation": {
-            "id": federation_id,
-            "name": payload.name,
-            "description": payload.description,
-            "type": payload.federation_type,
-            "structure": payload.structure,
-            "scope": payload.scope,
-            "industry": payload.industry,
-            "protocols": payload.protocols,
-            "kycEnabled": payload.kyc_enabled,
-            "status": "pending_vote",
-            "dataWalletsTotal": 10000000,
-            "dataWalletsGenerated": 0,
-            "votingEndsAt": chrono::Utc::now().timestamp() + 7 * 24 * 60 * 60,
-            "createdAt": chrono::Utc::now().timestamp()
-        }
-    })))
+
+    let federation_id = format!(
+        "fed-{}",
+        uuid::Uuid::new_v4()
+            .to_string()
+            .split('-')
+            .next()
+            .unwrap_or("000")
+    );
+
+    (
+        StatusCode::CREATED,
+        Json(serde_json::json!({
+            "success": true,
+            "message": "Federation created and submitted for community vote",
+            "federation": {
+                "id": federation_id,
+                "name": payload.name,
+                "description": payload.description,
+                "type": payload.federation_type,
+                "structure": payload.structure,
+                "scope": payload.scope,
+                "industry": payload.industry,
+                "protocols": payload.protocols,
+                "kycEnabled": payload.kyc_enabled,
+                "status": "pending_vote",
+                "dataWalletsTotal": 10000000,
+                "dataWalletsGenerated": 0,
+                "votingEndsAt": chrono::Utc::now().timestamp() + 7 * 24 * 60 * 60,
+                "createdAt": chrono::Utc::now().timestamp()
+            }
+        })),
+    )
 }
 
 /// Get federation by ID
@@ -1183,7 +1214,7 @@ async fn federation_communities(Path(id): Path<String>) -> Json<serde_json::Valu
             })
         })
         .collect();
-    
+
     Json(serde_json::json!({
         "federationId": id,
         "communities": communities
@@ -1218,7 +1249,7 @@ async fn vote_federation(
 async fn list_communities(Query(params): Query<PaginationParams>) -> Json<serde_json::Value> {
     let page = params.page.unwrap_or(1);
     let limit = params.limit.unwrap_or(20);
-    
+
     let communities: Vec<serde_json::Value> = vec![
         serde_json::json!({
             "id": "comm-001",
@@ -1259,7 +1290,7 @@ async fn list_communities(Query(params): Query<PaginationParams>) -> Json<serde_
             "createdAt": chrono::Utc::now().timestamp() - 86400 * 7
         }),
     ];
-    
+
     Json(serde_json::json!({
         "communities": communities,
         "pagination": {
@@ -1284,25 +1315,35 @@ struct CreateCommunityRequest {
 async fn create_community(
     Json(payload): Json<CreateCommunityRequest>,
 ) -> (StatusCode, Json<serde_json::Value>) {
-    let community_id = format!("comm-{}", uuid::Uuid::new_v4().to_string().split('-').next().unwrap_or("000"));
-    
-    (StatusCode::CREATED, Json(serde_json::json!({
-        "success": true,
-        "message": "Community created and submitted for community vote",
-        "community": {
-            "id": community_id,
-            "federationId": payload.federation_id,
-            "name": payload.name,
-            "description": payload.description,
-            "type": payload.community_type,
-            "scale": payload.scale,
-            "protocols": payload.protocols,
-            "status": "pending_vote",
-            "dataWalletsTotal": 10000000,
-            "votingEndsAt": chrono::Utc::now().timestamp() + 7 * 24 * 60 * 60,
-            "createdAt": chrono::Utc::now().timestamp()
-        }
-    })))
+    let community_id = format!(
+        "comm-{}",
+        uuid::Uuid::new_v4()
+            .to_string()
+            .split('-')
+            .next()
+            .unwrap_or("000")
+    );
+
+    (
+        StatusCode::CREATED,
+        Json(serde_json::json!({
+            "success": true,
+            "message": "Community created and submitted for community vote",
+            "community": {
+                "id": community_id,
+                "federationId": payload.federation_id,
+                "name": payload.name,
+                "description": payload.description,
+                "type": payload.community_type,
+                "scale": payload.scale,
+                "protocols": payload.protocols,
+                "status": "pending_vote",
+                "dataWalletsTotal": 10000000,
+                "votingEndsAt": chrono::Utc::now().timestamp() + 7 * 24 * 60 * 60,
+                "createdAt": chrono::Utc::now().timestamp()
+            }
+        })),
+    )
 }
 
 /// Get community by ID
@@ -1356,7 +1397,7 @@ async fn community_wallets(Path(id): Path<String>) -> Json<serde_json::Value> {
             })
         })
         .collect();
-    
+
     Json(serde_json::json!({
         "communityId": id,
         "wallets": wallets,
@@ -1390,7 +1431,7 @@ async fn generate_wallets(
             })
         })
         .collect();
-    
+
     Json(serde_json::json!({
         "success": true,
         "message": format!("Generated {} wallets for community {}", wallets.len(), id),
@@ -1424,7 +1465,7 @@ async fn vote_community(
 async fn list_projects(Query(params): Query<PaginationParams>) -> Json<serde_json::Value> {
     let page = params.page.unwrap_or(1);
     let limit = params.limit.unwrap_or(20);
-    
+
     let projects: Vec<serde_json::Value> = vec![
         serde_json::json!({
             "id": "proj-001",
@@ -1484,7 +1525,7 @@ async fn list_projects(Query(params): Query<PaginationParams>) -> Json<serde_jso
             "createdAt": chrono::Utc::now().timestamp() - 86400 * 120
         }),
     ];
-    
+
     Json(serde_json::json!({
         "projects": projects,
         "pagination": {
@@ -1528,39 +1569,49 @@ struct SubmitProjectRequest {
 async fn submit_project(
     Json(payload): Json<SubmitProjectRequest>,
 ) -> (StatusCode, Json<serde_json::Value>) {
-    let project_id = format!("proj-{}", uuid::Uuid::new_v4().to_string().split('-').next().unwrap_or("000"));
-    
-    (StatusCode::CREATED, Json(serde_json::json!({
-        "success": true,
-        "message": "Project submitted successfully and pending review",
-        "project": {
-            "id": project_id,
-            "name": payload.name,
-            "tagline": payload.tagline,
-            "description": payload.description,
-            "category": payload.category,
-            "stage": payload.stage,
-            "organizationType": payload.organization_type,
-            "organizationName": payload.organization_name,
-            "submitterName": payload.submitter_name,
-            "submitterEmail": payload.submitter_email,
-            "techStack": payload.tech_stack,
-            "features": payload.features,
-            "requiresAiTestimony": payload.requires_ai_testimony,
-            "teamMembers": payload.team_members,
-            "milestones": payload.milestones,
-            "fundingRequested": payload.funding_requested,
-            "fundingCurrency": payload.funding_currency,
-            "status": "pending_review",
-            "createdAt": chrono::Utc::now().timestamp()
-        },
-        "nextSteps": [
-            "Your project will be reviewed by the Datachain Foundation",
-            "Once approved, it will enter a 7-day community voting period",
-            "DC FAT holders will vote to approve or reject your project",
-            "If approved with 51%+ votes, your project can start building on Datachain Rope"
-        ]
-    })))
+    let project_id = format!(
+        "proj-{}",
+        uuid::Uuid::new_v4()
+            .to_string()
+            .split('-')
+            .next()
+            .unwrap_or("000")
+    );
+
+    (
+        StatusCode::CREATED,
+        Json(serde_json::json!({
+            "success": true,
+            "message": "Project submitted successfully and pending review",
+            "project": {
+                "id": project_id,
+                "name": payload.name,
+                "tagline": payload.tagline,
+                "description": payload.description,
+                "category": payload.category,
+                "stage": payload.stage,
+                "organizationType": payload.organization_type,
+                "organizationName": payload.organization_name,
+                "submitterName": payload.submitter_name,
+                "submitterEmail": payload.submitter_email,
+                "techStack": payload.tech_stack,
+                "features": payload.features,
+                "requiresAiTestimony": payload.requires_ai_testimony,
+                "teamMembers": payload.team_members,
+                "milestones": payload.milestones,
+                "fundingRequested": payload.funding_requested,
+                "fundingCurrency": payload.funding_currency,
+                "status": "pending_review",
+                "createdAt": chrono::Utc::now().timestamp()
+            },
+            "nextSteps": [
+                "Your project will be reviewed by the Datachain Foundation",
+                "Once approved, it will enter a 7-day community voting period",
+                "DC FAT holders will vote to approve or reject your project",
+                "If approved with 51%+ votes, your project can start building on Datachain Rope"
+            ]
+        })),
+    )
 }
 
 /// Get project by ID
@@ -1661,23 +1712,21 @@ async fn project_categories() -> Json<serde_json::Value> {
 
 /// Get projects currently in voting
 async fn voting_projects() -> Json<serde_json::Value> {
-    let projects: Vec<serde_json::Value> = vec![
-        serde_json::json!({
-            "id": "proj-002",
-            "name": "DataMarket",
-            "tagline": "P2P marketplace for AI training datasets",
-            "category": "marketplace",
-            "stage": "prototype",
-            "status": "voting",
-            "votesFor": 1247,
-            "votesAgainst": 892,
-            "requiredVotes": 100,
-            "approvalThreshold": 0.51,
-            "votingEndsAt": chrono::Utc::now().timestamp() + 3 * 24 * 60 * 60,
-            "timeRemaining": "3 days"
-        }),
-    ];
-    
+    let projects: Vec<serde_json::Value> = vec![serde_json::json!({
+        "id": "proj-002",
+        "name": "DataMarket",
+        "tagline": "P2P marketplace for AI training datasets",
+        "category": "marketplace",
+        "stage": "prototype",
+        "status": "voting",
+        "votesFor": 1247,
+        "votesAgainst": 892,
+        "requiredVotes": 100,
+        "approvalThreshold": 0.51,
+        "votingEndsAt": chrono::Utc::now().timestamp() + 3 * 24 * 60 * 60,
+        "timeRemaining": "3 days"
+    })];
+
     Json(serde_json::json!({
         "votingProjects": projects,
         "total": 1
@@ -1688,7 +1737,7 @@ async fn voting_projects() -> Json<serde_json::Value> {
 async fn list_votes(Query(params): Query<PaginationParams>) -> Json<serde_json::Value> {
     let page = params.page.unwrap_or(1);
     let limit = params.limit.unwrap_or(20);
-    
+
     let votes: Vec<serde_json::Value> = (0..10)
         .map(|i| {
             serde_json::json!({
@@ -1702,7 +1751,7 @@ async fn list_votes(Query(params): Query<PaginationParams>) -> Json<serde_json::
             })
         })
         .collect();
-    
+
     Json(serde_json::json!({
         "votes": votes,
         "pagination": {
@@ -1729,7 +1778,7 @@ async fn get_votes_for_target(
             })
         })
         .collect();
-    
+
     Json(serde_json::json!({
         "targetType": target_type,
         "targetId": target_id,
@@ -1744,4 +1793,3 @@ async fn get_votes_for_target(
         }
     }))
 }
-

@@ -1,5 +1,5 @@
 //! # Protocol Adapters
-//! 
+//!
 //! Adapters for connecting to various external protocols:
 //! - Blockchain networks
 //! - Banking systems
@@ -15,22 +15,25 @@ use std::collections::HashMap;
 pub trait ProtocolAdapter: Send + Sync {
     /// Protocol name
     fn name(&self) -> &str;
-    
+
     /// Protocol type
     fn protocol_type(&self) -> ProtocolType;
-    
+
     /// Connect to protocol
     async fn connect(&mut self) -> Result<(), AdapterError>;
-    
+
     /// Disconnect
     async fn disconnect(&mut self) -> Result<(), AdapterError>;
-    
+
     /// Check connection status
     fn is_connected(&self) -> bool;
-    
+
     /// Submit transaction
-    async fn submit_transaction(&self, tx: &ProtocolTransaction) -> Result<TransactionReceipt, AdapterError>;
-    
+    async fn submit_transaction(
+        &self,
+        tx: &ProtocolTransaction,
+    ) -> Result<TransactionReceipt, AdapterError>;
+
     /// Query state
     async fn query(&self, query: &ProtocolQuery) -> Result<QueryResult, AdapterError>;
 }
@@ -90,10 +93,20 @@ pub struct ProtocolTransaction {
 /// Transaction operations
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum TransactionOperation {
-    Transfer { asset: String, amount: String },
-    ContractCall { method: String, args: Vec<TransactionValue> },
-    Query { query_type: String },
-    Sign { message: Vec<u8> },
+    Transfer {
+        asset: String,
+        amount: String,
+    },
+    ContractCall {
+        method: String,
+        args: Vec<TransactionValue>,
+    },
+    Query {
+        query_type: String,
+    },
+    Sign {
+        message: Vec<u8>,
+    },
     Custom(String),
 }
 
@@ -213,31 +226,36 @@ impl ProtocolAdapter for EthereumAdapter {
     fn name(&self) -> &str {
         "Ethereum"
     }
-    
+
     fn protocol_type(&self) -> ProtocolType {
-        ProtocolType::Blockchain(BlockchainType::Ethereum { chain_id: self.chain_id })
+        ProtocolType::Blockchain(BlockchainType::Ethereum {
+            chain_id: self.chain_id,
+        })
     }
-    
+
     async fn connect(&mut self) -> Result<(), AdapterError> {
         // In production: Connect to RPC endpoint
         self.connected = true;
         Ok(())
     }
-    
+
     async fn disconnect(&mut self) -> Result<(), AdapterError> {
         self.connected = false;
         Ok(())
     }
-    
+
     fn is_connected(&self) -> bool {
         self.connected
     }
-    
-    async fn submit_transaction(&self, tx: &ProtocolTransaction) -> Result<TransactionReceipt, AdapterError> {
+
+    async fn submit_transaction(
+        &self,
+        tx: &ProtocolTransaction,
+    ) -> Result<TransactionReceipt, AdapterError> {
         if !self.connected {
             return Err(AdapterError::NotConnected);
         }
-        
+
         // In production: Use ethers-rs to submit transaction
         Ok(TransactionReceipt {
             tx_hash: tx.id,
@@ -248,12 +266,12 @@ impl ProtocolAdapter for EthereumAdapter {
             timestamp: chrono::Utc::now().timestamp(),
         })
     }
-    
+
     async fn query(&self, _query: &ProtocolQuery) -> Result<QueryResult, AdapterError> {
         if !self.connected {
             return Err(AdapterError::NotConnected);
         }
-        
+
         Ok(QueryResult {
             success: true,
             data: TransactionValue::String("0".to_string()),
@@ -291,31 +309,34 @@ impl ProtocolAdapter for SwiftAdapter {
     fn name(&self) -> &str {
         "SWIFT"
     }
-    
+
     fn protocol_type(&self) -> ProtocolType {
         ProtocolType::Banking(BankingType::Swift)
     }
-    
+
     async fn connect(&mut self) -> Result<(), AdapterError> {
         // In production: Connect to SWIFT network
         self.connected = true;
         Ok(())
     }
-    
+
     async fn disconnect(&mut self) -> Result<(), AdapterError> {
         self.connected = false;
         Ok(())
     }
-    
+
     fn is_connected(&self) -> bool {
         self.connected
     }
-    
-    async fn submit_transaction(&self, tx: &ProtocolTransaction) -> Result<TransactionReceipt, AdapterError> {
+
+    async fn submit_transaction(
+        &self,
+        tx: &ProtocolTransaction,
+    ) -> Result<TransactionReceipt, AdapterError> {
         if !self.connected {
             return Err(AdapterError::NotConnected);
         }
-        
+
         // In production: Send MT103 message
         Ok(TransactionReceipt {
             tx_hash: tx.id,
@@ -326,12 +347,12 @@ impl ProtocolAdapter for SwiftAdapter {
             timestamp: chrono::Utc::now().timestamp(),
         })
     }
-    
+
     async fn query(&self, _query: &ProtocolQuery) -> Result<QueryResult, AdapterError> {
         if !self.connected {
             return Err(AdapterError::NotConnected);
         }
-        
+
         Ok(QueryResult {
             success: true,
             data: TransactionValue::String("OK".to_string()),
@@ -362,30 +383,33 @@ impl ProtocolAdapter for AssetManagementAdapter {
     fn name(&self) -> &str {
         "Asset Management"
     }
-    
+
     fn protocol_type(&self) -> ProtocolType {
         ProtocolType::AssetManagement
     }
-    
+
     async fn connect(&mut self) -> Result<(), AdapterError> {
         self.connected = true;
         Ok(())
     }
-    
+
     async fn disconnect(&mut self) -> Result<(), AdapterError> {
         self.connected = false;
         Ok(())
     }
-    
+
     fn is_connected(&self) -> bool {
         self.connected
     }
-    
-    async fn submit_transaction(&self, tx: &ProtocolTransaction) -> Result<TransactionReceipt, AdapterError> {
+
+    async fn submit_transaction(
+        &self,
+        tx: &ProtocolTransaction,
+    ) -> Result<TransactionReceipt, AdapterError> {
         if !self.connected {
             return Err(AdapterError::NotConnected);
         }
-        
+
         Ok(TransactionReceipt {
             tx_hash: tx.id,
             status: TransactionStatus::Confirmed,
@@ -395,12 +419,12 @@ impl ProtocolAdapter for AssetManagementAdapter {
             timestamp: chrono::Utc::now().timestamp(),
         })
     }
-    
+
     async fn query(&self, _query: &ProtocolQuery) -> Result<QueryResult, AdapterError> {
         if !self.connected {
             return Err(AdapterError::NotConnected);
         }
-        
+
         Ok(QueryResult {
             success: true,
             data: TransactionValue::Map(HashMap::new()),
@@ -412,21 +436,17 @@ impl ProtocolAdapter for AssetManagementAdapter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_ethereum_adapter() {
-        let mut adapter = EthereumAdapter::new(
-            "https://eth.example.com".to_string(),
-            1,
-        );
-        
+        let mut adapter = EthereumAdapter::new("https://eth.example.com".to_string(), 1);
+
         assert!(!adapter.is_connected());
-        
+
         adapter.connect().await.unwrap();
         assert!(adapter.is_connected());
-        
+
         adapter.disconnect().await.unwrap();
         assert!(!adapter.is_connected());
     }
 }
-

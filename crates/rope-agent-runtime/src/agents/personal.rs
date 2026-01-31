@@ -48,10 +48,7 @@ pub struct PersonalAgent {
 
 impl PersonalAgent {
     /// Create new personal agent
-    pub fn new(
-        datawallet: DatawalletIdentity,
-        capabilities: Vec<PersonalCapability>,
-    ) -> Self {
+    pub fn new(datawallet: DatawalletIdentity, capabilities: Vec<PersonalCapability>) -> Self {
         let identity = RopeAgentIdentity::new(datawallet);
 
         Self {
@@ -117,7 +114,10 @@ impl PersonalAgent {
     }
 
     /// Process incoming message
-    pub async fn process_message(&self, message: UserMessage) -> Result<AgentResponse, RuntimeError> {
+    pub async fn process_message(
+        &self,
+        message: UserMessage,
+    ) -> Result<AgentResponse, RuntimeError> {
         // Update status
         self.set_status(AgentStatus::Processing);
 
@@ -137,7 +137,9 @@ impl PersonalAgent {
                 // Non-text messages
                 return Ok(self.create_response(
                     &message.channel,
-                    ResponseContent::Text("I can currently only process text messages.".to_string()),
+                    ResponseContent::Text(
+                        "I can currently only process text messages.".to_string(),
+                    ),
                 ));
             }
         };
@@ -196,14 +198,22 @@ impl PersonalAgent {
 
         // Return acknowledgment
         let response_text = match &intent.intent_type {
-            crate::intent::IntentType::Transfer { asset, amount, recipient } => {
+            crate::intent::IntentType::Transfer {
+                asset,
+                amount,
+                recipient,
+            } => {
                 format!(
                     "Processing transfer of {} {} to {}...\n\n\
                      Awaiting AI Testimony consensus for verification.",
                     amount, asset, recipient
                 )
             }
-            crate::intent::IntentType::Swap { from_asset, to_asset, amount } => {
+            crate::intent::IntentType::Swap {
+                from_asset,
+                to_asset,
+                amount,
+            } => {
                 format!(
                     "Processing swap of {} {} to {}...\n\n\
                      Awaiting AI Testimony consensus for verification.",
@@ -213,10 +223,7 @@ impl PersonalAgent {
             _ => "Processing action... Awaiting AI Testimony consensus.".to_string(),
         };
 
-        Ok(self.create_response(
-            &message.channel,
-            ResponseContent::Text(response_text),
-        ))
+        Ok(self.create_response(&message.channel, ResponseContent::Text(response_text)))
     }
 
     /// Process action locally (no testimony needed)
@@ -226,12 +233,8 @@ impl PersonalAgent {
         intent: Intent,
     ) -> Result<AgentResponse, RuntimeError> {
         let response_text = match &intent.intent_type {
-            crate::intent::IntentType::Help => {
-                self.generate_help_text()
-            }
-            crate::intent::IntentType::Status { resource } => {
-                self.generate_status_text(resource)
-            }
+            crate::intent::IntentType::Help => self.generate_help_text(),
+            crate::intent::IntentType::Status { resource } => self.generate_status_text(resource),
             crate::intent::IntentType::Query { topic } => {
                 format!("You asked about: {}\n\nI'm processing your query...", topic)
             }
@@ -244,10 +247,7 @@ impl PersonalAgent {
             _ => "I'm not sure how to help with that. Try asking for /help".to_string(),
         };
 
-        Ok(self.create_response(
-            &message.channel,
-            ResponseContent::Text(response_text),
-        ))
+        Ok(self.create_response(&message.channel, ResponseContent::Text(response_text)))
     }
 
     /// Generate help text
@@ -362,9 +362,9 @@ impl PersonalAgent {
     /// Clear completed pending actions
     pub fn cleanup_pending_actions(&self, max_age_secs: i64) {
         let now = chrono::Utc::now().timestamp();
-        self.pending_actions.write().retain(|_, action| {
-            now - action.created_at < max_age_secs
-        });
+        self.pending_actions
+            .write()
+            .retain(|_, action| now - action.created_at < max_age_secs);
     }
 }
 
@@ -476,11 +476,7 @@ mod tests {
     use super::*;
 
     fn test_agent() -> PersonalAgent {
-        let identity = DatawalletIdentity::new(
-            [1u8; 32],
-            vec![0u8; 64],
-            "Test Agent".to_string(),
-        );
+        let identity = DatawalletIdentity::new([1u8; 32], vec![0u8; 64], "Test Agent".to_string());
 
         PersonalAgent::new(
             identity,

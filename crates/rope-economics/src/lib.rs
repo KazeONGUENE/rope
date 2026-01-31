@@ -34,66 +34,66 @@
 //! | ... | ... | (halving continues) | ... |
 
 pub mod emission;
-pub mod rewards;
-pub mod staking;
 pub mod federation;
-pub mod performance;
 pub mod green_energy;
+pub mod performance;
+pub mod rewards;
 pub mod slashing;
+pub mod staking;
 
 // Re-exports
-pub use emission::{EmissionSchedule, EmissionEra, AnchorReward};
-pub use rewards::{RewardCalculator, ValidatorReward, NodeReward};
-pub use staking::{StakeManager, ValidatorStake, StakeRequirements};
-pub use federation::{FederationRewards, ActivityTier, CommunityRewards};
-pub use performance::{PerformanceScore, PerformanceMetrics, PerformanceMultiplier};
-pub use green_energy::{GreenEnergyVerification, EnergySource, GreenEnergyMultiplier};
+pub use emission::{AnchorReward, EmissionEra, EmissionSchedule};
+pub use federation::{ActivityTier, CommunityRewards, FederationRewards};
+pub use green_energy::{EnergySource, GreenEnergyMultiplier, GreenEnergyVerification};
+pub use performance::{PerformanceMetrics, PerformanceMultiplier, PerformanceScore};
+pub use rewards::{NodeReward, RewardCalculator, ValidatorReward};
 pub use slashing::{SlashingEngine, SlashingOffense, SlashingPenalty};
+pub use staking::{StakeManager, StakeRequirements, ValidatorStake};
 
 /// DC FAT token constants
 pub mod constants {
     /// Token symbol
     pub const SYMBOL: &str = "FAT";
-    
+
     /// Token name
     pub const NAME: &str = "DATACHAIN Future Access Token";
-    
+
     /// Decimal places (same as ETH)
     pub const DECIMALS: u8 = 18;
-    
+
     /// One FAT in smallest unit (like wei for ETH)
     pub const ONE_FAT: u128 = 1_000_000_000_000_000_000; // 10^18
-    
+
     /// Genesis supply: 10 billion FAT
     pub const GENESIS_SUPPLY: u128 = 10_000_000_000 * ONE_FAT;
-    
+
     /// Era 1 annual emission: 500 million FAT
     pub const ANNUAL_EMISSION_ERA1: u128 = 500_000_000 * ONE_FAT;
-    
+
     /// Halving interval: 4 years in seconds
     pub const HALVING_INTERVAL_SECS: u64 = 4 * 365 * 24 * 3600; // ~126,144,000 seconds
-    
+
     /// Anchor interval: ~4.2 seconds
     pub const ANCHOR_INTERVAL_SECS: f64 = 4.2;
-    
+
     /// Anchors per year: ~7,500,000
     pub const ANCHORS_PER_YEAR: u64 = 7_500_000;
-    
+
     /// Minimum validator stake: 1,000,000 FAT
     pub const MIN_VALIDATOR_STAKE: u128 = 1_000_000 * ONE_FAT;
-    
+
     /// Minimum emission floor: 1 million FAT/year
     pub const MINIMUM_ANNUAL_EMISSION: u128 = 1_000_000 * ONE_FAT;
-    
+
     /// Target equilibrium validators
     pub const TARGET_VALIDATORS: u64 = 5_000;
-    
+
     /// Target APY at equilibrium: 5%
     pub const TARGET_APY_PERCENT: f64 = 5.0;
-    
+
     /// Maximum performance multiplier
     pub const MAX_PERFORMANCE_MULTIPLIER: f64 = 2.0;
-    
+
     /// Minimum performance multiplier (poor performers)
     pub const MIN_PERFORMANCE_MULTIPLIER: f64 = 0.3;
 }
@@ -103,12 +103,12 @@ pub use constants::*;
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_genesis_supply() {
         assert_eq!(GENESIS_SUPPLY, 10_000_000_000 * ONE_FAT);
     }
-    
+
     #[test]
     fn test_emission_era1() {
         assert_eq!(ANNUAL_EMISSION_ERA1, 500_000_000 * ONE_FAT);

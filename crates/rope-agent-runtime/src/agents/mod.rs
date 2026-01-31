@@ -121,7 +121,7 @@ impl UsageTracker {
     /// Check and reset if needed
     pub fn check_reset(&mut self, reset_hour: u8) {
         use chrono::Timelike;
-        
+
         let now = chrono::Utc::now();
         let last_reset = chrono::DateTime::from_timestamp(self.last_reset, 0)
             .unwrap_or(chrono::DateTime::UNIX_EPOCH);

@@ -54,10 +54,7 @@ impl Default for RuntimeConfig {
                 "https://erpc.rope.network".to_string(),
             ],
             websocket_url: "wss://ws.datachain.network".to_string(),
-            enabled_capabilities: vec![
-                PersonalCapability::Messaging,
-                PersonalCapability::Calendar,
-            ],
+            enabled_capabilities: vec![PersonalCapability::Messaging, PersonalCapability::Calendar],
             sandbox_config: SandboxConfig::default(),
             cache_dir,
             memory_path: data_dir.join("memory.enc"),

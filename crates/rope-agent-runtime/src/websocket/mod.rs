@@ -34,10 +34,16 @@ pub enum LatticeEvent {
     },
 
     /// OES epoch changed
-    OesEpochChanged { epoch: u64, state_hash: String },
+    OesEpochChanged {
+        epoch: u64,
+        state_hash: String,
+    },
 
     /// Skill updated
-    SkillUpdated { skill_id: String, version: String },
+    SkillUpdated {
+        skill_id: String,
+        version: String,
+    },
 
     /// Security alert
     SecurityAlert {
@@ -47,7 +53,9 @@ pub enum LatticeEvent {
     },
 
     /// Connection status
-    ConnectionStatus { connected: bool },
+    ConnectionStatus {
+        connected: bool,
+    },
 
     /// Heartbeat
     Ping,
@@ -117,7 +125,9 @@ impl LatticeWebSocketClient {
             .store(true, std::sync::atomic::Ordering::SeqCst);
 
         // Broadcast connection event
-        let _ = self.event_tx.send(LatticeEvent::ConnectionStatus { connected: true });
+        let _ = self
+            .event_tx
+            .send(LatticeEvent::ConnectionStatus { connected: true });
 
         // Create command channel
         let (cmd_tx, mut cmd_rx) = mpsc::channel::<WebSocketCommand>(100);

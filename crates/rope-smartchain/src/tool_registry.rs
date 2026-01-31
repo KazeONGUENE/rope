@@ -1,17 +1,17 @@
 //! # Vetted Tool Registry
-//! 
+//!
 //! The Smartchain can invoke external tools to execute transactions.
 //! All tools must be registered, audited, and continuously monitored.
-//! 
+//!
 //! ## Tool Categories
-//! 
+//!
 //! - **Blockchain Tools**: Ethereum, Polkadot, XDC, Bitcoin, etc.
 //! - **Banking Tools**: SWIFT, SEPA, ACH, FedWire
 //! - **Finance Tools**: Trading platforms, asset management
 //! - **Custom Tools**: Any vetted external service
-//! 
+//!
 //! ## Vetting Process
-//! 
+//!
 //! 1. Tool submitted by developer with audit report
 //! 2. Federation governance votes on acceptance
 //! 3. Security review by multiple AI agents
@@ -19,29 +19,29 @@
 //! 5. Continuous monitoring and scoring
 
 use async_trait::async_trait;
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use parking_lot::RwLock;
 
 /// Vetted tool interface
 #[async_trait]
 pub trait VettedTool: Send + Sync {
     /// Tool identifier
     fn tool_id(&self) -> &ToolId;
-    
+
     /// Tool metadata
     fn metadata(&self) -> &ToolMetadata;
-    
+
     /// Check if tool can handle an action
     fn can_handle(&self, action: &ToolAction) -> bool;
-    
+
     /// Execute an action
     async fn execute(&self, action: &ToolAction, context: &ExecutionContext) -> ExecutionResult;
-    
+
     /// Health check
     async fn health_check(&self) -> ToolHealth;
-    
+
     /// Get current rate limits
     fn rate_limits(&self) -> &RateLimits;
 }
@@ -74,25 +74,25 @@ impl ToolId {
 pub struct ToolMetadata {
     /// Tool category
     pub category: ToolCategory,
-    
+
     /// Description
     pub description: String,
-    
+
     /// Developer/maintainer
     pub developer: String,
-    
+
     /// Supported protocols
     pub protocols: Vec<SupportedProtocol>,
-    
+
     /// Required permissions
     pub permissions: Vec<ToolPermission>,
-    
+
     /// Audit information
     pub audit: AuditInfo,
-    
+
     /// Trust score (0-100)
     pub trust_score: u8,
-    
+
     /// Is tool currently active?
     pub is_active: bool,
 }
@@ -198,25 +198,25 @@ pub struct AuditInfo {
 pub struct ToolAction {
     /// Action ID
     pub id: [u8; 32],
-    
+
     /// Action type
     pub action_type: ToolActionType,
-    
+
     /// Source entity
     pub from: [u8; 32],
-    
+
     /// Target entity/address
     pub to: String,
-    
+
     /// Parameters
     pub parameters: HashMap<String, ActionValue>,
-    
+
     /// Contract reference (if from smart contract)
     pub contract_ref: Option<[u8; 32]>,
-    
+
     /// Priority
     pub priority: ActionPriority,
-    
+
     /// Timeout in seconds
     pub timeout_secs: u64,
 }
@@ -286,22 +286,22 @@ pub struct ExecutionContext {
 pub struct ExecutionResult {
     /// Was execution successful?
     pub success: bool,
-    
+
     /// Transaction hash (if applicable)
     pub tx_hash: Option<[u8; 32]>,
-    
+
     /// Result data
     pub data: Option<Vec<u8>>,
-    
+
     /// Error message (if failed)
     pub error: Option<String>,
-    
+
     /// Gas/fee used
     pub fee_used: Option<u64>,
-    
+
     /// Execution time in ms
     pub execution_time_ms: u64,
-    
+
     /// Proof of execution
     pub proof: Option<ExecutionProof>,
 }
@@ -368,39 +368,39 @@ impl ToolRegistry {
             health_cache: RwLock::new(HashMap::new()),
         }
     }
-    
+
     /// Register a new vetted tool
     pub fn register_tool(&self, tool: Arc<dyn VettedTool>) -> Result<(), RegistryError> {
         let id = tool.tool_id().id;
         let metadata = tool.metadata().clone();
-        
+
         // Verify minimum trust score
         if metadata.trust_score < 50 {
             return Err(RegistryError::InsufficientTrustScore(metadata.trust_score));
         }
-        
+
         // Check audit is current
         let now = chrono::Utc::now().timestamp();
         if now > metadata.audit.next_audit_due {
             return Err(RegistryError::AuditExpired);
         }
-        
+
         self.tools.write().insert(id, tool);
         self.metadata.write().insert(id, metadata);
-        
+
         Ok(())
     }
-    
+
     /// Get a tool by ID
     pub fn get_tool(&self, id: &[u8; 32]) -> Option<Arc<dyn VettedTool>> {
         self.tools.read().get(id).cloned()
     }
-    
+
     /// Find tools by category
     pub fn find_by_category(&self, category: &ToolCategory) -> Vec<Arc<dyn VettedTool>> {
         let tools = self.tools.read();
         let metadata = self.metadata.read();
-        
+
         let mut result = Vec::new();
         for (id, tool) in tools.iter() {
             if let Some(meta) = metadata.get(id) {
@@ -411,32 +411,35 @@ impl ToolRegistry {
         }
         result
     }
-    
+
     /// Find best tool for an action
     pub fn find_best_tool_for_action(&self, action: &ToolAction) -> Option<Arc<dyn VettedTool>> {
         let tools = self.tools.read();
         let metadata = self.metadata.read();
         let health = self.health_cache.read();
-        
+
         let mut best_tool: Option<Arc<dyn VettedTool>> = None;
         let mut best_score = 0u8;
-        
+
         for (id, tool) in tools.iter() {
             if tool.can_handle(action) {
                 let trust = metadata.get(id).map(|m| m.trust_score).unwrap_or(0);
-                let healthy = health.get(id).map(|h| if h.is_healthy { 50u8 } else { 0u8 }).unwrap_or(25);
+                let healthy = health
+                    .get(id)
+                    .map(|h| if h.is_healthy { 50u8 } else { 0u8 })
+                    .unwrap_or(25);
                 let score = trust + healthy;
-                
+
                 if score > best_score {
                     best_score = score;
                     best_tool = Some(tool.clone());
                 }
             }
         }
-        
+
         best_tool
     }
-    
+
     /// Update health cache for a tool
     pub async fn update_health(&self, id: &[u8; 32]) -> Option<ToolHealth> {
         let tool = self.get_tool(id)?;
@@ -444,16 +447,17 @@ impl ToolRegistry {
         self.health_cache.write().insert(*id, health.clone());
         Some(health)
     }
-    
+
     /// Get all active tools
     pub fn list_active_tools(&self) -> Vec<ToolMetadata> {
-        self.metadata.read()
+        self.metadata
+            .read()
             .values()
             .filter(|m| m.is_active)
             .cloned()
             .collect()
     }
-    
+
     /// Deactivate a tool
     pub fn deactivate_tool(&self, id: &[u8; 32]) -> bool {
         if let Some(meta) = self.metadata.write().get_mut(id) {
@@ -541,23 +545,24 @@ impl VettedTool for EthereumTool {
     fn tool_id(&self) -> &ToolId {
         &self.id
     }
-    
+
     fn metadata(&self) -> &ToolMetadata {
         &self.metadata
     }
-    
+
     fn can_handle(&self, action: &ToolAction) -> bool {
-        matches!(action.action_type, 
-            ToolActionType::Transfer { .. } | 
-            ToolActionType::ContractCall { .. } |
-            ToolActionType::Query { .. }
+        matches!(
+            action.action_type,
+            ToolActionType::Transfer { .. }
+                | ToolActionType::ContractCall { .. }
+                | ToolActionType::Query { .. }
         )
     }
-    
+
     async fn execute(&self, action: &ToolAction, _context: &ExecutionContext) -> ExecutionResult {
         // In production: Use ethers-rs to submit transaction
         let start = std::time::Instant::now();
-        
+
         ExecutionResult {
             success: true,
             tx_hash: Some(*blake3::hash(&action.id).as_bytes()),
@@ -572,7 +577,7 @@ impl VettedTool for EthereumTool {
             }),
         }
     }
-    
+
     async fn health_check(&self) -> ToolHealth {
         ToolHealth {
             is_healthy: true,
@@ -582,7 +587,7 @@ impl VettedTool for EthereumTool {
             last_error: None,
         }
     }
-    
+
     fn rate_limits(&self) -> &RateLimits {
         &self.rate_limits
     }
@@ -628,18 +633,18 @@ impl VettedTool for SwiftTool {
     fn tool_id(&self) -> &ToolId {
         &self.id
     }
-    
+
     fn metadata(&self) -> &ToolMetadata {
         &self.metadata
     }
-    
+
     fn can_handle(&self, action: &ToolAction) -> bool {
         matches!(action.action_type, ToolActionType::Transfer { .. })
     }
-    
+
     async fn execute(&self, action: &ToolAction, _context: &ExecutionContext) -> ExecutionResult {
         let start = std::time::Instant::now();
-        
+
         // In production: Connect to SWIFT network
         ExecutionResult {
             success: true,
@@ -655,7 +660,7 @@ impl VettedTool for SwiftTool {
             }),
         }
     }
-    
+
     async fn health_check(&self) -> ToolHealth {
         ToolHealth {
             is_healthy: true,
@@ -665,7 +670,7 @@ impl VettedTool for SwiftTool {
             last_error: None,
         }
     }
-    
+
     fn rate_limits(&self) -> &RateLimits {
         &self.rate_limits
     }
@@ -674,7 +679,7 @@ impl VettedTool for SwiftTool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     fn test_audit() -> AuditInfo {
         AuditInfo {
             auditor: "Test Auditor".to_string(),
@@ -684,7 +689,7 @@ mod tests {
             next_audit_due: chrono::Utc::now().timestamp() + 365 * 24 * 3600,
         }
     }
-    
+
     #[test]
     fn test_tool_registry() {
         let registry = ToolRegistry::new();
@@ -692,17 +697,14 @@ mod tests {
             "https://eth.example.com".to_string(),
             test_audit(),
         ));
-        
+
         assert!(registry.register_tool(tool).is_ok());
     }
-    
+
     #[tokio::test]
     async fn test_ethereum_tool() {
-        let tool = EthereumTool::new(
-            "https://eth.example.com".to_string(),
-            test_audit(),
-        );
-        
+        let tool = EthereumTool::new("https://eth.example.com".to_string(), test_audit());
+
         let action = ToolAction {
             id: [0u8; 32],
             action_type: ToolActionType::Transfer {
@@ -716,11 +718,10 @@ mod tests {
             priority: ActionPriority::Normal,
             timeout_secs: 60,
         };
-        
+
         assert!(tool.can_handle(&action));
-        
+
         let health = tool.health_check().await;
         assert!(health.is_healthy);
     }
 }
-

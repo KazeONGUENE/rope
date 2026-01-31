@@ -166,7 +166,10 @@ pub enum ActionType {
     Transfer { asset: String },
 
     /// Swap assets
-    Swap { from_asset: String, to_asset: String },
+    Swap {
+        from_asset: String,
+        to_asset: String,
+    },
 
     /// Stake assets
     Stake,
@@ -197,9 +200,10 @@ impl ActionType {
                     to_asset: t2,
                 },
             ) => f1 == f2 && t1 == t2,
-            (ActionType::ContractCall { contract: c1 }, ActionType::ContractCall { contract: c2 }) => {
-                c1 == c2
-            }
+            (
+                ActionType::ContractCall { contract: c1 },
+                ActionType::ContractCall { contract: c2 },
+            ) => c1 == c2,
             (
                 ActionType::SkillExecution { skill_id: s1 },
                 ActionType::SkillExecution { skill_id: s2 },

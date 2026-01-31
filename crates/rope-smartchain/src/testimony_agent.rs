@@ -1,16 +1,16 @@
 //! # AI Testimony Agents
-//! 
+//!
 //! AI-powered agents that act as intelligent validators in the Smartchain.
 //! They go beyond simple cryptographic verification to understand context,
 //! validate business logic, and ensure contract conditions are met.
-//! 
+//!
 //! ## Role in Testimony Protocol
-//! 
+//!
 //! Traditional consensus: "Is the signature valid?"
 //! AI Testimony: "Is the signature valid AND does this make business sense?"
-//! 
+//!
 //! ## Agent Types
-//! 
+//!
 //! - **ValidationAgent**: Validates transaction semantics and business rules
 //! - **ContractAgent**: Monitors and enforces smart contract conditions
 //! - **AnomalyAgent**: Detects suspicious patterns and fraud
@@ -27,27 +27,27 @@ use uuid::Uuid;
 pub trait TestimonyAgent: Send + Sync {
     /// Unique agent identifier
     fn agent_id(&self) -> &AgentId;
-    
+
     /// Agent type/role
     fn agent_type(&self) -> AgentType;
-    
+
     /// Agent capabilities
     fn capabilities(&self) -> &[AgentCapability];
-    
+
     /// Validate a contract condition
     async fn validate_condition(
-        &self, 
+        &self,
         condition: &ContractCondition,
         context: &ValidationContext,
     ) -> ValidationResult;
-    
+
     /// Provide testimony for a transaction
     async fn provide_testimony(
         &self,
         transaction: &TransactionRequest,
         context: &ValidationContext,
     ) -> Testimony;
-    
+
     /// Health check
     async fn is_healthy(&self) -> bool;
 }
@@ -68,7 +68,7 @@ impl AgentId {
             public_key,
         }
     }
-    
+
     pub fn to_bytes(&self) -> [u8; 32] {
         *blake3::hash(self.uuid.as_bytes()).as_bytes()
     }
@@ -119,19 +119,19 @@ pub enum AgentCapability {
 pub struct DigitizedContract {
     /// Contract identifier (StringId in lattice)
     pub contract_id: [u8; 32],
-    
+
     /// Contract parties
     pub parties: Vec<ContractParty>,
-    
+
     /// Contract conditions
     pub conditions: Vec<ContractCondition>,
-    
+
     /// Actions to execute when conditions are met
     pub actions: Vec<ContractAction>,
-    
+
     /// Contract metadata
     pub metadata: ContractMetadata,
-    
+
     /// Current state
     pub state: ContractState,
 }
@@ -141,13 +141,13 @@ pub struct DigitizedContract {
 pub struct ContractParty {
     /// Party's node ID (Datawallet identifier)
     pub node_id: [u8; 32],
-    
+
     /// Party's public key
     pub public_key: Vec<u8>,
-    
+
     /// Role in contract
     pub role: PartyRole,
-    
+
     /// Party's signature on contract
     pub signature: Vec<u8>,
 }
@@ -172,19 +172,19 @@ pub enum PartyRole {
 pub struct ContractCondition {
     /// Condition identifier
     pub id: [u8; 32],
-    
+
     /// Condition type
     pub condition_type: ConditionType,
-    
+
     /// Condition parameters
     pub parameters: HashMap<String, ConditionValue>,
-    
+
     /// Required agent types to validate
     pub required_agents: Vec<AgentType>,
-    
+
     /// Threshold of agent approvals needed (e.g., 2/3)
     pub approval_threshold: f64,
-    
+
     /// Current validation status
     pub status: ConditionStatus,
 }
@@ -194,41 +194,39 @@ pub struct ContractCondition {
 pub enum ConditionType {
     /// Time-based condition (after date, duration)
     Temporal { trigger_after: i64 },
-    
+
     /// Value threshold (amount >= X)
-    ValueThreshold { 
-        field: String, 
-        operator: ComparisonOp, 
-        value: i64 
+    ValueThreshold {
+        field: String,
+        operator: ComparisonOp,
+        value: i64,
     },
-    
+
     /// External event (oracle-verified)
-    ExternalEvent { 
-        oracle_id: String, 
-        event_type: String 
+    ExternalEvent {
+        oracle_id: String,
+        event_type: String,
     },
-    
+
     /// Multi-signature requirement
-    MultiSig { 
-        required_signatures: u32, 
-        signers: Vec<[u8; 32]> 
+    MultiSig {
+        required_signatures: u32,
+        signers: Vec<[u8; 32]>,
     },
-    
+
     /// Insurance claim validation
     InsuranceClaim {
         policy_id: String,
         claim_type: String,
     },
-    
+
     /// KYC/AML compliance check
-    ComplianceCheck {
-        check_type: ComplianceCheckType,
-    },
-    
+    ComplianceCheck { check_type: ComplianceCheckType },
+
     /// Custom condition with expression
-    Custom { 
-        expression: String, 
-        evaluator: String 
+    Custom {
+        expression: String,
+        evaluator: String,
     },
 }
 
@@ -271,9 +269,15 @@ pub enum ConditionStatus {
     /// Not yet evaluated
     Pending,
     /// Being evaluated by agents
-    Evaluating { agents_responded: u32, total_agents: u32 },
+    Evaluating {
+        agents_responded: u32,
+        total_agents: u32,
+    },
     /// Condition is satisfied
-    Satisfied { timestamp: i64, proofs: Vec<[u8; 32]> },
+    Satisfied {
+        timestamp: i64,
+        proofs: Vec<[u8; 32]>,
+    },
     /// Condition is not satisfied
     NotSatisfied { reason: String },
     /// Evaluation failed
@@ -285,16 +289,16 @@ pub enum ConditionStatus {
 pub struct ContractAction {
     /// Action identifier
     pub id: [u8; 32],
-    
+
     /// Action type
     pub action_type: ActionType,
-    
+
     /// Target protocol for execution
     pub target_protocol: TargetProtocol,
-    
+
     /// Action parameters
     pub parameters: HashMap<String, ConditionValue>,
-    
+
     /// Execution status
     pub status: ActionStatus,
 }
@@ -379,16 +383,16 @@ pub enum ContractState {
 pub struct ValidationContext {
     /// Current timestamp
     pub timestamp: i64,
-    
+
     /// Requesting entity
     pub requester: [u8; 32],
-    
+
     /// Historical data available
     pub historical_data: HashMap<String, Vec<u8>>,
-    
+
     /// External oracle data
     pub oracle_data: HashMap<String, OracleData>,
-    
+
     /// Risk score from previous evaluations
     pub risk_score: Option<f64>,
 }
@@ -407,16 +411,16 @@ pub struct OracleData {
 pub struct ValidationResult {
     /// Is the condition satisfied?
     pub satisfied: bool,
-    
+
     /// Confidence level (0.0 to 1.0)
     pub confidence: f64,
-    
+
     /// Detailed reason
     pub reason: String,
-    
+
     /// Supporting evidence
     pub evidence: Vec<Evidence>,
-    
+
     /// Agent's signature on result
     pub signature: Vec<u8>,
 }
@@ -458,25 +462,25 @@ pub struct TransactionRequest {
 pub struct Testimony {
     /// Agent providing testimony
     pub agent_id: AgentId,
-    
+
     /// Transaction/condition being testified
     pub subject_id: [u8; 32],
-    
+
     /// Testimony type
     pub testimony_type: TestimonyType,
-    
+
     /// Decision
     pub decision: TestimonyDecision,
-    
+
     /// Confidence (0.0 to 1.0)
     pub confidence: f64,
-    
+
     /// Reasoning (can be audited)
     pub reasoning: String,
-    
+
     /// Timestamp
     pub timestamp: i64,
-    
+
     /// Agent's signature
     pub signature: Vec<u8>,
 }
@@ -530,15 +534,15 @@ impl TestimonyAgent for ValidationAgent {
     fn agent_id(&self) -> &AgentId {
         &self.id
     }
-    
+
     fn agent_type(&self) -> AgentType {
         AgentType::Validation
     }
-    
+
     fn capabilities(&self) -> &[AgentCapability] {
         &self.capabilities
     }
-    
+
     async fn validate_condition(
         &self,
         condition: &ContractCondition,
@@ -546,10 +550,12 @@ impl TestimonyAgent for ValidationAgent {
     ) -> ValidationResult {
         // Basic validation logic - in production, this would use ML models
         let satisfied = match &condition.condition_type {
-            ConditionType::Temporal { trigger_after } => {
-                context.timestamp >= *trigger_after
-            }
-            ConditionType::ValueThreshold { field, operator, value } => {
+            ConditionType::Temporal { trigger_after } => context.timestamp >= *trigger_after,
+            ConditionType::ValueThreshold {
+                field,
+                operator,
+                value,
+            } => {
                 // Get value from parameters
                 if let Some(ConditionValue::Integer(v)) = condition.parameters.get(field) {
                     match operator {
@@ -566,20 +572,20 @@ impl TestimonyAgent for ValidationAgent {
             }
             _ => true, // Other conditions need specialized agents
         };
-        
+
         ValidationResult {
             satisfied,
             confidence: if satisfied { 0.95 } else { 0.90 },
-            reason: if satisfied { 
-                "Condition validated".to_string() 
-            } else { 
-                "Condition not met".to_string() 
+            reason: if satisfied {
+                "Condition validated".to_string()
+            } else {
+                "Condition not met".to_string()
             },
             evidence: Vec::new(),
             signature: Vec::new(),
         }
     }
-    
+
     async fn provide_testimony(
         &self,
         transaction: &TransactionRequest,
@@ -596,7 +602,7 @@ impl TestimonyAgent for ValidationAgent {
             signature: Vec::new(),
         }
     }
-    
+
     async fn is_healthy(&self) -> bool {
         true
     }
@@ -625,31 +631,36 @@ impl TestimonyAgent for InsuranceAgent {
     fn agent_id(&self) -> &AgentId {
         &self.id
     }
-    
+
     fn agent_type(&self) -> AgentType {
         AgentType::Contract
     }
-    
+
     fn capabilities(&self) -> &[AgentCapability] {
         &self.capabilities
     }
-    
+
     async fn validate_condition(
         &self,
         condition: &ContractCondition,
         context: &ValidationContext,
     ) -> ValidationResult {
         match &condition.condition_type {
-            ConditionType::InsuranceClaim { policy_id, claim_type } => {
+            ConditionType::InsuranceClaim {
+                policy_id,
+                claim_type,
+            } => {
                 // In production: validate against policy, check evidence, use ML for fraud detection
                 let has_evidence = !context.historical_data.is_empty();
-                
+
                 ValidationResult {
                     satisfied: has_evidence,
                     confidence: if has_evidence { 0.85 } else { 0.30 },
                     reason: format!(
                         "Insurance claim for policy {} (type: {}) - Evidence: {}",
-                        policy_id, claim_type, if has_evidence { "present" } else { "missing" }
+                        policy_id,
+                        claim_type,
+                        if has_evidence { "present" } else { "missing" }
                     ),
                     evidence: Vec::new(),
                     signature: Vec::new(),
@@ -661,10 +672,10 @@ impl TestimonyAgent for InsuranceAgent {
                 reason: "Not an insurance condition".to_string(),
                 evidence: Vec::new(),
                 signature: Vec::new(),
-            }
+            },
         }
     }
-    
+
     async fn provide_testimony(
         &self,
         transaction: &TransactionRequest,
@@ -681,7 +692,7 @@ impl TestimonyAgent for InsuranceAgent {
             signature: Vec::new(),
         }
     }
-    
+
     async fn is_healthy(&self) -> bool {
         true
     }
@@ -711,15 +722,15 @@ impl TestimonyAgent for ComplianceAgent {
     fn agent_id(&self) -> &AgentId {
         &self.id
     }
-    
+
     fn agent_type(&self) -> AgentType {
         AgentType::Compliance
     }
-    
+
     fn capabilities(&self) -> &[AgentCapability] {
         &self.capabilities
     }
-    
+
     async fn validate_condition(
         &self,
         condition: &ContractCondition,
@@ -742,10 +753,10 @@ impl TestimonyAgent for ComplianceAgent {
                 reason: "No compliance requirements".to_string(),
                 evidence: Vec::new(),
                 signature: Vec::new(),
-            }
+            },
         }
     }
-    
+
     async fn provide_testimony(
         &self,
         transaction: &TransactionRequest,
@@ -762,7 +773,7 @@ impl TestimonyAgent for ComplianceAgent {
             signature: Vec::new(),
         }
     }
-    
+
     async fn is_healthy(&self) -> bool {
         true
     }
@@ -771,30 +782,30 @@ impl TestimonyAgent for ComplianceAgent {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_validation_agent() {
         let agent = ValidationAgent::new([0u8; 32], vec![]);
-        
+
         assert_eq!(agent.agent_type(), AgentType::Validation);
         assert!(agent.is_healthy().await);
     }
-    
+
     #[tokio::test]
     async fn test_temporal_condition() {
         let agent = ValidationAgent::new([0u8; 32], vec![]);
-        
+
         let condition = ContractCondition {
             id: [0u8; 32],
-            condition_type: ConditionType::Temporal { 
-                trigger_after: 1000 
+            condition_type: ConditionType::Temporal {
+                trigger_after: 1000,
             },
             parameters: HashMap::new(),
             required_agents: vec![AgentType::Validation],
             approval_threshold: 0.5,
             status: ConditionStatus::Pending,
         };
-        
+
         let context = ValidationContext {
             timestamp: 2000, // After trigger
             requester: [0u8; 32],
@@ -802,9 +813,8 @@ mod tests {
             oracle_data: HashMap::new(),
             risk_score: None,
         };
-        
+
         let result = agent.validate_condition(&condition, &context).await;
         assert!(result.satisfied);
     }
 }
-

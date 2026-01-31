@@ -4,25 +4,24 @@
 //! and string production.
 
 use crate::config::{NodeConfig, NodeMode};
-use crate::rpc_server::RpcServer;
-use crate::metrics::MetricsServer;
-use crate::string_producer::{StringProducer, StringProducerConfig, ProductionEvent};
 use crate::genesis;
+use crate::metrics::MetricsServer;
+use crate::rpc_server::RpcServer;
+use crate::string_producer::{ProductionEvent, StringProducer, StringProducerConfig};
 
 use parking_lot::RwLock;
+use rope_core::types::{NodeId, StringId};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{broadcast, mpsc};
 use tokio::signal;
-use rope_core::types::{NodeId, StringId};
+use tokio::sync::{broadcast, mpsc};
 
 // Import rope-network swarm runtime
 use rope_network::{
-    RopeSwarmRuntime, SwarmConfig, SwarmNetworkEvent, SwarmCommand,
-    TransportConfig,
     swarm::{GossipSubConfig, KademliaConfig, RequestResponseConfig},
+    RopeSwarmRuntime, SwarmCommand, SwarmConfig, SwarmNetworkEvent, TransportConfig,
 };
 
 /// Node state
@@ -85,7 +84,7 @@ impl RopeNode {
     pub fn state(&self) -> NodeState {
         self.state.read().clone()
     }
-    
+
     /// Get current block/anchor number
     pub fn block_number(&self) -> u64 {
         *self.current_round.read()
@@ -93,7 +92,10 @@ impl RopeNode {
 
     /// Get swarm command sender for external control
     pub fn swarm_command_sender(&self) -> Option<mpsc::Sender<SwarmCommand>> {
-        self.swarm_runtime.read().as_ref().and_then(|s| s.command_sender())
+        self.swarm_runtime
+            .read()
+            .as_ref()
+            .and_then(|s| s.command_sender())
     }
 
     /// Run the node
@@ -116,9 +118,13 @@ impl RopeNode {
         let genesis_string_id = self.init_genesis().await?;
 
         // Start string producer if validator
-        let producer_handle = if self.config.consensus.enabled && 
-            matches!(self.config.node.mode, NodeMode::Validator) {
-            Some(self.start_string_producer(node_id, genesis_string_id).await?)
+        let producer_handle = if self.config.consensus.enabled
+            && matches!(self.config.node.mode, NodeMode::Validator)
+        {
+            Some(
+                self.start_string_producer(node_id, genesis_string_id)
+                    .await?,
+            )
         } else {
             tracing::info!("String production disabled (non-validator mode)");
             None
@@ -128,11 +134,8 @@ impl RopeNode {
         let rpc_handle = if self.config.rpc.enabled {
             let current_round = self.current_round.clone();
             let chain_id = self.config.node.chain_id;
-            let rpc_server = RpcServer::new_with_state(
-                &self.config.rpc, 
-                chain_id,
-                current_round,
-            ).await?;
+            let rpc_server =
+                RpcServer::new_with_state(&self.config.rpc, chain_id, current_round).await?;
             Some(tokio::spawn(async move {
                 if let Err(e) = rpc_server.run().await {
                     tracing::error!("RPC server error: {}", e);
@@ -200,7 +203,7 @@ impl RopeNode {
     /// Initialize genesis
     async fn init_genesis(&self) -> anyhow::Result<StringId> {
         let genesis_path = self.data_dir.join("genesis.json");
-        
+
         let genesis = if genesis_path.exists() {
             let content = std::fs::read_to_string(&genesis_path)?;
             serde_json::from_str(&content)?
@@ -211,24 +214,27 @@ impl RopeNode {
             } else {
                 genesis::generate_genesis(1, self.config.node.chain_id)?
             };
-            
+
             // Save genesis
             let content = serde_json::to_string_pretty(&gen)?;
             std::fs::write(&genesis_path, &content)?;
             tracing::info!("Genesis saved to {:?}", genesis_path);
-            
+
             gen
         };
-        
+
         tracing::info!("Genesis hash: {}", hex::encode(&genesis.genesis_hash[..8]));
-        tracing::info!("Genesis string: {}", hex::encode(&genesis.genesis_string_id[..8]));
-        
+        tracing::info!(
+            "Genesis string: {}",
+            hex::encode(&genesis.genesis_string_id[..8])
+        );
+
         Ok(StringId::new(genesis.genesis_string_id))
     }
 
     /// Start the string producer
     async fn start_string_producer(
-        &mut self, 
+        &mut self,
         node_id: NodeId,
         genesis_string_id: StringId,
     ) -> anyhow::Result<tokio::task::JoinHandle<()>> {
@@ -239,40 +245,50 @@ impl RopeNode {
             enabled: true,
             is_validator: matches!(self.config.node.mode, NodeMode::Validator),
         };
-        
+
         let mut producer = StringProducer::new(config, node_id);
         producer.set_genesis(genesis_string_id);
-        
+
         // Get event receiver for updating state
         let mut event_rx = producer.subscribe();
         let current_round = self.current_round.clone();
         let swarm = self.swarm_runtime.clone();
-        
+
         // Spawn event handler
         tokio::spawn(async move {
             while let Ok(event) = event_rx.recv().await {
                 match event {
-                    ProductionEvent::AnchorFinalized { anchor_id, round, strings_included: _ } => {
+                    ProductionEvent::AnchorFinalized {
+                        anchor_id,
+                        round,
+                        strings_included: _,
+                    } => {
                         *current_round.write() = round;
-                        
+
                         // Broadcast anchor to network
                         // Clone swarm reference to avoid holding lock across await
                         let publish_result = {
                             let swarm_guard = swarm.read();
                             if let Some(sw) = swarm_guard.as_ref() {
-                                let msg = format!("anchor:{}:{}", round, hex::encode(&anchor_id.as_bytes()[..16]));
+                                let msg = format!(
+                                    "anchor:{}:{}",
+                                    round,
+                                    hex::encode(&anchor_id.as_bytes()[..16])
+                                );
                                 Some((sw.command_sender(), msg))
                             } else {
                                 None
                             }
                         };
-                        
+
                         if let Some((Some(cmd_tx), msg)) = publish_result {
                             // Use command channel instead of direct publish
-                            let _ = cmd_tx.send(rope_network::SwarmCommand::Publish {
-                                topic: "/rope/anchors/1.0.0".to_string(),
-                                data: msg.into_bytes(),
-                            }).await;
+                            let _ = cmd_tx
+                                .send(rope_network::SwarmCommand::Publish {
+                                    topic: "/rope/anchors/1.0.0".to_string(),
+                                    data: msg.into_bytes(),
+                                })
+                                .await;
                         }
                     }
                     ProductionEvent::ProductionError { round, error } => {
@@ -282,19 +298,21 @@ impl RopeNode {
                 }
             }
         });
-        
+
         // Create shutdown channel
         let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
         self.producer_shutdown_tx = Some(shutdown_tx);
-        
+
         // Start producer
         let handle = tokio::spawn(async move {
             producer.run(shutdown_rx).await;
         });
-        
-        tracing::info!("String producer started (interval: {}ms)", 
-            self.config.consensus.block_time_ms);
-        
+
+        tracing::info!(
+            "String producer started (interval: {}ms)",
+            self.config.consensus.block_time_ms
+        );
+
         Ok(handle)
     }
 
@@ -315,7 +333,10 @@ impl RopeNode {
         }
 
         tracing::info!("P2P Listen: {}", self.config.network.listen_addr);
-        tracing::info!("Bootstrap nodes: {}", self.config.network.bootstrap_nodes.len());
+        tracing::info!(
+            "Bootstrap nodes: {}",
+            self.config.network.bootstrap_nodes.len()
+        );
 
         if self.config.rpc.enabled {
             tracing::info!("HTTP RPC: http://{}", self.config.rpc.http_addr);
@@ -324,12 +345,17 @@ impl RopeNode {
         }
 
         if self.config.metrics.enabled {
-            tracing::info!("Metrics: http://{}/metrics", self.config.metrics.prometheus_addr);
+            tracing::info!(
+                "Metrics: http://{}/metrics",
+                self.config.metrics.prometheus_addr
+            );
         }
-        
+
         if self.config.consensus.enabled && matches!(self.config.node.mode, NodeMode::Validator) {
-            tracing::info!("String Production: ENABLED ({}ms interval)", 
-                self.config.consensus.block_time_ms);
+            tracing::info!(
+                "String Production: ENABLED ({}ms interval)",
+                self.config.consensus.block_time_ms
+            );
         }
 
         tracing::info!("");
@@ -370,9 +396,10 @@ impl RopeNode {
             std::fs::write(keys_path.join("node.id"), hex::encode(keypair.node_id()))?;
 
             // Use first 32 bytes of private key as identity seed for libp2p
-            identity_seed = private_key_bytes[..32].try_into()
+            identity_seed = private_key_bytes[..32]
+                .try_into()
                 .map_err(|_| anyhow::anyhow!("Failed to extract identity seed from keypair"))?;
-            
+
             node_id = NodeId::new(keypair.node_id());
 
             tracing::info!("Node ID: {}", hex::encode(keypair.node_id()));
@@ -383,9 +410,10 @@ impl RopeNode {
             let id_hex = String::from_utf8_lossy(&id_bytes);
 
             // Extract identity seed from saved private key
-            identity_seed = private_key_bytes[..32].try_into()
+            identity_seed = private_key_bytes[..32]
+                .try_into()
                 .map_err(|_| anyhow::anyhow!("Invalid private key format"))?;
-            
+
             // Parse node ID from hex
             let id_bytes = hex::decode(id_hex.trim())?;
             let mut id_arr = [0u8; 32];
@@ -404,7 +432,10 @@ impl RopeNode {
         tracing::info!("Initializing P2P network with libp2p swarm...");
 
         // Parse listen address from config
-        let listen_addr: SocketAddr = self.config.network.listen_addr
+        let listen_addr: SocketAddr = self
+            .config
+            .network
+            .listen_addr
             .parse()
             .unwrap_or_else(|_| "0.0.0.0:9000".parse().unwrap());
 
@@ -456,7 +487,9 @@ impl RopeNode {
         // Create and start swarm runtime
         let mut swarm_runtime = RopeSwarmRuntime::new(swarm_config);
 
-        swarm_runtime.start().await
+        swarm_runtime
+            .start()
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to start swarm: {}", e))?;
 
         // Get event receiver before moving swarm_runtime
@@ -468,13 +501,21 @@ impl RopeNode {
         }
 
         // Subscribe to core topics
-        swarm_runtime.subscribe("/rope/strings/1.0.0").await
+        swarm_runtime
+            .subscribe("/rope/strings/1.0.0")
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to subscribe to strings topic: {}", e))?;
-        swarm_runtime.subscribe("/rope/gossip/1.0.0").await
+        swarm_runtime
+            .subscribe("/rope/gossip/1.0.0")
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to subscribe to gossip topic: {}", e))?;
-        swarm_runtime.subscribe("/rope/testimonies/1.0.0").await
+        swarm_runtime
+            .subscribe("/rope/testimonies/1.0.0")
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to subscribe to testimonies topic: {}", e))?;
-        swarm_runtime.subscribe("/rope/anchors/1.0.0").await
+        swarm_runtime
+            .subscribe("/rope/anchors/1.0.0")
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to subscribe to anchors topic: {}", e))?;
 
         // Connect to bootstrap nodes
@@ -491,7 +532,10 @@ impl RopeNode {
 
         tracing::info!("P2P network initialized with QUIC + TCP transport");
         tracing::info!("Subscribed to core protocol topics");
-        tracing::info!("Bootstrap nodes: {}", self.config.network.bootstrap_nodes.len());
+        tracing::info!(
+            "Bootstrap nodes: {}",
+            self.config.network.bootstrap_nodes.len()
+        );
 
         Ok(())
     }
@@ -528,24 +572,33 @@ impl RopeNode {
                         SwarmNetworkEvent::PeerDisconnected { peer_id } => {
                             tracing::info!("Peer disconnected: {}", peer_id);
                         }
-                        SwarmNetworkEvent::GossipMessage { topic, data, source } => {
+                        SwarmNetworkEvent::GossipMessage {
+                            topic,
+                            data,
+                            source,
+                        } => {
                             tracing::debug!(
                                 "Gossip message on '{}' from {}: {} bytes",
-                                topic, source, data.len()
+                                topic,
+                                source,
+                                data.len()
                             );
                             // Process message based on topic
-                            Self::handle_gossip_message(&topic, &data, &source, &current_round).await;
+                            Self::handle_gossip_message(&topic, &data, &source, &current_round)
+                                .await;
                         }
                         SwarmNetworkEvent::DhtRecordFound { key, value } => {
                             tracing::debug!(
                                 "DHT record found: {} = {} bytes",
-                                hex::encode(&key), value.len()
+                                hex::encode(&key),
+                                value.len()
                             );
                         }
                         SwarmNetworkEvent::DhtProvidersFound { key, providers } => {
                             tracing::debug!(
                                 "DHT providers for {}: {} providers",
-                                hex::encode(&key), providers.len()
+                                hex::encode(&key),
+                                providers.len()
                             );
                         }
                         _ => {}
@@ -564,8 +617,8 @@ impl RopeNode {
 
     /// Handle incoming gossip messages
     async fn handle_gossip_message(
-        topic: &str, 
-        data: &[u8], 
+        topic: &str,
+        data: &[u8],
         source: &libp2p::PeerId,
         current_round: &Arc<RwLock<u64>>,
     ) {
@@ -590,7 +643,9 @@ impl RopeNode {
                                 if round > local_round {
                                     tracing::info!(
                                         "Received anchor #{} from {} (local: #{})",
-                                        round, source, local_round
+                                        round,
+                                        source,
+                                        local_round
                                     );
                                     // In a full implementation, we'd sync here
                                 }
@@ -608,7 +663,9 @@ impl RopeNode {
     /// Stop the network
     async fn stop_network(&mut self) -> anyhow::Result<()> {
         if let Some(mut swarm) = self.swarm_runtime.write().take() {
-            swarm.stop().await
+            swarm
+                .stop()
+                .await
                 .map_err(|e| anyhow::anyhow!("Failed to stop swarm: {}", e))?;
             tracing::info!("P2P network stopped");
         }
@@ -643,7 +700,9 @@ impl RopeNode {
     /// Publish a message to the network
     pub async fn publish(&self, topic: &str, data: Vec<u8>) -> anyhow::Result<()> {
         if let Some(swarm) = self.swarm_runtime.read().as_ref() {
-            swarm.publish(topic, data).await
+            swarm
+                .publish(topic, data)
+                .await
                 .map_err(|e| anyhow::anyhow!("Publish failed: {}", e))?;
         }
         Ok(())

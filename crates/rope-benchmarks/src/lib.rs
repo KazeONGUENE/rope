@@ -29,8 +29,8 @@
 //! cargo bench --package rope-benchmarks -- --save-baseline main
 //! ```
 
-use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
+use std::time::{Duration, Instant};
 
 // ============================================================================
 // SPECIFICATION REQUIREMENTS
@@ -41,34 +41,34 @@ use serde::{Deserialize, Serialize};
 pub struct SpecRequirements {
     /// String creation time p99 (ms)
     pub string_creation_p99_ms: u64,
-    
+
     /// Testimony finality time (seconds)
     pub testimony_finality_s: u64,
-    
+
     /// Network throughput (TPS)
     pub network_throughput_tps: u64,
-    
+
     /// Memory overhead per string (bytes)
     pub memory_per_string_bytes: u64,
-    
+
     /// OES key generation (ms)
     pub oes_keygen_ms: u64,
-    
+
     /// Dilithium3 signing (ms)
     pub dilithium_sign_ms: u64,
-    
+
     /// Kyber768 encapsulation (ms)
     pub kyber_encap_ms: u64,
-    
+
     /// Reed-Solomon encode (ms/MB)
     pub rs_encode_ms_per_mb: u64,
-    
+
     /// Virtual voting per round (ms)
     pub virtual_voting_ms: u64,
-    
+
     /// Gossip propagation (ms)
     pub gossip_propagation_ms: u64,
-    
+
     /// DHT lookup (ms)
     pub dht_lookup_ms: u64,
 }
@@ -100,34 +100,34 @@ impl Default for SpecRequirements {
 pub struct BenchmarkResult {
     /// Benchmark name
     pub name: String,
-    
+
     /// Number of iterations
     pub iterations: u64,
-    
+
     /// Total time (ns)
     pub total_time_ns: u64,
-    
+
     /// Mean time per operation (ns)
     pub mean_ns: f64,
-    
+
     /// Standard deviation (ns)
     pub std_dev_ns: f64,
-    
+
     /// Median time (ns)
     pub median_ns: f64,
-    
+
     /// p99 latency (ns)
     pub p99_ns: f64,
-    
+
     /// p999 latency (ns)
     pub p999_ns: f64,
-    
+
     /// Throughput (ops/sec)
     pub throughput: f64,
-    
+
     /// Passes specification requirement
     pub passes_spec: bool,
-    
+
     /// Specification target (if applicable)
     pub spec_target: Option<String>,
 }
@@ -137,38 +137,40 @@ impl BenchmarkResult {
     pub fn from_timings(name: &str, timings: &[u64], spec_target_ns: Option<u64>) -> Self {
         let iterations = timings.len() as u64;
         let total_time_ns: u64 = timings.iter().sum();
-        
+
         let mean_ns = total_time_ns as f64 / iterations as f64;
-        
+
         // Calculate standard deviation
-        let variance: f64 = timings.iter()
+        let variance: f64 = timings
+            .iter()
             .map(|&t| {
                 let diff = t as f64 - mean_ns;
                 diff * diff
             })
-            .sum::<f64>() / iterations as f64;
+            .sum::<f64>()
+            / iterations as f64;
         let std_dev_ns = variance.sqrt();
-        
+
         // Sort for percentiles
         let mut sorted = timings.to_vec();
         sorted.sort_unstable();
-        
+
         let median_ns = if iterations % 2 == 0 {
             (sorted[(iterations / 2 - 1) as usize] + sorted[(iterations / 2) as usize]) as f64 / 2.0
         } else {
             sorted[(iterations / 2) as usize] as f64
         };
-        
+
         let p99_idx = ((iterations as f64 * 0.99) as usize).min(sorted.len() - 1);
         let p99_ns = sorted[p99_idx] as f64;
-        
+
         let p999_idx = ((iterations as f64 * 0.999) as usize).min(sorted.len() - 1);
         let p999_ns = sorted[p999_idx] as f64;
-        
+
         let throughput = 1_000_000_000.0 / mean_ns;
-        
+
         let passes_spec = spec_target_ns.map(|t| p99_ns <= t as f64).unwrap_or(true);
-        
+
         Self {
             name: name.to_string(),
             iterations,
@@ -183,11 +185,15 @@ impl BenchmarkResult {
             spec_target: spec_target_ns.map(|t| format!("{}ns", t)),
         }
     }
-    
+
     /// Print summary
     pub fn print_summary(&self) {
-        let status = if self.passes_spec { "✅ PASS" } else { "❌ FAIL" };
-        
+        let status = if self.passes_spec {
+            "✅ PASS"
+        } else {
+            "❌ FAIL"
+        };
+
         println!("\n{} - {}", self.name, status);
         println!("  Iterations:  {}", self.iterations);
         println!("  Mean:        {:.2}µs", self.mean_ns / 1000.0);
@@ -207,19 +213,19 @@ impl BenchmarkResult {
 pub struct BenchmarkReport {
     /// Report timestamp
     pub timestamp: String,
-    
+
     /// Git commit hash (if available)
     pub git_commit: Option<String>,
-    
+
     /// System information
     pub system_info: SystemInfo,
-    
+
     /// Individual benchmark results
     pub results: Vec<BenchmarkResult>,
-    
+
     /// Overall pass/fail
     pub overall_pass: bool,
-    
+
     /// Specification requirements used
     pub spec_requirements: SpecRequirements,
 }
@@ -236,7 +242,7 @@ impl BenchmarkReport {
             spec_requirements: SpecRequirements::default(),
         }
     }
-    
+
     /// Add a result
     pub fn add_result(&mut self, result: BenchmarkResult) {
         if !result.passes_spec {
@@ -244,24 +250,36 @@ impl BenchmarkReport {
         }
         self.results.push(result);
     }
-    
+
     /// Print full report
     pub fn print_report(&self) {
         println!("\n╔══════════════════════════════════════════════════════════════╗");
         println!("║          DATACHAIN ROPE PERFORMANCE BENCHMARK REPORT          ║");
         println!("╠══════════════════════════════════════════════════════════════╣");
-        println!("║ Timestamp: {}                      ║", &self.timestamp[..19]);
+        println!(
+            "║ Timestamp: {}                      ║",
+            &self.timestamp[..19]
+        );
         if let Some(commit) = &self.git_commit {
-            println!("║ Git Commit: {}                               ║", &commit[..12]);
+            println!(
+                "║ Git Commit: {}                               ║",
+                &commit[..12]
+            );
         }
-        println!("║ CPU: {}                                        ║", &self.system_info.cpu_model[..30.min(self.system_info.cpu_model.len())]);
-        println!("║ Cores: {}                                                     ║", self.system_info.cpu_cores);
+        println!(
+            "║ CPU: {}                                        ║",
+            &self.system_info.cpu_model[..30.min(self.system_info.cpu_model.len())]
+        );
+        println!(
+            "║ Cores: {}                                                     ║",
+            self.system_info.cpu_cores
+        );
         println!("╚══════════════════════════════════════════════════════════════╝");
-        
+
         for result in &self.results {
             result.print_summary();
         }
-        
+
         println!("\n═══════════════════════════════════════════════════════════════");
         if self.overall_pass {
             println!("  OVERALL: ✅ ALL BENCHMARKS PASS SPECIFICATION REQUIREMENTS");
@@ -270,7 +288,7 @@ impl BenchmarkReport {
         }
         println!("═══════════════════════════════════════════════════════════════\n");
     }
-    
+
     /// Save report to file
     pub fn save_json(&self, path: &str) -> std::io::Result<()> {
         let json = serde_json::to_string_pretty(self)?;
@@ -313,7 +331,13 @@ impl SystemInfo {
 // ============================================================================
 
 /// Run a benchmark with warmup
-pub fn run_benchmark<F>(name: &str, iterations: usize, warmup: usize, spec_target_ns: Option<u64>, mut f: F) -> BenchmarkResult
+pub fn run_benchmark<F>(
+    name: &str,
+    iterations: usize,
+    warmup: usize,
+    spec_target_ns: Option<u64>,
+    mut f: F,
+) -> BenchmarkResult
 where
     F: FnMut(),
 {
@@ -321,16 +345,16 @@ where
     for _ in 0..warmup {
         f();
     }
-    
+
     // Collect timings
     let mut timings = Vec::with_capacity(iterations);
-    
+
     for _ in 0..iterations {
         let start = Instant::now();
         f();
         timings.push(start.elapsed().as_nanos() as u64);
     }
-    
+
     BenchmarkResult::from_timings(name, &timings, spec_target_ns)
 }
 
@@ -350,16 +374,16 @@ where
     for _ in 0..warmup {
         f().await;
     }
-    
+
     // Collect timings
     let mut timings = Vec::with_capacity(iterations);
-    
+
     for _ in 0..iterations {
         let start = Instant::now();
         f().await;
         timings.push(start.elapsed().as_nanos() as u64);
     }
-    
+
     BenchmarkResult::from_timings(name, &timings, spec_target_ns)
 }
 
@@ -369,12 +393,12 @@ where
 
 pub mod crypto {
     use super::*;
-    
+
     /// Benchmark OES key generation
     pub fn bench_oes_keygen(iterations: usize) -> BenchmarkResult {
         let spec = SpecRequirements::default();
         let target_ns = spec.oes_keygen_ms * 1_000_000;
-        
+
         run_benchmark(
             "OES Key Generation",
             iterations,
@@ -387,14 +411,14 @@ pub mod crypto {
             },
         )
     }
-    
+
     /// Benchmark Dilithium3 signing
     pub fn bench_dilithium_sign(iterations: usize) -> BenchmarkResult {
         let spec = SpecRequirements::default();
         let target_ns = spec.dilithium_sign_ms * 1_000_000;
-        
+
         let message = vec![0u8; 256];
-        
+
         run_benchmark(
             "Dilithium3 Signing",
             iterations,
@@ -406,12 +430,12 @@ pub mod crypto {
             },
         )
     }
-    
+
     /// Benchmark Kyber768 encapsulation
     pub fn bench_kyber_encap(iterations: usize) -> BenchmarkResult {
         let spec = SpecRequirements::default();
         let target_ns = spec.kyber_encap_ms * 1_000_000;
-        
+
         run_benchmark(
             "Kyber768 Encapsulation",
             iterations,
@@ -423,11 +447,11 @@ pub mod crypto {
             },
         )
     }
-    
+
     /// Benchmark hybrid signature
     pub fn bench_hybrid_sign(iterations: usize) -> BenchmarkResult {
         let message = vec![0u8; 256];
-        
+
         run_benchmark(
             "Hybrid Signature (Ed25519 + Dilithium3)",
             iterations,
@@ -448,12 +472,12 @@ pub mod crypto {
 
 pub mod consensus {
     use super::*;
-    
+
     /// Benchmark virtual voting per round
     pub fn bench_virtual_voting(iterations: usize, validator_count: usize) -> BenchmarkResult {
         let spec = SpecRequirements::default();
         let target_ns = spec.virtual_voting_ms * 1_000_000;
-        
+
         run_benchmark(
             &format!("Virtual Voting ({} validators)", validator_count),
             iterations,
@@ -467,7 +491,7 @@ pub mod consensus {
             },
         )
     }
-    
+
     /// Benchmark testimony creation
     pub fn bench_testimony_creation(iterations: usize) -> BenchmarkResult {
         run_benchmark(
@@ -483,7 +507,7 @@ pub mod consensus {
             },
         )
     }
-    
+
     /// Benchmark anchor determination
     pub fn bench_anchor_determination(iterations: usize, string_count: usize) -> BenchmarkResult {
         run_benchmark(
@@ -507,14 +531,14 @@ pub mod consensus {
 
 pub mod string {
     use super::*;
-    
+
     /// Benchmark string creation
     pub fn bench_string_creation(iterations: usize, payload_size: usize) -> BenchmarkResult {
         let spec = SpecRequirements::default();
         let target_ns = spec.string_creation_p99_ms * 1_000_000;
-        
+
         let payload = vec![0u8; payload_size];
-        
+
         run_benchmark(
             &format!("String Creation ({}B payload)", payload_size),
             iterations,
@@ -526,12 +550,12 @@ pub mod string {
             },
         )
     }
-    
+
     /// Benchmark string validation
     pub fn bench_string_validation(iterations: usize) -> BenchmarkResult {
         let payload = vec![0u8; 1024];
         let sig = blake3::hash(&payload);
-        
+
         run_benchmark(
             "String Validation",
             iterations,
@@ -542,7 +566,7 @@ pub mod string {
             },
         )
     }
-    
+
     /// Benchmark lattice insertion
     pub fn bench_lattice_insertion(iterations: usize) -> BenchmarkResult {
         run_benchmark(
@@ -563,11 +587,11 @@ pub mod string {
 
 pub mod network {
     use super::*;
-    
+
     /// Benchmark message serialization
     pub fn bench_message_serialization(iterations: usize) -> BenchmarkResult {
         let message = vec![0u8; 1024];
-        
+
         run_benchmark(
             "Message Serialization (1KB)",
             iterations,
@@ -578,12 +602,12 @@ pub mod network {
             },
         )
     }
-    
+
     /// Benchmark message deserialization
     pub fn bench_message_deserialization(iterations: usize) -> BenchmarkResult {
         let message = vec![0u8; 1024];
         let encoded = bincode::serialize(&message).unwrap();
-        
+
         run_benchmark(
             "Message Deserialization (1KB)",
             iterations,
@@ -594,14 +618,14 @@ pub mod network {
             },
         )
     }
-    
+
     /// Benchmark gossip propagation (simulated)
     pub fn bench_gossip_simulation(iterations: usize, peer_count: usize) -> BenchmarkResult {
         let spec = SpecRequirements::default();
         let target_ns = spec.gossip_propagation_ms * 1_000_000;
-        
+
         let message = vec![0u8; 256];
-        
+
         run_benchmark(
             &format!("Gossip Propagation Simulation ({} peers)", peer_count),
             iterations,
@@ -622,14 +646,14 @@ pub mod network {
 
 pub mod protocol {
     use super::*;
-    
+
     /// Benchmark Reed-Solomon encoding
     pub fn bench_rs_encode(iterations: usize, data_size_kb: usize) -> BenchmarkResult {
         let spec = SpecRequirements::default();
         let target_ns = spec.rs_encode_ms_per_mb * 1_000_000 * (data_size_kb as u64) / 1024;
-        
+
         let data = vec![0u8; data_size_kb * 1024];
-        
+
         run_benchmark(
             &format!("Reed-Solomon Encode ({}KB)", data_size_kb),
             iterations,
@@ -641,11 +665,11 @@ pub mod protocol {
             },
         )
     }
-    
+
     /// Benchmark Reed-Solomon decoding
     pub fn bench_rs_decode(iterations: usize, data_size_kb: usize) -> BenchmarkResult {
         let data = vec![0u8; data_size_kb * 1024];
-        
+
         run_benchmark(
             &format!("Reed-Solomon Decode ({}KB)", data_size_kb),
             iterations,
@@ -666,22 +690,22 @@ pub mod protocol {
 /// Run full system benchmark suite
 pub fn run_full_benchmark_suite() -> BenchmarkReport {
     let mut report = BenchmarkReport::new();
-    
+
     println!("Running Datachain Rope Performance Benchmarks...\n");
-    
+
     // Crypto benchmarks
     println!("Running crypto benchmarks...");
     report.add_result(crypto::bench_oes_keygen(1000));
     report.add_result(crypto::bench_dilithium_sign(1000));
     report.add_result(crypto::bench_kyber_encap(1000));
     report.add_result(crypto::bench_hybrid_sign(1000));
-    
+
     // Consensus benchmarks
     println!("Running consensus benchmarks...");
     report.add_result(consensus::bench_virtual_voting(100, 21));
     report.add_result(consensus::bench_testimony_creation(1000));
     report.add_result(consensus::bench_anchor_determination(100, 1000));
-    
+
     // String benchmarks
     println!("Running string benchmarks...");
     report.add_result(string::bench_string_creation(1000, 256));
@@ -689,20 +713,19 @@ pub fn run_full_benchmark_suite() -> BenchmarkReport {
     report.add_result(string::bench_string_creation(1000, 4096));
     report.add_result(string::bench_string_validation(1000));
     report.add_result(string::bench_lattice_insertion(1000));
-    
+
     // Network benchmarks
     println!("Running network benchmarks...");
     report.add_result(network::bench_message_serialization(1000));
     report.add_result(network::bench_message_deserialization(1000));
     report.add_result(network::bench_gossip_simulation(100, 50));
-    
+
     // Protocol benchmarks
     println!("Running protocol benchmarks...");
     report.add_result(protocol::bench_rs_encode(100, 64));
     report.add_result(protocol::bench_rs_encode(100, 256));
     report.add_result(protocol::bench_rs_decode(100, 64));
-    
+
     report.print_report();
     report
 }
-
