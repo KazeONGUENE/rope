@@ -4,8 +4,8 @@
 //! Extends basic cryptographic testimonies with semantic understanding,
 //! risk assessment, and multi-agent consensus.
 
-use crate::testimony::{Testimony, TestimonySignature};
-use rope_core::types::{NodeId, StringId};
+use crate::testimony::Testimony;
+use rope_core::types::StringId;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
