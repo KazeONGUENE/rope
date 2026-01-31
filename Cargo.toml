@@ -104,6 +104,17 @@ criterion = "0.5"
 mockall = "0.12"
 tempfile = "3.9"
 
+[workspace.lints.rust]
+# Allow unused variables in stub/placeholder code (TODO: enable once implemented)
+unused_variables = "warn"
+
+[workspace.lints.clippy]
+# Allow domain-specific naming conventions (ISO standards, crypto terms)
+upper_case_acronyms = "allow"
+# Allow unused imports in dev/stub code (TODO: clean up)
+# These are needed for the development phase
+derivable_impls = "warn"
+
 [profile.release]
 opt-level = 3
 lto = "thin"

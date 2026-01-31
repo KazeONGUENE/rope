@@ -88,10 +88,7 @@ pub mod virtual_voting {
 
         /// Record a virtual vote
         pub fn record_vote(&mut self, vote: VirtualVote) {
-            self.votes
-                .entry(vote.string_id)
-                .or_insert_with(Vec::new)
-                .push(vote);
+            self.votes.entry(vote.string_id).or_default().push(vote);
         }
 
         /// Get votes for a string
@@ -148,9 +145,10 @@ pub mod finality {
     use serde::{Deserialize, Serialize};
 
     /// Finality status of a string
-    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
     pub enum FinalityStatus {
         /// Not yet evaluated
+        #[default]
         Pending,
         /// Tentatively accepted (may be reordered)
         Tentative { confidence: u8 },
@@ -180,12 +178,6 @@ pub mod finality {
                 FinalityStatus::Final { .. } => 100,
                 FinalityStatus::Rejected { .. } => 0,
             }
-        }
-    }
-
-    impl Default for FinalityStatus {
-        fn default() -> Self {
-            FinalityStatus::Pending
         }
     }
 }
