@@ -64,7 +64,6 @@ pub mod swarm {
     //! Nodes can be seeders (have complete data) or leechers (downloading).
 
     use std::collections::{HashMap, HashSet};
-    use std::time::Instant;
 
     /// Swarm member
     #[derive(Clone, Debug)]

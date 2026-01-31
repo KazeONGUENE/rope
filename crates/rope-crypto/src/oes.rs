@@ -107,6 +107,7 @@ impl CellularGrid {
     }
 
     /// Evolve grid one generation (Game of Life rules + mutations)
+    #[allow(clippy::needless_range_loop)]
     pub fn evolve(&mut self, mutation_rate: f64) {
         let mut new_grid = self.grid.clone();
         let mut rng = ChaCha20Rng::from_entropy();
@@ -637,23 +638,23 @@ impl OrganicEncryptionState {
         }
 
         // 2. Block inversion
-        if rand::Rng::gen::<f64>(&mut rng) < self.params.genome_block_mutation_chance {
-            if genome_len >= 4 {
-                let start = rand::Rng::gen_range(&mut rng, 0..genome_len - 1);
-                let max_block = (genome_len / 4).min(genome_len - start);
-                let end = start + rand::Rng::gen_range(&mut rng, 1..max_block.max(2));
-                self.genome[start..end].reverse();
-            }
+        if rand::Rng::gen::<f64>(&mut rng) < self.params.genome_block_mutation_chance
+            && genome_len >= 4
+        {
+            let start = rand::Rng::gen_range(&mut rng, 0..genome_len - 1);
+            let max_block = (genome_len / 4).min(genome_len - start);
+            let end = start + rand::Rng::gen_range(&mut rng, 1..max_block.max(2));
+            self.genome[start..end].reverse();
         }
 
         // 3. Block replacement with random data
-        if rand::Rng::gen::<f64>(&mut rng) < self.params.genome_block_mutation_chance / 2.0 {
-            if genome_len >= 8 {
-                let start = rand::Rng::gen_range(&mut rng, 0..genome_len - 4);
-                let block_size = rand::Rng::gen_range(&mut rng, 2..5);
-                for i in 0..block_size.min(genome_len - start) {
-                    self.genome[start + i] = rand::Rng::gen(&mut rng);
-                }
+        if rand::Rng::gen::<f64>(&mut rng) < self.params.genome_block_mutation_chance / 2.0
+            && genome_len >= 8
+        {
+            let start = rand::Rng::gen_range(&mut rng, 0..genome_len - 4);
+            let block_size = rand::Rng::gen_range(&mut rng, 2..5);
+            for i in 0..block_size.min(genome_len - start) {
+                self.genome[start + i] = rand::Rng::gen(&mut rng);
             }
         }
     }
@@ -663,7 +664,7 @@ impl OrganicEncryptionState {
         let live_density = self.cellular.density();
 
         // If grid becomes too static, increase mutation rates
-        if live_density < 0.05 || live_density > 0.95 {
+        if !(0.05..=0.95).contains(&live_density) {
             self.params.genome_mutation_rate = (self.params.genome_mutation_rate * 1.1).min(0.1);
             self.params.gol_mutation_rate = (self.params.gol_mutation_rate * 1.1).min(0.05);
         } else {
@@ -905,7 +906,7 @@ impl OESManager {
     }
 
     pub fn should_evolve(&self, anchor_count: u64) -> bool {
-        anchor_count > 0 && anchor_count % OES_EVOLUTION_INTERVAL == 0
+        anchor_count > 0 && anchor_count.is_multiple_of(OES_EVOLUTION_INTERVAL)
     }
 
     pub fn evolve(&self, anchor_hash: &[u8; 32]) {

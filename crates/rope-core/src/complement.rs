@@ -132,8 +132,7 @@ impl Complement {
         let regeneration_hints = string
             .parentage()
             .iter()
-            .enumerate()
-            .map(|(_i, parent_id)| RegenerationHint {
+            .map(|parent_id| RegenerationHint {
                 related_string_id: *parent_id,
                 relationship: RelationshipType::Parent,
                 segment_range: (0, content.len() as u64),
@@ -164,7 +163,7 @@ impl Complement {
         let parity_shards = parity_shards.max(1);
 
         // Pad data to be divisible by data_shards
-        let shard_size = (data.len() + data_shards - 1) / data_shards;
+        let shard_size = data.len().div_ceil(data_shards);
         let mut padded_data = data.to_vec();
         padded_data.resize(shard_size * data_shards, 0);
 

@@ -107,12 +107,13 @@ impl fmt::Display for NodeId {
 /// MutabilityClass - Erasure policy governing modification/deletion permissions
 ///
 /// μ (Mu) from the String formal definition S = (σ, τ, π, ρ, μ)
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MutabilityClass {
     /// Cannot be erased (system strings, genesis)
     Immutable,
 
     /// Owner can initiate erasure
+    #[default]
     OwnerErasable,
 
     /// Auto-erases after specified duration
@@ -123,12 +124,6 @@ pub enum MutabilityClass {
 
     /// Subject to GDPR right-to-be-forgotten requests
     GDPRCompliant,
-}
-
-impl Default for MutabilityClass {
-    fn default() -> Self {
-        Self::OwnerErasable
-    }
 }
 
 /// Condition for conditional erasure

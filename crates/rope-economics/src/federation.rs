@@ -11,7 +11,6 @@
 //! | Silver | Medium | 20% | 100K+ tx/month, 10K+ users |
 //! | Bronze | Low | 10% | <100K tx/month |
 
-use crate::constants::*;
 use crate::emission::AnchorReward;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
