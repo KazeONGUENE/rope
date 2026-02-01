@@ -4360,6 +4360,7 @@ dependencies = [
  "dirs",
  "hex",
  "libp2p",
+ "reqwest",
  "rope-core",
  "rope-crypto",
  "rope-node",
