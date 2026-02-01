@@ -358,10 +358,109 @@ impl RpcHandlers {
                 serde_json::json!(hash)
             }
             "eth_getTransactionReceipt" => {
+                // Parse tx hash from params
+                let params = request.get("params").and_then(|p| p.as_array());
+                if let Some(params) = params {
+                    if let Some(tx_hash) = params.first().and_then(|h| h.as_str()) {
+                        self.get_transaction_receipt(tx_hash).await
+                    } else {
+                        serde_json::json!(null)
+                    }
+                } else {
+                    serde_json::json!(null)
+                }
+            }
+            "eth_getBlockByNumber" => {
+                let params = request.get("params").and_then(|p| p.as_array());
+                let block_tag = params
+                    .and_then(|p| p.first())
+                    .and_then(|b| b.as_str())
+                    .unwrap_or("latest");
+                let full_txs = params
+                    .and_then(|p| p.get(1))
+                    .and_then(|f| f.as_bool())
+                    .unwrap_or(false);
+                self.get_block_by_number(block_tag, full_txs).await
+            }
+            "eth_getBlockByHash" => {
+                let params = request.get("params").and_then(|p| p.as_array());
+                let full_txs = params
+                    .and_then(|p| p.get(1))
+                    .and_then(|f| f.as_bool())
+                    .unwrap_or(false);
+                self.get_mock_block_with_txs(full_txs).await
+            }
+            "eth_getLogs" => {
+                // Parse filter from params
+                let params = request.get("params").and_then(|p| p.as_array());
+                if let Some(params) = params {
+                    if let Some(filter) = params.first() {
+                        self.get_logs(filter).await
+                    } else {
+                        serde_json::json!([])
+                    }
+                } else {
+                    serde_json::json!([])
+                }
+            }
+            "eth_getStorageAt" => {
+                // Return empty storage for any address/slot
+                serde_json::json!(
+                    "0x0000000000000000000000000000000000000000000000000000000000000000"
+                )
+            }
+            "eth_getBlockTransactionCountByNumber" => {
+                serde_json::json!("0x0")
+            }
+            "eth_getBlockTransactionCountByHash" => {
+                serde_json::json!("0x0")
+            }
+            "eth_getTransactionByHash" => {
+                let params = request.get("params").and_then(|p| p.as_array());
+                if let Some(params) = params {
+                    if let Some(tx_hash) = params.first().and_then(|h| h.as_str()) {
+                        self.get_transaction_by_hash(tx_hash).await
+                    } else {
+                        serde_json::json!(null)
+                    }
+                } else {
+                    serde_json::json!(null)
+                }
+            }
+            "eth_getTransactionByBlockNumberAndIndex" => {
                 serde_json::json!(null)
             }
-            "eth_getBlockByNumber" => self.get_mock_block().await,
-            "eth_getBlockByHash" => self.get_mock_block().await,
+            "eth_getUncleCountByBlockNumber" => {
+                serde_json::json!("0x0")
+            }
+            "eth_protocolVersion" => {
+                serde_json::json!("0x41") // Protocol version 65
+            }
+            "net_listening" => {
+                serde_json::json!(true)
+            }
+            "net_peerCount" => {
+                serde_json::json!("0x0")
+            }
+            "eth_mining" => {
+                serde_json::json!(false)
+            }
+            "eth_hashrate" => {
+                serde_json::json!("0x0")
+            }
+            "eth_feeHistory" => {
+                // EIP-1559 fee history
+                let params = request.get("params").and_then(|p| p.as_array());
+                let block_count = params
+                    .and_then(|p| p.first())
+                    .and_then(|b| b.as_u64())
+                    .unwrap_or(1) as usize;
+                self.get_fee_history(block_count).await
+            }
+            "eth_maxPriorityFeePerGas" => {
+                // Return 1 Gwei as default priority fee
+                serde_json::json!("0x3b9aca00")
+            }
 
             // Datachain Rope native methods
             "rope_getStringById" => {
@@ -436,16 +535,125 @@ impl RpcHandlers {
 
     /// Get mock block (placeholder)
     async fn get_mock_block(&self) -> serde_json::Value {
+        self.get_mock_block_with_txs(false).await
+    }
+
+    /// Get mock block with optional full transactions
+    async fn get_mock_block_with_txs(&self, _full_txs: bool) -> serde_json::Value {
         let block_num = *self.block_number.read();
+        let timestamp = chrono::Utc::now().timestamp() as u64;
+
+        // Generate deterministic block hash from block number
+        let mut block_hash = [0u8; 32];
+        block_hash[..8].copy_from_slice(&block_num.to_be_bytes());
+
+        let mut parent_hash = [0u8; 32];
+        if block_num > 0 {
+            parent_hash[..8].copy_from_slice(&(block_num - 1).to_be_bytes());
+        }
+
         serde_json::json!({
             "number": format!("0x{:x}", block_num),
-            "hash": format!("0x{}", hex::encode(&[0u8; 32])),
-            "parentHash": format!("0x{}", hex::encode(&[0u8; 32])),
-            "timestamp": format!("0x{:x}", chrono::Utc::now().timestamp()),
+            "hash": format!("0x{}", hex::encode(block_hash)),
+            "parentHash": format!("0x{}", hex::encode(parent_hash)),
+            "nonce": "0x0000000000000000",
+            "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+            "logsBloom": format!("0x{}", "00".repeat(256)),
+            "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+            "stateRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+            "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+            "miner": "0x0000000000000000000000000000000000000000",
+            "difficulty": "0x0",
+            "totalDifficulty": "0x0",
+            "extraData": "0x",
+            "size": "0x220",
             "gasLimit": "0x1c9c380",
             "gasUsed": "0x0",
+            "timestamp": format!("0x{:x}", timestamp),
             "transactions": [],
-            "miner": format!("0x{}", hex::encode(&[0u8; 20]))
+            "uncles": [],
+            "baseFeePerGas": format!("0x{:x}", self.gas_price)
+        })
+    }
+
+    /// Get block by number or tag
+    async fn get_block_by_number(&self, block_tag: &str, full_txs: bool) -> serde_json::Value {
+        let block_num = match block_tag {
+            "latest" | "pending" => *self.block_number.read(),
+            "earliest" => 0,
+            "safe" | "finalized" => {
+                let current = *self.block_number.read();
+                current.saturating_sub(1)
+            }
+            hex_str if hex_str.starts_with("0x") => {
+                u64::from_str_radix(hex_str.trim_start_matches("0x"), 16).unwrap_or(0)
+            }
+            _ => *self.block_number.read(),
+        };
+
+        // Temporarily set block number for generating block
+        let current = *self.block_number.read();
+        *self.block_number.write() = block_num;
+        let result = self.get_mock_block_with_txs(full_txs).await;
+        *self.block_number.write() = current;
+        result
+    }
+
+    /// Get transaction receipt
+    async fn get_transaction_receipt(&self, tx_hash: &str) -> serde_json::Value {
+        // For now, return null (transaction not found)
+        // In production, this would query the transaction pool/database
+        let _ = tx_hash;
+        serde_json::json!(null)
+    }
+
+    /// Get transaction by hash
+    async fn get_transaction_by_hash(&self, tx_hash: &str) -> serde_json::Value {
+        // For now, return null (transaction not found)
+        let _ = tx_hash;
+        serde_json::json!(null)
+    }
+
+    /// Get logs matching filter
+    async fn get_logs(&self, filter: &serde_json::Value) -> serde_json::Value {
+        // Parse filter parameters
+        let _from_block = filter
+            .get("fromBlock")
+            .and_then(|b| b.as_str())
+            .unwrap_or("latest");
+        let _to_block = filter
+            .get("toBlock")
+            .and_then(|b| b.as_str())
+            .unwrap_or("latest");
+        let _address = filter.get("address");
+        let _topics = filter.get("topics");
+
+        // Return empty logs array for now
+        // In production, this would query indexed events
+        serde_json::json!([])
+    }
+
+    /// Get fee history (EIP-1559)
+    async fn get_fee_history(&self, block_count: usize) -> serde_json::Value {
+        let current_block = *self.block_number.read();
+        let base_fee = self.gas_price;
+
+        // Generate mock fee history
+        let mut base_fees: Vec<String> = Vec::with_capacity(block_count + 1);
+        let mut gas_used_ratios: Vec<f64> = Vec::with_capacity(block_count);
+        let oldest_block = current_block.saturating_sub(block_count as u64);
+
+        for _ in 0..block_count {
+            base_fees.push(format!("0x{:x}", base_fee));
+            gas_used_ratios.push(0.5); // 50% utilization
+        }
+        base_fees.push(format!("0x{:x}", base_fee)); // Next block base fee
+
+        serde_json::json!({
+            "oldestBlock": format!("0x{:x}", oldest_block),
+            "baseFeePerGas": base_fees,
+            "gasUsedRatio": gas_used_ratios,
+            "reward": []
         })
     }
 
