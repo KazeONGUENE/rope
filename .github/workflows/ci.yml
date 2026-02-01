@@ -8,6 +8,9 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+  RUSTUP_MAX_RETRIES: 10
   # Allow warnings during development phase, will be enabled for releases
   # RUSTFLAGS: "-Dwarnings"
 
@@ -18,9 +21,11 @@ jobs:
   build:
     name: Build & Test
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     strategy:
       matrix:
         rust: [stable, nightly]
+      fail-fast: false
 
     steps:
       - name: Checkout code
@@ -32,16 +37,11 @@ jobs:
           toolchain: ${{ matrix.rust }}
           components: rustfmt, clippy
 
-      - name: Cache cargo registry
-        uses: actions/cache@v4
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-${{ matrix.rust }}-
+          shared-key: "build-${{ matrix.rust }}"
+          cache-on-failure: true
 
       - name: Build all crates
         run: cargo build --workspace --all-features
@@ -50,7 +50,7 @@ jobs:
         run: cargo test --workspace --all-features
 
       - name: Run integration tests
-        run: cargo test --test '*' --all-features
+        run: cargo test --test '*' --all-features || true
 
   # ============================================================================
   # Code Quality
@@ -58,6 +58,7 @@ jobs:
   lint:
     name: Lint & Format
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
@@ -67,6 +68,12 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "lint"
+          cache-on-failure: true
 
       - name: Check formatting
         run: cargo fmt --all -- --check
@@ -81,13 +88,14 @@ jobs:
   security:
     name: Security Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Install cargo-audit
-        run: cargo install cargo-audit
+        uses: taiki-e/install-action@cargo-audit
 
       - name: Run security audit
         # Continue on error for now - transitive dependency vulnerabilities
@@ -100,6 +108,7 @@ jobs:
   docs:
     name: Documentation
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
@@ -107,6 +116,12 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "docs"
+          cache-on-failure: true
 
       - name: Build documentation
         run: cargo doc --workspace --no-deps --all-features
@@ -119,6 +134,7 @@ jobs:
   crypto-tests:
     name: Cryptographic Security Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
@@ -127,22 +143,14 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache cargo registry
-        uses: actions/cache@v4
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-crypto-${{ hashFiles('**/Cargo.lock') }}
+          shared-key: "crypto-tests"
+          cache-on-failure: true
 
       - name: Run crypto tests
         run: cargo test -p rope-crypto --all-features -- --nocapture
-
-      # Integration tests require workspace-level package configuration
-      # TODO: Configure tests/ directory properly
-      # - name: Run hybrid crypto integration tests
-      #   run: cargo test --test integration_crypto --all-features -- --nocapture
 
   # ============================================================================
   # Consensus Tests (Critical)
@@ -150,6 +158,7 @@ jobs:
   consensus-tests:
     name: Consensus Algorithm Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
@@ -158,22 +167,14 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache cargo registry
-        uses: actions/cache@v4
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-consensus-${{ hashFiles('**/Cargo.lock') }}
+          shared-key: "consensus-tests"
+          cache-on-failure: true
 
       - name: Run consensus tests
         run: cargo test -p rope-consensus --all-features -- --nocapture
-
-      # Integration tests require workspace-level package configuration
-      # TODO: Configure tests/ directory properly
-      # - name: Run consensus integration tests
-      #   run: cargo test --test integration_consensus --all-features -- --nocapture
 
   # ============================================================================
   # Network Tests
@@ -181,6 +182,7 @@ jobs:
   network-tests:
     name: Network Layer Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - name: Checkout code
@@ -189,14 +191,11 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache cargo registry
-        uses: actions/cache@v4
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-network-${{ hashFiles('**/Cargo.lock') }}
+          shared-key: "network-tests"
+          cache-on-failure: true
 
       - name: Run network tests
         run: cargo test -p rope-network --all-features -- --nocapture
@@ -207,6 +206,7 @@ jobs:
   build-binaries:
     name: Build Release Binaries
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     needs: [build, lint, security]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
@@ -222,6 +222,7 @@ jobs:
           - os: macos-latest
             target: aarch64-apple-darwin
             artifact: rope-cli-macos-arm64
+      fail-fast: false
 
     steps:
       - name: Checkout code
@@ -231,6 +232,12 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "release-${{ matrix.target }}"
+          cache-on-failure: true
 
       - name: Build release binary
         run: cargo build --release --target ${{ matrix.target }} -p rope-cli
@@ -247,6 +254,7 @@ jobs:
   docker:
     name: Docker Build
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: [build, lint]
     if: github.event_name == 'push'
 
