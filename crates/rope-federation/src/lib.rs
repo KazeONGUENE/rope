@@ -325,6 +325,7 @@ pub mod community {
 
     /// Identity/Compliance protocols
     #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+    #[allow(non_camel_case_types)]
     pub enum IdentityProtocol {
         ECytizenship,
         ISO_IEC_24760_1, // ISO/IEC 24760-1
@@ -598,6 +599,7 @@ pub mod project {
 
     /// Project category
     #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+    #[allow(non_camel_case_types)]
     pub enum ProjectCategory {
         DeFi,
         NFT,
