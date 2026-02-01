@@ -403,6 +403,7 @@ impl AnchorRewardDistribution {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::constants::ONE_FAT;
 
     #[test]
     fn test_reward_calculator() {
