@@ -4340,6 +4340,7 @@ dependencies = [
  "chrono",
  "hex",
  "parking_lot 0.12.5",
+ "reqwest",
  "rope-core",
  "rope-crypto",
  "serde",
