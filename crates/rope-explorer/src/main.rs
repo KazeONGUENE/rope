@@ -1793,3 +1793,74 @@ async fn get_votes_for_target(
         }
     }))
 }
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_price_data_default() {
+        let price_data = PriceData::default();
+        assert_eq!(price_data.price, FALLBACK_PRICE);
+        assert_eq!(price_data.change_24h, 0.0);
+        assert_eq!(price_data.volume_24h, 0.0);
+        assert_eq!(price_data.source, "fallback");
+    }
+
+    #[test]
+    fn test_price_data_custom() {
+        let price_data = PriceData {
+            price: 0.005,
+            change_24h: 5.5,
+            volume_24h: 10000.0,
+            liquidity: 50000.0,
+            source: "xdcscan".to_string(),
+            timestamp: 1234567890,
+        };
+        assert_eq!(price_data.price, 0.005);
+        assert_eq!(price_data.source, "xdcscan");
+    }
+
+    #[test]
+    fn test_constants() {
+        assert_eq!(DC_FAT_CONTRACT, "0x20b59e6c5deb7d7ced2ca823c6ca81dd3f7e9a3a");
+        assert_eq!(PRICE_CACHE_TTL_SECS, 300);
+        assert!(FALLBACK_PRICE > 0.0);
+    }
+
+    #[test]
+    fn test_rand_variation() {
+        // rand_variation returns value between 0.0 and 1.0 (based on nanoseconds)
+        for _ in 0..100 {
+            let v = rand_variation();
+            assert!(v >= 0.0, "rand_variation too low: {}", v);
+            assert!(v < 1.0, "rand_variation too high: {}", v);
+        }
+    }
+
+    #[test]
+    fn test_price_data_serialization() {
+        let price_data = PriceData {
+            price: 0.00390,
+            change_24h: 2.5,
+            volume_24h: 5000.0,
+            liquidity: 25000.0,
+            source: "test".to_string(),
+            timestamp: 1700000000,
+        };
+        
+        // Should serialize without errors
+        let json = serde_json::to_string(&price_data).unwrap();
+        assert!(json.contains("0.0039"));
+        assert!(json.contains("test"));
+        
+        // Should deserialize back
+        let deserialized: PriceData = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.price, 0.00390);
+        assert_eq!(deserialized.source, "test");
+    }
+}
