@@ -138,3 +138,152 @@ pub mod state_db {
 pub use complement_db::ComplementStore;
 pub use lattice_db::LatticeStore;
 pub use state_db::StateStore;
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod lattice_store_tests {
+        use super::*;
+
+        #[test]
+        fn test_lattice_store_creation() {
+            let store = LatticeStore::new();
+            let key = [1u8; 32];
+            assert!(!store.contains(&key));
+        }
+
+        #[test]
+        fn test_lattice_store_put_get() {
+            let store = LatticeStore::new();
+            let key = [2u8; 32];
+            let value = vec![1, 2, 3, 4, 5];
+            
+            store.put(key, value.clone());
+            
+            let retrieved = store.get(&key);
+            assert!(retrieved.is_some());
+            assert_eq!(retrieved.unwrap(), value);
+        }
+
+        #[test]
+        fn test_lattice_store_delete() {
+            let store = LatticeStore::new();
+            let key = [3u8; 32];
+            let value = vec![10, 20, 30];
+            
+            store.put(key, value);
+            assert!(store.contains(&key));
+            
+            let deleted = store.delete(&key);
+            assert!(deleted);
+            assert!(!store.contains(&key));
+        }
+
+        #[test]
+        fn test_lattice_store_get_nonexistent() {
+            let store = LatticeStore::new();
+            let key = [4u8; 32];
+            assert!(store.get(&key).is_none());
+        }
+
+        #[test]
+        fn test_lattice_store_default() {
+            let store: LatticeStore = Default::default();
+            let key = [5u8; 32];
+            assert!(!store.contains(&key));
+        }
+    }
+
+    mod complement_store_tests {
+        use super::*;
+
+        #[test]
+        fn test_complement_store_creation() {
+            let store = ComplementStore::new();
+            let string_id = [1u8; 32];
+            assert!(store.get_complement(&string_id).is_none());
+        }
+
+        #[test]
+        fn test_complement_store_put_get() {
+            let store = ComplementStore::new();
+            let string_id = [2u8; 32];
+            let complement = vec![100, 200, 255];
+            
+            store.store_complement(string_id, complement.clone());
+            
+            let retrieved = store.get_complement(&string_id);
+            assert!(retrieved.is_some());
+            assert_eq!(retrieved.unwrap(), complement);
+        }
+
+        #[test]
+        fn test_complement_store_erase() {
+            let store = ComplementStore::new();
+            let string_id = [3u8; 32];
+            let complement = vec![1, 2, 3];
+            
+            store.store_complement(string_id, complement);
+            assert!(store.get_complement(&string_id).is_some());
+            
+            let erased = store.erase_complement(&string_id);
+            assert!(erased);
+            assert!(store.get_complement(&string_id).is_none());
+        }
+
+        #[test]
+        fn test_complement_store_default() {
+            let store: ComplementStore = Default::default();
+            let string_id = [4u8; 32];
+            assert!(store.get_complement(&string_id).is_none());
+        }
+    }
+
+    mod state_store_tests {
+        use super::*;
+
+        #[test]
+        fn test_state_store_creation() {
+            let store = StateStore::new();
+            assert!(store.load_oes_state("node1").is_none());
+            assert!(store.load_federation_state("fed1").is_none());
+        }
+
+        #[test]
+        fn test_oes_state_save_load() {
+            let store = StateStore::new();
+            let node_id = "node_abc";
+            let state = vec![1, 2, 3, 4];
+            
+            store.save_oes_state(node_id, state.clone());
+            
+            let loaded = store.load_oes_state(node_id);
+            assert!(loaded.is_some());
+            assert_eq!(loaded.unwrap(), state);
+        }
+
+        #[test]
+        fn test_federation_state_save_load() {
+            let store = StateStore::new();
+            let fed_id = "federation_xyz";
+            let state = vec![10, 20, 30];
+            
+            store.save_federation_state(fed_id, state.clone());
+            
+            let loaded = store.load_federation_state(fed_id);
+            assert!(loaded.is_some());
+            assert_eq!(loaded.unwrap(), state);
+        }
+
+        #[test]
+        fn test_state_store_default() {
+            let store: StateStore = Default::default();
+            assert!(store.load_oes_state("test").is_none());
+        }
+    }
+}
