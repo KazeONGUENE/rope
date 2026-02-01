@@ -376,6 +376,11 @@ impl RopeAgentRuntime {
         self.message_router.connected_channels()
     }
 
+    /// Get connected channels (async version)
+    pub async fn connected_channels_async(&self) -> Vec<String> {
+        self.message_router.connected_channels_async().await
+    }
+
     /// Check if lattice is connected
     pub async fn is_lattice_connected(&self) -> bool {
         self.lattice_client.read().await.is_connected()
@@ -415,6 +420,6 @@ mod tests {
 
         let result = runtime.connect_channel(channel).await;
         assert!(result.is_ok());
-        assert_eq!(runtime.connected_channels().len(), 1);
+        assert_eq!(runtime.connected_channels_async().await.len(), 1);
     }
 }
