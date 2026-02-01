@@ -4627,6 +4627,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "rope-security"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "blake3",
+ "chrono",
+ "hex",
+ "parking_lot 0.12.5",
+ "regex",
+ "rope-core",
+ "rope-crypto",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "rope-smartchain"
 version = "0.1.0"
 dependencies = [
