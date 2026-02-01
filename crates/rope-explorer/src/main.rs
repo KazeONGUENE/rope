@@ -1827,7 +1827,10 @@ mod tests {
 
     #[test]
     fn test_constants() {
-        assert_eq!(DC_FAT_CONTRACT, "0x20b59e6c5deb7d7ced2ca823c6ca81dd3f7e9a3a");
+        assert_eq!(
+            DC_FAT_CONTRACT,
+            "0x20b59e6c5deb7d7ced2ca823c6ca81dd3f7e9a3a"
+        );
         assert_eq!(PRICE_CACHE_TTL_SECS, 300);
         assert!(FALLBACK_PRICE > 0.0);
     }
@@ -1852,12 +1855,12 @@ mod tests {
             source: "test".to_string(),
             timestamp: 1700000000,
         };
-        
+
         // Should serialize without errors
         let json = serde_json::to_string(&price_data).unwrap();
         assert!(json.contains("0.0039"));
         assert!(json.contains("test"));
-        
+
         // Should deserialize back
         let deserialized: PriceData = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.price, 0.00390);

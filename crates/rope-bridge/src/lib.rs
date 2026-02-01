@@ -182,7 +182,11 @@ pub mod ethereum {
         }
 
         /// Make a JSON-RPC call to the Ethereum node
-        async fn rpc_call(&self, method: &str, params: Vec<serde_json::Value>) -> Result<serde_json::Value, BridgeError> {
+        async fn rpc_call(
+            &self,
+            method: &str,
+            params: Vec<serde_json::Value>,
+        ) -> Result<serde_json::Value, BridgeError> {
             let request = serde_json::json!({
                 "jsonrpc": "2.0",
                 "method": method,
@@ -190,14 +194,17 @@ pub mod ethereum {
                 "id": 1
             });
 
-            let response = self.client
+            let response = self
+                .client
                 .post(&self.config.rpc_url)
                 .json(&request)
                 .send()
                 .await
                 .map_err(|e| BridgeError::ConnectionFailed(e.to_string()))?;
 
-            let json: serde_json::Value = response.json().await
+            let json: serde_json::Value = response
+                .json()
+                .await
                 .map_err(|e| BridgeError::TransactionFailed(e.to_string()))?;
 
             if let Some(error) = json.get("error") {
@@ -212,8 +219,9 @@ pub mod ethereum {
         /// Get the current block number
         pub async fn get_block_number(&self) -> Result<u64, BridgeError> {
             let result = self.rpc_call("eth_blockNumber", vec![]).await?;
-            let hex_str = result.as_str()
-                .ok_or_else(|| BridgeError::TransactionFailed("Invalid block number".to_string()))?;
+            let hex_str = result.as_str().ok_or_else(|| {
+                BridgeError::TransactionFailed("Invalid block number".to_string())
+            })?;
             u64::from_str_radix(hex_str.trim_start_matches("0x"), 16)
                 .map_err(|e| BridgeError::TransactionFailed(e.to_string()))
         }
@@ -221,7 +229,8 @@ pub mod ethereum {
         /// Get chain ID
         pub async fn get_chain_id(&self) -> Result<u64, BridgeError> {
             let result = self.rpc_call("eth_chainId", vec![]).await?;
-            let hex_str = result.as_str()
+            let hex_str = result
+                .as_str()
                 .ok_or_else(|| BridgeError::TransactionFailed("Invalid chain ID".to_string()))?;
             u64::from_str_radix(hex_str.trim_start_matches("0x"), 16)
                 .map_err(|e| BridgeError::TransactionFailed(e.to_string()))
@@ -229,22 +238,34 @@ pub mod ethereum {
 
         /// Get account balance
         pub async fn get_balance(&self, address: &str) -> Result<u128, BridgeError> {
-            let result = self.rpc_call("eth_getBalance", vec![
-                serde_json::Value::String(address.to_string()),
-                serde_json::Value::String("latest".to_string()),
-            ]).await?;
-            let hex_str = result.as_str()
+            let result = self
+                .rpc_call(
+                    "eth_getBalance",
+                    vec![
+                        serde_json::Value::String(address.to_string()),
+                        serde_json::Value::String("latest".to_string()),
+                    ],
+                )
+                .await?;
+            let hex_str = result
+                .as_str()
                 .ok_or_else(|| BridgeError::TransactionFailed("Invalid balance".to_string()))?;
             u128::from_str_radix(hex_str.trim_start_matches("0x"), 16)
                 .map_err(|e| BridgeError::TransactionFailed(e.to_string()))
         }
 
         /// Get transaction receipt
-        pub async fn get_transaction_receipt(&self, tx_hash: &str) -> Result<Option<serde_json::Value>, BridgeError> {
-            let result = self.rpc_call("eth_getTransactionReceipt", vec![
-                serde_json::Value::String(tx_hash.to_string()),
-            ]).await?;
-            
+        pub async fn get_transaction_receipt(
+            &self,
+            tx_hash: &str,
+        ) -> Result<Option<serde_json::Value>, BridgeError> {
+            let result = self
+                .rpc_call(
+                    "eth_getTransactionReceipt",
+                    vec![serde_json::Value::String(tx_hash.to_string())],
+                )
+                .await?;
+
             if result.is_null() {
                 Ok(None)
             } else {
@@ -254,10 +275,14 @@ pub mod ethereum {
 
         /// Send raw transaction
         pub async fn send_raw_transaction(&self, signed_tx: &str) -> Result<String, BridgeError> {
-            let result = self.rpc_call("eth_sendRawTransaction", vec![
-                serde_json::Value::String(signed_tx.to_string()),
-            ]).await?;
-            result.as_str()
+            let result = self
+                .rpc_call(
+                    "eth_sendRawTransaction",
+                    vec![serde_json::Value::String(signed_tx.to_string())],
+                )
+                .await?;
+            result
+                .as_str()
                 .map(|s| s.to_string())
                 .ok_or_else(|| BridgeError::TransactionFailed("Invalid tx hash".to_string()))
         }
@@ -272,7 +297,7 @@ pub mod ethereum {
         ) -> bool {
             // Simple verification - compute expected root from proof
             let mut current_hash = blake3::hash(value).as_bytes().to_vec();
-            
+
             for (i, sibling) in proof.iter().enumerate() {
                 let mut hasher = blake3::Hasher::new();
                 if (key.get(i / 8).unwrap_or(&0) >> (7 - (i % 8))) & 1 == 0 {
@@ -284,7 +309,7 @@ pub mod ethereum {
                 }
                 current_hash = hasher.finalize().as_bytes().to_vec();
             }
-            
+
             current_hash.as_slice() == root
         }
     }
@@ -307,39 +332,38 @@ pub mod ethereum {
             // Get current chain state
             let chain_id = self.get_chain_id().await?;
             let block_number = self.get_block_number().await?;
-            
-            self.chain_id.store(chain_id, std::sync::atomic::Ordering::SeqCst);
-            self.latest_block.store(block_number, std::sync::atomic::Ordering::SeqCst);
-            
+
+            self.chain_id
+                .store(chain_id, std::sync::atomic::Ordering::SeqCst);
+            self.latest_block
+                .store(block_number, std::sync::atomic::Ordering::SeqCst);
+
             tracing::info!(
                 "Ethereum bridge synced: chain_id={}, block={}",
                 chain_id,
                 block_number
             );
-            
+
             self.connected = true;
             Ok(())
         }
 
-        async fn submit_transaction(
-            &self,
-            tx: BridgeTransaction,
-        ) -> Result<[u8; 32], BridgeError> {
+        async fn submit_transaction(&self, tx: BridgeTransaction) -> Result<[u8; 32], BridgeError> {
             // The payload should contain a signed transaction hex
             let signed_tx = String::from_utf8(tx.payload.clone())
                 .map_err(|e| BridgeError::InvalidPayload(e.to_string()))?;
-            
+
             let tx_hash = self.send_raw_transaction(&signed_tx).await?;
-            
+
             // Convert tx hash to [u8; 32]
             let hash_bytes = hex::decode(tx_hash.trim_start_matches("0x"))
                 .map_err(|e| BridgeError::TransactionFailed(e.to_string()))?;
-            
+
             let mut result = [0u8; 32];
             if hash_bytes.len() >= 32 {
                 result.copy_from_slice(&hash_bytes[..32]);
             }
-            
+
             tracing::info!("Transaction submitted: 0x{}", hex::encode(result));
             Ok(result)
         }
@@ -349,25 +373,30 @@ pub mod ethereum {
             if proof.len() < 40 {
                 return Err(BridgeError::InvalidProof("Proof too short".to_string()));
             }
-            
-            let root: [u8; 32] = proof[0..32].try_into()
+
+            let root: [u8; 32] = proof[0..32]
+                .try_into()
                 .map_err(|_| BridgeError::InvalidProof("Invalid root".to_string()))?;
-            
+
             let key_len = u32::from_be_bytes(proof[32..36].try_into().unwrap()) as usize;
             if proof.len() < 36 + key_len + 4 {
                 return Err(BridgeError::InvalidProof("Invalid key length".to_string()));
             }
-            
+
             let key = &proof[36..36 + key_len];
             let value_start = 36 + key_len;
-            let value_len = u32::from_be_bytes(proof[value_start..value_start + 4].try_into().unwrap()) as usize;
-            
+            let value_len =
+                u32::from_be_bytes(proof[value_start..value_start + 4].try_into().unwrap())
+                    as usize;
+
             if proof.len() < value_start + 4 + value_len {
-                return Err(BridgeError::InvalidProof("Invalid value length".to_string()));
+                return Err(BridgeError::InvalidProof(
+                    "Invalid value length".to_string(),
+                ));
             }
-            
+
             let value = &proof[value_start + 4..value_start + 4 + value_len];
-            
+
             // Parse proof nodes (each 32 bytes)
             let proof_start = value_start + 4 + value_len;
             let mut proof_nodes = Vec::new();
@@ -376,7 +405,7 @@ pub mod ethereum {
                 proof_nodes.push(proof[i..i + 32].to_vec());
                 i += 32;
             }
-            
+
             Ok(self.verify_merkle_proof(&root, key, value, &proof_nodes))
         }
     }
@@ -1330,15 +1359,15 @@ pub mod verification {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::common::*;
     use super::ethereum::*;
+    use super::*;
 
     #[test]
     fn test_bridge_error_display() {
         let err = BridgeError::ConnectionFailed("timeout".to_string());
         assert!(err.to_string().contains("Connection failed"));
-        
+
         let err = BridgeError::InvalidProof("too short".to_string());
         assert!(err.to_string().contains("Invalid proof"));
     }
@@ -1365,7 +1394,10 @@ mod tests {
         };
         let bridge = EthereumBridge::new(config);
         assert_eq!(bridge.name(), "Ethereum Bridge");
-        assert_eq!(bridge.protocol_type(), ProtocolType::Blockchain(BlockchainType::Ethereum));
+        assert_eq!(
+            bridge.protocol_type(),
+            ProtocolType::Blockchain(BlockchainType::Ethereum)
+        );
     }
 
     #[test]
@@ -1377,12 +1409,12 @@ mod tests {
             confirmations_required: 1,
         };
         let bridge = EthereumBridge::new(config);
-        
+
         // Create a simple test case
         let value = b"test value";
         let value_hash = blake3::hash(value);
         let root: [u8; 32] = *value_hash.as_bytes();
-        
+
         // With empty proof, the value hash should equal the root
         let result = bridge.verify_merkle_proof(&root, &[], value, &[]);
         assert!(result);
@@ -1402,7 +1434,7 @@ mod tests {
                 priority: TransactionPriority::Medium,
             },
         };
-        
+
         assert_eq!(tx.id, [1u8; 32]);
         assert_eq!(tx.payload.len(), 3);
     }
@@ -1424,7 +1456,7 @@ mod tests {
         let eth = ProtocolType::Blockchain(BlockchainType::Ethereum);
         let xdc = ProtocolType::Blockchain(BlockchainType::XDC);
         let swift = ProtocolType::Finance(FinanceProtocol::Swift);
-        
+
         assert_ne!(eth, xdc);
         assert!(matches!(eth, ProtocolType::Blockchain(_)));
         assert!(matches!(swift, ProtocolType::Finance(_)));
