@@ -6,8 +6,107 @@ use clap::{Parser, Subcommand};
 use libp2p::identity::Keypair as LibP2pKeypair;
 use rope_crypto::keys::KeyPair;
 use rope_node::{NodeConfig, RopeNode};
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+
+/// JSON-RPC request structure
+#[derive(Serialize)]
+struct JsonRpcRequest {
+    jsonrpc: String,
+    method: String,
+    params: Vec<serde_json::Value>,
+    id: u64,
+}
+
+/// JSON-RPC response structure
+#[derive(Deserialize)]
+struct JsonRpcResponse {
+    #[allow(dead_code)]
+    jsonrpc: String,
+    result: Option<serde_json::Value>,
+    error: Option<JsonRpcError>,
+    #[allow(dead_code)]
+    id: u64,
+}
+
+/// JSON-RPC error
+#[derive(Deserialize)]
+struct JsonRpcError {
+    code: i64,
+    message: String,
+}
+
+/// Simple RPC client for Datachain Rope
+struct RpcClient {
+    endpoint: String,
+    client: reqwest::Client,
+}
+
+impl RpcClient {
+    fn new(endpoint: &str) -> Self {
+        Self {
+            endpoint: endpoint.to_string(),
+            client: reqwest::Client::new(),
+        }
+    }
+
+    async fn call(&self, method: &str, params: Vec<serde_json::Value>) -> anyhow::Result<serde_json::Value> {
+        let request = JsonRpcRequest {
+            jsonrpc: "2.0".to_string(),
+            method: method.to_string(),
+            params,
+            id: 1,
+        };
+
+        let response = self.client
+            .post(&self.endpoint)
+            .json(&request)
+            .send()
+            .await?;
+
+        let json_response: JsonRpcResponse = response.json().await?;
+
+        if let Some(error) = json_response.error {
+            anyhow::bail!("RPC error {}: {}", error.code, error.message);
+        }
+
+        json_response.result.ok_or_else(|| anyhow::anyhow!("No result in response"))
+    }
+
+    async fn get_chain_id(&self) -> anyhow::Result<u64> {
+        let result = self.call("eth_chainId", vec![]).await?;
+        let hex_str = result.as_str().ok_or_else(|| anyhow::anyhow!("Invalid chain ID response"))?;
+        let chain_id = u64::from_str_radix(hex_str.trim_start_matches("0x"), 16)?;
+        Ok(chain_id)
+    }
+
+    async fn get_block_number(&self) -> anyhow::Result<u64> {
+        let result = self.call("eth_blockNumber", vec![]).await?;
+        let hex_str = result.as_str().ok_or_else(|| anyhow::anyhow!("Invalid block number response"))?;
+        let block_num = u64::from_str_radix(hex_str.trim_start_matches("0x"), 16)?;
+        Ok(block_num)
+    }
+
+    async fn get_balance(&self, address: &str) -> anyhow::Result<u128> {
+        let result = self.call("eth_getBalance", vec![
+            serde_json::Value::String(address.to_string()),
+            serde_json::Value::String("latest".to_string()),
+        ]).await?;
+        let hex_str = result.as_str().ok_or_else(|| anyhow::anyhow!("Invalid balance response"))?;
+        let balance = u128::from_str_radix(hex_str.trim_start_matches("0x"), 16)?;
+        Ok(balance)
+    }
+
+    async fn get_peer_count(&self) -> anyhow::Result<u64> {
+        let result = self.call("net_peerCount", vec![]).await?;
+        let hex_str = result.as_str().ok_or_else(|| anyhow::anyhow!("Invalid peer count response"))?;
+        let count = u64::from_str_radix(hex_str.trim_start_matches("0x"), 16)?;
+        Ok(count)
+    }
+}
+
+const DEFAULT_RPC_ENDPOINT: &str = "https://erpc.datachain.network";
 
 #[derive(Parser)]
 #[command(name = "rope")]
@@ -307,41 +406,101 @@ async fn main() -> anyhow::Result<()> {
         }
 
         Commands::Query { query } => {
+            let rpc = RpcClient::new(DEFAULT_RPC_ENDPOINT);
+            
             match query {
                 QueryCommands::String { id } => {
                     println!("Querying string: {}", id);
-                    // TODO: Implement RPC query
-                    println!("RPC client not yet implemented");
+                    println!("String query not yet available via JSON-RPC");
+                    println!("Use the native Rope API for string queries");
                 }
                 QueryCommands::Status => {
-                    println!("Network Status:");
-                    // TODO: Implement status query
-                    println!("RPC client not yet implemented");
+                    println!("╔══════════════════════════════════════════════════════════════╗");
+                    println!("║                  NETWORK STATUS                              ║");
+                    println!("╚══════════════════════════════════════════════════════════════╝");
+                    println!("");
+                    
+                    match rpc.get_chain_id().await {
+                        Ok(chain_id) => println!("Chain ID:     {} (0x{:X})", chain_id, chain_id),
+                        Err(e) => println!("Chain ID:     Error - {}", e),
+                    }
+                    
+                    match rpc.get_block_number().await {
+                        Ok(block) => println!("Block Height: {}", block),
+                        Err(e) => println!("Block Height: Error - {}", e),
+                    }
+                    
+                    match rpc.get_peer_count().await {
+                        Ok(peers) => println!("Peer Count:   {}", peers),
+                        Err(e) => println!("Peer Count:   Error - {}", e),
+                    }
+                    
+                    println!("");
+                    println!("RPC Endpoint: {}", DEFAULT_RPC_ENDPOINT);
                 }
                 QueryCommands::Peers => {
                     println!("Connected Peers:");
-                    // TODO: Implement peers query
-                    println!("RPC client not yet implemented");
+                    match rpc.get_peer_count().await {
+                        Ok(count) => {
+                            println!("Total connected peers: {}", count);
+                            println!("");
+                            println!("(Detailed peer list requires native Rope API)");
+                        }
+                        Err(e) => println!("Error getting peer count: {}", e),
+                    }
                 }
                 QueryCommands::Validators => {
                     println!("Validator Set:");
-                    // TODO: Implement validators query
-                    println!("RPC client not yet implemented");
+                    println!("(Validator queries require native Rope API)");
+                    println!("");
+                    println!("Datachain Rope uses 21 rotating validators");
+                    println!("See https://dcscan.io/validators for current set");
                 }
             }
         }
 
         Commands::Token { token } => {
+            let rpc = RpcClient::new(DEFAULT_RPC_ENDPOINT);
+            
             match token {
                 TokenCommands::Balance { address } => {
-                    println!("Balance for {}: ", address);
-                    // TODO: Implement balance query
-                    println!("RPC client not yet implemented");
+                    // Ensure address has 0x prefix
+                    let addr = if address.starts_with("0x") {
+                        address.clone()
+                    } else {
+                        format!("0x{}", address)
+                    };
+                    
+                    println!("╔══════════════════════════════════════════════════════════════╗");
+                    println!("║                  TOKEN BALANCE                               ║");
+                    println!("╚══════════════════════════════════════════════════════════════╝");
+                    println!("");
+                    println!("Address: {}", addr);
+                    
+                    match rpc.get_balance(&addr).await {
+                        Ok(balance_wei) => {
+                            let balance_fat = balance_wei as f64 / 1e18;
+                            println!("Balance: {:.6} FAT", balance_fat);
+                            println!("         ({} wei)", balance_wei);
+                        }
+                        Err(e) => println!("Error: {}", e),
+                    }
                 }
                 TokenCommands::Transfer { to, amount } => {
-                    println!("Transfer {} FAT to {}", amount, to);
-                    // TODO: Implement transfer
-                    println!("RPC client not yet implemented");
+                    println!("╔══════════════════════════════════════════════════════════════╗");
+                    println!("║                  TOKEN TRANSFER                              ║");
+                    println!("╚══════════════════════════════════════════════════════════════╝");
+                    println!("");
+                    println!("To:     {}", to);
+                    println!("Amount: {} FAT", amount);
+                    println!("");
+                    println!("Transfer requires wallet signing.");
+                    println!("Use Datawallet+ app or web interface at https://datawallet.plus");
+                    println!("");
+                    println!("Or use MetaMask with:");
+                    println!("  Network: Datachain Rope");
+                    println!("  Chain ID: 271828");
+                    println!("  RPC: https://erpc.datachain.network");
                 }
             }
         }
