@@ -1,0 +1,925 @@
+openapi: 3.1.0
+info:
+  title: Datachain Rope Explorer API
+  description: |
+    REST API for the Datachain Rope block explorer (dcscan.io).
+    
+    Provides access to:
+    - Network status and statistics
+    - Strings (blocks) and transactions
+    - Accounts and token balances
+    - Validators and AI agents
+    - Federations and communities
+    - DC FAT token price data
+    
+    Base URL: https://api.dcscan.io/api/v1
+  version: 1.0.0
+  contact:
+    name: Datachain Foundation
+    url: https://datachain.network
+    email: api@datachain.network
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: https://api.dcscan.io/api/v1
+    description: Production
+  - url: https://testnet-api.dcscan.io/api/v1
+    description: Testnet
+  - url: http://localhost:3001/api/v1
+    description: Local development
+
+tags:
+  - name: Status
+    description: Network status and health
+  - name: Strings
+    description: String (block) operations
+  - name: Transactions
+    description: Transaction operations
+  - name: Accounts
+    description: Account and balance operations
+  - name: Tokens
+    description: Token information and transfers
+  - name: Validators
+    description: Validator information
+  - name: AI Agents
+    description: AI agent and testimony operations
+  - name: Federations
+    description: Federation management
+  - name: Communities
+    description: Community management
+  - name: Projects
+    description: Project submissions and voting
+
+paths:
+  /status:
+    get:
+      summary: Get network status
+      tags: [Status]
+      operationId: getStatus
+      responses:
+        '200':
+          description: Network status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NetworkStatus'
+
+  /stats:
+    get:
+      summary: Get network statistics
+      tags: [Status]
+      operationId: getStats
+      responses:
+        '200':
+          description: Network statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NetworkStats'
+
+  /stats/charts/{chartType}:
+    get:
+      summary: Get chart data
+      tags: [Status]
+      operationId: getChartData
+      parameters:
+        - name: chartType
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [transactions, gas, strings, testimonies]
+      responses:
+        '200':
+          description: Chart data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChartData'
+
+  /strings:
+    get:
+      summary: List strings (blocks)
+      tags: [Strings]
+      operationId: listStrings
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          description: List of strings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StringList'
+
+  /strings/latest:
+    get:
+      summary: Get latest strings
+      tags: [Strings]
+      operationId: getLatestStrings
+      responses:
+        '200':
+          description: Latest strings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/String'
+
+  /strings/{id}:
+    get:
+      summary: Get string by ID
+      tags: [Strings]
+      operationId: getString
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: String ID (hex)
+      responses:
+        '200':
+          description: String details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/String'
+        '404':
+          description: String not found
+
+  /transactions:
+    get:
+      summary: List transactions
+      tags: [Transactions]
+      operationId: listTransactions
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          description: List of transactions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionList'
+
+  /transactions/latest:
+    get:
+      summary: Get latest transactions
+      tags: [Transactions]
+      operationId: getLatestTransactions
+      responses:
+        '200':
+          description: Latest transactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Transaction'
+
+  /transactions/{hash}:
+    get:
+      summary: Get transaction by hash
+      tags: [Transactions]
+      operationId: getTransaction
+      parameters:
+        - name: hash
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Transaction hash (hex with 0x prefix)
+      responses:
+        '200':
+          description: Transaction details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '404':
+          description: Transaction not found
+
+  /accounts/{address}:
+    get:
+      summary: Get account details
+      tags: [Accounts]
+      operationId: getAccount
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Account address (hex with 0x prefix)
+      responses:
+        '200':
+          description: Account details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+
+  /accounts/{address}/transactions:
+    get:
+      summary: Get account transactions
+      tags: [Accounts]
+      operationId: getAccountTransactions
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          description: Account transactions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionList'
+
+  /accounts/{address}/tokens:
+    get:
+      summary: Get account token balances
+      tags: [Accounts]
+      operationId: getAccountTokens
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Token balances
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TokenBalance'
+
+  /tokens:
+    get:
+      summary: List tokens
+      tags: [Tokens]
+      operationId: listTokens
+      responses:
+        '200':
+          description: List of tokens
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Token'
+
+  /tokens/{address}:
+    get:
+      summary: Get token details
+      tags: [Tokens]
+      operationId: getToken
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Token details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+
+  /validators:
+    get:
+      summary: List validators
+      tags: [Validators]
+      operationId: listValidators
+      responses:
+        '200':
+          description: List of validators
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Validator'
+
+  /validators/{address}:
+    get:
+      summary: Get validator details
+      tags: [Validators]
+      operationId: getValidator
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Validator details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Validator'
+
+  /ai-agents:
+    get:
+      summary: List AI agents
+      tags: [AI Agents]
+      operationId: listAIAgents
+      responses:
+        '200':
+          description: List of AI agents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AIAgent'
+
+  /ai-agents/{id}:
+    get:
+      summary: Get AI agent details
+      tags: [AI Agents]
+      operationId: getAIAgent
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: AI agent details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIAgent'
+
+  /ai-agents/{id}/testimonies:
+    get:
+      summary: Get agent testimonies
+      tags: [AI Agents]
+      operationId: getAgentTestimonies
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          description: Agent testimonies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Testimony'
+
+  /dcfat/price:
+    get:
+      summary: Get DC FAT token price
+      tags: [Tokens]
+      operationId: getDCFATPrice
+      responses:
+        '200':
+          description: DC FAT price data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PriceData'
+
+  /federations:
+    get:
+      summary: List federations
+      tags: [Federations]
+      operationId: listFederations
+      responses:
+        '200':
+          description: List of federations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Federation'
+    post:
+      summary: Create federation
+      tags: [Federations]
+      operationId: createFederation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FederationCreate'
+      responses:
+        '201':
+          description: Federation created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Federation'
+
+  /federations/{id}:
+    get:
+      summary: Get federation details
+      tags: [Federations]
+      operationId: getFederation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Federation details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Federation'
+
+  /communities:
+    get:
+      summary: List communities
+      tags: [Communities]
+      operationId: listCommunities
+      responses:
+        '200':
+          description: List of communities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Community'
+    post:
+      summary: Create community
+      tags: [Communities]
+      operationId: createCommunity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommunityCreate'
+      responses:
+        '201':
+          description: Community created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Community'
+
+  /search:
+    get:
+      summary: Search
+      tags: [Status]
+      operationId: search
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Search query (address, hash, or string ID)
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResult'
+
+  /gas/price:
+    get:
+      summary: Get current gas price
+      tags: [Status]
+      operationId: getGasPrice
+      responses:
+        '200':
+          description: Gas price
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GasPrice'
+
+  /gas/oracle:
+    get:
+      summary: Get gas oracle predictions
+      tags: [Status]
+      operationId: getGasOracle
+      responses:
+        '200':
+          description: Gas oracle data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GasOracle'
+
+components:
+  parameters:
+    page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        default: 1
+        minimum: 1
+    limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        default: 20
+        minimum: 1
+        maximum: 100
+
+  schemas:
+    NetworkStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, down]
+        chainId:
+          type: integer
+          example: 271828
+        networkName:
+          type: string
+          example: "Datachain Rope Mainnet"
+        latestString:
+          type: integer
+        finalityTime:
+          type: number
+          description: Average finality time in seconds
+        peerCount:
+          type: integer
+        validatorCount:
+          type: integer
+        aiAgentCount:
+          type: integer
+
+    NetworkStats:
+      type: object
+      properties:
+        totalStrings:
+          type: integer
+        totalTransactions:
+          type: integer
+        totalTestimonies:
+          type: integer
+        totalAccounts:
+          type: integer
+        totalTokens:
+          type: integer
+        tps:
+          type: number
+          description: Transactions per second
+        gasPrice:
+          type: string
+
+    ChartData:
+      type: object
+      properties:
+        labels:
+          type: array
+          items:
+            type: string
+        data:
+          type: array
+          items:
+            type: number
+
+    String:
+      type: object
+      properties:
+        id:
+          type: string
+        number:
+          type: integer
+        hash:
+          type: string
+        parentHash:
+          type: string
+        timestamp:
+          type: integer
+        creator:
+          type: string
+        nucleotide:
+          type: string
+          enum: [A, T, C, G]
+        transactionCount:
+          type: integer
+        testimonyCount:
+          type: integer
+        size:
+          type: integer
+        gasUsed:
+          type: string
+        gasLimit:
+          type: string
+
+    StringList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/String'
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    Transaction:
+      type: object
+      properties:
+        hash:
+          type: string
+        stringId:
+          type: string
+        from:
+          type: string
+        to:
+          type: string
+        value:
+          type: string
+        gasPrice:
+          type: string
+        gasUsed:
+          type: string
+        nonce:
+          type: integer
+        input:
+          type: string
+        status:
+          type: string
+          enum: [pending, confirmed, failed]
+        timestamp:
+          type: integer
+        testimonyStatus:
+          type: string
+
+    TransactionList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Transaction'
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    Account:
+      type: object
+      properties:
+        address:
+          type: string
+        balance:
+          type: string
+        transactionCount:
+          type: integer
+        isContract:
+          type: boolean
+        tokenCount:
+          type: integer
+
+    Token:
+      type: object
+      properties:
+        address:
+          type: string
+        name:
+          type: string
+        symbol:
+          type: string
+        decimals:
+          type: integer
+        totalSupply:
+          type: string
+        holderCount:
+          type: integer
+        transferCount:
+          type: integer
+
+    TokenBalance:
+      type: object
+      properties:
+        token:
+          $ref: '#/components/schemas/Token'
+        balance:
+          type: string
+
+    Validator:
+      type: object
+      properties:
+        address:
+          type: string
+        name:
+          type: string
+        stake:
+          type: string
+        commission:
+          type: number
+        uptime:
+          type: number
+        stringsProduced:
+          type: integer
+        status:
+          type: string
+          enum: [active, inactive, jailed]
+
+    AIAgent:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum: [validation, contract, anomaly, compliance, oracle]
+        status:
+          type: string
+          enum: [active, inactive, maintenance]
+        reputation:
+          type: integer
+        testimoniesCount:
+          type: integer
+        accuracy:
+          type: number
+        lastActive:
+          type: integer
+
+    Testimony:
+      type: object
+      properties:
+        id:
+          type: string
+        agentId:
+          type: string
+        stringId:
+          type: string
+        verdict:
+          type: string
+          enum: [VALID, INVALID, NEEDS_REVIEW]
+        confidence:
+          type: number
+        timestamp:
+          type: integer
+        signature:
+          type: string
+
+    PriceData:
+      type: object
+      properties:
+        price:
+          type: number
+        change24h:
+          type: number
+        volume24h:
+          type: number
+        liquidity:
+          type: number
+        source:
+          type: string
+        timestamp:
+          type: integer
+
+    Federation:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum: [structured, unstructured, autonomous]
+        consensusType:
+          type: string
+        memberCount:
+          type: integer
+        walletCount:
+          type: integer
+        createdAt:
+          type: integer
+
+    FederationCreate:
+      type: object
+      required: [name, type]
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [structured, unstructured, autonomous]
+        description:
+          type: string
+
+    Community:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        industry:
+          type: string
+        federationId:
+          type: string
+        memberCount:
+          type: integer
+        walletCount:
+          type: integer
+        createdAt:
+          type: integer
+
+    CommunityCreate:
+      type: object
+      required: [name, industry]
+      properties:
+        name:
+          type: string
+        industry:
+          type: string
+        federationId:
+          type: string
+        description:
+          type: string
+
+    SearchResult:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [address, transaction, string, token, validator, agent]
+        result:
+          type: object
+
+    GasPrice:
+      type: object
+      properties:
+        fast:
+          type: string
+        standard:
+          type: string
+        slow:
+          type: string
+        baseFee:
+          type: string
+
+    GasOracle:
+      type: object
+      properties:
+        safeLow:
+          type: object
+          properties:
+            maxFee:
+              type: string
+            maxPriorityFee:
+              type: string
+        standard:
+          type: object
+          properties:
+            maxFee:
+              type: string
+            maxPriorityFee:
+              type: string
+        fast:
+          type: object
+          properties:
+            maxFee:
+              type: string
+            maxPriorityFee:
+              type: string
+        estimatedBaseFee:
+          type: string
+        blockTime:
+          type: number
+        blockNumber:
+          type: integer
