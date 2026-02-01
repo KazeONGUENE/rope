@@ -268,7 +268,7 @@ mod tests {
         #[test]
         fn test_rdp_transfer_add_chunk() {
             let mut transfer = RdpTransfer::new([1u8; 32], 4);
-            
+
             let chunk = RdpChunk {
                 string_id: [1u8; 32],
                 chunk_index: 0,
@@ -276,7 +276,7 @@ mod tests {
                 data: vec![1, 2, 3],
                 checksum: [0u8; 32],
             };
-            
+
             transfer.add_chunk(chunk);
             assert_eq!(transfer.progress(), 0.25);
             assert!(!transfer.is_complete());
@@ -285,7 +285,7 @@ mod tests {
         #[test]
         fn test_rdp_transfer_complete() {
             let mut transfer = RdpTransfer::new([1u8; 32], 2);
-            
+
             for i in 0..2 {
                 let chunk = RdpChunk {
                     string_id: [1u8; 32],
@@ -296,7 +296,7 @@ mod tests {
                 };
                 transfer.add_chunk(chunk);
             }
-            
+
             assert!(transfer.is_complete());
             assert_eq!(transfer.progress(), 1.0);
         }
@@ -315,7 +315,7 @@ mod tests {
         #[test]
         fn test_swarm_add_seeder() {
             let mut swarm = Swarm::new([1u8; 32]);
-            
+
             let member = SwarmMember {
                 node_id: [2u8; 32],
                 is_seeder: true,
@@ -323,7 +323,7 @@ mod tests {
                 download_speed: 500,
                 last_seen: 12345,
             };
-            
+
             swarm.add_member(member);
             assert_eq!(swarm.member_count(), 1);
             assert_eq!(swarm.seeder_count(), 1);
@@ -332,7 +332,7 @@ mod tests {
         #[test]
         fn test_swarm_add_leecher() {
             let mut swarm = Swarm::new([1u8; 32]);
-            
+
             let member = SwarmMember {
                 node_id: [3u8; 32],
                 is_seeder: false,
@@ -340,7 +340,7 @@ mod tests {
                 download_speed: 1000,
                 last_seen: 12345,
             };
-            
+
             swarm.add_member(member);
             assert_eq!(swarm.member_count(), 1);
             assert_eq!(swarm.seeder_count(), 0);
@@ -351,7 +351,7 @@ mod tests {
         fn test_swarm_leecher_becomes_seeder() {
             let mut swarm = Swarm::new([1u8; 32]);
             let node_id = [4u8; 32];
-            
+
             // Add as leecher
             swarm.add_member(SwarmMember {
                 node_id,
@@ -360,10 +360,10 @@ mod tests {
                 download_speed: 1000,
                 last_seen: 12345,
             });
-            
+
             assert!(swarm.leechers.contains(&node_id));
             assert!(!swarm.seeders.contains(&node_id));
-            
+
             // Upgrade to seeder
             swarm.add_member(SwarmMember {
                 node_id,
@@ -372,7 +372,7 @@ mod tests {
                 download_speed: 1000,
                 last_seen: 12346,
             });
-            
+
             assert!(!swarm.leechers.contains(&node_id));
             assert!(swarm.seeders.contains(&node_id));
         }
@@ -391,16 +391,16 @@ mod tests {
         #[test]
         fn test_dht_store_put_get() {
             let mut store = DhtStore::new();
-            
+
             let entry = DhtEntry {
                 key: [2u8; 32],
                 value: vec![1, 2, 3],
                 ttl_seconds: 3600,
                 domain: "test".to_string(),
             };
-            
+
             store.put(entry.clone());
-            
+
             let retrieved = store.get(&[2u8; 32]);
             assert!(retrieved.is_some());
             assert_eq!(retrieved.unwrap().value, vec![1, 2, 3]);
@@ -409,31 +409,31 @@ mod tests {
         #[test]
         fn test_dht_find_by_domain() {
             let mut store = DhtStore::new();
-            
+
             store.put(DhtEntry {
                 key: [1u8; 32],
                 value: vec![1],
                 ttl_seconds: 3600,
                 domain: "finance".to_string(),
             });
-            
+
             store.put(DhtEntry {
                 key: [2u8; 32],
                 value: vec![2],
                 ttl_seconds: 3600,
                 domain: "finance".to_string(),
             });
-            
+
             store.put(DhtEntry {
                 key: [3u8; 32],
                 value: vec![3],
                 ttl_seconds: 3600,
                 domain: "healthcare".to_string(),
             });
-            
+
             let finance_entries = store.find_by_domain("finance");
             assert_eq!(finance_entries.len(), 2);
-            
+
             let healthcare_entries = store.find_by_domain("healthcare");
             assert_eq!(healthcare_entries.len(), 1);
         }
@@ -462,7 +462,7 @@ mod tests {
         fn test_calculate_reward_zero_contribution() {
             let params = IncentiveParams::default();
             let contrib = NodeContribution::default();
-            
+
             let reward = calculate_reward(&params, &contrib);
             assert_eq!(reward, 0);
         }
@@ -476,7 +476,7 @@ mod tests {
                 regenerations_helped: 0,
                 uptime_seconds: 3600,
             };
-            
+
             let reward = calculate_reward(&params, &contrib);
             assert!(reward > 0);
         }
@@ -490,7 +490,7 @@ mod tests {
                 regenerations_helped: 0,
                 uptime_seconds: 3600,
             };
-            
+
             let reward = calculate_reward(&params, &contrib);
             assert!(reward > 0);
         }
@@ -504,7 +504,7 @@ mod tests {
                 regenerations_helped: 10,
                 uptime_seconds: 3600,
             };
-            
+
             let reward = calculate_reward(&params, &contrib);
             assert!(reward > 0);
         }
@@ -518,7 +518,7 @@ mod tests {
                 regenerations_helped: 5,
                 uptime_seconds: 86400,
             };
-            
+
             let reward = calculate_reward(&params, &contrib);
             assert!(reward > 100); // Should be more than base reward
         }

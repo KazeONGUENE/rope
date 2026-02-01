@@ -51,7 +51,11 @@ impl RpcClient {
         }
     }
 
-    async fn call(&self, method: &str, params: Vec<serde_json::Value>) -> anyhow::Result<serde_json::Value> {
+    async fn call(
+        &self,
+        method: &str,
+        params: Vec<serde_json::Value>,
+    ) -> anyhow::Result<serde_json::Value> {
         let request = JsonRpcRequest {
             jsonrpc: "2.0".to_string(),
             method: method.to_string(),
@@ -59,7 +63,8 @@ impl RpcClient {
             id: 1,
         };
 
-        let response = self.client
+        let response = self
+            .client
             .post(&self.endpoint)
             .json(&request)
             .send()
@@ -71,36 +76,51 @@ impl RpcClient {
             anyhow::bail!("RPC error {}: {}", error.code, error.message);
         }
 
-        json_response.result.ok_or_else(|| anyhow::anyhow!("No result in response"))
+        json_response
+            .result
+            .ok_or_else(|| anyhow::anyhow!("No result in response"))
     }
 
     async fn get_chain_id(&self) -> anyhow::Result<u64> {
         let result = self.call("eth_chainId", vec![]).await?;
-        let hex_str = result.as_str().ok_or_else(|| anyhow::anyhow!("Invalid chain ID response"))?;
+        let hex_str = result
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("Invalid chain ID response"))?;
         let chain_id = u64::from_str_radix(hex_str.trim_start_matches("0x"), 16)?;
         Ok(chain_id)
     }
 
     async fn get_block_number(&self) -> anyhow::Result<u64> {
         let result = self.call("eth_blockNumber", vec![]).await?;
-        let hex_str = result.as_str().ok_or_else(|| anyhow::anyhow!("Invalid block number response"))?;
+        let hex_str = result
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("Invalid block number response"))?;
         let block_num = u64::from_str_radix(hex_str.trim_start_matches("0x"), 16)?;
         Ok(block_num)
     }
 
     async fn get_balance(&self, address: &str) -> anyhow::Result<u128> {
-        let result = self.call("eth_getBalance", vec![
-            serde_json::Value::String(address.to_string()),
-            serde_json::Value::String("latest".to_string()),
-        ]).await?;
-        let hex_str = result.as_str().ok_or_else(|| anyhow::anyhow!("Invalid balance response"))?;
+        let result = self
+            .call(
+                "eth_getBalance",
+                vec![
+                    serde_json::Value::String(address.to_string()),
+                    serde_json::Value::String("latest".to_string()),
+                ],
+            )
+            .await?;
+        let hex_str = result
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("Invalid balance response"))?;
         let balance = u128::from_str_radix(hex_str.trim_start_matches("0x"), 16)?;
         Ok(balance)
     }
 
     async fn get_peer_count(&self) -> anyhow::Result<u64> {
         let result = self.call("net_peerCount", vec![]).await?;
-        let hex_str = result.as_str().ok_or_else(|| anyhow::anyhow!("Invalid peer count response"))?;
+        let hex_str = result
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("Invalid peer count response"))?;
         let count = u64::from_str_radix(hex_str.trim_start_matches("0x"), 16)?;
         Ok(count)
     }
@@ -407,7 +427,7 @@ async fn main() -> anyhow::Result<()> {
 
         Commands::Query { query } => {
             let rpc = RpcClient::new(DEFAULT_RPC_ENDPOINT);
-            
+
             match query {
                 QueryCommands::String { id } => {
                     println!("Querying string: {}", id);
@@ -419,22 +439,22 @@ async fn main() -> anyhow::Result<()> {
                     println!("║                  NETWORK STATUS                              ║");
                     println!("╚══════════════════════════════════════════════════════════════╝");
                     println!("");
-                    
+
                     match rpc.get_chain_id().await {
                         Ok(chain_id) => println!("Chain ID:     {} (0x{:X})", chain_id, chain_id),
                         Err(e) => println!("Chain ID:     Error - {}", e),
                     }
-                    
+
                     match rpc.get_block_number().await {
                         Ok(block) => println!("Block Height: {}", block),
                         Err(e) => println!("Block Height: Error - {}", e),
                     }
-                    
+
                     match rpc.get_peer_count().await {
                         Ok(peers) => println!("Peer Count:   {}", peers),
                         Err(e) => println!("Peer Count:   Error - {}", e),
                     }
-                    
+
                     println!("");
                     println!("RPC Endpoint: {}", DEFAULT_RPC_ENDPOINT);
                 }
@@ -461,7 +481,7 @@ async fn main() -> anyhow::Result<()> {
 
         Commands::Token { token } => {
             let rpc = RpcClient::new(DEFAULT_RPC_ENDPOINT);
-            
+
             match token {
                 TokenCommands::Balance { address } => {
                     // Ensure address has 0x prefix
@@ -470,13 +490,13 @@ async fn main() -> anyhow::Result<()> {
                     } else {
                         format!("0x{}", address)
                     };
-                    
+
                     println!("╔══════════════════════════════════════════════════════════════╗");
                     println!("║                  TOKEN BALANCE                               ║");
                     println!("╚══════════════════════════════════════════════════════════════╝");
                     println!("");
                     println!("Address: {}", addr);
-                    
+
                     match rpc.get_balance(&addr).await {
                         Ok(balance_wei) => {
                             let balance_fat = balance_wei as f64 / 1e18;

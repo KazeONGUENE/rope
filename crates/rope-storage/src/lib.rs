@@ -162,9 +162,9 @@ mod tests {
             let store = LatticeStore::new();
             let key = [2u8; 32];
             let value = vec![1, 2, 3, 4, 5];
-            
+
             store.put(key, value.clone());
-            
+
             let retrieved = store.get(&key);
             assert!(retrieved.is_some());
             assert_eq!(retrieved.unwrap(), value);
@@ -175,10 +175,10 @@ mod tests {
             let store = LatticeStore::new();
             let key = [3u8; 32];
             let value = vec![10, 20, 30];
-            
+
             store.put(key, value);
             assert!(store.contains(&key));
-            
+
             let deleted = store.delete(&key);
             assert!(deleted);
             assert!(!store.contains(&key));
@@ -214,9 +214,9 @@ mod tests {
             let store = ComplementStore::new();
             let string_id = [2u8; 32];
             let complement = vec![100, 200, 255];
-            
+
             store.store_complement(string_id, complement.clone());
-            
+
             let retrieved = store.get_complement(&string_id);
             assert!(retrieved.is_some());
             assert_eq!(retrieved.unwrap(), complement);
@@ -227,10 +227,10 @@ mod tests {
             let store = ComplementStore::new();
             let string_id = [3u8; 32];
             let complement = vec![1, 2, 3];
-            
+
             store.store_complement(string_id, complement);
             assert!(store.get_complement(&string_id).is_some());
-            
+
             let erased = store.erase_complement(&string_id);
             assert!(erased);
             assert!(store.get_complement(&string_id).is_none());
@@ -259,9 +259,9 @@ mod tests {
             let store = StateStore::new();
             let node_id = "node_abc";
             let state = vec![1, 2, 3, 4];
-            
+
             store.save_oes_state(node_id, state.clone());
-            
+
             let loaded = store.load_oes_state(node_id);
             assert!(loaded.is_some());
             assert_eq!(loaded.unwrap(), state);
@@ -272,9 +272,9 @@ mod tests {
             let store = StateStore::new();
             let fed_id = "federation_xyz";
             let state = vec![10, 20, 30];
-            
+
             store.save_federation_state(fed_id, state.clone());
-            
+
             let loaded = store.load_federation_state(fed_id);
             assert!(loaded.is_some());
             assert_eq!(loaded.unwrap(), state);
