@@ -132,96 +132,150 @@ const DEFAULT_RPC_ENDPOINT: &str = "https://erpc.datachain.network";
 #[command(name = "rope")]
 #[command(author = "Datachain Foundation")]
 #[command(version = "0.1.0")]
-#[command(about = "Datachain Rope - Distributed Information Communication Protocol", long_about = None)]
+#[command(about = "Datachain Rope - Distributed Information Communication Protocol")]
+#[command(long_about = r#"
+Datachain Rope CLI - A revolutionary protocol inspired by DNA's double helix structure.
+
+QUICK START:
+  rope node --network mainnet    Start a relay node on mainnet
+  rope query status              Check network status
+  rope token balance <ADDRESS>   Check FAT token balance
+
+NETWORK INFO:
+  Chain ID:       271828 (0x425D4)
+  RPC:            https://erpc.datachain.network
+  Explorer:       https://dcscan.io
+  WebSocket:      wss://ws.datachain.network
+
+For more information: https://datachain.network/docs
+"#)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
 
-    /// Verbose logging
+    /// Enable verbose debug logging (set RUST_LOG=debug for more control)
     #[arg(short, long, global = true)]
     verbose: bool,
 }
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Start a Rope node
+    /// Start a Rope node (validator, relay, or seeder)
+    ///
+    /// Examples:
+    ///   rope node                           Start relay node with defaults
+    ///   rope node --mode validator          Start as validator node
+    ///   rope node --network testnet         Connect to testnet
+    ///   rope node -c custom.toml            Use custom config file
+    #[command(after_help = "See https://datachain.network/docs/node for full setup guide")]
     Node {
-        /// Configuration file path
+        /// Configuration file path (TOML format)
         #[arg(short, long, default_value = "rope.toml")]
         config: PathBuf,
 
-        /// Data directory
+        /// Data directory for blockchain state and keys
         #[arg(short, long, default_value = "~/.rope")]
         data_dir: PathBuf,
 
-        /// Node mode: validator, relay, or seeder
-        #[arg(short, long, default_value = "relay")]
+        /// Node mode: validator (requires stake), relay (P2P routing), or seeder (data distribution)
+        #[arg(short, long, default_value = "relay", value_parser = ["validator", "relay", "seeder"])]
         mode: String,
 
-        /// Network: mainnet or testnet
-        #[arg(short, long, default_value = "mainnet")]
+        /// Network to connect to: mainnet (Chain ID 271828) or testnet
+        #[arg(short, long, default_value = "mainnet", value_parser = ["mainnet", "testnet"])]
         network: String,
     },
 
-    /// Generate a new keypair
+    /// Generate cryptographic keypairs for node identity
+    ///
+    /// Examples:
+    ///   rope keygen                         Generate standard Ed25519 keys
+    ///   rope keygen --quantum               Generate post-quantum keys (Dilithium3)
+    ///   rope keygen -o /path/to/keys        Specify output directory
+    #[command(after_help = "Keys are stored in PEM format. Backup securely!")]
     Keygen {
-        /// Output directory for keys
+        /// Output directory for generated keys
         #[arg(short, long, default_value = "~/.rope/keys")]
         output: PathBuf,
 
-        /// Generate quantum-resistant keys
+        /// Generate quantum-resistant keys using CRYSTALS-Dilithium3
         #[arg(long)]
         quantum: bool,
     },
 
-    /// Show node information
+    /// Display local node information and configuration
+    ///
+    /// Examples:
+    ///   rope info                           Show default node info
+    ///   rope info -d /custom/path           Show info for specific data directory
     Info {
-        /// Data directory
+        /// Data directory to inspect
         #[arg(short, long, default_value = "~/.rope")]
         data_dir: PathBuf,
     },
 
-    /// Initialize a new genesis federation
+    /// Initialize a new genesis federation configuration
+    ///
+    /// Examples:
+    ///   rope genesis                        Create genesis with 21 validators
+    ///   rope genesis -v 7                   Create with 7 validators
+    ///   rope genesis --chain-id 314159     Use custom chain ID
+    #[command(after_help = "Genesis file defines the initial network state")]
     Genesis {
-        /// Number of initial validators
+        /// Number of initial validators (typically 7, 13, or 21 for BFT)
         #[arg(short, long, default_value = "21")]
         validators: u32,
 
-        /// Chain ID
+        /// Chain ID for the network (default: 271828 for Datachain Rope)
         #[arg(long, default_value = "271828")]
         chain_id: u64,
 
-        /// Output file for genesis
+        /// Output file path for genesis configuration
         #[arg(short, long, default_value = "genesis.json")]
         output: PathBuf,
     },
 
-    /// Query the network
+    /// Query network state and information via RPC
+    ///
+    /// Examples:
+    ///   rope query status                   Show network health and block height
+    ///   rope query peers                    List connected peer count
+    ///   rope query validators               Show active validator set
+    ///   rope query string <ID>              Lookup a specific string by ID
     Query {
         #[command(subcommand)]
         query: QueryCommands,
     },
 
-    /// Token operations
+    /// FAT token operations (balance, transfer)
+    ///
+    /// Examples:
+    ///   rope token balance 0x1234...        Check balance of address
+    ///   rope token transfer 0xABC... 100    Transfer 100 FAT tokens
     Token {
         #[command(subcommand)]
         token: TokenCommands,
     },
 
-    /// Version information
+    /// Display version and build information
     Version,
 
-    /// Get peer ID from key file
+    /// Extract peer ID from node key file (useful for bootstrap configuration)
+    ///
+    /// Examples:
+    ///   rope peer-id -k ~/.rope/keys/node.key
+    ///   rope peer-id -k node.key --ip 1.2.3.4 --port 9000
+    #[command(name = "peer-id")]
     PeerId {
-        /// Path to node.key file
+        /// Path to the node private key file
         #[arg(short, long)]
         key: PathBuf,
 
-        /// VPS IP address (optional, for multiaddr output)
+        /// Optional IP address for generating complete multiaddr
         #[arg(long)]
         ip: Option<String>,
 
-        /// Port (default: 9000)
+        /// P2P port number (default: 9000)
         #[arg(long, default_value = "9000")]
         port: u16,
     },
@@ -229,31 +283,55 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum QueryCommands {
-    /// Get string by ID
+    /// Lookup a string in the lattice by its ID
+    ///
+    /// Example: rope query string 0x1234567890abcdef...
     String {
-        /// String ID (hex)
+        /// String ID in hex format (64 characters)
+        #[arg(value_name = "STRING_ID")]
         id: String,
     },
-    /// Get network status
+
+    /// Display current network status including block height and peers
+    ///
+    /// Example: rope query status
     Status,
-    /// List connected peers
+
+    /// Show connected peer information
+    ///
+    /// Example: rope query peers
     Peers,
-    /// Get validator set
+
+    /// List the current active validator set
+    ///
+    /// Example: rope query validators
     Validators,
 }
 
 #[derive(Subcommand)]
 enum TokenCommands {
-    /// Check balance
+    /// Check FAT token balance for an address
+    ///
+    /// Example: rope token balance 0x742d35Cc6634C0532925a3b844Bc9e7595f12345
     Balance {
-        /// Address (hex)
+        /// Wallet address in hex format (with or without 0x prefix)
+        #[arg(value_name = "ADDRESS")]
         address: String,
     },
-    /// Transfer tokens
+
+    /// Transfer FAT tokens to another address (requires wallet)
+    ///
+    /// Example: rope token transfer 0xRecipient... 100
+    ///
+    /// Note: This command shows transfer instructions. For actual transfers,
+    /// use Datawallet+ app or MetaMask with Datachain Rope network configured.
     Transfer {
-        /// Recipient address
+        /// Recipient wallet address
+        #[arg(value_name = "TO_ADDRESS")]
         to: String,
-        /// Amount
+
+        /// Amount of FAT tokens to transfer
+        #[arg(value_name = "AMOUNT")]
         amount: u64,
     },
 }
