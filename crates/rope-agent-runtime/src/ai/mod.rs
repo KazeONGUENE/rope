@@ -4,11 +4,26 @@
 //! - Local LLMs (via HTTP API to llama.cpp/ollama)
 //! - Cloud providers (OpenAI, Anthropic)
 //! - Hybrid selection based on task complexity
+//!
+//! ## AlterOS Orchestration
+//!
+//! The AI module now integrates AlterOS as the intelligent orchestrator
+//! that decides which AI backend (Ollama, OpenAI, Anthropic) to use for
+//! each agent task based on:
+//! - Query complexity analysis
+//! - Task type (code, security, blockchain, general)
+//! - Provider availability and health
+//! - Cost optimization rules
+//!
+//! AlterOS is ported from: /Users/kazealphonseonguene/alteros
+//! Original Author: Kazé A. ONGUENE - Braincities Lab
 
+mod alteros;
 mod model;
 mod prompt;
 mod provider;
 
+pub use alteros::*;
 pub use model::*;
 pub use prompt::*;
 pub use provider::*;
@@ -53,6 +68,21 @@ pub struct AIModelConfig {
 
     /// Request timeout (seconds)
     pub timeout_secs: u64,
+
+    /// Enable AlterOS orchestration (recommended)
+    pub use_alteros: bool,
+
+    /// AlterOS: Use Anthropic for security-sensitive tasks
+    pub alteros_anthropic_for_security: bool,
+
+    /// AlterOS: Use Anthropic for complex code generation
+    pub alteros_anthropic_for_code: bool,
+
+    /// AlterOS: Use local model for simple tasks (cost optimization)
+    pub alteros_local_for_simple: bool,
+
+    /// AlterOS: Enable cost optimization
+    pub alteros_cost_optimization: bool,
 }
 
 impl Default for AIModelConfig {
@@ -69,6 +99,87 @@ impl Default for AIModelConfig {
             max_tokens: 1024,
             min_confidence: 0.7,
             timeout_secs: 30,
+            // AlterOS settings (enabled by default)
+            use_alteros: true,
+            alteros_anthropic_for_security: true,
+            alteros_anthropic_for_code: true,
+            alteros_local_for_simple: true,
+            alteros_cost_optimization: true,
+        }
+    }
+}
+
+impl AIModelConfig {
+    /// Build an AlterOS orchestrator from this configuration
+    ///
+    /// AlterOS intelligently routes AI requests to the optimal provider
+    /// based on task complexity, availability, cost, and performance.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let config = AIModelConfig::default();
+    /// let orchestrator = config.build_alteros_orchestrator();
+    /// let response = orchestrator.complete(request).await?;
+    /// ```
+    pub fn build_alteros_orchestrator(&self) -> AlterOSOrchestrator {
+        let rules = RoutingRules {
+            anthropic_for_security: self.alteros_anthropic_for_security,
+            anthropic_for_code: self.alteros_anthropic_for_code,
+            local_for_simple: self.alteros_local_for_simple,
+            cost_optimization: self.alteros_cost_optimization,
+            ..Default::default()
+        };
+
+        AlterOSOrchestrator::new(
+            self.local_endpoint.as_deref(),
+            self.local_model.as_deref(),
+            self.openai_api_key.as_deref(),
+            Some(&self.openai_model),
+            self.anthropic_api_key.as_deref(),
+            Some(&self.anthropic_model),
+        )
+        .with_rules(rules)
+    }
+
+    /// Build the appropriate AI provider based on configuration
+    ///
+    /// If `use_alteros` is true (default), returns the AlterOS orchestrator.
+    /// Otherwise, returns a simple provider based on the strategy.
+    pub fn build_provider(&self) -> Box<dyn AIProvider> {
+        if self.use_alteros {
+            Box::new(self.build_alteros_orchestrator())
+        } else {
+            // Legacy: use simple strategy-based provider selection
+            match &self.strategy {
+                ModelStrategy::LocalOnly | ModelStrategy::LocalFirst => {
+                    if let (Some(endpoint), Some(model)) =
+                        (&self.local_endpoint, &self.local_model)
+                    {
+                        Box::new(OllamaProvider::new(endpoint, model))
+                    } else {
+                        // Fallback to OpenAI if local not configured
+                        Box::new(OpenAIProvider::new(
+                            self.openai_api_key.as_deref().unwrap_or_default(),
+                            &self.openai_model,
+                        ))
+                    }
+                }
+                ModelStrategy::CloudOnly => {
+                    if let Some(key) = &self.anthropic_api_key {
+                        Box::new(AnthropicProvider::new(key, &self.anthropic_model))
+                    } else {
+                        Box::new(OpenAIProvider::new(
+                            self.openai_api_key.as_deref().unwrap_or_default(),
+                            &self.openai_model,
+                        ))
+                    }
+                }
+                ModelStrategy::HybridIntelligent => {
+                    // For hybrid, use AlterOS even if use_alteros is false
+                    Box::new(self.build_alteros_orchestrator())
+                }
+            }
         }
     }
 }
