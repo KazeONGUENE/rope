@@ -139,7 +139,7 @@ Datachain Rope CLI - A revolutionary protocol inspired by DNA's double helix str
 QUICK START:
   rope node --network mainnet    Start a relay node on mainnet
   rope query status              Check network status
-  rope token balance <ADDRESS>   Check FAT token balance
+  rope token balance [ADDRESS]   Check FAT token balance
 
 NETWORK INFO:
   Chain ID:       271828 (0x425D4)
@@ -241,7 +241,7 @@ enum Commands {
     ///   rope query status                   Show network health and block height
     ///   rope query peers                    List connected peer count
     ///   rope query validators               Show active validator set
-    ///   rope query string <ID>              Lookup a specific string by ID
+    ///   rope query string `<ID>`            Lookup a specific string by ID
     Query {
         #[command(subcommand)]
         query: QueryCommands,
