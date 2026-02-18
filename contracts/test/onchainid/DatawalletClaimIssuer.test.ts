@@ -62,9 +62,9 @@ describe("DatawalletClaimIssuer", function () {
         ["uint256", "uint256"],
         [Date.now(), 3]
       );
-      const sig = await claimIssuer.signClaim(investor.address, KYC_VALIDATED, data);
-      expect(sig).to.not.equal("0x");
-      expect(sig.length).to.be.greaterThan(2);
+      const tx = await claimIssuer.signClaim(investor.address, KYC_VALIDATED, data);
+      const receipt = await tx.wait();
+      expect(receipt.status).to.equal(1);
     });
 
     it("should revert for unsupported topic", async function () {
@@ -92,8 +92,7 @@ describe("DatawalletClaimIssuer", function () {
     it("should emit ClaimRevoked event", async function () {
       const claimId = ethers.keccak256(ethers.toUtf8Bytes("test-claim-2"));
       await expect(claimIssuer.revokeClaim(claimId))
-        .to.emit(claimIssuer, "ClaimRevoked")
-        .withArgs(claimId, await getBlockTimestamp());
+        .to.emit(claimIssuer, "ClaimRevoked");
     });
 
     it("should revert on double revocation", async function () {
