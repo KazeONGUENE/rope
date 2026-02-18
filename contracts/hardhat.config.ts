@@ -9,8 +9,12 @@ const config: HardhatUserConfig = {
         settings: { optimizer: { enabled: true, runs: 200 }, viaIR: true },
       },
       {
-        version: "0.8.24",
-        settings: { optimizer: { enabled: true, runs: 200 }, viaIR: true },
+        version: "0.8.27",
+        settings: {
+          optimizer: { enabled: true, runs: 200 },
+          viaIR: true,
+          evmVersion: "cancun",
+        },
       },
     ],
   },
