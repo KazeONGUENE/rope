@@ -14,7 +14,17 @@ pragma solidity ^0.8.20;
  * @author Kazé A. ONGUENE — Datachain Foundation
  */
 
-import {IIdentity} from "@onchain-id/solidity/contracts/interface/IIdentity.sol";
+/// @dev Minimal IIdentity interface for ONCHAINID claim operations on Rope.
+interface IIdentity {
+    function addClaim(
+        uint256 _topic, uint256 _scheme, address _issuer,
+        bytes calldata _signature, bytes calldata _data, string calldata _uri
+    ) external returns (bytes32);
+    function getClaim(bytes32 _claimId) external view returns (
+        uint256, uint256, address, bytes memory, bytes memory, string memory
+    );
+    function getClaimIdsByTopic(uint256 _topic) external view returns (bytes32[] memory);
+}
 
 interface IDatawalletClaimIssuer {
     // =========================================================================

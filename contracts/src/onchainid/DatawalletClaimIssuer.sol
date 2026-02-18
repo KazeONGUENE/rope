@@ -18,11 +18,9 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import {IIdentity} from "@onchain-id/solidity/contracts/interface/IIdentity.sol";
-import {IClaimIssuer} from "@onchain-id/solidity/contracts/interface/IClaimIssuer.sol";
-import "./interfaces/IDatawalletClaimIssuer.sol";
+import {IDatawalletClaimIssuer, IIdentity} from "./interfaces/IDatawalletClaimIssuer.sol";
 
-contract DatawalletClaimIssuer is IDatawalletClaimIssuer, IClaimIssuer, AccessControl {
+contract DatawalletClaimIssuer is IDatawalletClaimIssuer, AccessControl {
     using ECDSA for bytes32;
     using MessageHashUtils for bytes32;
 
@@ -132,7 +130,7 @@ contract DatawalletClaimIssuer is IDatawalletClaimIssuer, IClaimIssuer, AccessCo
         uint256 _claimTopic,
         bytes calldata _sig,
         bytes calldata _data
-    ) external view override(IDatawalletClaimIssuer, IClaimIssuer) returns (bool) {
+    ) external view override(IDatawalletClaimIssuer) returns (bool) {
         if (!_supportedTopicMap[_claimTopic]) return false;
 
         bytes32 dataHash = keccak256(abi.encode(address(_identity), _claimTopic, _data));
@@ -188,9 +186,7 @@ contract DatawalletClaimIssuer is IDatawalletClaimIssuer, IClaimIssuer, AccessCo
         override(AccessControl)
         returns (bool)
     {
-        return
-            interfaceId == type(IClaimIssuer).interfaceId ||
-            super.supportsInterface(interfaceId);
+        return super.supportsInterface(interfaceId);
     }
 
     // =========================================================================
