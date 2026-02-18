@@ -36,8 +36,8 @@
   "dependencies": {
     "@openzeppelin/contracts": "^5.0.0",
     "@openzeppelin/contracts-upgradeable": "^5.0.0",
-    "@onchain-id/solidity": "^4.0.0",
-    "@tokenysolutions/t-rex": "^4.0.0"
+    "@onchain-id/solidity": "^2.2.0",
+    "@tokenysolutions/t-rex": "^4.1.6"
   },
   "repository": {
     "type": "git",
