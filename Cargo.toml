@@ -18,6 +18,7 @@ members = [
     "crates/rope-economics",
     "crates/rope-agent-runtime",
     "crates/rope-security",
+    "crates/compliance-agent",
 ]
 resolver = "2"
 
