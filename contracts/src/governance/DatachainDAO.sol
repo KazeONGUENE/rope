@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/governance/Governor.sol";
 import "@openzeppelin/contracts/governance/extensions/GovernorSettings.sol";
@@ -77,7 +77,7 @@ contract DatachainDAO is
      * @notice Update the proposal threshold
      * @param newThreshold The new threshold
      */
-    function setProposalThreshold(uint256 newThreshold) external onlyGovernance {
+    function setProposalThreshold(uint256 newThreshold) public override onlyGovernance {
         uint256 oldThreshold = proposalThreshold_;
         proposalThreshold_ = newThreshold;
         emit ProposalThresholdUpdated(oldThreshold, newThreshold);
