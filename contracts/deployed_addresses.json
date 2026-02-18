@@ -1,0 +1,8 @@
+{
+  "ClaimTopicsRegistry": "0x79a26132f48394421382C13B54Ae77fa3aF73289",
+  "TrustedIssuersRegistry": "0x094237118686feF3b03Af028721C2e5C23027455",
+  "IdentityRegistryStorage": "0xE3D48836733C4eBAF504694aa5D15d6f8F22FbF2",
+  "IdentityRegistry": "0xB28E38b344A7238C9777D74209F966D1873D26e0",
+  "DatawalletClaimIssuer": "0x34Ab12Ca0bc2cFb3510cCa479Cc5Bd4Eb6EAE883",
+  "RopeComplianceModule": "0xaA0bc9d21b0352448CB0895eD5f862451882487b"
+}

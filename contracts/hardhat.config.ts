@@ -1,9 +1,19 @@
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
+import * as dotenv from "dotenv";
+
+dotenv.config();
+
+const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY?.trim();
+const accounts = DEPLOYER_KEY ? [DEPLOYER_KEY.startsWith("0x") ? DEPLOYER_KEY : `0x${DEPLOYER_KEY}`] : [];
 
 const config: HardhatUserConfig = {
   solidity: {
     compilers: [
+      {
+        version: "0.8.17",
+        settings: { optimizer: { enabled: true, runs: 200 } },
+      },
       {
         version: "0.8.20",
         settings: { optimizer: { enabled: true, runs: 200 }, viaIR: true },
@@ -19,26 +29,23 @@ const config: HardhatUserConfig = {
     ],
   },
   networks: {
-    // Datachain Rope Mainnet
     mainnet: {
-      url: "https://erpc.datachain.network",
+      url: process.env.RPC_URL || "http://127.0.0.1:8545",
       chainId: 271828,
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-      gasPrice: 1000000000, // 1 Gwei
-    },
-    // Datachain Rope Testnet
-    testnet: {
-      url: "https://testnet.erpc.datachain.network",
-      chainId: 314159,
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+      accounts,
       gasPrice: 1000000000,
     },
-    // Local development
+    testnet: {
+      url: "https://testnet.erpc.datachain.network",
+      chainId: 271829,
+      accounts,
+      gasPrice: 1000000000,
+    },
     localhost: {
       url: "http://127.0.0.1:8545",
-      chainId: 31337,
+      chainId: 271828,
+      accounts,
     },
-    // Hardhat network
     hardhat: {
       chainId: 31337,
       forking: {
