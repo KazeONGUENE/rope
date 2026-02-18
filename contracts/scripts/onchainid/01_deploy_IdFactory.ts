@@ -1,82 +1,85 @@
 /**
  * 01_deploy_IdFactory.ts
  *
- * Deploys the ONCHAINID IdFactory to a deterministic CREATE2 address on
- * Datachain Rope so that identity addresses are interoperable with Ethereum
- * and Polygon.
+ * Deploys the ONCHAINID IdFactory and ImplementationAuthority to
+ * Datachain Rope using pre-compiled artifacts from @onchain-id/solidity.
  *
  * @author Kazé A. ONGUENE — Datachain Foundation
  */
 
 import { ethers } from "hardhat";
+import * as fs from "fs";
+import * as path from "path";
 
-// Claim topic constants
-const KYC_VALIDATED = 1;
-const AML_VALIDATED = 2;
-const COUNTRY = 3;
-const ACCREDITED_INVESTOR = 4;
-const DCNFT_HOLDER = 10;
-const SOVEREIGN_IDENTITY = 99;
+function loadArtifact(contractPath: string) {
+  const fullPath = path.resolve(
+    __dirname, "../../node_modules/@onchain-id/solidity/artifacts/contracts",
+    contractPath
+  );
+  return JSON.parse(fs.readFileSync(fullPath, "utf-8"));
+}
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  console.log("Deploying ONCHAINID IdFactory with account:", deployer.address);
-  console.log("Network:", (await ethers.provider.getNetwork()).chainId);
-  console.log("Balance:", ethers.formatEther(await ethers.provider.getBalance(deployer.address)));
+  const network = await ethers.provider.getNetwork();
+  const balance = await ethers.provider.getBalance(deployer.address);
 
-  // -------------------------------------------------------------------------
-  // 1. Deploy IdFactory via CREATE2 for deterministic addressing
-  // -------------------------------------------------------------------------
-  const IdFactory = await ethers.getContractFactory("IdFactory");
+  console.log("╔════════════════════════════════════════════════════════════════╗");
+  console.log("║       ONCHAINID DEPLOYMENT — DATACHAIN ROPE                    ║");
+  console.log("╚════════════════════════════════════════════════════════════════╝");
+  console.log("Deployer:", deployer.address);
+  console.log("Chain ID:", network.chainId.toString());
+  console.log("Balance:", ethers.formatEther(balance), "FAT");
+  console.log("");
+
+  // 1. Deploy IdFactory
+  console.log("[1/3] Deploying IdFactory...");
+  const idFactoryArtifact = loadArtifact("factory/IdFactory.sol/IdFactory.json");
+  const IdFactory = new ethers.ContractFactory(
+    idFactoryArtifact.abi, idFactoryArtifact.bytecode, deployer
+  );
   const idFactory = await IdFactory.deploy(deployer.address);
   await idFactory.waitForDeployment();
-  const idFactoryAddress = await idFactory.getAddress();
-  console.log("IdFactory deployed at:", idFactoryAddress);
+  const idFactoryAddr = await idFactory.getAddress();
+  console.log("  IdFactory deployed at:", idFactoryAddr);
 
-  // -------------------------------------------------------------------------
-  // 2. Deploy ImplementationAuthority (beacon for ONCHAINID proxies)
-  // -------------------------------------------------------------------------
-  const ImplementationAuthority = await ethers.getContractFactory("ImplementationAuthority");
-  const implAuth = await ImplementationAuthority.deploy(idFactoryAddress);
-  await implAuth.waitForDeployment();
-  console.log("ImplementationAuthority deployed at:", await implAuth.getAddress());
-
-  // -------------------------------------------------------------------------
-  // 3. Verify deployment
-  // -------------------------------------------------------------------------
-  console.log("\n--- ONCHAINID Infrastructure Deployed ---");
-  console.log("IdFactory:               ", idFactoryAddress);
-  console.log("ImplementationAuthority: ", await implAuth.getAddress());
-  console.log("Deployer:                ", deployer.address);
-  console.log("Chain ID:                ", (await ethers.provider.getNetwork()).chainId);
-  console.log("-----------------------------------------\n");
-
-  // -------------------------------------------------------------------------
-  // 4. Create a test identity (optional, for verification)
-  // -------------------------------------------------------------------------
-  const testSalt = "datawallet-test-identity-" + Date.now();
-  const saltTaken = await idFactory.isSaltTaken(
-    ethers.keccak256(ethers.toUtf8Bytes(testSalt))
+  // 2. Deploy ImplementationAuthority
+  console.log("[2/3] Deploying ImplementationAuthority...");
+  const implAuthArtifact = loadArtifact(
+    "proxy/ImplementationAuthority.sol/ImplementationAuthority.json"
   );
+  const ImplAuth = new ethers.ContractFactory(
+    implAuthArtifact.abi, implAuthArtifact.bytecode, deployer
+  );
+  const implAuth = await ImplAuth.deploy(idFactoryAddr);
+  await implAuth.waitForDeployment();
+  const implAuthAddr = await implAuth.getAddress();
+  console.log("  ImplementationAuthority deployed at:", implAuthAddr);
 
-  if (!saltTaken) {
-    const tx = await idFactory.createIdentity(deployer.address, testSalt);
-    const receipt = await tx.wait();
-    console.log("Test identity created. Tx:", receipt?.hash);
+  // 3. Create test identity
+  console.log("[3/3] Creating test ONCHAINID identity...");
+  const salt = "datachain-genesis-identity-" + Date.now();
+  const tx = await idFactory.getFunction("createIdentity")(deployer.address, salt);
+  const receipt = await tx.wait();
+  const identityAddr = await idFactory.getFunction("getIdentity")(deployer.address);
+  console.log("  Genesis identity created:", identityAddr);
+  console.log("  Tx hash:", receipt?.hash);
 
-    const identityAddress = await idFactory.getIdentity(deployer.address);
-    console.log("Test ONCHAINID address:", identityAddress);
-  }
+  console.log("");
+  console.log("╔════════════════════════════════════════════════════════════════╗");
+  console.log("║  ONCHAINID DEPLOYMENT COMPLETE                                 ║");
+  console.log("╠════════════════════════════════════════════════════════════════╣");
+  console.log("║  IdFactory:               ", idFactoryAddr);
+  console.log("║  ImplementationAuthority: ", implAuthAddr);
+  console.log("║  Genesis Identity:        ", identityAddr);
+  console.log("╚════════════════════════════════════════════════════════════════╝");
 
-  return {
-    idFactory: idFactoryAddress,
-    implementationAuthority: await implAuth.getAddress(),
-  };
+  return { idFactory: idFactoryAddr, implementationAuthority: implAuthAddr, genesisIdentity: identityAddr };
 }
 
 main()
   .then((addresses) => {
-    console.log("\nDeployment complete. Save these addresses:");
+    console.log("\nSave these addresses to .env:");
     console.log(JSON.stringify(addresses, null, 2));
     process.exit(0);
   })
