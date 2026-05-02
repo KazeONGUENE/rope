@@ -15,6 +15,8 @@ rope-storage = { path = "../rope-storage" }
 rope-protocols = { path = "../rope-protocols" }
 rope-smartchain = { path = "../rope-smartchain" }
 rope-bridge = { path = "../rope-bridge" }
+rope-iot-gateway = { path = "../rope-iot-gateway" }
+rope-ai-framework = { path = "../rope-ai-framework" }
 
 tokio = { workspace = true }
 async-trait = { workspace = true }
@@ -32,6 +34,7 @@ uuid = { workspace = true }
 futures = { workspace = true }
 parking_lot = { workspace = true }
 blake3 = { workspace = true }
+hashbrown = { workspace = true }
 
 # gRPC
 tonic = { workspace = true }
@@ -42,6 +45,13 @@ libp2p = { workspace = true }
 
 # Metrics
 prometheus = { workspace = true }
+
+# HTTP client for Anvil backend
+reqwest = { workspace = true }
+
+# WebSocket support
+sha1 = "0.10"
+base64 = "0.22"
 
 [build-dependencies]
 tonic-build = { workspace = true }
