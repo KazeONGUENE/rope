@@ -1,0 +1,33 @@
+[package]
+name = "rope-iot-gateway"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "IoT Gateway for Datachain Rope — bridges MQTT/CoAP/HTTP to personal ledger Strings"
+
+[dependencies]
+rope-core = { path = "../rope-core" }
+
+tokio = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+hex = { workspace = true }
+uuid = { workspace = true }
+parking_lot = { workspace = true }
+hashbrown = { workspace = true }
+blake3 = { workspace = true }
+thiserror = { workspace = true }
+
+# MQTT broker (lightweight, pure-Rust)
+rumqttd = "0.19"
+rumqttc = "0.24"
+
+# CoAP server
+coap-lite = "0.11"
+
+[dev-dependencies]
+tempfile = { workspace = true }

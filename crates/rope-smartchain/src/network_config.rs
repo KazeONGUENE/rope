@@ -655,8 +655,9 @@ mod tests {
 
     #[test]
     fn test_chain_id() {
-        assert_eq!(CHAIN_ID_MAINNET, 314159);
-        assert_eq!(CHAIN_ID_TESTNET, 314160);
+        // Chain ID 271828 = Euler's number (e ≈ 2.71828) - exponential growth symbolism
+        assert_eq!(CHAIN_ID_MAINNET, 271828);
+        assert_eq!(CHAIN_ID_TESTNET, 271829);
 
         // Chain ID should be unique and not conflict with known chains
         // See: https://chainlist.org/
