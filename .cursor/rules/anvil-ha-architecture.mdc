@@ -1,0 +1,216 @@
+---
+description: SUPERSEDED — historical Anvil HA architecture (Anvil archived 2026-03-31). For current production architecture see reth-blue-green-ipfs-architecture.mdc.
+alwaysApply: false
+---
+
+# ⚠️ SUPERSEDED — Historical Reference Only ⚠️
+
+**This document describes the Anvil-era high-availability architecture used between 2026-03-09 and 2026-03-31.**
+
+**Anvil was fully archived on 2026-03-31.** The current production execution layer is **Reth v1.11.2**, deployed in a blue-green configuration across `rope-vps:8595` ↔ `anvil-vps:8595` (the second VPS retained the historical hostname `anvil-vps` for SSH/DNS continuity even though it now runs Reth, not Anvil), with IPFS state replication every 6 hours.
+
+**For current production architecture, refer to:**
+- [`reth-blue-green-ipfs-architecture.mdc`](./reth-blue-green-ipfs-architecture.mdc) — current deployment topology
+- [`reth-migration-2026-03-12.mdc`](./reth-migration-2026-03-12.mdc) — migration history & genesis reset
+
+**The Anvil archive lives at** `/opt/datachain-rope/archive/anvil-era/` on rope-vps (~3 GB, including the historical 2.4 GB `state.json`).
+
+**Why this rule was de-`alwaysApply`-ed (2026-05-02):** the iptables/DNAT/`conntrack` failover instructions, the `8597` exotic-port DNAT trick, the `validate-anvil-state.sh` corruption-recovery scripts, and the `ExecStop` / `ExecStartPre` / `dcrope-watchdog.sh` hardening below all describe an Anvil-specific failure mode (the SIGKILL-during-write `state.json` truncation that caused the 2026-03-08 outage). None of that applies to Reth, which:
+
+- Uses MDBX + RocksDB (write-ahead-logged, crash-safe)
+- Does not have a single monolithic `state.json` file
+- Has its own systemd service (`reth-rope.service`), watchdog, and HA model
+
+Reading the procedures below as if they were current would mislead an agent working on the live Reth-based deployment. They are preserved here for incident archaeology and in case the Anvil archive is ever reactivated.
+
+---
+
+# Anvil High Availability Architecture (2026-03-09)
+
+## Incident and hardening (2026-03-08 → 2026-03-09)
+
+**Outage:** Anvil primary down from **11:50 to 20:50 UTC** on 2026-03-08. Public RPC continued via secondary failover.
+
+**Root cause:** The watchdog script restarted Anvil repeatedly. At 20:50, systemd sent SIGTERM but Anvil didn't exit within the default 90s timeout. systemd escalated to **SIGKILL**, which caught Anvil mid-write to `state.json`, truncating it at byte 528,070,489. Every subsequent restart failed with `EOF while parsing`. This crash loop ran for **1,154 restarts** over ~11 hours until manually fixed.
+
+**Recovery (2026-03-09):** Restored `state.json` from secondary VPS (`state-latest.json`, 2.2GB, block 83,232). Primary resumed at block 83,250.
+
+**Hardening applied (2026-03-09):**
+
+1. **`TimeoutStopSec=300`** — Anvil gets 5 minutes to flush state before SIGKILL (was 90s default)
+2. **`ExecStop` safe-stop script** — takes `anvil_dumpState` RPC backup before SIGTERM is sent
+3. **`ExecStartPre` validation script** — checks `state.json` integrity on startup; auto-restores from backup or secondary if corrupted
+4. **Watchdog v4 with 15-min cooldown** — `can_restart_anvil()` enforced in ALL code paths; `activating`/`deactivating` states are never touched; RPC timeout increased to 60s
+5. **`StartLimitIntervalSec=600` + `StartLimitBurst=5`** (in `[Unit]`) — systemd itself caps restarts to 5 per 10 min
+6. **Backup script port fixed** — was `8545` (routed via Rope node, hit secondary when primary down), now `8595` (direct to Anvil)
+7. **State sync every 15 minutes** (was every 4 hours) — secondary at most 15 min behind
+8. **CrowdSec re-registered** — firewall bouncer active again
+
+**SSH access (secondary / anvil-vps):** `ssh ubuntu@92.243.25.119` with SSH key **DCRope**.
+
+## Two-Node Failover
+
+| Role | VPS | IP | Port | SSH Alias |
+|---|---|---|---|---|
+| **Primary** | rope-vps (8GB RAM) | `92.243.26.189` | 8595 (localhost only) | `rope-vps` |
+| **Secondary (hot standby)** | anvil-vps (8GB RAM) | `92.243.25.119` | 8595 (0.0.0.0, firewalled) | `anvil-vps` |
+
+Both run Anvil 1.5.1-stable with identical config: `--chain-id 271828 --block-time 3 --gas-limit 30000000 --gas-price 1000000000`.
+
+The primary serves live traffic. The secondary runs independently from a periodic state snapshot. They **do not share blocks in real-time** — the secondary will be up to 15 minutes behind (sync interval).
+
+## Traffic Flow — Exotic Port Architecture
+
+```
+Users/MetaMask/DCSwap Bot
+        │
+        ▼
+erpc.datachain.network (Nginx on rope-vps, Docker container)
+        │
+        ▼
+upstream digitalocean_rpc {
+    server host.docker.internal:8597  max_fails=1 fail_timeout=10s;  ← DNAT → Anvil primary (:8595)
+    server 92.243.25.119:8595 backup;                                 ← Anvil secondary (failover)
+}
+```
+
+**Port 8597** is an exotic port that exists only as an iptables DNAT rule:
+- Docker containers connecting to `host.docker.internal:8597` get redirected to `127.0.0.1:8595` (Anvil)
+- The internet **cannot** reach port 8597 (no UFW rule, only Docker's `172.16.0.0/12` subnet can access it)
+- Anvil itself only listens on `127.0.0.1:8595` — never exposed directly
+
+**Why not route through the Rope node (port 8545)?**
+The Rope node always accepts TCP connections even when Anvil behind it is hung (e.g., during 2GB state writes). Nginx sees a successful TCP connection and waits for a response that never comes, returning 504 after timeout instead of failing over. With port 8597, when Anvil is down, the DNAT target is unreachable → TCP connection refused → Nginx fails over to secondary **instantly** (~75ms).
+
+**Failover lifecycle (tested 2026-03-09 — confirmed working):**
+
+1. **Normal:** Nginx → 8597 → DNAT → 127.0.0.1:8595 (Anvil primary)
+2. **Anvil stopping:** `ExecStop` removes DNAT rule + flushes conntrack via `conntrack -D` → port 8597 = connection refused
+3. **During stop:** Nginx → 8597 (refused) → 92.243.25.119:8595 (secondary). Failover time: **~5.9s** (dominated by `proxy_connect_timeout 2s` + Nginx retry logic). The state dump runs in parallel on localhost:8595.
+4. **Anvil restart:** `ExecStartPost` re-adds DNAT rule + re-enables `route_localnet` → port 8597 works again → Nginx uses primary
+
+### iptables Rules (persisted via `iptables-persistent`)
+
+```bash
+# DNAT: Docker → exotic port → Anvil localhost
+iptables -t nat -A PREROUTING -s 172.16.0.0/12 -p tcp --dport 8597 -j DNAT --to-destination 127.0.0.1:8595
+
+# Allow forwarded packets
+iptables -A FORWARD -s 172.16.0.0/12 -d 127.0.0.1 -p tcp --dport 8595 -j ACCEPT
+```
+
+Requires `net.ipv4.conf.all.route_localnet=1` (persisted in `/etc/sysctl.conf`).
+Rules persisted via `iptables-persistent` (`/etc/iptables/rules.v4`).
+`conntrack` package installed for flushing tracked connections on stop.
+
+### Nginx Upstream
+
+Keepalive is **disabled** on the upstream to ensure every request opens a fresh TCP connection. This guarantees that when the DNAT rule is removed, the very next request gets connection refused (no stale keepalive connections hanging).
+
+The Rope node still runs on port 8545 for its consensus/notarization duties — Nginx just doesn't route public RPC through it.
+
+## State Sync
+
+Cron job on rope-vps runs every 15 minutes (`*/15 * * * *`):
+
+1. `anvil_dumpState` RPC on primary → hex dump (~260MB)
+2. SCP hex dump to secondary
+3. Python on secondary: decode hex → gunzip → write `state-latest.json`
+4. Secondary can be restarted with `--state state-latest.json` to catch up
+
+Script: `/home/ubuntu/sync-anvil-state.sh` on rope-vps
+Log: `/home/ubuntu/anvil-sync.log`
+
+### How the dump works (no downtime)
+
+```bash
+# On primary — takes consistent snapshot from running Anvil
+curl -s -X POST -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"anvil_dumpState","params":[],"id":1}' \
+  http://127.0.0.1:8595 | python3 -c "import sys,json; ..." > dump.hex
+
+# On secondary — decode and decompress
+python3 -c "
+import gzip
+with open('dump.hex','r') as f: h = f.read().strip()
+if h.startswith('0x'): h = h[2:]
+state = gzip.decompress(bytes.fromhex(h))
+with open('state.json','wb') as o: o.write(state)
+"
+```
+
+## Firewall (secondary VPS)
+
+UFW active. Port 8595 only accepts connections from:
+- `92.243.26.189` (rope-vps / primary)
+- `92.243.26.114` (dcswap-vps)
+
+## Service Files
+
+**Primary** (`/etc/systemd/system/anvil-rope.service` on rope-vps):
+- `--host 127.0.0.1` (localhost only, Rope node wraps it on :8545)
+- `MemoryMax=50G`
+- `TimeoutStopSec=300` — 5 min graceful shutdown
+- `KillMode=mixed` — SIGTERM to main, SIGKILL to remaining after timeout
+- `ExecStartPre=/opt/datachain-rope/scripts/validate-anvil-state.sh` — state integrity check
+- `ExecStartPost=/opt/datachain-rope/scripts/anvil-post-start.sh` — restores DNAT rule + waits for Anvil responsive
+- `ExecStop=/opt/datachain-rope/scripts/anvil-safe-stop.sh` — removes DNAT, flushes conntrack, then takes RPC dump
+- `StartLimitIntervalSec=600` + `StartLimitBurst=5` (in [Unit]) — max 5 restarts per 10 min
+
+**Secondary** (`/etc/systemd/system/anvil-rope.service` on anvil-vps):
+- `--host 0.0.0.0` (accepts remote connections for failover)
+- `MemoryMax=50G`
+
+## Protection Scripts
+
+| Script | Path | Purpose |
+|---|---|---|
+| **validate-anvil-state.sh** | `/opt/datachain-rope/scripts/validate-anvil-state.sh` | Runs before Anvil starts. Checks `state.json` ends with `}`. If corrupted: moves aside, tries backup `.gz`, then SCP from secondary. Falls through to fresh start if all fail. |
+| **anvil-safe-stop.sh** | `/opt/datachain-rope/scripts/anvil-safe-stop.sh` | Runs before Anvil stops. **First** removes DNAT rule + flushes conntrack (instant failover). **Then** takes `anvil_dumpState` RPC snapshot as `prestop-*.hex.gz`. |
+| **anvil-post-start.sh** | `/opt/datachain-rope/scripts/anvil-post-start.sh` | Runs after Anvil starts. Restores DNAT rule, enables `route_localnet`, waits up to 60s for Anvil to become responsive before declaring ready. |
+| **dcrope-watchdog.sh** | `/home/ubuntu/dcrope-watchdog.sh` | Runs every 5 min via cron. v5: RPC timeout = **log only** (never restart); only restarts on `failed`/`inactive` state; ignores `activating`/`deactivating`; 15-min cooldown. |
+| **anvil-state-backup.sh** | `/opt/datachain-rope/scripts/anvil-state-backup.sh` | Runs every 15 min via cron. Takes `anvil_dumpState` from port **8595** (direct) + gzip copy of `state.json`. Keeps 10 most recent of each type. |
+
+## Monitoring
+
+```bash
+# Check primary
+ssh rope-vps 'curl -s -X POST -H "Content-Type: application/json" \
+  -d "{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}" \
+  http://127.0.0.1:8595'
+
+# Check secondary
+ssh anvil-vps 'curl -s -X POST -H "Content-Type: application/json" \
+  -d "{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}" \
+  http://127.0.0.1:8595'
+
+# Check cross-VPS connectivity
+ssh rope-vps 'curl -s -X POST -H "Content-Type: application/json" \
+  -d "{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}" \
+  http://92.243.25.119:8595'
+
+# Check public endpoint
+curl -s -X POST -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
+  https://erpc.datachain.network
+```
+
+## CRITICAL RULES
+
+1. **NEVER stop the primary Anvil** unless absolutely necessary — external services depend on it (DCSwap bot, dcscan.io, MetaMask users). If you must restart, the `ExecStop` safe-stop script will take a dump first.
+2. **NEVER copy state.json while Anvil is running** — the file is continuously rewritten and will be corrupted mid-read. Always use `anvil_dumpState` RPC for consistent snapshots.
+3. **The secondary is NOT a replica** — it diverges from primary after loading the snapshot (produces its own blocks). It's a fallback, not a mirror.
+4. The `--load-state` CLI flag expects JSON, NOT the hex dump from `anvil_dumpState`. Use `--state` with a decoded JSON file instead.
+5. **NEVER restart Anvil more than once per 15 minutes** — the watchdog enforces this via `/tmp/anvil-restart.lock`. Large state files need 5–10 minutes to load; rapid restarts cause the SIGKILL-during-write corruption that caused the Mar 8 outage.
+
+## SSH Config
+
+```
+Host anvil-vps
+    HostName 92.243.25.119
+    User ubuntu
+    IdentityFile ~/.ssh/DCRope_key
+    IdentitiesOnly yes
+```
+
+rope-vps has an ed25519 key (`~/.ssh/id_ed25519`) authorized on anvil-vps for the sync script.
