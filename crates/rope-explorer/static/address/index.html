@@ -1,0 +1,1377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Address Detail | DC Explorer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+:root {
+    --primary: #18181b;
+    --black: #000000; --white: #ffffff;
+    --gray-50: #fafafa; --gray-100: #f4f4f5; --gray-200: #e4e4e7;
+    --gray-300: #d4d4d8; --gray-400: #a1a1aa; --gray-500: #71717a;
+    --gray-600: #52525b; --gray-700: #3f3f46; --gray-800: #27272a; --gray-900: #18181b;
+    --success: #22c55e; --success-bg: #dcfce7;
+    --warning: #f59e0b; --error: #ef4444; --info: #3b82f6;
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+    --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px;
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+    font-family: var(--font-sans);
+    background: var(--gray-50);
+    color: var(--gray-900);
+    line-height: 1.6;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    font-size: 14px;
+}
+a { color: var(--black); text-decoration: none; transition: color .15s; }
+a:hover { color: var(--gray-600); }
+
+/* Top bar — matches landing */
+.top-bar {
+    background: var(--gray-900);
+    color: var(--white);
+    padding: 0.5rem 0;
+    font-size: 12px;
+}
+.top-bar-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.top-bar-left { display: flex; align-items: center; gap: 1.5rem; }
+.top-bar-item { display: flex; align-items: center; gap: 0.375rem; color: var(--gray-400); }
+.top-bar-value { color: var(--white); font-weight: 500; }
+.top-bar-right { display: flex; align-items: center; gap: 1rem; }
+
+/* Header — matches landing */
+header {
+    background: var(--white);
+    border-bottom: 1px solid var(--gray-200);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+.header-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 64px;
+}
+.logo { display: flex; align-items: center; gap: 0.625rem; font-weight: 450; font-size: 1rem; color: var(--black); text-decoration: none; }
+.logo:hover { color: var(--black); }
+.logo-text { display: flex; flex-direction: column; }
+.logo-icon { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; }
+.logo-icon svg, .logo-icon img { width: 100%; height: 100%; }
+.main-nav { display: flex; align-items: center; gap: 0.25rem; }
+.nav-item { position: relative; }
+.nav-link {
+    display: flex; align-items: center; gap: 0.375rem;
+    padding: 0.5rem 0.875rem;
+    color: var(--gray-600);
+    font-weight: 500;
+    font-size: 13px;
+    border-radius: var(--radius-md);
+    transition: all 0.15s;
+    text-decoration: none;
+}
+.nav-link:hover { color: var(--black); background: var(--gray-100); }
+.nav-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 220px;
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    padding: 0.5rem;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(10px);
+    transition: all 0.2s;
+    z-index: 200;
+}
+.nav-item:hover .nav-dropdown { opacity: 1; visibility: visible; transform: translateY(0); }
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 0.75rem;
+    color: var(--gray-700);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    text-decoration: none;
+}
+.dropdown-item:hover { background: var(--gray-100); color: var(--black); }
+.dropdown-divider { height: 1px; background: var(--gray-200); margin: 0.5rem 0; }
+.header-actions { display: flex; align-items: center; gap: 0.75rem; }
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    padding: 0.5rem 1rem;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: var(--radius-md);
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+    text-decoration: none;
+}
+.btn-primary { background: var(--black); color: var(--white); }
+.btn-primary:hover { background: var(--gray-800); }
+.btn-secondary { background: var(--gray-100); color: var(--gray-700); }
+.btn-secondary:hover { background: var(--gray-200); }
+
+/* Footer — matches landing (light) */
+footer {
+    background: var(--white);
+    border-top: 1px solid var(--gray-200);
+    padding: 2rem 0;
+    margin-top: auto;
+}
+.footer-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.footer-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 400;
+    font-size: 1rem;
+    color: var(--gray-500);
+}
+.footer-links { display: flex; gap: 1.5rem; }
+.footer-links a { font-size: 12px; color: var(--gray-500); text-decoration: none; }
+.footer-links a:hover { color: var(--black); }
+
+/* Page content container */
+.container { max-width: 1400px; margin: 0 auto; padding: 0 1rem; width: 100%; }
+main { flex: 1; padding: 32px 0 48px; }
+code, .mono { font-family: var(--font-mono); font-size: 0.875rem; }
+
+/* Page content */
+.page-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 4px; }
+.page-subtitle { color: var(--gray-500); font-size: 0.875rem; margin-bottom: 24px; }
+.breadcrumb { font-size: 0.8125rem; color: var(--gray-500); margin-bottom: 16px; display: flex; align-items: center; gap: 6px; }
+.breadcrumb a { color: var(--gray-600); }
+.breadcrumb a:hover { color: var(--black); }
+
+/* Cards */
+.card {
+    background: var(--white); border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg); box-shadow: 0 1px 2px rgba(0,0,0,.04);
+    overflow: hidden;
+}
+.card-header {
+    padding: 16px 20px; border-bottom: 1px solid var(--gray-100);
+    display: flex; align-items: center; justify-content: space-between;
+}
+.card-header h2 { font-size: 0.9375rem; font-weight: 600; }
+.card-body { padding: 20px; }
+
+/* Tables */
+.table-wrapper { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+thead th {
+    text-align: left; padding: 12px 16px; font-weight: 600; font-size: 0.8125rem;
+    color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em;
+    background: var(--gray-50); border-bottom: 1px solid var(--gray-200);
+    white-space: nowrap;
+}
+tbody td {
+    padding: 12px 16px; border-bottom: 1px solid var(--gray-100);
+    color: var(--gray-700); vertical-align: middle;
+}
+tbody tr:hover { background: var(--gray-50); }
+tbody tr:last-child td { border-bottom: none; }
+
+/* Badges */
+.badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600;
+}
+.badge-success { background: var(--success-bg); color: #15803d; }
+.badge-warning { background: #fef9c3; color: #a16207; }
+.badge-error { background: #fee2e2; color: #dc2626; }
+.badge-info { background: #dbeafe; color: #1d4ed8; }
+.badge-gray { background: var(--gray-100); color: var(--gray-600); }
+
+/* Detail rows */
+.detail-grid { display: grid; gap: 0; }
+.detail-row {
+    display: grid; grid-template-columns: 200px 1fr; gap: 16px;
+    padding: 14px 20px; border-bottom: 1px solid var(--gray-100);
+    align-items: baseline;
+}
+.detail-row:last-child { border-bottom: none; }
+.detail-label { font-size: 0.8125rem; color: var(--gray-500); font-weight: 500; }
+.detail-value { font-size: 0.875rem; color: var(--gray-800); word-break: break-all; }
+.detail-value .mono { font-size: 0.8125rem; }
+
+/* Copy button */
+.copy-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border: 1px solid var(--gray-200);
+    border-radius: var(--radius-sm); background: var(--white);
+    cursor: pointer; color: var(--gray-400); font-size: 12px; margin-left: 6px;
+    transition: all .15s; vertical-align: middle;
+}
+.copy-btn:hover { color: var(--black); border-color: var(--gray-600); }
+.copy-btn.copied { color: var(--success); border-color: var(--success); }
+
+/* Pagination */
+.pagination { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 20px 0; }
+.pagination button, .pagination .page-num {
+    padding: 8px 14px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm);
+    background: var(--white); font-size: 0.8125rem; cursor: pointer; transition: all .15s;
+    font-family: var(--font-sans); color: var(--gray-700);
+}
+.pagination button:hover:not(:disabled) { border-color: var(--black); color: var(--black); }
+.pagination button:disabled { opacity: .4; cursor: not-allowed; }
+.pagination .page-num.active { background: var(--black); color: var(--white); border-color: var(--black); }
+.pagination .page-info { color: var(--gray-500); font-size: 0.8125rem; }
+
+/* Address detail page: header, panels, tabs */
+.addr-header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 16px; }
+.addr-header h1 { font-size: 1.25rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 10px; }
+.addr-header .addr-hex { font-family: var(--font-mono); font-size: 0.9375rem; font-weight: 500; color: var(--gray-700); }
+.addr-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.addr-tag {
+    display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px;
+    background: var(--gray-100); color: var(--gray-700); border-radius: 999px;
+    font-size: 0.75rem; font-weight: 500;
+}
+.addr-tag.contract { background: var(--gray-200); color: var(--gray-800); }
+.addr-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.addr-panels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+@media (max-width: 900px) { .addr-panels { grid-template-columns: 1fr; } }
+.addr-panel {
+    background: var(--white); border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg); padding: 20px; box-shadow: 0 1px 2px rgba(0,0,0,.04);
+}
+.addr-panel-title { font-size: 0.75rem; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
+.addr-panel-row { font-size: 0.875rem; margin-bottom: 10px; }
+.addr-panel-row:last-child { margin-bottom: 0; }
+.addr-panel-label { color: var(--gray-500); margin-bottom: 2px; }
+.addr-panel-value { font-weight: 600; color: var(--gray-900); }
+.addr-tabs { display: flex; flex-wrap: wrap; gap: 0; border-bottom: 2px solid var(--gray-200); margin-bottom: 0; }
+.addr-tab {
+    padding: 12px 16px; font-size: 0.875rem; font-weight: 500; color: var(--gray-600);
+    background: none; border: none; cursor: pointer; border-bottom: 2px solid transparent;
+    margin-bottom: -2px; transition: all .15s; font-family: inherit;
+}
+.addr-tab:hover { color: var(--gray-900); }
+.addr-tab.active { color: var(--black); border-bottom-color: var(--black); }
+.addr-tab-content { display: none; padding: 20px 0; }
+.addr-tab-content.active { display: block; }
+.bytecode-box { background: var(--gray-900); color: var(--gray-300); padding: 16px; border-radius: var(--radius-md); font-family: var(--font-mono); font-size: 0.75rem; word-break: break-all; max-height: 400px; overflow: auto; }
+
+/* Quipu Canon v1.1 — Knot card styling */
+.knot-card {
+    border: 1px solid #e5e7eb; border-left: 4px solid #14b8a6;
+    border-radius: 10px; padding: 12px 16px; background: #ffffff;
+    transition: box-shadow .15s, transform .15s;
+}
+.knot-card:hover { box-shadow: 0 4px 12px rgba(20,184,166,0.12); }
+.knot-card.tombstone {
+    border-left-color: #9ca3af; background: #f9fafb;
+    background-image: repeating-linear-gradient(45deg, transparent, transparent 8px, #f3f4f6 8px, #f3f4f6 9px);
+}
+.knot-card .knot-head { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.knot-card .knot-idx { display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; background:#ccfbf1; color:#0f766e; font-size:11px; font-weight:700; letter-spacing:0.3px; text-transform:uppercase; }
+.knot-card.tombstone .knot-idx { background:#e5e7eb; color:#6b7280; }
+.knot-card .knot-anchor { font-family: var(--font-mono); font-size:12px; color:#6b7280; }
+.knot-card .knot-types { display:flex; gap:4px; flex-wrap:wrap; }
+.knot-pill { display:inline-block; padding:2px 8px; border-radius:6px; font-size:10px; font-weight:600; letter-spacing:0.3px; }
+.knot-pill.value { background:#ecfdf5; color:#047857; }
+.knot-pill.mint { background:#fef3c7; color:#b45309; }
+.knot-pill.burn { background:#fee2e2; color:#b91c1c; }
+.knot-pill.approval { background:#e0f2fe; color:#0369a1; }
+.knot-pill.defi { background:#ede9fe; color:#6d28d9; }
+.knot-pill.deploy { background:#fce7f3; color:#be185d; }
+.knot-pill.call { background:#f3f4f6; color:#374151; }
+.knot-pill.other { background:#f3f4f6; color:#6b7280; }
+.knot-tx-list { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e5e7eb; display:flex; flex-direction:column; gap:6px; }
+.knot-tx-row { display:flex; align-items:center; gap:8px; font-size:12px; padding:4px 6px; border-radius:6px; }
+.knot-tx-row:hover { background:#f9fafb; }
+.knot-tx-row .knot-tx-type { flex-shrink:0; }
+.knot-tx-row .knot-tx-hash { font-family:var(--font-mono); color:#0f766e; }
+.knot-tombstone-pill { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:999px; background:#e5e7eb; color:#6b7280; font-size:11px; font-weight:600; }
+
+/* Overview stats row */
+.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.stat-card {
+    background: var(--white); border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg); padding: 20px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04);
+}
+.stat-label { font-size: 0.8125rem; color: var(--gray-500); margin-bottom: 4px; }
+.stat-value { font-size: 1.25rem; font-weight: 700; color: var(--gray-900); }
+
+/* Loading / empty */
+.loading {
+    display: flex; align-items: center; justify-content: center;
+    padding: 48px 24px; color: var(--gray-400); gap: 10px;
+}
+.spinner {
+    width: 20px; height: 20px; border: 2px solid var(--gray-200);
+    border-top-color: var(--black); border-radius: 50%;
+    animation: spin .6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.empty-state { text-align: center; padding: 48px 24px; color: var(--gray-400); }
+
+/* Direction badges */
+.dir-in { background: var(--success-bg); color: #15803d; padding: 2px 8px; border-radius: 4px; font-size: .75rem; font-weight: 600; }
+.dir-out { background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 4px; font-size: .75rem; font-weight: 600; }
+
+/* Nav button pair for string detail */
+.nav-btns { display: flex; gap: 8px; }
+.nav-btns a {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 6px 14px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm);
+    font-size: 0.8125rem; color: var(--gray-600); background: var(--white); transition: all .15s;
+}
+.nav-btns a:hover { border-color: var(--info); color: var(--info); text-decoration: none; }
+
+/* Tabs */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--gray-200); padding: 0 20px; }
+.tab-btn {
+    padding: 10px 18px; font-size: .8125rem; font-weight: 500; color: var(--gray-500);
+    background: none; border: none; border-bottom: 2px solid transparent;
+    cursor: pointer; transition: all .15s; font-family: var(--font-sans);
+}
+.tab-btn:hover { color: var(--gray-700); }
+.tab-btn.active { color: var(--info); border-bottom-color: var(--info); }
+
+/* Event log */
+.event-log {
+    background: var(--gray-50); border: 1px solid var(--gray-200);
+    border-radius: var(--radius-md); padding: 14px; margin-bottom: 10px;
+    font-size: .8125rem;
+}
+.event-log-header { font-weight: 600; margin-bottom: 8px; color: var(--gray-700); }
+.event-log .topic { color: var(--gray-500); word-break: break-all; margin: 2px 0; }
+.event-log .data-hex {
+    background: var(--white); border: 1px solid var(--gray-200);
+    border-radius: var(--radius-sm); padding: 8px; margin-top: 6px;
+    word-break: break-all; font-family: var(--font-mono); font-size: .75rem; color: var(--gray-600);
+}
+
+/* AI Agent banner */
+.agent-banner {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    border: 1px solid #334155;
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    margin-bottom: 20px;
+    color: #f1f5f9;
+    display: none;
+}
+.agent-banner-header {
+    display: flex; align-items: center; gap: 16px; margin-bottom: 16px;
+}
+.agent-banner-icon {
+    width: 52px; height: 52px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.5rem; flex-shrink: 0;
+}
+.agent-banner-icon.validation { background: rgba(59,130,246,.15); color: #60a5fa; }
+.agent-banner-icon.compliance { background: rgba(34,197,94,.15); color: #4ade80; }
+.agent-banner-icon.insurance { background: rgba(245,158,11,.15); color: #fbbf24; }
+.agent-banner-icon.oracle { background: rgba(168,85,247,.15); color: #c084fc; }
+.agent-banner-icon.semantic { background: rgba(236,72,153,.15); color: #f472b6; }
+.agent-banner-title {
+    font-size: 1.25rem; font-weight: 700; color: #f8fafc;
+    display: flex; align-items: center; gap: 10px;
+}
+.agent-banner-org { font-size: .8125rem; color: #94a3b8; margin-top: 2px; }
+.agent-status-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 12px; border-radius: 999px; font-size: .75rem; font-weight: 600;
+}
+.agent-status-pill.online { background: rgba(34,197,94,.15); color: #4ade80; }
+.agent-status-pill.standby { background: rgba(245,158,11,.15); color: #fbbf24; }
+.agent-status-pill.offline { background: rgba(239,68,68,.15); color: #f87171; }
+.agent-status-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+}
+.agent-status-dot.online { background: #4ade80; }
+.agent-status-dot.standby { background: #fbbf24; }
+.agent-status-dot.offline { background: #f87171; }
+.agent-banner-desc { font-size: .875rem; color: #cbd5e1; line-height: 1.6; margin-bottom: 16px; }
+.agent-stats-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px; margin-bottom: 16px;
+}
+.agent-stat-item {
+    background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06);
+    border-radius: var(--radius-md); padding: 12px;
+}
+.agent-stat-label { font-size: .6875rem; color: #64748b; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+.agent-stat-val { font-size: 1rem; font-weight: 700; color: #f1f5f9; }
+.agent-tags-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.agent-tag-pill {
+    padding: 3px 10px; border-radius: 999px; font-size: .6875rem; font-weight: 500;
+    background: rgba(255,255,255,.06); color: #94a3b8; border: 1px solid rgba(255,255,255,.08);
+}
+.agent-tag-pill.verified { background: rgba(59,130,246,.12); color: #60a5fa; border-color: rgba(59,130,246,.2); }
+.agent-tag-pill.featured { background: rgba(245,158,11,.12); color: #fbbf24; border-color: rgba(245,158,11,.2); }
+.agent-tag-pill.service { background: rgba(34,197,94,.08); color: #86efac; border-color: rgba(34,197,94,.15); }
+
+/* Testimony row in table */
+.verdict-approved { color: #22c55e; font-weight: 600; }
+.verdict-denied { color: #ef4444; font-weight: 600; }
+.verdict-transfer { color: #3b82f6; font-weight: 600; }
+.confidence-bar {
+    display: inline-block; width: 40px; height: 6px; border-radius: 3px;
+    background: var(--gray-200); overflow: hidden; vertical-align: middle; margin-left: 6px;
+}
+.confidence-fill { height: 100%; border-radius: 3px; background: #22c55e; }
+
+/* Responsive */
+@media (max-width: 768px) {
+    .main-nav { display: none; }
+    .detail-row { grid-template-columns: 1fr; gap: 4px; }
+    .header-container { flex-wrap: wrap; }
+    .stats-row { grid-template-columns: 1fr 1fr; }
+    .agent-stats-grid { grid-template-columns: 1fr 1fr; }
+}
+
+.tanastok-banner { background: var(--gray-900); border: 1px solid var(--gray-700); border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; color: #f1f5f9; }
+.tanastok-banner-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+.tanastok-banner-header h3 { margin: 0; font-size: 1.1rem; font-weight: 600; color: #f8fafc; }
+.tanastok-type-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; }
+.tanastok-type-dcnft { background: rgba(34,197,94,.15); color: #4ade80; }
+.tanastok-type-erc3643 { background: rgba(59,130,246,.15); color: #60a5fa; }
+.tanastok-type-trex { background: rgba(168,85,247,.15); color: #c084fc; }
+.tanastok-origin { font-size: 0.8125rem; color: #94a3b8; margin-bottom: 0.75rem; }
+.tanastok-origin a { color: #4ade80; font-weight: 600; text-decoration: none; }
+.tanastok-origin a:hover { text-decoration: underline; color: #86efac; }
+.tanastok-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
+.tanastok-stat { background: rgba(255,255,255,.04); border-radius: 8px; padding: 0.6rem 0.8rem; border: 1px solid rgba(255,255,255,.08); }
+.tanastok-stat-label { font-size: 0.6875rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+.tanastok-stat-value { font-size: 1rem; font-weight: 600; color: #f1f5f9; margin-top: 2px; }
+.tanastok-related { margin-top: 0.75rem; }
+.tanastok-related-title { font-size: 0.8125rem; font-weight: 600; color: #cbd5e1; margin-bottom: 0.5rem; }
+.tanastok-related-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0; font-size: 0.8125rem; border-bottom: 1px solid rgba(255,255,255,.06); }
+.tanastok-related-item:last-child { border-bottom: none; }
+.tanastok-related-label { color: #94a3b8; min-width: 140px; }
+.tanastok-related-item a { color: #60a5fa; }
+.tanastok-related-item a:hover { color: #93bbfd; }
+.tanastok-actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+.tanastok-btn { display: inline-flex; align-items: center; gap: 5px; padding: 6px 14px; border-radius: 6px; font-size: 0.8125rem; font-weight: 500; text-decoration: none; border: 1px solid rgba(255,255,255,.12); color: #cbd5e1; background: rgba(255,255,255,.04); transition: all 0.15s; }
+.tanastok-btn:hover { border-color: rgba(255,255,255,.25); color: #f1f5f9; background: rgba(255,255,255,.08); }
+.tanastok-info-section { margin-bottom: 1.5rem; }
+.tanastok-info-section h4 { margin: 0 0 0.5rem 0; font-size: 0.9375rem; font-weight: 600; color: var(--gray-800); }
+.tanastok-hero-img { max-width: 100%; max-height: 200px; border-radius: 8px; object-fit: cover; margin-bottom: 0.75rem; }
+.tanastok-desc { color: var(--gray-700); font-size: 0.875rem; line-height: 1.6; }
+.tanastok-verified { color: #4ade80; }
+
+    </style>
+    <link rel="stylesheet" href="/css/dcscan-labels.css">
+</head>
+<body>
+    <div class="top-bar">
+        <div class="top-bar-container">
+            <div class="top-bar-left">
+                <div class="top-bar-item">
+                    <i class="fa-solid fa-coins"></i>
+                    DC FAT Price:
+                    <span class="top-bar-value">$0.00390</span>
+                    <span style="color: #ef4444; margin-left: 0.25rem;">-2.94%</span>
+                </div>
+                <div class="top-bar-item">
+                    <i class="fa-solid fa-gas-pump"></i>
+                    Gas:
+                    <span class="top-bar-value">0.001 gwei</span>
+                </div>
+                <div class="top-bar-item">
+                    <i class="fa-solid fa-clock"></i>
+                    Finality:
+                    <span class="top-bar-value">&lt;5s</span>
+                </div>
+            </div>
+            <div class="top-bar-right">
+                <button class="theme-toggle" aria-label="Theme"><i class="fa-solid fa-sun"></i></button>
+            </div>
+        </div>
+    </div>
+    <header>
+        <div class="header-container">
+            <a href="/" class="logo">
+                <div class="logo-icon">
+                    <img src="/assets/logo.svg" alt="DC Explorer Logo" style="width: 100%; height: 100%; object-fit: contain;">
+                </div>
+                <span class="logo-text"><span>DC</span><span>Explorer</span></span>
+            </a>
+            <nav class="main-nav">
+                <div class="nav-item">
+                    <a href="#" class="nav-link">Smartchain <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/strings" class="dropdown-item">View Strings</a>
+                        <a href="/txs" class="dropdown-item">Transactions</a>
+                        <a href="/txsPending" class="dropdown-item">Pending Txns</a>
+                        <div class="dropdown-divider"></div>
+                        <a href="/accounts" class="dropdown-item">Top Accounts</a>
+                        <a href="/contracts" class="dropdown-item">Verified Contracts</a>
+                    </div>
+                </div>
+                <div class="nav-item">
+                    <a href="#" class="nav-link">AI Agents <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/agents" class="dropdown-item">All Agents</a>
+                        <a href="/testimonies" class="dropdown-item">Testimonies</a>
+                        <a href="/validations" class="dropdown-item">Validators</a>
+                    </div>
+                </div>
+                <div class="nav-item">
+                    <a href="#" class="nav-link">Tokens <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/tokens" class="dropdown-item">DCR-20 Tokens</a>
+                        <a href="/tokentxns" class="dropdown-item">Token Transfers</a>
+                    </div>
+                </div>
+                <div class="nav-item">
+                    <a href="#" class="nav-link">Network <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/network/validators" class="dropdown-item">Validators</a>
+                        <a href="/databases" class="dropdown-item">Databases</a>
+                        <a href="/stats" class="dropdown-item">Charts &amp; Stats</a>
+                    </div>
+                </div>
+                <div class="nav-item">
+                    <a href="#" class="nav-link">More <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/apis" class="dropdown-item">API Docs</a>
+                        <a href="/verify" class="dropdown-item">Verify Contract</a>
+                        <a href="/faucet" class="dropdown-item">Faucet</a>
+                        <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank">GitHub</a>
+                        <a href="/contact" class="dropdown-item">Contact</a>
+                    </div>
+                </div>
+            </nav>
+            <div class="header-actions">
+                <button class="btn btn-secondary"><i class="fa-solid fa-wallet"></i> Connect</button>
+            </div>
+        </div>
+    </header>
+<main>
+    <div class="container">
+        <div class="breadcrumb"><a href="/"><i class="fas fa-home"></i></a><span>/</span><a href="/accounts">Accounts</a><span>/</span><span id="breadcrumb-addr">Address</span></div>
+
+        <!-- AI Agent banner (shown only when address is an agent wallet) -->
+        <div class="agent-banner" id="agent-banner">
+            <div class="agent-banner-header">
+                <div class="agent-banner-icon" id="agent-icon"><i class="fas fa-gavel"></i></div>
+                <div>
+                    <div class="agent-banner-title">
+                        <span id="agent-name">—</span>
+                        <span class="agent-status-pill" id="agent-status-pill">
+                            <span class="agent-status-dot"></span> <span id="agent-status-text">—</span>
+                        </span>
+                    </div>
+                    <div class="agent-banner-org"><span id="agent-org">—</span> &middot; <span id="agent-type">—</span></div>
+                </div>
+                <a href="/agents" style="margin-left:auto;font-size:.8125rem;color:#60a5fa;text-decoration:none;"><i class="fas fa-arrow-left"></i> All Agents</a>
+            </div>
+            <div class="agent-banner-desc" id="agent-desc">—</div>
+            <div class="agent-stats-grid" id="agent-stats-grid"></div>
+            <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;">
+                <div>
+                    <div style="font-size:.6875rem;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Tags</div>
+                    <div class="agent-tags-row" id="agent-tags"></div>
+                </div>
+                <div>
+                    <div style="font-size:.6875rem;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Services</div>
+                    <div class="agent-tags-row" id="agent-services"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="addr-header" id="addr-header" style="display:none;">
+    <h1><span id="addr-type-label">Address</span> <span class="addr-hex" id="addr-display">—</span></h1>
+    <button class="copy-btn" onclick="copyToClip(window.__addrCurrent, this)" title="Copy address"><i class="fas fa-copy"></i></button>
+    <div class="addr-tags" id="addr-tags"></div>
+    <div class="addr-actions">
+        <a href="/api/v1/status" class="copy-btn" title="API"><i class="fas fa-code"></i></a>
+    </div>
+</div>
+
+<div id="tanastok-banner" style="display:none;"></div>
+
+<div class="addr-panels" id="addr-panels" style="display:none;">
+    <div class="addr-panel">
+        <div class="addr-panel-title">Overview</div>
+        <div class="addr-panel-row">
+            <div class="addr-panel-label">FAT BALANCE</div>
+            <div class="addr-panel-value" id="addr-fat-balance">—</div>
+        </div>
+        <div class="addr-panel-row">
+            <div class="addr-panel-label">FAT VALUE</div>
+            <div class="addr-panel-value" id="addr-fat-value">—</div>
+        </div>
+        <div class="addr-panel-row">
+            <div class="addr-panel-label">TOKEN HOLDINGS</div>
+            <div class="addr-panel-value" id="addr-token-holdings">—</div>
+        </div>
+    </div>
+    <div class="addr-panel">
+        <div class="addr-panel-title">More Info</div>
+        <div class="addr-panel-row">
+            <div class="addr-panel-label">PRIVATE NAME TAGS</div>
+            <div class="addr-panel-value"><button type="button" class="copy-btn" style="padding:4px 10px;font-size:12px;">+ Add</button></div>
+        </div>
+        <div class="addr-panel-row">
+            <div class="addr-panel-label">CONTRACT CREATOR</div>
+            <div class="addr-panel-value" id="addr-creator">—</div>
+        </div>
+        <div class="addr-panel-row">
+            <div class="addr-panel-label">TOKEN TRACKER</div>
+            <div class="addr-panel-value" id="addr-token-tracker">—</div>
+        </div>
+    </div>
+    <div class="addr-panel">
+        <div class="addr-panel-title">Network</div>
+        <div class="addr-panel-row">
+            <div class="addr-panel-label">CHAIN</div>
+            <div class="addr-panel-value">Datachain Rope Mainnet</div>
+        </div>
+        <div class="addr-panel-row">
+            <div class="addr-panel-label">MULTICHAIN</div>
+            <div class="addr-panel-value" style="font-weight:400;color:var(--gray-500);">Single chain — no other addresses</div>
+        </div>
+    </div>
+</div>
+
+<div class="card" id="addr-tabs-card" style="display:none;">
+    <div class="addr-tabs" id="addr-tabs-bar">
+        <button type="button" class="addr-tab active" data-tab="string"><i class="fas fa-link" style="margin-right:6px;"></i>String &amp; Knots</button>
+        <button type="button" class="addr-tab" data-tab="transactions">Transactions</button>
+        <button type="button" class="addr-tab" data-tab="internal">Internal Txns</button>
+        <button type="button" class="addr-tab" data-tab="transfers">Token Transfers (DCR-20)</button>
+        <button type="button" class="addr-tab" data-tab="contract">Contract</button>
+        <button type="button" class="addr-tab" data-tab="events">Events</button>
+        <button type="button" class="addr-tab" data-tab="assets">Assets</button>
+        <button type="button" class="addr-tab" data-tab="activity" id="tab-activity" style="display:none;">Agent Activity</button>
+        <button type="button" class="addr-tab" data-tab="info">Info</button>
+    </div>
+    <!--
+        Quipu Primitive Canon v1.1 §6(2) — Public personal-ledger view.
+        The wallet is a sovereign String. Each anchor where it has activity
+        is a Knot on that String. Each knot lists its Transactions by type.
+        Untied (GDPR-erased) knots appear as Tombstones.
+    -->
+    <div id="addr-tab-string" class="addr-tab-content active">
+        <p class="page-subtitle">
+            This wallet's <strong>sovereign String</strong> on Datachain Rope. Each event is a <strong>Knot</strong> tied chronologically along the cord; per-knot transaction details appear in the right column. Untied knots (GDPR Article 17) are shown as <span class="knot-tombstone-pill" style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;background:#f3f4f6;color:#6b7280;font-size:11px;font-weight:600;"><i class="fas fa-times-circle"></i> Tombstones</span>.
+        </p>
+        <div id="addr-string-summary" style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:16px;padding:14px 16px;background:linear-gradient(135deg,#f0fdfa,#ecfeff);border:1px solid #99f6e4;border-radius:10px;">
+            <div><div style="font-size:11px;text-transform:uppercase;color:#0f766e;font-weight:700;letter-spacing:0.5px;">String ID</div><div class="mono" id="addr-string-id" style="font-size:12px;color:#134e4a;">—</div></div>
+            <div><div style="font-size:11px;text-transform:uppercase;color:#0f766e;font-weight:700;letter-spacing:0.5px;">Knot Count</div><div id="addr-knot-count" style="font-size:18px;font-weight:700;color:#134e4a;">—</div></div>
+            <div><div style="font-size:11px;text-transform:uppercase;color:#0f766e;font-weight:700;letter-spacing:0.5px;">Active</div><div id="addr-knot-active" style="font-size:18px;font-weight:700;color:#059669;">—</div></div>
+            <div><div style="font-size:11px;text-transform:uppercase;color:#0f766e;font-weight:700;letter-spacing:0.5px;">Tombstones</div><div id="addr-knot-tombstones" style="font-size:18px;font-weight:700;color:#6b7280;">—</div></div>
+            <div style="margin-left:auto;align-self:center;font-size:11px;color:#0f766e;"><i class="fas fa-scroll"></i> <em>Quipu Canon v1.1 §6(2)</em></div>
+        </div>
+        <div id="addr-knot-list" class="knot-list" style="display:flex;flex-direction:column;gap:10px;"></div>
+        <p class="page-subtitle" id="addr-knot-empty" style="display:none;color:var(--gray-500);text-align:center;padding:24px;">No knots tied on this String yet.</p>
+    </div>
+    <div id="addr-tab-transactions" class="addr-tab-content">
+        <p class="page-subtitle" id="addr-txns-subtitle">Latest 25 from a total of <strong id="addr-txns-total">0</strong> transactions</p>
+        <div class="table-wrapper">
+            <table><thead><tr><th>Txn Hash</th><th>Knot</th><th>Age</th><th>From</th><th>To</th><th>Value</th><th>Status</th></tr></thead><tbody id="addr-txns-body"></tbody></table>
+        </div>
+        <div class="pagination" id="addr-pagination"></div>
+    </div>
+    <div id="addr-tab-internal" class="addr-tab-content">
+        <p class="page-subtitle" style="color:var(--gray-500);">Internal transactions (call traces) are not indexed on this explorer. Use a node with <code>trace_*</code> RPC for full trace data.</p>
+    </div>
+    <div id="addr-tab-transfers" class="addr-tab-content">
+        <p class="page-subtitle">Latest DCR-20 token transfer events</p>
+        <div class="table-wrapper">
+            <table><thead><tr><th>Txn Hash</th><th>Knot</th><th>Age</th><th>From</th><th>To</th><th>Amount</th><th>Token</th></tr></thead><tbody id="addr-transfers-body"></tbody></table>
+        </div>
+        <p class="page-subtitle" id="addr-transfers-empty" style="display:none;color:var(--gray-500);">No token transfers found.</p>
+    </div>
+    <div id="addr-tab-contract" class="addr-tab-content">
+        <p class="page-subtitle" id="addr-contract-intro">Contract bytecode (if this address is a contract).</p>
+        <div id="addr-bytecode-wrap" style="display:none;"><pre class="bytecode-box" id="addr-bytecode"></pre></div>
+        <p id="addr-not-contract" style="display:none;color:var(--gray-500);">This address is an EOA — no bytecode.</p>
+    </div>
+    <div id="addr-tab-events" class="addr-tab-content">
+        <p class="page-subtitle">Latest contract events (logs)</p>
+        <div class="table-wrapper">
+            <table><thead><tr><th>Txn Hash</th><th>Knot</th><th>Topics</th><th>Data</th></tr></thead><tbody id="addr-events-body"></tbody></table>
+        </div>
+        <p class="page-subtitle" id="addr-events-empty" style="display:none;color:var(--gray-500);">No events found.</p>
+    </div>
+    <div id="addr-tab-assets" class="addr-tab-content">
+        <p class="page-subtitle">Token holdings</p>
+        <div class="table-wrapper">
+            <table><thead><tr><th>Token</th><th>Balance</th><th>Value (USD)</th></tr></thead><tbody id="addr-assets-body"></tbody></table>
+        </div>
+    </div>
+    <div id="addr-tab-activity" class="addr-tab-content">
+        <p class="page-subtitle">Recent assessments, decisions, and testimony submissions by this AI agent</p>
+        <div class="table-wrapper">
+            <table>
+                <thead><tr>
+                    <th>Txn Hash</th>
+                    <th>Knot</th>
+                    <th>Target</th>
+                    <th>Verdict</th>
+                    <th>Confidence</th>
+                    <th>Reward</th>
+                    <th>Age</th>
+                </tr></thead>
+                <tbody id="agent-activity-body"></tbody>
+            </table>
+        </div>
+        <p class="page-subtitle" id="agent-activity-empty" style="display:none;color:var(--gray-500);">No agent activity found in recent knots.</p>
+    </div>
+    <div id="addr-tab-info" class="addr-tab-content">
+        <div class="addr-panel-title">Overview</div>
+        <p id="addr-info-text" style="color:var(--gray-700);font-size:0.9375rem;line-height:1.6;">A contract address hosts a smart contract, which is a set of code stored on the blockchain that runs when predetermined conditions are met. Addresses can be externally owned (EOA) or contract accounts.</p>
+    </div>
+</div>
+
+<div class="loading" id="addr-loading"><div class="spinner"></div> Loading address data…</div>
+<div class="empty-state" id="addr-error" style="display:none;"><i class="fas fa-exclamation-triangle" style="color:var(--warning);font-size:1.5rem;"></i><br>Address not found or invalid.</div>
+
+    </div>
+</main>
+    <footer>
+        <div class="footer-container">
+            <div class="footer-brand">
+                <div class="logo-icon" style="width: 24px; height: 24px;">
+                    <img src="/assets/logo.svg" alt="DC Explorer Logo" style="width: 100%; height: 100%; object-fit: contain;">
+                </div>
+                DC Explorer - Powered by Datachain Rope
+            </div>
+            <div class="footer-links">
+                <a href="https://datachain.network">Datachain</a>
+                <a href="/apis">API</a>
+                <a href="https://github.com/KazeONGUENE/rope">GitHub</a>
+                <a href="/contact">Contact</a>
+            </div>
+        </div>
+    </footer>
+<script>
+function timeAgo(ts) {
+    if (!ts) return '<span style="color:var(--gray-400)">—</span>';
+    const d = typeof ts === 'number' ? ts * 1000 : Date.parse(ts);
+    if (isNaN(d)) return '<span style="color:var(--gray-400)">—</span>';
+    const s = Math.floor((Date.now() - d) / 1000);
+    if (s < 5) return 'just now';
+    if (s < 60) return s + 's ago';
+    if (s < 3600) return Math.floor(s / 60) + 'm ago';
+    if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+    return Math.floor(s / 86400) + 'd ago';
+}
+function short(hash, n) {
+    n = n || 8;
+    if (!hash) return '—';
+    if (hash.length <= n * 2 + 2) return hash;
+    return hash.slice(0, n + 2) + '…' + hash.slice(-n);
+}
+function fmtNum(v) {
+    if (v == null || v === '') return '0';
+    const n = typeof v === 'string' ? parseFloat(v) : v;
+    if (isNaN(n)) return v;
+    return n.toLocaleString(undefined, { maximumFractionDigits: 6 });
+}
+function copyToClip(text, btn) {
+    navigator.clipboard.writeText(text).then(() => {
+        if (btn) {
+            btn.classList.add('copied');
+            btn.innerHTML = '<i class="fas fa-check"></i>';
+            setTimeout(() => { btn.classList.remove('copied'); btn.innerHTML = '<i class="fas fa-copy"></i>'; }, 1500);
+        }
+    });
+}
+function getPathSegment(idx) {
+    const parts = window.location.pathname.split('/').filter(Boolean);
+    return parts[idx] || null;
+}
+function escHtml(s) {
+    if (!s) return '';
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+function statusBadge(s) {
+    if (!s) return '<span class="badge badge-gray">Unknown</span>';
+    const lower = (s + '').toLowerCase();
+    if (lower === 'success' || lower === '1' || lower === 'true' || lower === 'final')
+        return '<span class="badge badge-success"><i class="fas fa-check-circle"></i> ' + (lower === 'final' ? 'Final' : 'Success') + '</span>';
+    if (lower === 'pending' || lower === 'tentative')
+        return '<span class="badge badge-warning"><i class="fas fa-clock"></i> ' + (lower === 'tentative' ? 'Tentative' : 'Pending') + '</span>';
+    if (lower === 'rejected' || lower === 'expired')
+        return '<span class="badge badge-error"><i class="fas fa-times-circle"></i> ' + s + '</span>';
+    if (lower === 'failed' || lower === '0' || lower === 'false')
+        return '<span class="badge badge-error"><i class="fas fa-times-circle"></i> Failed</span>';
+    return '<span class="badge badge-gray">' + s + '</span>';
+}
+function addrLink(addr, label, hidden) {
+    if (hidden && label) {
+        return window.DCScanLabels ? window.DCScanLabels.addrDisplay(null, { label: label, hidden: true }) : '<span class="addr-label-tag" data-cat="treasury">' + escHtml(label) + '</span>';
+    }
+    if (!addr) return '\u2014';
+    if (window.DCScanLabels && window.DCScanLabels.ready()) {
+        return window.DCScanLabels.addrDisplay(addr, { label: label, short: 10 });
+    }
+    const display = label || short(addr, 10);
+    return '<a href="/address/' + addr + '" class="mono">' + escHtml(display) + '</a>';
+}
+function txLink(hash) {
+    if (!hash) return '—';
+    return '<a href="/tx/' + hash + '" class="mono">' + short(hash, 10) + '</a>';
+}
+function stringLink(num) {
+    if (num == null) return '—';
+    return '<a href="/string/' + num + '">' + fmtNum(num) + '</a>';
+}
+function tokenLink(addr, name) {
+    if (!addr) return '—';
+    return '<a href="/token/' + addr + '">' + escHtml(name || short(addr, 10)) + '</a>';
+}
+
+(function() {
+    const addr = getPathSegment(1);
+    if (!addr || !/^0x[a-fA-F0-9]{40}$/.test(addr)) {
+        document.getElementById('addr-loading').style.display = 'none';
+        document.getElementById('addr-error').style.display = 'block';
+        return;
+    }
+    window.__addrCurrent = addr;
+
+    let currentPage = 1;
+    const pageSize = 25;
+
+    function setTab(tabId) {
+        document.querySelectorAll('.addr-tab').forEach(function(t) { t.classList.remove('active'); });
+        document.querySelectorAll('.addr-tab-content').forEach(function(c) { c.classList.remove('active'); });
+        var t = document.querySelector('.addr-tab[data-tab="' + tabId + '"]');
+        var c = document.getElementById('addr-tab-' + tabId);
+        if (t) t.classList.add('active');
+        if (c) c.classList.add('active');
+        if (tabId === 'string') loadKnots();
+        if (tabId === 'transactions') loadTxns(currentPage);
+        if (tabId === 'transfers') loadTransfers();
+        if (tabId === 'contract') loadBytecode();
+        if (tabId === 'events') loadEvents();
+        if (tabId === 'assets') loadAssets();
+        if (tabId === 'activity') loadAgentActivity();
+    }
+    document.getElementById('addr-tabs-bar').addEventListener('click', function(e) {
+        var t = e.target.closest('.addr-tab');
+        if (t && t.dataset.tab) setTab(t.dataset.tab);
+    });
+
+    fetch('/api/v1/accounts/' + addr + '/overview')
+        .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(function(overview) {
+            document.getElementById('addr-loading').style.display = 'none';
+            document.getElementById('addr-header').style.display = 'flex';
+            document.getElementById('addr-panels').style.display = 'grid';
+            document.getElementById('addr-tabs-card').style.display = 'block';
+
+            var isAgent = overview.isAgent === true;
+            var agent = overview.agent || {};
+
+            document.getElementById('addr-type-label').textContent = isAgent ? 'AI Agent' : (overview.isContract ? 'Contract' : 'Address');
+            if (overview.hidden && overview.label) {
+                var iconCls = overview.labelIcon || 'fa-landmark';
+                document.getElementById('addr-display').innerHTML = '<span class="addr-label-tag" data-cat="' + escHtml(overview.labelCategory || 'treasury') + '"><i class="fas ' + escHtml(iconCls) + '" style="margin-right:4px;"></i>' + escHtml(overview.label) + '</span>';
+            } else if (overview.label && !overview.hidden) {
+                document.getElementById('addr-display').textContent = addr.slice(0, 10) + '\u2026' + addr.slice(-8);
+            } else {
+                document.getElementById('addr-display').textContent = addr.slice(0, 10) + '\u2026' + addr.slice(-8);
+            }
+
+            var tags = document.getElementById('addr-tags');
+            if (isAgent) {
+                tags.innerHTML += '<span class="addr-tag" style="background:#dbeafe;color:#1d4ed8;"><i class="fas fa-robot" style="margin-right:4px;"></i> AI Agent</span>';
+                if (agent.name) tags.innerHTML += '<span class="addr-tag">' + escHtml(agent.name) + '</span>';
+            } else if (overview.label) {
+                var catAttr = overview.labelCategory ? ' data-cat="' + escHtml(overview.labelCategory) + '"' : '';
+                var iconHtml = overview.labelIcon ? '<i class="fas ' + escHtml(overview.labelIcon) + '" style="margin-right:4px;"></i>' : '';
+                tags.innerHTML += '<span class="addr-label-tag"' + catAttr + '>' + iconHtml + escHtml(overview.label) + '</span>';
+            }
+            tags.innerHTML += overview.isContract ? '<span class="addr-tag contract"># Contract</span>' : '<span class="addr-tag"># EOA</span>';
+
+            document.getElementById('addr-fat-balance').textContent = overview.fatBalance || '0 FAT';
+            document.getElementById('addr-fat-value').textContent = (overview.fatValueUsd || '$0.00').toString().indexOf('$') === 0 ? overview.fatValueUsd : ('$' + (overview.fatValueUsd || '0.00'));
+            document.getElementById('addr-token-holdings').textContent = '$' + (overview.tokenHoldingsValueUsd || '0.00') + ' (' + (overview.tokenCount || 0) + ' Tokens)';
+            document.getElementById('addr-creator').innerHTML = '—';
+            document.getElementById('addr-token-tracker').innerHTML = overview.label ? '<a href="/tokens">' + escHtml(overview.label) + '</a> ($0.01)' : '—';
+            document.getElementById('addr-txns-total').textContent = fmtNum(overview.transactionCount != null ? overview.transactionCount : 0);
+
+            if (isAgent) {
+                renderAgentBanner(agent);
+                document.getElementById('breadcrumb-addr').innerHTML = '<a href="/agents">AI Agents</a>';
+            }
+
+            loadTanastok(addr);
+            loadKnots();
+            loadTxns(1);
+            loadAssets();
+        })
+        .catch(function() {
+            document.getElementById('addr-loading').style.display = 'none';
+            // Overview failed — still try Tanastok (address may exist only in Tanastok)
+            loadTanastok(addr, function(found) {
+                if (found) {
+                    document.getElementById('addr-error').style.display = 'none';
+                    document.getElementById('addr-header').style.display = 'flex';
+                    document.getElementById('addr-panels').style.display = 'grid';
+                    document.getElementById('addr-tabs-card').style.display = 'block';
+                    document.getElementById('addr-display').textContent = addr.slice(0, 10) + '\u2026' + addr.slice(-8);
+                    document.getElementById('addr-type-label').textContent = 'Contract';
+                } else {
+                    document.getElementById('addr-error').style.display = 'block';
+                }
+            });
+        });
+
+    function loadTanastok(address, callback) {
+            fetch('/api/v1/accounts/' + address + '/tanastok')
+                    .then(function(r) { return r.ok ? r.json() : null; })
+                    .then(function(tdata) {
+                        if (!tdata || !tdata.success || !tdata.asset) { if (callback) callback(false); return; }
+                        var a = tdata.asset;
+                        var ct = a._contractType; // "dcnft" or "erc3643"
+                        var isDCNFT = ct === 'dcnft';
+                        var typeLabel = isDCNFT ? 'DCNFT \u2014 ERC-721 Title Deed' : 'ERC-3643 T-REX Security Token';
+                        var typeCls = isDCNFT ? 'tanastok-type-dcnft' : 'tanastok-type-erc3643';
+
+                        // Asset type icons
+                        var typeIcons = {
+                            'GOLD_MINE': 'fa-mountain', 'FORESTRY': 'fa-tree', 'RARE_EARTH': 'fa-atom',
+                            'REAL_ESTATE': 'fa-building', 'OIL_FIELD': 'fa-oil-well', 'DIAMOND': 'fa-gem',
+                            'CULTURAL_HERITAGE': 'fa-landmark', 'LUXURY_VEHICLE': 'fa-car', 'WATCH': 'fa-clock',
+                            'AGRICULTURAL': 'fa-seedling', 'INFRASTRUCTURE': 'fa-road'
+                        };
+                        var atIcon = typeIcons[a.assetType] || 'fa-cube';
+                        var fmtCurrency = function(v) {
+                            if (v == null) return '\u2014';
+                            return '$' + Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 });
+                        };
+
+                        // Update address type label
+                        document.getElementById('addr-type-label').textContent = isDCNFT ? 'DCNFT Contract' : 'ERC-3643 Contract';
+
+                        // Add Tanastok tag
+                        var tags = document.getElementById('addr-tags');
+                        tags.innerHTML = '<span class="tanastok-type-badge ' + typeCls + '"><i class="fas ' + escHtml(atIcon) + '"></i> ' + escHtml(typeLabel) + '</span>' +
+                            '<span class="addr-label-tag" data-cat="trex"><i class="fas fa-stamp" style="margin-right:3px;"></i>Tanastok Asset</span>' +
+                            (a.isVerified ? '<span class="addr-label-tag" style="background:#dcfce7;color:#166534;"><i class="fas fa-check-circle" style="margin-right:3px;"></i>Verified</span>' : '') +
+                            tags.innerHTML.replace(/<span class="addr-tag contract">.*?<\/span>/, '');
+
+                        // Update contract creator
+                        document.getElementById('addr-creator').innerHTML = 'Deployed by <a href="' + escHtml(a.tanastokUrl || 'https://tanastok.io') + '" target="_blank" style="color:#059669;font-weight:600;">Tanastok.io</a> \u2014 Real-World Asset Tokenization Platform';
+
+                        // Update token tracker
+                        if (isDCNFT && a.name) {
+                            document.getElementById('addr-token-tracker').innerHTML = '<a href="/address/' + escHtml(addr) + '">' + escHtml(a.name) + '</a> (ERC-721 DCNFT)';
+                        } else if (!isDCNFT && a.erc3643) {
+                            var sym = a.erc3643.tokenSymbol || '';
+                            var tname = a.erc3643.tokenName || a.name || '';
+                            document.getElementById('addr-token-tracker').innerHTML = '<a href="/token/' + escHtml(addr) + '">' + escHtml(tname) + ' (' + escHtml(sym) + ')</a>';
+                        }
+
+                        // Build banner HTML
+                        var siblingAddr = isDCNFT ? (a.erc3643 && a.erc3643.contractAddress) : (a.dcnft && a.dcnft.contractAddress);
+                        var siblingLabel = isDCNFT ? 'ERC-3643 T-REX' : 'DCNFT Title Deed';
+                        var siblingStd = isDCNFT ? 'ERC-3643' : 'ERC-721';
+                        var idReg = a.erc3643 && a.erc3643.identityRegistry;
+                        var compliance = a.erc3643 && a.erc3643.complianceModule;
+                        var heroUrl = a.heroImage ? (a.heroImage.startsWith('http') ? a.heroImage : 'https://tanastok.io' + a.heroImage) : '';
+
+                        var html = '<div class="tanastok-banner">';
+                        html += '<div class="tanastok-banner-header">';
+                        html += '<i class="fas ' + escHtml(atIcon) + '" style="font-size:1.3rem;color:#4ade80;"></i>';
+                        html += '<h3>' + escHtml(a.name || 'Tanastok Asset') + '</h3>';
+                        html += '<span class="tanastok-type-badge ' + typeCls + '">' + escHtml(typeLabel) + '</span>';
+                        if (a.isVerified) html += '<span class="tanastok-verified"><i class="fas fa-check-circle"></i> Verified</span>';
+                        html += '</div>';
+
+                        html += '<div class="tanastok-origin"><i class="fas fa-stamp" style="margin-right:4px;"></i>Deployed by <a href="' + escHtml(a.tanastokUrl || 'https://tanastok.io') + '" target="_blank">Tanastok.io</a> &mdash; Real-World Asset Tokenization Platform</div>';
+
+                        // Stats grid
+                        html += '<div class="tanastok-stats">';
+                        html += '<div class="tanastok-stat"><div class="tanastok-stat-label">Valuation</div><div class="tanastok-stat-value">' + fmtCurrency(a.value) + '</div></div>';
+                        html += '<div class="tanastok-stat"><div class="tanastok-stat-label">Total Shares</div><div class="tanastok-stat-value">' + (a.totalShares != null ? Number(a.totalShares).toLocaleString() : '\u2014') + '</div></div>';
+                        html += '<div class="tanastok-stat"><div class="tanastok-stat-label">Price/Share</div><div class="tanastok-stat-value">' + fmtCurrency(a.pricePerShare) + '</div></div>';
+                        html += '<div class="tanastok-stat"><div class="tanastok-stat-label">Available</div><div class="tanastok-stat-value">' + (a.availableShares != null ? Number(a.availableShares).toLocaleString() : '\u2014') + '</div></div>';
+                        if (a.location) html += '<div class="tanastok-stat"><div class="tanastok-stat-label">Location</div><div class="tanastok-stat-value" style="font-size:0.875rem;">' + escHtml(a.location) + '</div></div>';
+                        html += '</div>';
+
+                        // Related contracts
+                        html += '<div class="tanastok-related">';
+                        html += '<div class="tanastok-related-title"><i class="fas fa-project-diagram" style="margin-right:4px;"></i>Related Contracts</div>';
+                        if (siblingAddr) {
+                            html += '<div class="tanastok-related-item"><span class="tanastok-related-label">' + escHtml(siblingLabel) + '</span>' + addrLink(siblingAddr) + ' <span class="tanastok-type-badge ' + (isDCNFT ? 'tanastok-type-erc3643' : 'tanastok-type-dcnft') + '" style="font-size:0.6875rem;">' + escHtml(siblingStd) + '</span></div>';
+                        }
+                        if (idReg) {
+                            html += '<div class="tanastok-related-item"><span class="tanastok-related-label">Identity Registry</span>' + addrLink(idReg) + '</div>';
+                        }
+                        if (compliance) {
+                            html += '<div class="tanastok-related-item"><span class="tanastok-related-label">Compliance Module</span>' + addrLink(compliance) + '</div>';
+                        }
+                        html += '</div>';
+
+                        // Action buttons
+                        html += '<div class="tanastok-actions">';
+                        if (a.tanastokUrl) html += '<a href="' + escHtml(a.tanastokUrl) + '" target="_blank" class="tanastok-btn"><i class="fas fa-external-link-alt"></i> Tanastok.io</a>';
+                        if (!isDCNFT && a.erc3643 && a.erc3643.dcswapUrl) html += '<a href="' + escHtml(a.erc3643.dcswapUrl) + '" target="_blank" class="tanastok-btn"><i class="fas fa-exchange-alt"></i> DCSwap</a>';
+                        html += '</div>';
+                        html += '</div>';
+
+                        document.getElementById('tanastok-banner').innerHTML = html;
+                        document.getElementById('tanastok-banner').style.display = 'block';
+
+                        // Enrich Info tab with asset details
+                        var infoHtml = '';
+                        if (heroUrl) {
+                            infoHtml += '<div class="tanastok-info-section"><img src="' + escHtml(heroUrl) + '" alt="' + escHtml(a.name || '') + '" class="tanastok-hero-img" onerror="this.style.display=\'none\'"></div>';
+                        }
+                        infoHtml += '<div class="tanastok-info-section"><h4>' + escHtml(a.name || 'Asset') + '</h4>';
+                        infoHtml += '<span class="tanastok-type-badge ' + typeCls + '" style="margin-bottom:0.5rem;display:inline-flex;"><i class="fas ' + escHtml(atIcon) + '"></i> ' + escHtml((a.assetType || '').replace(/_/g, ' ')) + '</span>';
+                        if (a.isVerified) infoHtml += ' <span class="tanastok-verified"><i class="fas fa-check-circle"></i> Verified Asset</span>';
+                        infoHtml += '</div>';
+                        if (a.description || a.fullDescription) {
+                            infoHtml += '<div class="tanastok-info-section"><h4>Description</h4><p class="tanastok-desc">' + escHtml(a.fullDescription || a.description) + '</p></div>';
+                        }
+                        if (a.location) {
+                            infoHtml += '<div class="tanastok-info-section"><h4>Location</h4><p class="tanastok-desc"><i class="fas fa-map-marker-alt" style="margin-right:4px;color:#059669;"></i>' + escHtml(a.location) + '</p></div>';
+                        }
+
+                        infoHtml += '<div class="tanastok-info-section"><h4>Tokenization Details</h4>';
+                        infoHtml += '<div class="tanastok-stats">';
+                        infoHtml += '<div class="tanastok-stat"><div class="tanastok-stat-label">Valuation</div><div class="tanastok-stat-value">' + fmtCurrency(a.value) + '</div></div>';
+                        infoHtml += '<div class="tanastok-stat"><div class="tanastok-stat-label">Total Shares</div><div class="tanastok-stat-value">' + (a.totalShares != null ? Number(a.totalShares).toLocaleString() : '\u2014') + '</div></div>';
+                        infoHtml += '<div class="tanastok-stat"><div class="tanastok-stat-label">Price/Share</div><div class="tanastok-stat-value">' + fmtCurrency(a.pricePerShare) + '</div></div>';
+                        infoHtml += '<div class="tanastok-stat"><div class="tanastok-stat-label">Available Shares</div><div class="tanastok-stat-value">' + (a.availableShares != null ? Number(a.availableShares).toLocaleString() : '\u2014') + '</div></div>';
+                        infoHtml += '</div></div>';
+
+                        if (isDCNFT && a.dcnft) {
+                            infoHtml += '<div class="tanastok-info-section"><h4>DCNFT (Title Deed)</h4>';
+                            infoHtml += '<div class="tanastok-stats">';
+                            infoHtml += '<div class="tanastok-stat"><div class="tanastok-stat-label">Standard</div><div class="tanastok-stat-value">ERC-721</div></div>';
+                            infoHtml += '<div class="tanastok-stat"><div class="tanastok-stat-label">Token ID</div><div class="tanastok-stat-value">' + escHtml(a.dcnft.tokenId || '1') + '</div></div>';
+                            infoHtml += '<div class="tanastok-stat"><div class="tanastok-stat-label">Status</div><div class="tanastok-stat-value">' + escHtml(a.dcnft.status || '\u2014') + '</div></div>';
+                            infoHtml += '</div></div>';
+                        }
+                        if (a.erc3643) {
+                            infoHtml += '<div class="tanastok-info-section"><h4>ERC-3643 Security Token</h4>';
+                            infoHtml += '<div class="tanastok-stats">';
+                            infoHtml += '<div class="tanastok-stat"><div class="tanastok-stat-label">Symbol</div><div class="tanastok-stat-value">' + escHtml(a.erc3643.tokenSymbol || '\u2014') + '</div></div>';
+                            infoHtml += '<div class="tanastok-stat"><div class="tanastok-stat-label">Max Supply</div><div class="tanastok-stat-value">' + (a.erc3643.maxSupply != null ? Number(a.erc3643.maxSupply).toLocaleString() : '\u2014') + '</div></div>';
+                            infoHtml += '<div class="tanastok-stat"><div class="tanastok-stat-label">Minted</div><div class="tanastok-stat-value">' + (a.erc3643.mintedSupply != null ? Number(a.erc3643.mintedSupply).toLocaleString() : '\u2014') + '</div></div>';
+                            infoHtml += '<div class="tanastok-stat"><div class="tanastok-stat-label">Status</div><div class="tanastok-stat-value">' + escHtml(a.erc3643.status || '\u2014') + '</div></div>';
+                            infoHtml += '</div></div>';
+                        }
+
+                        infoHtml += '<div class="tanastok-actions" style="margin-top:1rem;">';
+                        if (a.tanastokUrl) infoHtml += '<a href="' + escHtml(a.tanastokUrl) + '" target="_blank" class="tanastok-btn"><i class="fas fa-external-link-alt"></i> View on Tanastok.io</a>';
+                        if (!isDCNFT && a.erc3643 && a.erc3643.dcswapUrl) infoHtml += '<a href="' + escHtml(a.erc3643.dcswapUrl) + '" target="_blank" class="tanastok-btn"><i class="fas fa-exchange-alt"></i> Trade on DCSwap</a>';
+                        infoHtml += '</div>';
+
+                        document.getElementById('addr-info-text').innerHTML = infoHtml;
+                        if (callback) callback(true);
+                    })
+                    .catch(function() { if (callback) callback(false); });
+    }
+
+    // Quipu Canon v1.1 §6(2) — Render the wallet's String → Knot[] hierarchy.
+    function loadKnots() {
+        var listEl = document.getElementById('addr-knot-list');
+        var emptyEl = document.getElementById('addr-knot-empty');
+        listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--gray-500);"><i class="fas fa-spinner fa-spin"></i> Walking the cord…</div>';
+        emptyEl.style.display = 'none';
+
+        fetch('/api/v1/personal-ledger/' + addr + '/string?limit=50')
+            .then(function(r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+            .then(function(data) {
+                var stringId = data.string_id || addr;
+                document.getElementById('addr-string-id').textContent = stringId;
+                document.getElementById('addr-knot-count').textContent = (data.knot_count || 0).toLocaleString();
+                document.getElementById('addr-knot-active').textContent = (data.active_count || 0).toLocaleString();
+                document.getElementById('addr-knot-tombstones').textContent = (data.tombstone_count || 0).toLocaleString();
+
+                var knots = data.knots || [];
+                if (!knots.length) {
+                    listEl.innerHTML = '';
+                    emptyEl.style.display = 'block';
+                    return;
+                }
+
+                listEl.innerHTML = knots.map(function(k) {
+                    if (k.status === 'tombstone') {
+                        var ts = k.tombstone || {};
+                        var untieDate = ts.untied_at ? new Date(ts.untied_at * 1000).toISOString().slice(0, 10) : '—';
+                        return ''
+                            + '<div class="knot-card tombstone">'
+                            + '  <div class="knot-head">'
+                            + '    <div style="display:flex;align-items:center;gap:10px;">'
+                            + '      <span class="knot-idx"><i class="fas fa-times-circle"></i> Knot #' + (k.knot_index !== undefined ? k.knot_index : '—') + '</span>'
+                            + '      <span class="knot-tombstone-pill"><i class="fas fa-scroll"></i> Tombstone</span>'
+                            + '    </div>'
+                            + '    <div style="font-size:11px;color:#6b7280;">Untied ' + untieDate + ' · ' + escHtml(ts.reason || 'OwnerRequest') + '</div>'
+                            + '  </div>'
+                            + '  <div style="margin-top:8px;font-size:12px;color:#6b7280;">'
+                            + '    <i class="fas fa-fingerprint" style="margin-right:4px;"></i> Audit hash: '
+                            + '    <span class="mono" style="font-size:11px;">' + escHtml((ts.audit_hash || '').slice(0, 18)) + '…</span>'
+                            + '    &nbsp;·&nbsp; Payload destroyed (canon §4.2). Position preserved on cord.'
+                            + '  </div>'
+                            + '</div>';
+                    }
+                    var anchor = k.anchor_block !== undefined ? k.anchor_block : '—';
+                    var typesHtml = (k.event_types || []).map(function(t) {
+                        var color = ({Transfer:'value', TokenTransfer:'value', TokenTransferFrom:'value',
+                                      TokenMint:'mint', TokenBurn:'burn', TokenApproval:'approval',
+                                      Swap:'defi', AddLiquidity:'defi', RemoveLiquidity:'defi',
+                                      ContractCreation:'deploy', ContractCall:'call'})[t] || 'other';
+                        return '<span class="knot-pill ' + color + '">' + escHtml(t) + '</span>';
+                    }).join('');
+                    var txs = k.transactions || [];
+                    var txsHtml = txs.slice(0, 8).map(function(t) {
+                        var et = t.event_type || 'ContractCall';
+                        var color = (t.cord_color || 'other');
+                        var hash = t.hash || '';
+                        var hashShort = hash.length > 14 ? hash.slice(0, 10) + '…' + hash.slice(-4) : hash;
+                        var counterparty = t.to || t.from || '';
+                        var cpShort = counterparty.length > 14 ? counterparty.slice(0, 8) + '…' + counterparty.slice(-4) : counterparty;
+                        return ''
+                            + '<div class="knot-tx-row">'
+                            + '  <span class="knot-pill ' + color + ' knot-tx-type">' + escHtml(et) + '</span>'
+                            + '  <a class="knot-tx-hash" href="/tx/' + hash + '">' + escHtml(hashShort) + '</a>'
+                            + '  <span style="color:#9ca3af;">→</span>'
+                            + '  <a href="/address/' + counterparty + '" style="color:#374151;">' + escHtml(cpShort) + '</a>'
+                            + '  <span style="margin-left:auto;color:#0f766e;font-weight:600;">' + escHtml((t.value || '0') + ' FAT') + '</span>'
+                            + '</div>';
+                    }).join('');
+                    var more = txs.length > 8 ? '<div style="text-align:center;font-size:11px;color:#9ca3af;margin-top:4px;">+ ' + (txs.length - 8) + ' more</div>' : '';
+                    return ''
+                        + '<div class="knot-card">'
+                        + '  <div class="knot-head">'
+                        + '    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
+                        + '      <span class="knot-idx"><i class="fas fa-link"></i> Knot #' + (k.knot_index !== undefined ? k.knot_index : '—') + '</span>'
+                        + '      <a href="/string/' + anchor + '" class="knot-anchor">@ anchor ' + anchor + '</a>'
+                        + '      <span style="font-size:11px;color:#6b7280;">' + timeAgo(k.timestamp) + '</span>'
+                        + '    </div>'
+                        + '    <div class="knot-types">' + typesHtml + '</div>'
+                        + '  </div>'
+                        + '  <div class="knot-tx-list">' + txsHtml + more + '</div>'
+                        + '</div>';
+                }).join('');
+            })
+            .catch(function() {
+                listEl.innerHTML = '<div style="padding:24px;text-align:center;color:#dc2626;"><i class="fas fa-exclamation-triangle"></i> Failed to load String. The personal-ledger API may be offline.</div>';
+            });
+    }
+
+    function loadTxns(page) {
+        currentPage = page;
+        fetch('/api/v1/accounts/' + addr + '/transactions?page=' + page + '&limit=' + pageSize)
+            .then(r => r.json())
+            .then(function(data) {
+                var txns = data.transactions || [];
+                var tbody = document.getElementById('addr-txns-body');
+                if (!txns.length) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No transactions found</td></tr>';
+                    document.getElementById('addr-pagination').innerHTML = '';
+                    return;
+                }
+                tbody.innerHTML = txns.map(function(tx) {
+                    var dir = (tx.direction || '').toUpperCase();
+                    var dirBadge = dir === 'IN' ? '<span class="dir-in">IN</span>' : dir === 'OUT' ? '<span class="dir-out">OUT</span>' : '<span class="badge badge-gray">—</span>';
+                    return '<tr><td>' + txLink(tx.hash) + '</td><td>' + stringLink(tx.string) + '</td><td>' + timeAgo(tx.timestamp) + '</td><td>' + addrLink(tx.from, tx.fromLabel, tx.fromHidden) + '</td><td>' + addrLink(tx.to, tx.toLabel, tx.toHidden) + '</td><td>' + fmtNum(tx.value) + ' FAT</td><td>' + statusBadge(tx.status || 'Success') + '</td></tr>';
+                }).join('');
+                var total = (data.pagination && data.pagination.total) || txns.length;
+                var totalPages = Math.ceil(total / pageSize) || 1;
+                var pagEl = document.getElementById('addr-pagination');
+                pagEl.innerHTML = '<button ' + (currentPage<=1?'disabled':'') + ' onclick="window.__addrLoadPage(' + (currentPage-1) + ')"><i class="fas fa-chevron-left"></i></button><span class="page-info">Page ' + currentPage + ' of ' + totalPages + '</span><button ' + (currentPage>=totalPages?'disabled':'') + ' onclick="window.__addrLoadPage(' + (currentPage+1) + ')"><i class="fas fa-chevron-right"></i></button>';
+            });
+    }
+    window.__addrLoadPage = function(p) { if (p >= 1) loadTxns(p); };
+
+    function loadTransfers() {
+        fetch('/api/v1/accounts/' + addr + '/transfers?limit=25')
+            .then(r => r.json())
+            .then(function(data) {
+                var list = data.transfers || [];
+                var tbody = document.getElementById('addr-transfers-body');
+                document.getElementById('addr-transfers-empty').style.display = list.length ? 'none' : 'block';
+                if (!list.length) { tbody.innerHTML = ''; return; }
+                tbody.innerHTML = list.map(function(t) {
+                    return '<tr><td>' + txLink(t.transactionHash) + '</td><td>' + stringLink(t.blockNumber) + '</td><td>—</td><td>' + addrLink(t.from) + '</td><td>' + addrLink(t.to) + '</td><td>' + fmtNum(t.value) + '</td><td>' + (t.tokenSymbol ? escHtml(t.tokenSymbol) : '—') + '</td></tr>';
+                }).join('');
+            });
+    }
+
+    function loadBytecode() {
+        fetch('/api/v1/accounts/' + addr + '/bytecode')
+            .then(r => r.json())
+            .then(function(data) {
+                var wrap = document.getElementById('addr-bytecode-wrap');
+                var pre = document.getElementById('addr-bytecode');
+                var noContract = document.getElementById('addr-not-contract');
+                if (!data.bytecode || data.bytecode === '0x') {
+                    wrap.style.display = 'none';
+                    noContract.style.display = 'block';
+                    return;
+                }
+                noContract.style.display = 'none';
+                wrap.style.display = 'block';
+                pre.textContent = data.bytecode.length > 500 ? data.bytecode.slice(0, 500) + '…' : data.bytecode;
+            });
+    }
+
+    function loadEvents() {
+        fetch('/api/v1/accounts/' + addr + '/events?limit=25')
+            .then(r => r.json())
+            .then(function(data) {
+                var list = data.events || [];
+                var tbody = document.getElementById('addr-events-body');
+                document.getElementById('addr-events-empty').style.display = list.length ? 'none' : 'block';
+                if (!list.length) { tbody.innerHTML = ''; return; }
+                tbody.innerHTML = list.map(function(ev) {
+                    var topics = (ev.topics || []).slice(0, 2).join(', ');
+                    return '<tr><td>' + txLink(ev.transactionHash) + '</td><td>' + stringLink(ev.blockNumber) + '</td><td><span class="mono" style="font-size:11px;">' + escHtml(topics || '—') + '</span></td><td><span class="mono" style="font-size:11px;">' + escHtml((ev.data || '0x').slice(0, 42)) + '…</span></td></tr>';
+                }).join('');
+            });
+    }
+
+    function loadAssets() {
+        fetch('/api/v1/accounts/' + addr + '/overview')
+            .then(r => r.json())
+            .then(function(data) {
+                var tokens = data.tokens || [];
+                var tbody = document.getElementById('addr-assets-body');
+                tbody.innerHTML = tokens.map(function(t) {
+                    var name = t.name || t.symbol || 'Token';
+                    var link = t.address ? '<a href="/token/' + t.address + '">' + escHtml(name) + '</a>' : escHtml(name);
+                    return '<tr><td>' + link + '</td><td>' + fmtNum(t.balance) + ' ' + (t.symbol || '') + '</td><td>$' + (t.valueUsd || '0.00') + '</td></tr>';
+                }).join('');
+            });
+    }
+
+    function renderAgentBanner(agent) {
+        var banner = document.getElementById('agent-banner');
+        banner.style.display = 'block';
+
+        var iconEl = document.getElementById('agent-icon');
+        var iconType = (agent.icon || 'validation').toLowerCase();
+        iconEl.className = 'agent-banner-icon ' + iconType;
+        iconEl.innerHTML = '<i class="fas ' + escHtml(agent.iconClass || 'fa-gavel') + '"></i>';
+
+        document.getElementById('agent-name').textContent = agent.name || '—';
+        document.getElementById('agent-type').textContent = agent.type || '—';
+        document.getElementById('agent-org').textContent = agent.org || '—';
+        document.getElementById('agent-desc').textContent = agent.desc || '—';
+
+        var st = (agent.status || 'standby').toLowerCase();
+        var pill = document.getElementById('agent-status-pill');
+        pill.className = 'agent-status-pill ' + st;
+        pill.querySelector('.agent-status-dot').className = 'agent-status-dot ' + st;
+        document.getElementById('agent-status-text').textContent = st.charAt(0).toUpperCase() + st.slice(1);
+
+        var statsGrid = document.getElementById('agent-stats-grid');
+        var statItems = [
+            { label: 'Testimonies', value: agent.testimonies != null ? Number(agent.testimonies).toLocaleString() : '0' },
+            { label: 'Processed', value: agent.processed != null ? Number(agent.processed).toLocaleString() : '0' },
+            { label: 'Approved', value: agent.approved != null ? Number(agent.approved).toLocaleString() : '0' },
+            { label: 'Denied', value: agent.denied != null ? Number(agent.denied).toLocaleString() : '0' },
+            { label: 'Balance', value: agent.balance || '0 FAT' },
+            { label: 'Rewards Earned', value: agent.rewardsEarned || '0 FAT' },
+            { label: 'Reward Rate', value: agent.rewardRate || '—' },
+            { label: 'Transactions', value: agent.txCount != null ? Number(agent.txCount).toLocaleString() : '0' },
+            { label: 'Uptime', value: agent.uptime || '—' },
+            { label: 'Created', value: agent.createdAgo || '—' }
+        ];
+        statsGrid.innerHTML = statItems.map(function(s) {
+            return '<div class="agent-stat-item"><div class="agent-stat-label">' + escHtml(s.label) + '</div><div class="agent-stat-val">' + escHtml(s.value) + '</div></div>';
+        }).join('');
+
+        var tagsEl = document.getElementById('agent-tags');
+        tagsEl.innerHTML = (agent.tags || []).map(function(t) {
+            var cls = t === 'verified' ? ' verified' : t === 'featured' ? ' featured' : '';
+            return '<span class="agent-tag-pill' + cls + '">' + escHtml(t) + '</span>';
+        }).join('');
+
+        var svcEl = document.getElementById('agent-services');
+        svcEl.innerHTML = (agent.services || []).map(function(s) {
+            return '<span class="agent-tag-pill service">' + escHtml(s) + '</span>';
+        }).join('');
+
+        document.getElementById('tab-activity').style.display = '';
+    }
+
+    var agentActivityLoaded = false;
+    function loadAgentActivity() {
+        if (agentActivityLoaded) return;
+        agentActivityLoaded = true;
+        fetch('/api/v1/accounts/' + addr + '/agent-testimonies')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var list = data.testimonies || [];
+                var tbody = document.getElementById('agent-activity-body');
+                var empty = document.getElementById('agent-activity-empty');
+                if (!list.length) {
+                    tbody.innerHTML = '';
+                    empty.style.display = 'block';
+                    return;
+                }
+                empty.style.display = 'none';
+                tbody.innerHTML = list.map(function(t) {
+                    var verdictCls = (t.verdict || '').toLowerCase() === 'approved' ? 'verdict-approved' :
+                                     (t.verdict || '').toLowerCase() === 'denied' ? 'verdict-denied' : 'verdict-transfer';
+                    var conf = t.confidence != null ? (t.confidence * 100).toFixed(0) : '—';
+                    var confBar = t.confidence != null ? '<span class="confidence-bar"><span class="confidence-fill" style="width:' + (t.confidence * 100) + '%;"></span></span>' : '';
+                    return '<tr>' +
+                        '<td>' + txLink(t.transaction) + '</td>' +
+                        '<td>' + stringLink(t.block) + '</td>' +
+                        '<td>' + addrLink(t.to) + '</td>' +
+                        '<td><span class="' + verdictCls + '">' + escHtml(t.verdict || '—') + '</span></td>' +
+                        '<td>' + conf + '%' + confBar + '</td>' +
+                        '<td style="color:var(--success);font-weight:600;">+' + escHtml(String(t.rewardFat || 0)) + ' FAT</td>' +
+                        '<td>' + timeAgo(t.timestamp) + '</td>' +
+                    '</tr>';
+                }).join('');
+            });
+    }
+})();
+
+</script>
+<script src="/js/dcscan-labels.js"></script>
+<script src="/js/dcscan-stats.js"></script>
+</body>
+</html>

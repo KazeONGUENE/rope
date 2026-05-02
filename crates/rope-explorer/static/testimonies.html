@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Testimonies | DC Explorer</title>
+    <meta name="description" content="On-chain attestations and proofs issued by AI agents on Datachain Rope">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="/css/dcscan-header.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --black: #000000; --white: #ffffff; --gray-50: #fafafa; --gray-100: #f4f4f5; --gray-200: #e4e4e7;
+            --gray-400: #a1a1aa; --gray-500: #71717a; --gray-600: #52525b; --gray-700: #3f3f46;
+            --gray-800: #27272a; --gray-900: #18181b; --success: #22c55e; --success-bg: #dcfce7;
+            --warning: #f59e0b; --warning-bg: #fef3c7; --error: #ef4444; --info: #3b82f6; --info-bg: #dbeafe;
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px;
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: var(--font-sans); background: var(--gray-50); color: var(--gray-900); line-height: 1.5; font-size: 14px; }
+        a { color: var(--info); text-decoration: none; } a:hover { text-decoration: underline; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 0 1rem; }
+        .top-bar { background: var(--gray-900); color: var(--white); padding: 0.5rem 0; font-size: 12px; }
+        .top-bar-content { display: flex; justify-content: space-between; align-items: center; }
+        .top-bar-left { display: flex; align-items: center; gap: 1.5rem; }
+        .top-bar-item { display: flex; align-items: center; gap: 0.375rem; color: var(--gray-400); }
+        .top-bar-value { color: var(--white); font-weight: 500; }
+        header { background: var(--white); border-bottom: 1px solid var(--gray-200); position: sticky; top: 0; z-index: 100; }
+        .header-container { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+        .logo { display: flex; align-items: center; gap: 0.625rem; font-weight: 450; font-size: 1rem; color: #000; line-height: 1.2; }
+        .logo-text { display: flex; flex-direction: column; }
+        .logo-icon { width: 32px; height: 32px; }
+        .main-nav { display: flex; align-items: center; gap: 0.25rem; }
+        .nav-item { position: relative; }
+        .nav-link { display: flex; align-items: center; gap: 0.375rem; padding: 0.5rem 0.875rem; color: var(--gray-600); font-weight: 500; font-size: 13px; border-radius: var(--radius-md); }
+        .nav-link:hover { color: var(--black); background: var(--gray-100); text-decoration: none; }
+        .nav-link.active { background: var(--gray-900); color: var(--white); }
+        .nav-dropdown { position: absolute; top: 100%; left: 0; min-width: 220px; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); padding: 0.5rem; opacity: 0; visibility: hidden; transform: translateY(10px); transition: all 0.2s; z-index: 200; }
+        .nav-item:hover .nav-dropdown { opacity: 1; visibility: visible; transform: translateY(0); }
+        .dropdown-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.625rem 0.75rem; color: var(--gray-700); border-radius: var(--radius-sm); font-size: 13px; }
+        .dropdown-item:hover { background: var(--gray-100); color: var(--black); text-decoration: none; }
+        .dropdown-item i { width: 16px; color: var(--gray-500); }
+        .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.5rem 1rem; font-size: 13px; font-weight: 600; border-radius: var(--radius-md); border: none; cursor: pointer; }
+        .btn-secondary { background: var(--gray-100); color: var(--gray-700); }
+        .page-header { background: var(--white); border-bottom: 1px solid var(--gray-200); padding: 1.5rem 0; }
+        .page-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem; }
+        .page-subtitle { color: var(--gray-500); font-size: 0.875rem; }
+        .page-breadcrumb { display: flex; align-items: center; gap: 0.5rem; font-size: 12px; color: var(--gray-500); margin-bottom: 0.5rem; }
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-top: 1.5rem; margin-bottom: 1.5rem; }
+        .stat-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 1.25rem; }
+        .stat-label { font-size: 12px; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+        .stat-value { font-size: 1.5rem; font-weight: 700; }
+        .stat-sub { font-size: 12px; color: var(--gray-500); margin-top: 0.25rem; }
+        .privacy-notice { background: var(--info-bg); border: 1px solid #93c5fd; border-radius: var(--radius-lg); padding: 1rem 1.25rem; margin: 1.5rem 0; display: flex; align-items: flex-start; gap: 0.75rem; }
+        .privacy-notice i { color: var(--info); font-size: 1.25rem; margin-top: 0.125rem; }
+        .privacy-notice-text { flex: 1; }
+        .privacy-notice-desc { font-size: 13px; color: var(--gray-600); }
+        .card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); overflow: hidden; margin-top: 1.5rem; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; border-bottom: 1px solid var(--gray-100); }
+        .card-title { font-weight: 600; font-size: 1rem; }
+        .table-container { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 0.75rem 1.25rem; text-align: left; border-bottom: 1px solid var(--gray-100); }
+        th { font-weight: 600; font-size: 12px; text-transform: uppercase; color: var(--gray-500); background: var(--gray-50); }
+        td { font-size: 13px; }
+        .tx-hash { font-family: var(--font-mono); font-size: 12px; color: var(--info); }
+        .hash { font-family: var(--font-mono); font-size: 12px; color: var(--gray-600); }
+        .status { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.2rem 0.5rem; border-radius: 100px; font-size: 11px; font-weight: 500; }
+        .status.success { background: var(--success-bg); color: var(--success); }
+        .status.pending { background: var(--warning-bg); color: var(--warning); }
+        .time { color: var(--gray-500); font-size: 12px; }
+        .amount { font-family: var(--font-mono); font-weight: 500; }
+        .pagination { display: flex; align-items: center; justify-content: center; gap: 0.25rem; padding: 1rem; }
+        .page-btn { padding: 0.5rem 0.75rem; border: 1px solid var(--gray-200); background: var(--white); border-radius: var(--radius-sm); font-size: 13px; cursor: pointer; }
+        .page-btn:hover { background: var(--gray-100); }
+        .page-btn.active { background: var(--black); color: var(--white); border-color: var(--black); }
+        .page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .loading { text-align: center; padding: 2rem; color: var(--gray-500); font-size: 13px; }
+        footer { background: var(--white); border-top: 1px solid var(--gray-200); padding: 2rem 0; margin-top: 3rem; }
+        .footer-content { display: flex; justify-content: space-between; align-items: center; }
+        .footer-brand { display: flex; align-items: center; gap: 0.5rem; color: var(--gray-500); }
+        .footer-links { display: flex; gap: 1.5rem; }
+        .footer-links a { font-size: 12px; color: var(--gray-500); }
+        @media (max-width: 1024px) { .stats-row { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 768px) { .stats-row { grid-template-columns: 1fr; } .main-nav { display: none; } }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <div class="container top-bar-content">
+            <div class="top-bar-left">
+                <div class="top-bar-item"><span>DC FAT Price:</span><span class="top-bar-value" id="topbar-price">—</span></div>
+                <div class="top-bar-item"><span>Gas:</span><span class="top-bar-value" id="topbar-gas">—</span></div>
+            </div>
+        </div>
+    </div>
+    <header>
+        <div class="container header-container">
+            <a href="/" class="logo">
+                <div class="logo-icon"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 100%; height: 100%; object-fit: contain;"></div>
+                <span class="logo-text"><span>DC</span><span>Explorer</span></span>
+            </a>
+            <nav class="main-nav">
+                <div class="nav-item"><a href="#" class="nav-link">Smartchain <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/strings" class="dropdown-item">View Strings</a>
+                        <a href="/txs" class="dropdown-item">Transactions</a>
+                        <a href="/txsPending" class="dropdown-item">Pending Txns</a>
+                        <div class="dropdown-divider" style="height:1px;background:var(--gray-200);margin:0.5rem 0;"></div>
+                        <a href="/accounts" class="dropdown-item">Top Accounts</a>
+                        <a href="/contracts" class="dropdown-item">Verified Contracts</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link active">AI Agents <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/agents" class="dropdown-item">All Agents</a>
+                        <a href="/testimonies" class="dropdown-item">Testimonies</a>
+                        <a href="/validations" class="dropdown-item">Validators</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">Tokens <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/tokens" class="dropdown-item">DCR-20 Tokens</a>
+                        <a href="/tokentxns" class="dropdown-item">Token Transfers</a>
+                        <a href="/vote" class="dropdown-item">Vote</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">Network <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/defi" class="dropdown-item">DeFi</a>
+                        <a href="/network/validators" class="dropdown-item">Validators</a>
+                        <a href="/databases" class="dropdown-item">Databases</a>
+                        <a href="/stats" class="dropdown-item">Charts & Stats</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">More <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/apis" class="dropdown-item">API Docs</a>
+                        <a href="/verify" class="dropdown-item">Verify Contract</a>
+                        <a href="/faucet" class="dropdown-item">Faucet</a>
+                        <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank">GitHub</a>
+                        <a href="/contact" class="dropdown-item">Contact</a>
+                    </div>
+                </div>
+            </nav>
+            <button class="btn btn-secondary"><i class="fas fa-wallet"></i> Connect</button>
+        </div>
+    </header>
+
+    <div class="page-header">
+        <div class="container">
+            <div class="page-breadcrumb"><a href="/">Home</a> <i class="fas fa-chevron-right" style="font-size: 8px;"></i> <a href="/agents">AI Agents</a> <i class="fas fa-chevron-right" style="font-size: 8px;"></i> <span>Testimonies</span></div>
+            <h1 class="page-title">AI Testimonies</h1>
+            <p class="page-subtitle">On-chain attestations and proofs issued by AI agents</p>
+        </div>
+    </div>
+
+    <main class="container">
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-label">Total Testimonies</div>
+                <div class="stat-value" id="stat-total">—</div>
+                <div class="stat-sub" id="stat-total-sub">— this week</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Testimonies (24H)</div>
+                <div class="stat-value" id="stat-24h">—</div>
+                <div class="stat-sub" id="stat-24h-sub">— from yesterday</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Avg. Confidence Score</div>
+                <div class="stat-value" id="stat-confidence">—</div>
+                <div class="stat-sub" id="stat-confidence-sub">Across all agents</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Active Agents</div>
+                <div class="stat-value" id="stat-agents">—</div>
+                <div class="stat-sub" id="stat-agents-sub">Producing testimonies</div>
+            </div>
+        </div>
+
+        <div id="info-area"></div>
+
+        <div class="card" id="table-card" style="display:none;">
+            <div class="card-header">
+                <span class="card-title">Latest Testimonies</span>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Testimony ID</th>
+                            <th>Transaction</th>
+                            <th>Agent</th>
+                            <th>Type</th>
+                            <th>Confidence</th>
+                            <th>Status</th>
+                            <th>Age</th>
+                        </tr>
+                    </thead>
+                    <tbody id="testimonies-body"></tbody>
+                </table>
+            </div>
+            <div class="pagination" id="pagination"></div>
+        </div>
+
+        <div class="loading" id="loading"><i class="fas fa-spinner fa-spin"></i> Loading testimonies…</div>
+    </main>
+
+    <footer>
+        <div class="container footer-content">
+            <div class="footer-brand"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 24px; height: 24px;"> DC Explorer - Powered by Datachain Rope</div>
+            <div class="footer-links">
+                <a href="https://datachain.network">Datachain</a>
+                <a href="/apis">API</a>
+                <a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a>
+                <a href="/contact">Contact</a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+    function timeAgo(ts) {
+        if (!ts) return 'N/A';
+        var now = Math.floor(Date.now()/1000);
+        var d = now - ts;
+        if (d < 60) return d + 's ago';
+        if (d < 3600) return Math.floor(d/60) + 'm ago';
+        if (d < 86400) return Math.floor(d/3600) + 'h ago';
+        return Math.floor(d/86400) + 'd ago';
+    }
+    function short(s, n) { n = n || 6; if (!s) return ''; return s.substring(0, n+2) + '\u2026' + s.substring(s.length - n); }
+    function fmtNum(n) { return Number(n).toLocaleString(); }
+
+    (function() {
+        var loading = document.getElementById('loading');
+        var infoArea = document.getElementById('info-area');
+        var tableCard = document.getElementById('table-card');
+        var tbody = document.getElementById('testimonies-body');
+
+        fetch('/api/v1/stats')
+            .then(function(r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+            .then(function(s) {
+                var priceEl = document.getElementById('topbar-price');
+                var gasEl = document.getElementById('topbar-gas');
+                if (priceEl) priceEl.textContent = s.fatPriceUsd != null ? '$' + Number(s.fatPriceUsd).toFixed(4) : (s.fatPrice || '—');
+                if (gasEl) gasEl.textContent = s.gasPriceGwei != null ? s.gasPriceGwei + ' gwei' : (s.gasPrice || '—');
+            })
+            .catch(function() {});
+
+        fetch('/api/v1/testimonies/stats')
+            .then(function(r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+            .then(function(s) {
+                document.getElementById('stat-total').textContent = fmtNum(s.totalTestimonies);
+                document.getElementById('stat-total-sub').textContent = (s.totalTestimoniesChangePercentThisWeek != null ? s.totalTestimoniesChangePercentThisWeek + '%' : '—') + ' this week';
+                document.getElementById('stat-24h').textContent = fmtNum(s.testimonies24h);
+                document.getElementById('stat-24h-sub').textContent = (s.testimonies24hChangePercentFromYesterday != null ? s.testimonies24hChangePercentFromYesterday + '%' : '—') + ' from yesterday';
+                document.getElementById('stat-confidence').textContent = (s.avgConfidenceScore != null ? s.avgConfidenceScore + '%' : '—');
+                document.getElementById('stat-confidence-sub').textContent = 'Across all agents';
+                document.getElementById('stat-agents').textContent = fmtNum(s.activeAgents);
+                document.getElementById('stat-agents-sub').textContent = 'Producing testimonies';
+            })
+            .catch(function() {
+                document.getElementById('stat-total').textContent = '0';
+                document.getElementById('stat-total-sub').textContent = '— this week';
+                document.getElementById('stat-24h').textContent = '0';
+                document.getElementById('stat-24h-sub').textContent = '— from yesterday';
+                document.getElementById('stat-confidence').textContent = '—';
+                document.getElementById('stat-agents').textContent = '0';
+            });
+
+        fetch('/api/v1/testimonies?page=1&limit=25')
+            .then(function(r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+            .then(function(data) {
+                loading.style.display = 'none';
+                var items = data.testimonies || data.items || data.data || [];
+                if (!items.length) { showEmpty(); return; }
+                infoArea.innerHTML = '';
+                tableCard.style.display = '';
+                items.forEach(function(t) {
+                    var tr = document.createElement('tr');
+                    var statusCls = (t.status === 'confirmed' || t.status === 'valid') ? 'success' : 'pending';
+                    var conf = t.confidence != null ? (Number(t.confidence) >= 1 ? t.confidence + '%' : (t.confidence * 100).toFixed(1) + '%') : '—';
+                    var agentLabel = t.agentName ? t.agentName : short(t.agentAddress || t.agent || '', 6);
+                    var agentWallet = t.agentAddress || t.agent || '';
+                    tr.innerHTML =
+                        '<td class="tx-hash"><a href="/tx/' + (t.txHash || t.transaction || '') + '">' + short(t.id || t.testimonyId || '', 6) + '</a></td>' +
+                        '<td><a href="/tx/' + (t.txHash || t.transaction || '') + '" class="tx-hash">' + short(t.txHash || t.transaction || '', 6) + '</a></td>' +
+                        '<td><a href="/address/' + agentWallet + '" class="hash" title="' + agentWallet + '">' + agentLabel + '</a></td>' +
+                        '<td>' + (t.type || t.attestationType || '—') + '</td>' +
+                        '<td class="amount">' + conf + '</td>' +
+                        '<td><span class="status ' + statusCls + '">' + (t.status || 'confirmed') + '</span></td>' +
+                        '<td class="time">' + timeAgo(t.timestamp || t.createdAt) + '</td>';
+                    tbody.appendChild(tr);
+                });
+            })
+            .catch(function() {
+                loading.style.display = 'none';
+                showEmpty();
+            });
+
+        function showEmpty() {
+            infoArea.innerHTML =
+                '<div class="privacy-notice">' +
+                    '<i class="fas fa-info-circle"></i>' +
+                    '<div class="privacy-notice-text"><div class="privacy-notice-desc">Testimony data is being indexed from the Datachain Rope network. Testimonies will appear here as new attestations are recorded.</div></div>' +
+                '</div>';
+        }
+    })();
+    </script>
+<script src="/js/dcscan-stats.js"></script>
+</body>
+</html>

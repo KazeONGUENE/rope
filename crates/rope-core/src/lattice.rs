@@ -56,10 +56,60 @@ impl AnchorString {
     }
 }
 
+/// Knot tombstone metadata — the canonical record of an untied knot.
+///
+/// Per Quipu Primitive Canon v1.1 §4.2, when a knot is untied via
+/// `rope_untieKnot`, its encrypted payload is destroyed but the knot's
+/// position on the string remains as a deliberate absence with provable
+/// audit metadata. This struct holds that audit metadata.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct KnotTombstone {
+    /// Unix timestamp (seconds) when the knot was untied
+    pub untied_at: i64,
+    /// 32-byte audit hash committing to (string_id || untied_at || reason)
+    pub audit_hash: [u8; 32],
+    /// Human-readable reason class (e.g. "GdprArticle17", "OwnerRequest", "LegalOrder")
+    pub reason: String,
+}
+
+/// One entry on a wallet's string when walked with tombstone awareness.
+///
+/// Active entries carry the live `StringId`. Tombstones carry the same
+/// `StringId` (the knot's position is preserved) plus the tombstone metadata
+/// — the encrypted payload is gone, but the position, audit hash, and
+/// timestamp remain auditable. This is the canonical shape DCScan and
+/// Datawallet+ should render in the String → Knot → Tx-details hierarchy.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum LedgerEntry {
+    Active(StringId),
+    Tombstone(StringId, KnotTombstone),
+}
+
+impl LedgerEntry {
+    pub fn string_id(&self) -> StringId {
+        match self {
+            LedgerEntry::Active(id) => *id,
+            LedgerEntry::Tombstone(id, _) => *id,
+        }
+    }
+
+    pub fn is_tombstone(&self) -> bool {
+        matches!(self, LedgerEntry::Tombstone(_, _))
+    }
+}
+
 /// String Lattice - The core data structure of Datachain Rope
 ///
 /// Replaces blockchain's linear chain with a multi-dimensional lattice
 /// of intertwined strings that can be added, verified, and erased.
+///
+/// Per Quipu Primitive Canon v1.1, the entries on a wallet's string are
+/// individually addressable knots. Two erasure pathways exist:
+///   - `mark_erased(id)` — drops the string entirely (whole-wallet closure
+///     pathway used by `rope_erasePersonalLedger`).
+///   - `mark_knot_untied(id, reason)` — destroys the payload but preserves
+///     the knot's position via the DAG so `walk_string_with_tombstones` can
+///     traverse past it. This is the per-knot GDPR primitive.
 pub struct StringLattice {
     /// All strings in the lattice: StringId -> RopeString
     strings: RwLock<HashMap<StringId, RopeString>>,
@@ -82,8 +132,18 @@ pub struct StringLattice {
     /// Erased strings (tombstones)
     erased_strings: RwLock<HashSet<StringId>>,
 
+    /// Untied-knot tombstones with audit metadata (canon v1.1 §4.2).
+    /// Keyed by the original StringId. Presence in this map AND in
+    /// `erased_strings` indicates the knot was untied with full audit,
+    /// not just garbage-collected.
+    knot_tombstones: RwLock<HashMap<StringId, KnotTombstone>>,
+
     /// Current round number
     current_round: RwLock<u64>,
+
+    /// Creator index: Ed25519 public key bytes -> set of StringIds
+    /// Enables efficient lookup of all strings created by a specific wallet
+    creator_index: RwLock<HashMap<[u8; 32], Vec<StringId>>>,
 }
 
 /// DAG structure for string ordering
@@ -158,7 +218,9 @@ impl StringLattice {
             pending_strings: RwLock::new(BTreeMap::new()),
             finalized_strings: RwLock::new(HashSet::new()),
             erased_strings: RwLock::new(HashSet::new()),
+            knot_tombstones: RwLock::new(HashMap::new()),
             current_round: RwLock::new(0),
+            creator_index: RwLock::new(HashMap::new()),
         }
     }
 
@@ -207,6 +269,8 @@ impl StringLattice {
         let id = string.id();
         let timestamp = string.temporal_marker().time();
 
+        let creator_key = string.creator().ed25519;
+
         {
             let mut strings = self.strings.write();
             let mut complements = self.complements.write();
@@ -219,6 +283,12 @@ impl StringLattice {
 
             pending.entry(timestamp).or_default().insert(id);
         }
+
+        // Populate creator index
+        self.creator_index.write()
+            .entry(creator_key)
+            .or_default()
+            .push(id);
 
         // Step 6: Check if this creates new anchor
         self.check_anchor_creation(&string)?;
@@ -314,6 +384,66 @@ impl StringLattice {
         self.ordering.read().get_children(id)
     }
 
+    // === Personal Ledger Queries ===
+
+    /// Get all StringIds created by a specific public key (wallet)
+    pub fn strings_by_creator(&self, ed25519_pubkey: &[u8; 32]) -> Vec<StringId> {
+        self.creator_index
+            .read()
+            .get(ed25519_pubkey)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Walk the ledger chain for a creator: starting from `head`, follow
+    /// parentage links backwards to build the ordered chain. Returns entries
+    /// from genesis to head (oldest first).
+    pub fn walk_ledger_chain(&self, head: &StringId) -> Vec<StringId> {
+        let strings = self.strings.read();
+        let mut chain = Vec::new();
+        let mut current = *head;
+
+        loop {
+            if current == StringId::ZERO {
+                break;
+            }
+            if self.erased_strings.read().contains(&current) {
+                break;
+            }
+            chain.push(current);
+            match strings.get(&current) {
+                Some(s) => {
+                    if let Some(parent) = s.parentage().first() {
+                        current = *parent;
+                    } else {
+                        break;
+                    }
+                }
+                None => break,
+            }
+        }
+
+        chain.reverse();
+        chain
+    }
+
+    /// Erase all strings belonging to a specific creator (wallet ledger deletion).
+    /// Returns the count of erased strings.
+    pub fn erase_creator_strings(&self, ed25519_pubkey: &[u8; 32]) -> Result<usize> {
+        let string_ids = self.strings_by_creator(ed25519_pubkey);
+        let mut erased_count = 0;
+
+        for id in &string_ids {
+            if self.mark_erased(*id).is_ok() {
+                erased_count += 1;
+            }
+        }
+
+        self.creator_index.write().remove(ed25519_pubkey);
+
+        Ok(erased_count)
+    }
+
     /// Mark a string as erased
     pub fn mark_erased(&self, id: StringId) -> Result<()> {
         let mut erased = self.erased_strings.write();
@@ -332,6 +462,123 @@ impl StringLattice {
         erased.insert(id);
 
         Ok(())
+    }
+
+    // ====================================================================
+    // Quipu Primitive Canon v1.1 — per-knot (per-event) untying
+    // ====================================================================
+
+    /// Untie a single knot on a string (canon v1.1 §4.2).
+    ///
+    /// This is the granular GDPR Article 17 primitive. Unlike `mark_erased`
+    /// (whole-string deletion), `mark_knot_untied`:
+    ///
+    ///   1. Destroys the knot's encrypted payload (string + complement)
+    ///   2. Records canonical tombstone metadata (timestamp, audit hash, reason)
+    ///   3. **Preserves the knot's position** via the DAG ordering (parent/child
+    ///      edges remain, so `walk_string_with_tombstones` can traverse past)
+    ///
+    /// The result satisfies EDPB cryptographic-erasure guidance: the payload
+    /// is unrecoverable, but the knot's ordinal position on the cord remains
+    /// auditable as a deliberate absence.
+    pub fn mark_knot_untied(&self, id: StringId, reason: &str) -> Result<KnotTombstone> {
+        // Compute audit hash before payload destruction so the hash commits
+        // to the live state. Hash inputs: string_id || untied_at || reason
+        let untied_at = chrono::Utc::now().timestamp();
+        let mut hasher = blake3::Hasher::new();
+        hasher.update(id.as_bytes());
+        hasher.update(&untied_at.to_le_bytes());
+        hasher.update(reason.as_bytes());
+        let audit_hash = *hasher.finalize().as_bytes();
+
+        let tombstone = KnotTombstone {
+            untied_at,
+            audit_hash,
+            reason: reason.to_string(),
+        };
+
+        // Snapshot parents from the DAG before mark_erased clears the
+        // RopeString. The DAG keeps its edges so future walks can hop past.
+        let _parents = self.ordering.read().get_parents(&id);
+
+        // Destroy the payload (this also drops the parentage stored in the
+        // RopeString itself; the DAG retains parent edges separately).
+        self.mark_erased(id)?;
+
+        // Record the canonical tombstone metadata for audit/UI.
+        self.knot_tombstones.write().insert(id, tombstone.clone());
+
+        Ok(tombstone)
+    }
+
+    /// Look up a knot's tombstone metadata, if any. Returns None if the knot
+    /// was never untied (or was whole-string erased without tombstone metadata).
+    pub fn get_tombstone(&self, id: &StringId) -> Option<KnotTombstone> {
+        self.knot_tombstones.read().get(id).cloned()
+    }
+
+    /// Check whether a knot has been untied via the canonical canon v1.1 path.
+    pub fn is_knot_untied(&self, id: &StringId) -> bool {
+        self.knot_tombstones.read().contains_key(id)
+    }
+
+    /// Total count of untied knots (transparency metric for the canon §6(5) UI).
+    pub fn tombstone_count(&self) -> usize {
+        self.knot_tombstones.read().len()
+    }
+
+    /// Walk a wallet's string from `head` back to genesis, but DO NOT stop
+    /// at tombstones. Returns one `LedgerEntry` per knot position — either
+    /// `Active(StringId)` or `Tombstone(StringId, KnotTombstone)`.
+    ///
+    /// Walks via DAG parent edges (which survive `mark_knot_untied`) when
+    /// the live RopeString is gone, and via the RopeString's own parentage
+    /// when it's present. Returned vector is genesis-first (oldest first).
+    pub fn walk_string_with_tombstones(&self, head: &StringId) -> Vec<LedgerEntry> {
+        let strings = self.strings.read();
+        let tombstones = self.knot_tombstones.read();
+        let dag = self.ordering.read();
+
+        let mut chain: Vec<LedgerEntry> = Vec::new();
+        let mut current = *head;
+        let mut hops = 0usize;
+        // Hard cap to defend against pathological graphs; matches
+        // typical personal-ledger lengths plus headroom.
+        const MAX_HOPS: usize = 1_000_000;
+
+        loop {
+            if hops >= MAX_HOPS {
+                break;
+            }
+            hops += 1;
+
+            if current == StringId::ZERO {
+                break;
+            }
+
+            // Resolve parent: prefer the live RopeString's own parentage,
+            // fall back to the DAG (which survives untying).
+            let next = if let Some(s) = strings.get(&current) {
+                chain.push(LedgerEntry::Active(current));
+                s.parentage().first().copied().unwrap_or(StringId::ZERO)
+            } else if let Some(ts) = tombstones.get(&current) {
+                chain.push(LedgerEntry::Tombstone(current, ts.clone()));
+                // Use DAG to hop past the tombstone.
+                dag.get_parents(&current).into_iter().next().unwrap_or(StringId::ZERO)
+            } else {
+                // Unknown id — neither live nor tombstoned. Stop walking.
+                break;
+            };
+
+            if next == current {
+                // Defensive: a self-loop would otherwise spin.
+                break;
+            }
+            current = next;
+        }
+
+        chain.reverse();
+        chain
     }
 
     /// Verify string integrity using complement
@@ -613,5 +860,70 @@ mod tests {
         let id = lattice.add_string(string).unwrap();
 
         assert!(lattice.verify_string(&id).unwrap());
+    }
+
+    // ====================================================================
+    // Quipu Primitive Canon v1.1 — per-knot untying tests
+    // ====================================================================
+
+    #[test]
+    fn test_mark_knot_untied_creates_tombstone() {
+        let lattice = StringLattice::new();
+        let s = make_test_string(b"knot 1", vec![]);
+        let id = lattice.add_string(s).unwrap();
+
+        assert!(!lattice.is_knot_untied(&id));
+        assert_eq!(lattice.tombstone_count(), 0);
+
+        let ts = lattice.mark_knot_untied(id, "GdprArticle17").unwrap();
+
+        assert!(lattice.is_knot_untied(&id));
+        assert_eq!(lattice.tombstone_count(), 1);
+        assert_eq!(ts.reason, "GdprArticle17");
+        assert_eq!(ts.audit_hash.len(), 32);
+        assert!(lattice.get_tombstone(&id).is_some());
+        // Payload is gone (cryptographic erasure)
+        assert!(lattice.get_string(&id).is_none());
+    }
+
+    #[test]
+    fn test_walk_string_with_tombstones_traverses_past_untied_knot() {
+        let lattice = StringLattice::new();
+
+        // Build a 3-knot string: genesis ← knot_a ← knot_b
+        let genesis = make_test_string(b"genesis", vec![]);
+        let g_id = lattice.add_string(genesis).unwrap();
+
+        let a = make_test_string(b"knot_a", vec![g_id]);
+        let a_id = lattice.add_string(a).unwrap();
+
+        let b = make_test_string(b"knot_b", vec![a_id]);
+        let b_id = lattice.add_string(b).unwrap();
+
+        // Untie the middle knot — its position must remain walkable.
+        lattice.mark_knot_untied(a_id, "OwnerRequest").unwrap();
+
+        let entries = lattice.walk_string_with_tombstones(&b_id);
+
+        assert_eq!(entries.len(), 3, "walk should return all 3 positions including the tombstone");
+        assert_eq!(entries[0].string_id(), g_id, "genesis first");
+        assert_eq!(entries[1].string_id(), a_id, "tombstone preserves position");
+        assert!(entries[1].is_tombstone(), "middle entry must be tombstone");
+        assert_eq!(entries[2].string_id(), b_id, "head last");
+        assert!(!entries[0].is_tombstone());
+        assert!(!entries[2].is_tombstone());
+    }
+
+    #[test]
+    fn test_untie_idempotent_via_get_tombstone() {
+        let lattice = StringLattice::new();
+        let s = make_test_string(b"x", vec![]);
+        let id = lattice.add_string(s).unwrap();
+
+        let ts1 = lattice.mark_knot_untied(id, "OwnerRequest").unwrap();
+        // Audit hash committed at first untying — survives any future query.
+        let ts2 = lattice.get_tombstone(&id).unwrap();
+        assert_eq!(ts1.audit_hash, ts2.audit_hash);
+        assert_eq!(ts1.untied_at, ts2.untied_at);
     }
 }

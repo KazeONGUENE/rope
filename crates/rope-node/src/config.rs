@@ -1,7 +1,6 @@
 //! Node configuration
 
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
 
 /// Node configuration
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -18,7 +17,60 @@ pub struct NodeConfig {
     pub rpc: RpcSettings,
     /// Metrics settings
     pub metrics: MetricsSettings,
+    /// EVM backend settings (the local EVM execution layer — Reth in
+    /// production, per `reth-blue-green-ipfs-architecture.mdc`).
+    ///
+    /// `#[serde(alias = "anvil")]` preserves backwards compatibility with
+    /// existing operator deployments that still have an `[anvil]` section
+    /// in their TOML config from the pre-2026-03-31 Anvil era.
+    #[serde(default, alias = "anvil")]
+    pub evm_backend: EvmBackendSettings,
+    /// IoT Gateway settings
+    #[serde(default)]
+    pub iot_gateway: IoTGatewaySettings,
+    /// AI Agent Framework settings
+    #[serde(default)]
+    pub ai_framework: AIFrameworkSettings,
 }
+
+/// EVM backend settings — configures the local EVM execution layer.
+///
+/// In production this is Reth v1.11.2 listening on `127.0.0.1:8595`
+/// (per `reth-blue-green-ipfs-architecture.mdc`). Pre-2026-03-31 the
+/// execution layer was Anvil; the migration was transparent at this layer
+/// because both speak the same JSON-RPC dialect.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EvmBackendSettings {
+    /// Enable the EVM backend
+    pub enabled: bool,
+    /// Local EVM execution layer's internal HTTP URL (never exposed publicly)
+    pub url: String,
+    /// Health check interval (seconds)
+    pub health_interval_secs: u64,
+    /// Max consecutive health check failures before marking unhealthy
+    pub max_failures: u32,
+}
+
+impl Default for EvmBackendSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            // Production Reth listens on 8595 (was 8548 under Anvil).
+            url: "http://127.0.0.1:8595".to_string(),
+            health_interval_secs: 30,
+            max_failures: 5,
+        }
+    }
+}
+
+/// Deprecated alias for [`EvmBackendSettings`]. Existing operator TOML
+/// configs may still reference this type name; new code should use
+/// `EvmBackendSettings`.
+#[deprecated(
+    since = "0.2.0",
+    note = "Use `EvmBackendSettings`. Anvil was archived 2026-03-31."
+)]
+pub type AnvilSettings = EvmBackendSettings;
 
 /// Node settings
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -136,6 +188,48 @@ pub struct MetricsSettings {
     pub prometheus_addr: String,
 }
 
+/// IoT Gateway settings
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct IoTGatewaySettings {
+    pub enabled: bool,
+    pub mqtt_port: u16,
+    pub coap_port: u16,
+    pub max_devices: usize,
+}
+
+impl Default for IoTGatewaySettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            mqtt_port: 1883,
+            coap_port: 5683,
+            max_devices: 10_000,
+        }
+    }
+}
+
+/// AI Agent Framework settings
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AIFrameworkSettings {
+    pub enabled: bool,
+    pub builtin_maintenance_agent: bool,
+    pub builtin_anomaly_agent: bool,
+    pub max_agents: usize,
+    pub scheduler_interval_secs: u64,
+}
+
+impl Default for AIFrameworkSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            builtin_maintenance_agent: true,
+            builtin_anomaly_agent: true,
+            max_agents: 100,
+            scheduler_interval_secs: 60,
+        }
+    }
+}
+
 impl NodeConfig {
     /// Create config for a specific network
     pub fn for_network(network: &str) -> anyhow::Result<Self> {
@@ -194,6 +288,9 @@ impl NodeConfig {
                 enabled: true,
                 prometheus_addr: "127.0.0.1:9090".to_string(),
             },
+            evm_backend: EvmBackendSettings::default(),
+            iot_gateway: IoTGatewaySettings::default(),
+            ai_framework: AIFrameworkSettings::default(),
         }
     }
 

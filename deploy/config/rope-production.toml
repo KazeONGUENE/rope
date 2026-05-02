@@ -1,0 +1,52 @@
+# Rope node production: public RPC on 8545, Anvil backend on private 8595
+
+[node]
+name = "rope-mainnet-node"
+mode = "relay"
+chain_id = 271828
+
+[network]
+listen_addr = "0.0.0.0:9000"
+bootstrap_nodes = ["/ip4/92.243.26.189/tcp/9000/p2p/12D3KooWBXNzc2E4Z9CLypkRXro5iSdbM5oTnTkmf8ncZAqjhAfM"]
+max_peers = 50
+enable_quic = true
+enable_nat = true
+
+[consensus]
+enabled = false
+block_time_ms = 3000
+min_testimonies = 5
+ai_agents_enabled = true
+
+[storage]
+db_path = "~/.rope/mainnet/db"
+enable_compression = true
+cache_size_mb = 512
+pruning = "archive"
+
+[rpc]
+enabled = true
+# Public RPC (clients + DC Explorer use this)
+http_addr = "0.0.0.0:8545"
+grpc_addr = "127.0.0.1:9001"
+ws_addr = "127.0.0.1:8546"
+enable_tls = false
+enable_mtls = false
+cors_origins = ["*"]
+rate_limit = 100
+
+[metrics]
+enabled = true
+prometheus_addr = "127.0.0.1:9090"
+
+# EVM execution layer = private RPC, only this node talks to it.
+# In production the EVM backend is Reth v1.11.2 (per
+# .cursor/rules/reth-blue-green-ipfs-architecture.mdc). Anvil was archived
+# 2026-03-31. The legacy section name `[anvil]` is still accepted via
+# `#[serde(alias = "anvil")]` on `NodeConfig::evm_backend`, but new operator
+# configs should use `[evm_backend]` as below.
+[evm_backend]
+enabled = true
+url = "http://127.0.0.1:8595"
+health_interval_secs = 30
+max_failures = 5

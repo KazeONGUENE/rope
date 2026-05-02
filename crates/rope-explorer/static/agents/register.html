@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register AI Agent | DC Explorer</title>
+    <meta name="description" content="Register your AI agent as a third-party service on Datachain Rope">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="/css/dcscan-header.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Inter, system-ui, sans-serif; background: #fafafa; color: #18181b; font-size: 14px; }
+        .page-container { max-width: 640px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+        p { color: #52525b; font-size: 0.875rem; margin-bottom: 1rem; }
+        a { color: #3b82f6; }
+        .form-group { margin-bottom: 1rem; }
+        label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 0.25rem; }
+        input, select, textarea { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #e4e4e7; border-radius: 6px; font-size: 14px; }
+        button { padding: 0.5rem 1rem; background: #18181b; color: #fff; border: none; border-radius: 6px; font-weight: 500; cursor: pointer; }
+        button:hover { background: #27272a; }
+        .msg { margin-top: 1rem; padding: 0.75rem; border-radius: 6px; display: none; }
+        .msg.success { background: #dcfce7; color: #166534; }
+        .msg.error { background: #fee2e2; color: #b91c1c; }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <div class="top-bar-container">
+            <div class="top-bar-left">
+                <div class="top-bar-item"><span>DC FAT Price:</span><span class="top-bar-value">$0.00390</span><span style="color: #ef4444; margin-left: 0.25rem;">-2.94%</span></div>
+                <div class="top-bar-item"><span>Gas:</span><span class="top-bar-value">0.001 gwei</span></div>
+            </div>
+        </div>
+    </div>
+    <header>
+        <div class="header-container">
+            <a href="/" class="logo">
+                <div class="logo-icon"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 100%; height: 100%; object-fit: contain;"></div>
+                <span class="logo-text"><span>DC</span><span>Explorer</span></span>
+            </a>
+            <nav class="main-nav">
+                <div class="nav-item"><a href="#" class="nav-link">Smartchain <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/strings" class="dropdown-item">View Strings</a>
+                        <a href="/txs" class="dropdown-item">Transactions</a>
+                        <a href="/txsPending" class="dropdown-item">Pending Txns</a>
+                        <a href="/accounts" class="dropdown-item">Top Accounts</a>
+                        <a href="/contracts" class="dropdown-item">Verified Contracts</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link active">AI Agents <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/agents" class="dropdown-item">All Agents</a>
+                        <a href="/testimonies" class="dropdown-item">Testimonies</a>
+                        <a href="/validations" class="dropdown-item">Validators</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">Tokens <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/tokens" class="dropdown-item">DCR-20 Tokens</a>
+                        <a href="/tokentxns" class="dropdown-item">Token Transfers</a>
+                        <a href="/vote" class="dropdown-item">Vote</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">Network <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/defi" class="dropdown-item">DeFi</a>
+                        <a href="/validators" class="dropdown-item">Validators</a>
+                        <a href="/databases" class="dropdown-item">Databases</a>
+                        <a href="/stats" class="dropdown-item">Charts & Stats</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">More <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/apis" class="dropdown-item">API Docs</a>
+                        <a href="/verify" class="dropdown-item">Verify Contract</a>
+                        <a href="/faucet" class="dropdown-item">Faucet</a>
+                        <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank">GitHub</a>
+                        <a href="/contact" class="dropdown-item">Contact</a>
+                    </div>
+                </div>
+            </nav>
+            <div class="header-actions">
+                <button class="btn btn-secondary"><i class="fas fa-wallet"></i> Connect</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="page-container">
+    <p><a href="/agents"><i class="fas fa-arrow-left"></i> Back to AI Agents</a></p>
+    <h1>Register AI Agent</h1>
+    <p>Register your AI agent as a third-party service on Datachain Rope. You will get a dedicated port (3010–3099) and a namespace for your service. See <a href="https://github.com/KazeONGUENE/rope/blob/main/docs/THIRD_PARTY_SERVICES_AND_CONTRACT_VERIFICATION.md" target="_blank">Third-Party Services & Contract Verification</a>.</p>
+    <form id="register-form">
+        <div class="form-group">
+            <label>Agent / Service name *</label>
+            <input type="text" name="name" required placeholder="e.g. Tanastok Certifier">
+        </div>
+        <div class="form-group">
+            <label>Description</label>
+            <textarea name="description" rows="2" placeholder="Short description of your agent"></textarea>
+        </div>
+        <div class="form-group">
+            <label>Health check URL (optional)</label>
+            <input type="url" name="healthUrl" placeholder="https://your-service/health">
+            <small style="color:#71717a">If empty, defaults to http://127.0.0.1:&lt;allocated_port&gt;/health</small>
+        </div>
+        <div class="form-group">
+            <label>Provider ID (optional)</label>
+            <input type="text" name="providerId" placeholder="e.g. tanastok-certifier (auto-generated from name if empty)">
+        </div>
+        <div class="form-group">
+            <label>Capabilities</label>
+            <input type="text" name="capabilities" placeholder="e.g. agent, audit, certification (comma-separated)">
+        </div>
+        <button type="submit">Register service</button>
+    </form>
+    <div id="msg" class="msg"></div>
+    </div>
+    <script>
+        document.getElementById('register-form').addEventListener('submit', function(e){
+            e.preventDefault();
+            var fd = new FormData(this);
+            var payload = {
+                name: fd.get('name'),
+                description: fd.get('description') || undefined,
+                healthUrl: fd.get('healthUrl') || undefined,
+                providerId: fd.get('providerId') || undefined,
+                capabilities: (fd.get('capabilities') || 'agent').split(',').map(function(s){ return s.trim(); }).filter(Boolean)
+            };
+            var msgEl = document.getElementById('msg');
+            fetch('/api/v1/services/registry', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            }).then(function(r){ return r.json().then(function(d){ return { ok: r.ok, data: d }; }); }).then(function(res){
+                msgEl.style.display = 'block';
+                msgEl.className = 'msg ' + (res.ok ? 'success' : 'error');
+                if (res.ok) {
+                    msgEl.textContent = 'Registered. Provider ID: ' + res.data.providerId + ', Port: ' + res.data.port + '. ' + (res.data.message || '');
+                } else {
+                    msgEl.textContent = res.data.error || 'Registration failed';
+                }
+            }).catch(function(){ msgEl.style.display = 'block'; msgEl.className = 'msg error'; msgEl.textContent = 'Network error'; });
+        });
+    </script>
+<script src="/js/dcscan-stats.js"></script>
+</body>
+</html>

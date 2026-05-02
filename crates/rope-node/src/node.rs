@@ -3,14 +3,24 @@
 //! Full node implementation with integrated libp2p swarm networking
 //! and string production.
 
+use crate::evm_backend::{EvmBackend, EvmBackendConfig};
 use crate::config::{NodeConfig, NodeMode};
+use crate::consensus_orchestrator::{ConsensusOrchestrator, OrchestratorConfig};
 use crate::genesis;
+use crate::ledger_manager::LedgerManager;
 use crate::metrics::MetricsServer;
 use crate::rpc_server::RpcServer;
 use crate::string_producer::{ProductionEvent, StringProducer, StringProducerConfig};
+use rope_iot_gateway::{IoTGateway, IoTGatewayConfig};
+use rope_ai_framework::{AgentFramework, AgentFrameworkConfig};
 
 use parking_lot::RwLock;
+use rope_core::clock::ClockManager;
+use rope_core::lattice::StringLattice;
+use rope_core::string::PublicKey;
 use rope_core::types::{NodeId, StringId};
+use rope_crypto::oes::OESManager;
+use rope_storage::LedgerStore;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -18,7 +28,6 @@ use std::time::Duration;
 use tokio::signal;
 use tokio::sync::{broadcast, mpsc};
 
-// Import rope-network swarm runtime
 use rope_network::{
     swarm::{GossipSubConfig, KademliaConfig, RequestResponseConfig},
     RopeSwarmRuntime, SwarmCommand, SwarmConfig, SwarmNetworkEvent, TransportConfig,
@@ -40,31 +49,37 @@ pub enum NodeState {
 }
 
 /// Datachain Rope Node
+///
+/// Architecture: rope-node IS Datachain Rope. It runs consensus, produces
+/// strings, manages testimony, finality, and AI agents natively.
+/// An optional EVM execution layer (Reth in production, per
+/// `reth-blue-green-ipfs-architecture.mdc`) can be attached as a verifier:
+/// when present, rope-node delegates EVM state queries to it; when absent,
+/// rope-node runs fully on its own.
 pub struct RopeNode {
-    /// Configuration
     config: NodeConfig,
-    /// Data directory
     data_dir: PathBuf,
-    /// Node state
     state: Arc<RwLock<NodeState>>,
-    /// Shutdown signal sender
     shutdown_tx: Option<mpsc::Sender<()>>,
-    /// libp2p Swarm runtime
     swarm_runtime: Arc<RwLock<Option<RopeSwarmRuntime>>>,
-    /// Network event receiver
     network_event_rx: Arc<RwLock<Option<broadcast::Receiver<SwarmNetworkEvent>>>>,
-    /// Identity seed for deterministic peer ID
     identity_seed: Option<[u8; 32]>,
-    /// Node ID
     node_id: Option<NodeId>,
-    /// String producer shutdown channel
     producer_shutdown_tx: Option<mpsc::Sender<()>>,
-    /// Current anchor/block number
     current_round: Arc<RwLock<u64>>,
+    /// EVM backend — optional EVM execution-layer verifier (Reth in production)
+    evm_backend: Option<Arc<EvmBackend>>,
+    /// Consensus orchestrator — native consensus pipeline
+    orchestrator: Option<Arc<ConsensusOrchestrator>>,
+    /// Personal ledger manager — one String per wallet
+    ledger_manager: Option<Arc<LedgerManager>>,
+    /// IoT Gateway — bridges MQTT/CoAP/HTTP to personal Strings
+    iot_gateway: Option<Arc<IoTGateway>>,
+    /// AI Agent Framework — pluggable domain-specific agents
+    ai_framework: Option<Arc<AgentFramework>>,
 }
 
 impl RopeNode {
-    /// Create a new node
     pub async fn new(config: NodeConfig, data_dir: PathBuf) -> anyhow::Result<Self> {
         Ok(Self {
             config,
@@ -77,6 +92,11 @@ impl RopeNode {
             node_id: None,
             producer_shutdown_tx: None,
             current_round: Arc::new(RwLock::new(0)),
+            evm_backend: None,
+            orchestrator: None,
+            ledger_manager: None,
+            iot_gateway: None,
+            ai_framework: None,
         })
     }
 
@@ -117,6 +137,138 @@ impl RopeNode {
         // Initialize genesis if needed
         let genesis_string_id = self.init_genesis().await?;
 
+        // Initialize EVM backend (optional EVM execution-layer verifier — Reth in prod)
+        let _evm_backend_handle = self.init_evm_backend().await;
+
+        // Initialize consensus orchestrator — this always runs natively.
+        // The EVM backend is attached as an optional verifier when available.
+        let orch_config = OrchestratorConfig {
+            min_testimonies: self.config.consensus.min_testimonies,
+            min_anchor_confirmations: 3,
+            verification_interval_secs: 60,
+            ai_agents_enabled: self.config.consensus.ai_agents_enabled,
+            ai_min_confidence: 0.7,
+            max_pending_txs: 500,
+        };
+        let orchestrator = Arc::new(ConsensusOrchestrator::new(
+            orch_config,
+            node_id,
+            self.evm_backend.clone(),
+            self.current_round.clone(),
+        ));
+        self.orchestrator = Some(orchestrator);
+
+        // Initialize personal ledger subsystem
+        let lattice = Arc::new(StringLattice::new());
+        let ledger_store = Arc::new(LedgerStore::new());
+        let oes_seed: [u8; 32] = {
+            let mut s = [0u8; 32];
+            s.copy_from_slice(&identity_seed[..32]);
+            s
+        };
+        let oes_manager = Arc::new(OESManager::genesis(&oes_seed));
+        let clock_manager = Arc::new(ClockManager::new(node_id));
+        let creator_key = PublicKey::new(identity_seed, Vec::new());
+        let ledger = Arc::new(LedgerManager::new(
+            lattice,
+            ledger_store,
+            oes_manager,
+            node_id,
+            creator_key,
+            clock_manager,
+        ));
+        self.ledger_manager = Some(ledger.clone());
+        tracing::info!("Personal ledger subsystem initialized (rope_* RPC methods active)");
+
+        // Initialize IoT Gateway — bridges MQTT/CoAP/HTTP to personal Strings
+        if self.config.iot_gateway.enabled {
+            let iot_config = IoTGatewayConfig {
+                enabled: true,
+                mqtt_port: self.config.iot_gateway.mqtt_port,
+                coap_port: self.config.iot_gateway.coap_port,
+                max_devices: self.config.iot_gateway.max_devices,
+                ..Default::default()
+            };
+            let mut gateway = IoTGateway::new(iot_config);
+
+            let ledger_for_iot = ledger.clone();
+            let sink: rope_iot_gateway::gateway::IoTSink = Arc::new(move |wallet, itype, desc, meta| {
+                use rope_core::personal_ledger::{InteractionRecord, InteractionType};
+                let record = InteractionRecord {
+                    interaction_type: InteractionType::Custom(itype),
+                    counterparty: None,
+                    data: desc.as_bytes().to_vec(),
+                    timestamp: chrono::Utc::now().timestamp(),
+                    metadata: meta,
+                };
+                ledger_for_iot.append_to_ledger(&wallet, record)
+                    .map(|_| ())
+                    .map_err(|e| e.to_string())
+            });
+            gateway.set_sink(sink);
+
+            let gateway = Arc::new(gateway);
+            let gw_clone = gateway.clone();
+            tokio::spawn(async move {
+                if let Err(e) = gw_clone.start().await {
+                    tracing::error!("IoT Gateway start error: {}", e);
+                }
+            });
+            self.iot_gateway = Some(gateway);
+            tracing::info!(
+                "IoT Gateway initialized (MQTT:{} CoAP:{} max:{})",
+                self.config.iot_gateway.mqtt_port,
+                self.config.iot_gateway.coap_port,
+                self.config.iot_gateway.max_devices
+            );
+        }
+
+        // Initialize AI Agent Framework — pluggable domain-specific agents
+        if self.config.ai_framework.enabled {
+            let fw_config = AgentFrameworkConfig {
+                enabled: true,
+                builtin_maintenance_agent: self.config.ai_framework.builtin_maintenance_agent,
+                builtin_anomaly_agent: self.config.ai_framework.builtin_anomaly_agent,
+                max_agents: self.config.ai_framework.max_agents,
+                scheduler_interval_secs: self.config.ai_framework.scheduler_interval_secs,
+                ..Default::default()
+            };
+            let mut framework = AgentFramework::new(fw_config);
+
+            let ledger_for_ai = ledger.clone();
+            let ai_sink: rope_ai_framework::framework::DiagnosisSink = Arc::new(move |wallet, itype, desc, meta| {
+                use rope_core::personal_ledger::{InteractionRecord, InteractionType};
+                let record = InteractionRecord {
+                    interaction_type: InteractionType::Custom(itype),
+                    counterparty: None,
+                    data: desc.as_bytes().to_vec(),
+                    timestamp: chrono::Utc::now().timestamp(),
+                    metadata: meta,
+                };
+                ledger_for_ai.append_to_ledger(&wallet, record)
+                    .map(|_| ())
+                    .map_err(|e| e.to_string())
+            });
+            framework.set_sink(ai_sink);
+
+            let framework = Arc::new(framework);
+            if let Err(e) = framework.register_builtins().await {
+                tracing::warn!("Failed to register built-in AI agents: {}", e);
+            }
+
+            let fw_clone = framework.clone();
+            tokio::spawn(async move {
+                fw_clone.start_scheduler().await;
+            });
+
+            self.ai_framework = Some(framework);
+            tracing::info!(
+                "AI Agent Framework initialized (max:{} scheduler:{}s)",
+                self.config.ai_framework.max_agents,
+                self.config.ai_framework.scheduler_interval_secs
+            );
+        }
+
         // Start string producer if validator
         let producer_handle = if self.config.consensus.enabled
             && matches!(self.config.node.mode, NodeMode::Validator)
@@ -130,12 +282,26 @@ impl RopeNode {
             None
         };
 
-        // Start RPC server
+        // Start RPC server with EVM backend, consensus orchestrator, and ledger manager
         let rpc_handle = if self.config.rpc.enabled {
             let current_round = self.current_round.clone();
             let chain_id = self.config.node.chain_id;
-            let rpc_server =
-                RpcServer::new_with_state(&self.config.rpc, chain_id, current_round).await?;
+            let evm_backend = self.evm_backend.clone();
+            let orchestrator = self.orchestrator.clone();
+            let ledger = self.ledger_manager.clone();
+            let iot = self.iot_gateway.clone();
+            let ai = self.ai_framework.clone();
+            let rpc_server = RpcServer::new_full(
+                &self.config.rpc,
+                chain_id,
+                current_round,
+                evm_backend,
+                orchestrator,
+                ledger,
+                iot,
+                ai,
+            )
+            .await?;
             Some(tokio::spawn(async move {
                 if let Err(e) = rpc_server.run().await {
                     tracing::error!("RPC server error: {}", e);
@@ -200,6 +366,75 @@ impl RopeNode {
         Ok(())
     }
 
+    /// Initialize the EVM backend (optional EVM execution-layer verifier).
+    ///
+    /// When the EVM backend is available, rope-node can delegate EVM state
+    /// queries to it and cross-verify execution. When it is absent,
+    /// rope-node runs natively — consensus, strings, testimony, finality,
+    /// and AI agents all function without it.
+    ///
+    /// In production the EVM backend is **Reth v1.11.2** (per
+    /// `reth-blue-green-ipfs-architecture.mdc`). The URL is resolved in this
+    /// order:
+    ///   1. `EVM_RPC_URL` env var (canonical, preferred)
+    ///   2. `ANVIL_URL`  env var (deprecated alias, kept for legacy
+    ///                   deployments — emits a one-shot warning)
+    ///   3. `[evm_backend].url` from the TOML config (also accepts the
+    ///                   legacy `[anvil].url` section thanks to the
+    ///                   `serde(alias)` on `NodeConfig::evm_backend`)
+    async fn init_evm_backend(&mut self) -> Option<tokio::task::JoinHandle<()>> {
+        let evm_url = match std::env::var("EVM_RPC_URL") {
+            Ok(u) => u,
+            Err(_) => match std::env::var("ANVIL_URL") {
+                Ok(u) => {
+                    tracing::warn!(
+                        "Using deprecated env var ANVIL_URL={}. \
+                         Please rename to EVM_RPC_URL — Anvil was archived \
+                         2026-03-31, see reth-blue-green-ipfs-architecture.mdc.",
+                        u
+                    );
+                    u
+                }
+                Err(_) => self.config.evm_backend.url.clone(),
+            },
+        };
+
+        let evm_config = EvmBackendConfig {
+            url: evm_url.clone(),
+            expected_chain_id: self.config.node.chain_id,
+            ..Default::default()
+        };
+
+        match EvmBackend::new(evm_config) {
+            Ok(backend) => {
+                let backend = Arc::new(backend);
+                match backend.initialize().await {
+                    Ok(()) => {
+                        tracing::info!("EVM execution-layer backend connected at {}", evm_url);
+                        let health_handle = backend.spawn_health_checker();
+                        self.evm_backend = Some(backend);
+                        Some(health_handle)
+                    }
+                    Err(e) => {
+                        tracing::info!(
+                            "EVM backend not available at {} ({}). Running native Datachain Rope.",
+                            evm_url,
+                            e
+                        );
+                        None
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::info!(
+                    "EVM backend client not configured ({}). Running native Datachain Rope.",
+                    e
+                );
+                None
+            }
+        }
+    }
+
     /// Initialize genesis
     async fn init_genesis(&self) -> anyhow::Result<StringId> {
         let genesis_path = self.data_dir.join("genesis.json");
@@ -249,12 +484,11 @@ impl RopeNode {
         let mut producer = StringProducer::new(config, node_id);
         producer.set_genesis(genesis_string_id);
 
-        // Get event receiver for updating state
         let mut event_rx = producer.subscribe();
         let current_round = self.current_round.clone();
         let swarm = self.swarm_runtime.clone();
+        let orchestrator = self.orchestrator.clone();
 
-        // Spawn event handler
         tokio::spawn(async move {
             while let Ok(event) = event_rx.recv().await {
                 match event {
@@ -265,8 +499,12 @@ impl RopeNode {
                     } => {
                         *current_round.write() = round;
 
-                        // Broadcast anchor to network
-                        // Clone swarm reference to avoid holding lock across await
+                        // Feed anchor into consensus orchestrator for finality processing
+                        if let Some(ref orch) = orchestrator {
+                            orch.on_anchor_finalized(round, anchor_id);
+                        }
+
+                        // Broadcast anchor to P2P network
                         let publish_result = {
                             let swarm_guard = swarm.read();
                             if let Some(sw) = swarm_guard.as_ref() {
@@ -282,7 +520,6 @@ impl RopeNode {
                         };
 
                         if let Some((Some(cmd_tx), msg)) = publish_result {
-                            // Use command channel instead of direct publish
                             let _ = cmd_tx
                                 .send(rope_network::SwarmCommand::Publish {
                                     topic: "/rope/anchors/1.0.0".to_string(),
@@ -355,6 +592,24 @@ impl RopeNode {
             tracing::info!(
                 "String Production: ENABLED ({}ms interval)",
                 self.config.consensus.block_time_ms
+            );
+        }
+
+        if self.config.iot_gateway.enabled {
+            tracing::info!(
+                "IoT Gateway: MQTT:{} CoAP:{} (max {} devices)",
+                self.config.iot_gateway.mqtt_port,
+                self.config.iot_gateway.coap_port,
+                self.config.iot_gateway.max_devices,
+            );
+        }
+
+        if self.config.ai_framework.enabled {
+            let agent_count = self.ai_framework.as_ref().map(|f| f.agent_count()).unwrap_or(0);
+            tracing::info!(
+                "AI Agent Framework: {} agents registered (scheduler: {}s)",
+                agent_count,
+                self.config.ai_framework.scheduler_interval_secs,
             );
         }
 
