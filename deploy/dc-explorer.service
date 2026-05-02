@@ -1,9 +1,13 @@
 # /etc/systemd/system/dc-explorer.service
-# DC Explorer — block explorer UI, uses local Anvil RPC
+# DC Explorer — block explorer UI.
+# Talks to the rope-node JSON-RPC on 127.0.0.1:8545 (rope_*, eth_* aliases per
+# Quipu Canon v1.1). The rope-node itself delegates EVM-anchored eth_* methods
+# to the Reth EVM backend on 127.0.0.1:8595, so dc-explorer only needs the
+# single rope-node endpoint.
 
 [Unit]
 Description=DC Explorer (block explorer)
-After=network-online.target anvil-rope.service
+After=network-online.target reth-rope.service datachain-rope.service
 Wants=network-online.target
 
 [Service]
@@ -14,6 +18,11 @@ WorkingDirectory=/home/ubuntu/datachain-rope
 Environment="PATH=/home/ubuntu/.cargo/bin:/usr/local/bin:/usr/bin:/bin"
 Environment="RPC_URL=http://127.0.0.1:8545"
 Environment="DCSCAN_STATIC=/home/ubuntu/datachain-rope/crates/rope-explorer/static"
+# Optional: per-host overrides. Leading dash makes systemd tolerate missing file
+# (production .env is at /opt/datachain-rope/code/deploy/.env on rope-vps; not
+# present on anvil-vps where defaults above suffice).
+EnvironmentFile=-/home/ubuntu/datachain-rope/.env
+EnvironmentFile=-/opt/datachain-rope/code/deploy/.env
 ExecStart=/home/ubuntu/datachain-rope/target/release/dc-explorer
 Restart=on-failure
 RestartSec=5

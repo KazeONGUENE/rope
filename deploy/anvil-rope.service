@@ -1,5 +1,13 @@
 # /etc/systemd/system/anvil-rope.service
 #
+# DEPRECATED — superseded by reth-rope.service in production (2026-03).
+# This file is kept for legacy single-host installs and for historical
+# reference. New deployments MUST use reth-rope.service which provides a
+# durable persisted EVM backend. See:
+#   - deploy/reth-rope.service
+#   - .cursor/rules/reth-blue-green-ipfs-architecture.mdc
+#   - .cursor/rules/anvil-ha-architecture.mdc (SUPERSEDED notice at top)
+#
 # Datachain Rope EVM — Anvil (private RPC, chainId 271828)
 # Binds to 127.0.0.1:8595 so only the Rope node can reach it.
 

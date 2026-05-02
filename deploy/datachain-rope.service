@@ -1,9 +1,17 @@
 # /etc/systemd/system/datachain-rope.service
-# Datachain Rope node (rope-cli start) — runs in parallel with Anvil
+# Datachain Rope node (rope-cli start) — runs in parallel with the Reth EVM
+# backend. rope-node serves the canonical JSON-RPC (Quipu Canon v1.1: rope_*
+# methods + eth_* aliases) on :8545 and delegates EVM-anchored eth_* methods
+# to Reth on private :8595.
+#
+# Prior to 2026-03 the EVM backend was Anvil (also on :8595). The unit name
+# `anvil-rope.service` may still exist on legacy hosts but is superseded by
+# `reth-rope.service`. The After= directive lists both so the unit composes
+# cleanly on either layout.
 
 [Unit]
 Description=Datachain Rope Node (rope start)
-After=network-online.target anvil-rope.service
+After=network-online.target reth-rope.service anvil-rope.service
 Wants=network-online.target
 
 [Service]
@@ -12,7 +20,8 @@ User=ubuntu
 Group=ubuntu
 WorkingDirectory=/home/ubuntu/datachain-rope
 Environment="PATH=/home/ubuntu/.cargo/bin:/usr/local/bin:/usr/bin:/bin"
-# Public RPC on 8545; Anvil backend on private 8595 (see deploy/config/rope-production.toml)
+# Public RPC on :8545 (rope-node); EVM backend (Reth) on private :8595
+# (see deploy/config/rope-production.toml [evm_backend])
 ExecStart=/home/ubuntu/datachain-rope/target/release/rope node --config /home/ubuntu/datachain-rope/deploy/config/rope-production.toml --network mainnet --mode relay
 Restart=on-failure
 RestartSec=10

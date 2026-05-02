@@ -819,8 +819,21 @@ impl RpcHandlers {
             // Quipu Canon v1.1 §3 — `rope_knotIndex` is the canonical name.
             // `eth_blockNumber` is preserved as an EVM-compat alias so
             // MetaMask, ethers.js, hardhat, and existing tooling keep working.
+            // The canon variant rewrites the on-wire method name to
+            // `eth_blockNumber` before delegating, so the EVM backend
+            // (Reth) — which does not know the `rope_*` namespace — still
+            // recognizes the request.
             "eth_blockNumber" | "rope_knotIndex" => {
-                match self.delegate_to_evm(&request).await {
+                let upstream_request = if method == "rope_knotIndex" {
+                    let mut r = request.clone();
+                    if let Some(obj) = r.as_object_mut() {
+                        obj.insert("method".to_string(), serde_json::json!("eth_blockNumber"));
+                    }
+                    r
+                } else {
+                    request.clone()
+                };
+                match self.delegate_to_evm(&upstream_request).await {
                     EvmResult::Ok(result) => {
                         if let Some(hex_str) = result.as_str() {
                             if let Ok(n) = u64::from_str_radix(hex_str.trim_start_matches("0x"), 16) {
@@ -1096,6 +1109,19 @@ impl RpcHandlers {
                 }
             }
 
+            // Append a new knot to the wallet's string.
+            //
+            // KNOT STRING ID CONTRACT:
+            //   The `hash` field in the response is the canonical
+            //   `knot_string_id` (StringId, 32-byte hex). Callers that
+            //   later need to reference this knot — to untie it
+            //   (`rope_untieKnot`) or to look it up in the explorer —
+            //   MUST use this exact value. The same hex appears as
+            //   each knot's `string_id` in `rope_getStringWithKnots`,
+            //   and as `knot_string_id` in the `rope_untieKnot`
+            //   request and response. They are byte-for-byte identical
+            //   and never re-derived (canon v1.1 §6 stable identifier
+            //   guarantee).
             "rope_appendToLedger" => {
                 let ledger = match &self.ledger {
                     Some(l) => l,
@@ -1223,6 +1249,17 @@ impl RpcHandlers {
                 }
             }
 
+            // ============================================================
+            // QUIPU PRIMITIVE CANON v1.1 — whole-wallet closure
+            // ============================================================
+            // The destructive, all-or-nothing erasure equivalent to wallet
+            // closure. For granular per-event erasure, callers MUST use
+            // `rope_untieKnot` instead (canon §6.3 — never default to
+            // whole-string erasure when granular suffices).
+            //
+            // Authentication model: identical to `rope_untieKnot` — see
+            // its doc comment. PHASE 1 trusts the upstream proxy; PHASE 2
+            // will require a signed payload in params[1].
             "rope_erasePersonalLedger" => {
                 let ledger = match &self.ledger {
                     Some(l) => l,
@@ -1232,6 +1269,13 @@ impl RpcHandlers {
                 if owner.is_empty() {
                     return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32602,"message":"Missing owner address parameter"},"id":id}).to_string();
                 }
+                tracing::warn!(
+                    target: "rope_node::auth",
+                    method = "rope_erasePersonalLedger",
+                    wallet = owner,
+                    "Quipu Canon §6 — whole-wallet erase accepted under PHASE-1 auth (no JSON-RPC signature). \
+                     Operator MUST front this RPC with an authenticated proxy or restrict to private network."
+                );
                 use rope_protocols::ledger_lifecycle::DeletionReason;
                 match ledger.erase_ledger(owner, DeletionReason::OwnerRequest) {
                     Ok(resp) => serde_json::json!({
@@ -1241,7 +1285,8 @@ impl RpcHandlers {
                         "erased_at": chrono::Utc::now().timestamp(),
                         "gdpr_article": "Article 17 — Right to Erasure (whole-string closure)",
                         "scope": "whole_wallet",
-                        "canon": "v1.1 §6 — explicit wallet-closure, equivalent to closing the account. For granular per-event erasure, use rope_untieKnot."
+                        "canon": "v1.1 §6 — explicit wallet-closure, equivalent to closing the account. For granular per-event erasure, use rope_untieKnot.",
+                        "auth_method": "phase-1-trusted-proxy"
                     }),
                     Err(e) if e.contains("No ledger") => {
                         return serde_json::json!({"jsonrpc":"2.0","error":{"code":2002,"message":"No ledger found for this address"},"id":id}).to_string();
@@ -1260,8 +1305,39 @@ impl RpcHandlers {
             // ============================================================
             // The granular GDPR Article 17 primitive. Untie a single knot
             // on a wallet's string while preserving every other knot.
-            // Params: [ "0xWALLET", "KNOT_STRING_ID_HEX" ] OR
-            //         [ "0xWALLET", "KNOT_STRING_ID_HEX", "REASON_CLASS" ]
+            //
+            // Params:
+            //   [0] wallet_address    — the 0x-prefixed wallet address
+            //   [1] knot_string_id    — the SAME hex identifier returned by
+            //                            `rope_appendToLedger` as `hash`
+            //                            and by `rope_getStringWithKnots`
+            //                            as each knot's `string_id`. They
+            //                            are byte-for-byte identical: the
+            //                            opaque hex of the StringId.
+            //   [2] reason            — optional reason class
+            //                            (default "OwnerRequest")
+            //
+            // AUTHENTICATION MODEL (canon v1.1 §4.2 + AUTH-CONTRACT):
+            //   PHASE 1 (current):  No JSON-RPC layer authentication.
+            //     The endpoint trusts that the operator (Datawallet+
+            //     backend, dApp, AI agent) has independently authorized
+            //     the request. Production deployments MUST place an
+            //     authenticated reverse proxy (mTLS, signed JWT, or
+            //     wallet-signature-via-header) in front of this RPC, OR
+            //     bind it to a private network. Public exposure WITHOUT
+            //     such a proxy means any caller can untie any knot — a
+            //     compliance risk.
+            //   PHASE 2 (planned): params[3] = "0x{sig}" where sig is
+            //     keccak256(domain_separator || method || wallet || knot_id
+            //     || nonce || expiry) signed with the wallet's secp256k1
+            //     key. Verifier reconstructs the message and checks the
+            //     recovered address matches params[0]. Until Phase 2
+            //     ships, callers should set the request header
+            //     `X-Rope-Auth-Phase: 1` to acknowledge they are
+            //     responsible for upstream authorization.
+            //
+            // The response includes `auth_method` so callers can audit
+            // which phase actually validated the request.
             "rope_untieKnot" => {
                 let ledger = match &self.ledger {
                     Some(l) => l,
@@ -1277,6 +1353,16 @@ impl RpcHandlers {
 
                 let knot_id = knot_id_raw.trim_start_matches("0x");
 
+                tracing::warn!(
+                    target: "rope_node::auth",
+                    method = "rope_untieKnot",
+                    wallet = owner,
+                    knot_id = knot_id,
+                    "Quipu Canon §4.2 — untie request accepted under PHASE-1 auth (no JSON-RPC signature). \
+                     Operator MUST front this RPC with an authenticated proxy or restrict to private network. \
+                     See rpc_server.rs `rope_untieKnot` doc-comment."
+                );
+
                 match ledger.untie_knot(owner, knot_id, reason) {
                     Ok(resp) => serde_json::json!({
                         "wallet_address": resp.wallet_address,
@@ -1288,7 +1374,8 @@ impl RpcHandlers {
                         "tombstones_total": resp.tombstones_total,
                         "gdpr_article": resp.gdpr_article,
                         "canon": "v1.1 §4.2 — per-knot tombstone, payload destroyed, position preserved",
-                        "scope": "single_knot"
+                        "scope": "single_knot",
+                        "auth_method": "phase-1-trusted-proxy"
                     }),
                     Err(e) if e.contains("No ledger") => {
                         return serde_json::json!({"jsonrpc":"2.0","error":{"code":2002,"message":"No ledger found for this address"},"id":id}).to_string();
