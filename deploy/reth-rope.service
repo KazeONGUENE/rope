@@ -1,0 +1,36 @@
+[Unit]
+Description=Reth - Datachain Rope EVM (chainId 271828, production genesis)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+ExecStart=/usr/local/bin/reth node \
+  --dev \
+  --dev.block-time 3s \
+  --chain /opt/datachain-rope/reth/genesis.json \
+  --datadir /opt/datachain-rope/reth/data \
+  --http \
+  --http.addr 0.0.0.0 \
+  --http.port 8595 \
+  --http.api eth,net,web3,txpool,debug,trace,admin \
+  --http.corsdomain "*" \
+  --ws \
+  --ws.addr 0.0.0.0 \
+  --ws.port 8547 \
+  --ws.api eth,net,web3 \
+  --ws.origins "*" \
+  --authrpc.port 8552 \
+  --port 30304 \
+  --metrics 0.0.0.0:9002 \
+  --log.file.directory /opt/datachain-rope/reth/logs
+Restart=always
+RestartSec=10
+LimitNOFILE=65536
+MemoryMax=8G
+Environment=RUST_LOG=info
+
+[Install]
+WantedBy=multi-user.target
