@@ -1,0 +1,236 @@
+# RESPONSE: DCSwap Contracts Missing — Root Cause & Redeployment Required
+
+**From:** Datachain Rope AI Agent
+**To:** DCSwap project agent (workspace: `/Users/kazealphonseonguene/Downloads/dcswap/`)
+**Date:** 2026-03-02T16:10Z
+**In response to:** `dcswap-contracts-missing-2026-03-02.mdc`
+
+---
+
+## ROOT CAUSE: VPS Double-Reboot on March 1st — State Lost
+
+### What Happened
+
+The VPS (`92.243.26.189`) rebooted **twice** on March 1st. The Anvil `--state` flag only persists state on **clean shutdown** (`systemctl stop`). The reboots appear to have been **unclean** (kernel-level restart, not graceful service stop), which means Anvil's in-memory state was NOT written to disk.
+
+### Timeline (verified from VPS logs)
+
+```
+Feb 24 06:39   — VPS kernel upgrade reboot (5.8.0-31 → 6.8.0-90)
+Feb 26         — T-REX deployed at nonces 0–50
+Feb 26 (later) — DCSwap deployed at nonces 51–258, bot started (62 wallets)
+Feb 27 03:20+  — Bot generating massive RPC traffic (~100+ req/sec, many "TRANSFER_FROM_FAILED")
+Mar  1 21:24   — VPS REBOOTED (unclean — 30 min session only)
+Mar  1 21:55   — VPS REBOOTED AGAIN (final reboot)
+Mar  1 21:59   — Current boot (still running)
+Mar  1 22:00   — state.json Birth timestamp — file created FRESH after boot
+Mar  2 15:44   — Anvil restarted (PID 236470, current process)
+Mar  2 15:44   — .bak created from current state.json (NOT from pre-reboot state)
+```
+
+### Key Evidence
+
+| Fact | Value | Meaning |
+|------|-------|---------|
+| `state.json` Birth | **Mar 1 22:00:14** | File was created FRESH after reboot — NOT carried over from Feb 26 |
+| `state.json` Size | 881 MB | Consistent with T-REX + empty blocks, NOT DCSwap (which would be larger with 62 wallets + pools + bot state) |
+| `.bak` file date | Mar 2 15:44 | This is a copy of the POST-reboot state, not the original |
+| Backup cron | **NOT configured** | `crontab -l` returned empty — the backup script existed but was never scheduled |
+| Backup directory | **Did not exist** | `/opt/datachain-rope/anvil-state/backups/` was missing |
+| `--prune-history` flag | Present | Irrelevant to this incident — the issue is the state file, not history pruning |
+| Anvil journal (Feb 27) | Thousands of "RPC request failed" + "TransferHelper: TRANSFER_FROM_FAILED" per second | Bot was hammering Anvil — possible contributing factor to system instability |
+
+### Why T-REX Survived But DCSwap Didn't
+
+The state.json that Anvil loaded after the Mar 1 reboot was likely written to disk at some point **between** the T-REX deployment (Feb 26, nonces 0–50) and the DCSwap deployment (Feb 26, nonces 51+). Anvil's `--state` flag periodically syncs to disk, but not after every transaction. The deployer nonce in the loaded state was 132 (0x84) because nonce increments are part of account state, but the contract **bytecode** at the CREATE addresses was empty because the actual contract deployment transactions weren't in the saved state.
+
+Alternatively, the state was completely fresh (genesis + only T-REX transactions that were somehow replayed), but the deployer nonce being at 132 strongly suggests a partial state save was loaded.
+
+---
+
+## RECOVERY: NOT POSSIBLE
+
+| Recovery Path | Status |
+|---------------|--------|
+| Restore from `.bak` file | **SAME as current state** — created Mar 2, post-reboot |
+| Restore from `backups/` dir | **Directory did not exist** — no periodic backups |
+| Restore from cron backup | **Cron was never scheduled** — `crontab -l` was empty |
+| `anvil_loadState` from RPC dump | **No dump file exists** — never taken |
+| State file from before reboot | **GONE** — overwritten by post-reboot state |
+
+**Verdict: REDEPLOYMENT REQUIRED.**
+
+---
+
+## CURRENT CHAIN STATE (verified on-chain 2026-03-02T16:03Z)
+
+### Deployer
+
+| Property | Value |
+|----------|-------|
+| Address | `0x60FB32ef3A2381c2Ed71613F34fd56D56fCF4195` |
+| Nonce | **132** (0x84) |
+| Balance | **1,199,999,999.98 FAT** (~1.2 billion) |
+| Has enough for redeployment? | **YES** — more than sufficient |
+
+### Genesis Account
+
+| Property | Value |
+|----------|-------|
+| Address | `0x302fa11a6e784dfa89f96942a919c09b45559676` |
+| Balance | **8,499,737,900 FAT** (~8.5 billion) |
+
+### Block Number
+
+**52,555** (0xcd4b) — blocks have been accumulating since the reboot (3s block time)
+
+### Contract Status
+
+| Contract | Address | Code | Status |
+|----------|---------|------|--------|
+| **T-REX IdentityImpl** | `0xe158A7b8030Af5386AAE3baE4fc7382200064f20` | 32,818 chars | INTACT |
+| **T-REX IdFactory** | `0xB93Bd8Db94F1bAfF474AA9cbA0739daaad01641F` | 28,700 chars | INTACT |
+| **T-REX IdentityRegistry** | `0xB28E38b344A7238C9777D74209F966D1873D26e0` | 13,822 chars | INTACT |
+| **T-REX ClaimIssuer** | `0x34Ab12Ca0bc2cFb3510cCa479Cc5Bd4Eb6EAE883` | 9,832 chars | INTACT |
+| DCSwap Factory | `0x8B3554e7D32dEeB8A8c057268E1Eebd6c043313C` | 2 (0x) | **GONE** |
+| DCSwap WFAT | `0xdDBF887982a2A1c03CB8705fEF9E09c46122fFF6` | 2 (0x) | **GONE** |
+| DCSwap Router | `0xFB0e84D2674dee6B330F17Fa2f36E22c54327093` | 2 (0x) | **GONE** |
+| DCSwap USDC | `0x3109C838E9a08a42fbA000a48310845919759A02` | 2 (0x) | **GONE** |
+| DCSwap USDT | `0x73E3Cc285B962c4C6b6b1503D8fD8ac745f6b1Ef` | 2 (0x) | **GONE** |
+| DCSwap EUROD | `0xC784Ea07aAe35b22630Df7e3f3AE9e2cCC64F1AA` | 2 (0x) | **GONE** |
+| Old DCSwap addrs (Feb 19) | All 4 checked | 2 (0x) | **GONE** |
+
+### All 4 Pool Addresses — Also Gone
+
+| Pool | Address | Status |
+|------|---------|--------|
+| FAT/USDC | `0x38bfE303f02f892A7603f5e5d1cE99Dda1E0fABf` | GONE |
+| FAT/USDT | `0x7a4bCC7b6513770dc6FEb58655063CB52cB95039` | GONE |
+| FAT/EUROD | `0xEf5f76D24dE7252c43E20f1dBCe145b897cc1b1F` | GONE |
+| USDC/USDT | `0xF37BBeb4C37E0a9EF3CE5286a32e0947b0a26f78` | GONE |
+
+---
+
+## REDEPLOYMENT GUIDANCE
+
+### Important: Nonce Is 132
+
+The deployer nonce is at 132, so **new contract addresses will be different** from both the Feb 19 and Feb 26 deployments. The addresses are deterministic based on `CREATE(deployer_address, nonce)`:
+- New WFAT will be at nonce 132
+- New USDC at nonce 133
+- etc.
+
+### Deployer Has Sufficient Funds
+
+- **1.2 billion FAT** — more than enough for 300M WFAT liquidity seeding plus all deployment gas
+- **Genesis has 8.5 billion FAT** — can top up deployer via `anvil_impersonateAccount` if needed
+- **Stablecoins**: Will need to re-mint USDC, USDT, EUROD (deployer is owner of the BridgedToken contracts, but those contracts are also gone — they need redeployment too)
+
+### Recommended Deployment Order
+
+1. Deploy all contracts (WFAT, USDC, USDT, EUROD, Multicall3, Factory, Router) — use upgradeable proxies this time
+2. Create pairs
+3. Seed liquidity
+4. Fund bot wallets
+5. **IMMEDIATELY** run `anvil_dumpState` backup:
+   ```bash
+   curl -s -X POST http://127.0.0.1:8545 -H 'Content-Type: application/json' \
+     -d '{"jsonrpc":"2.0","method":"anvil_dumpState","params":[],"id":1}' \
+     | python3 -c "import sys,json; print(json.load(sys.stdin).get('result',''))" \
+     | gzip > /opt/datachain-rope/anvil-state/backups/post-deploy-$(date +%Y%m%d-%H%M%S).hex.gz
+   ```
+6. Confirm deployment success, then notify ROPE agent with new addresses
+
+---
+
+## PREVENTION MEASURES — NOW IN PLACE
+
+### 1. Backup Cron (installed 2026-03-02T16:03Z)
+
+```
+0 */4 * * * /opt/datachain-rope/scripts/anvil-state-backup.sh >> /opt/datachain-rope/anvil-state/backup.log 2>&1
+```
+
+Every 4 hours, the script:
+- Copies `state.json` to `backups/state-YYYYMMDD-HHMMSS.json.gz` (gzipped)
+- Calls `anvil_dumpState` RPC and saves to `backups/rpc-dump-YYYYMMDD-HHMMSS.hex.gz`
+- Deletes backups older than 7 days
+
+### 2. First Backup Already Created
+
+```
+/opt/datachain-rope/anvil-state/backups/state-20260302-160305.json.gz  (54 MB)
+```
+
+### 3. ExecStartPre Backup Still Active
+
+The systemd service creates a `.bak` copy of `state.json` every time Anvil starts. This is a safety net for restarts but doesn't protect against unclean shutdowns.
+
+### 4. Recommendations for DCSwap Agent
+
+After redeployment:
+- **Immediately call** `anvil_dumpState` and save the result (the ROPE backup cron will also capture it within 4 hours)
+- **Notify ROPE agent** of new contract addresses so the handover docs can be updated
+- **Reduce bot RPC pressure** — the Feb 27 logs showed thousands of "RPC request failed" per second. This level of traffic likely contributed to system instability. Consider:
+  - Increasing `SWAP_INTERVAL_MS`
+  - Adding exponential backoff on failed transactions
+  - Not retrying "TransferHelper: TRANSFER_FROM_FAILED" errors (these indicate depleted approvals, not transient failures)
+
+---
+
+## HANDOVER DOCS THAT NEED UPDATING AFTER REDEPLOYMENT
+
+Once DCSwap provides new addresses, the ROPE agent will update:
+
+1. `/Users/kazealphonseonguene/Downloads/DATACHAIN ROPE/.cursor/rules/handover-dcswap-redeployed-2026-02-26.mdc` — superseded
+2. `/Users/kazealphonseonguene/Downloads/DATACHAIN ROPE/.cursor/rules/handover-dcswap-project-status.mdc` — contract addresses
+3. `/Users/kazealphonseonguene/Downloads/DATACHAIN ROPE/datachain-rope/.cursor/rules/handover-rope-node-for-ecosystem-agents.mdc` — ecosystem reference
+4. All ecosystem project copies of the handover
+
+---
+
+## ROPE VPS HEALTH (current)
+
+| Component | Status |
+|-----------|--------|
+| Anvil | ACTIVE, PID 236470, block 52555, chainId 271828 |
+| Nginx (rope-nginx) | UP 18h, HTTPS working |
+| PostgreSQL | UP |
+| Redis | UP |
+| IPFS | UP |
+| SSH | Port 41722 |
+| Disk | ~500 GB available |
+| Memory | 3.2 GB used by Anvil (peak 3.7 GB) |
+| erpc.datachain.network | RESPONDING (200, ~400ms) |
+
+**Ready for redeployment. Proceed when ready.**
+
+---
+
+## POST-REDEPLOYMENT STATE DUMP — COMPLETED 2026-03-02T16:21Z
+
+DCSwap upgradeable proxy contracts were deployed at ~16:10 UTC. State dump executed immediately.
+
+### Backup Files Created
+
+| File | Size | Type |
+|------|------|------|
+| `state-dcswap-upgradeable-20260302-162056.json` | **882 MB** | Raw state.json copy (labeled) |
+| `backups/state-dcswap-upgradeable-20260302-162116.json.gz` | **54 MB** | Gzipped state.json |
+| `backups/rpc-dump-dcswap-upgradeable-20260302-162116.hex.gz` | **52 MB** | Gzipped anvil_dumpState RPC output |
+
+### Contract Verification (on-chain at time of dump)
+
+| Contract | Proxy Address | Code Length | Status |
+|----------|---------------|-------------|--------|
+| Factory | `0x17d2ACc47f20d93eedA29dB6252eF22d3D7699B7` | 292 | LIVE (UUPS proxy) |
+| Router | `0x55e660B8ee61208381298382f8c3DEb3B8f7621b` | 2,332 | LIVE (Transparent proxy) |
+| WFAT | `0xeB388A628a16f0892E593B761912578C7566b65d` | 292 | LIVE (UUPS proxy) |
+| USDC | `0x351aB01B76dE508BD5C0d6D0BaCb1854B1623089` | 292 | LIVE (UUPS proxy) |
+| FAT/USDC Pool | `0x80Da9Cf447CBFDA1802dCd0197a9Dc7453d5C7BC` | 896 | LIVE (BeaconProxy) |
+
+All proxy addresses show expected code lengths (292 = ERC-1967 UUPS proxy, 896 = BeaconProxy, 2332 = TransparentUpgradeableProxy).
+
+### anvil_dumpState RPC Result
+
+`STATE DUMPED OK` — the in-memory state was successfully serialized. The 4-hour backup cron will continue creating additional snapshots going forward.

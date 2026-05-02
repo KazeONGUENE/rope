@@ -35,3 +35,8 @@ rope.toml
 *.profraw
 coverage/
 
+# Anvil/Reth state dumps and snapshots (large binary blobs, recoverable from VPS backups)
+deploy/anvil-state-dump-*.hex
+deploy/reth-state-snapshot-*.hex
+deploy/*-state-*.hex
+

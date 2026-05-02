@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - Datachain Rope</title>
+    <meta name="description" content="Privacy Policy for Datachain Rope Network. Learn how we protect your data and privacy.">
+    
+    <!-- Font Awesome Free -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --black: #000000;
+            --white: #ffffff;
+            --gray-50: #fafafa;
+            --gray-100: #f5f5f5;
+            --gray-200: #e5e5e5;
+            --gray-300: #d4d4d4;
+            --gray-400: #a3a3a3;
+            --gray-500: #737373;
+            --gray-600: #525252;
+            --gray-700: #404040;
+            --gray-800: #262626;
+            --gray-900: #171717;
+            --gray-950: #0a0a0a;
+            
+            --font-sans: 'Instrument Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html {
+            scroll-behavior: smooth;
+        }
+        
+        body {
+            font-family: var(--font-sans);
+            background: var(--white);
+            color: var(--black);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        /* Navigation */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--gray-200);
+        }
+        
+        .nav-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 72px;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            text-decoration: none;
+            color: #000000;
+            font-weight: 450;
+            font-size: 1rem;
+            letter-spacing: -0.02em;
+            line-height: 1.2;
+        }
+        
+        .logo-text {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .logo-icon svg {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 2.5rem;
+        }
+        
+        .nav-links a {
+            text-decoration: none;
+            color: var(--gray-600);
+            font-size: 0.9375rem;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+        
+        .nav-links a:hover {
+            color: var(--black);
+        }
+        
+        .nav-actions {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            font-size: 0.9375rem;
+            font-weight: 600;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.2s;
+            cursor: pointer;
+            border: none;
+            font-family: inherit;
+        }
+        
+        .btn-primary {
+            background: var(--black);
+            color: var(--white);
+        }
+        
+        .btn-primary:hover {
+            background: var(--gray-800);
+            transform: translateY(-1px);
+        }
+        
+        .mobile-menu-btn {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--black);
+        }
+        
+        /* Main Content */
+        main {
+            padding: 140px 2rem 80px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        .page-header {
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        
+        .page-header h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            margin-bottom: 1rem;
+        }
+        
+        .page-header .last-updated {
+            color: var(--gray-500);
+            font-size: 0.9375rem;
+        }
+        
+        .content-section {
+            margin-bottom: 3rem;
+        }
+        
+        .content-section h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            letter-spacing: -0.02em;
+        }
+        
+        .content-section h3 {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            margin-top: 1.5rem;
+            letter-spacing: -0.01em;
+        }
+        
+        .content-section p {
+            color: var(--gray-700);
+            margin-bottom: 1rem;
+            line-height: 1.8;
+        }
+        
+        .content-section ul {
+            margin-bottom: 1rem;
+            padding-left: 1.5rem;
+        }
+        
+        .content-section li {
+            color: var(--gray-700);
+            margin-bottom: 0.5rem;
+            line-height: 1.7;
+        }
+        
+        .highlight-box {
+            background: var(--gray-50);
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+        }
+        
+        .highlight-box.important {
+            background: #fef3c7;
+            border-color: #fcd34d;
+        }
+        
+        .highlight-box h4 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .highlight-box p {
+            margin-bottom: 0;
+            font-size: 0.9375rem;
+        }
+        
+        /* Footer */
+        footer {
+            padding: 4rem 2rem;
+            background: var(--black);
+            color: var(--white);
+        }
+        
+        .footer-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .footer-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            color: var(--white);
+            font-weight: 400;
+        }
+        
+        .footer-brand .logo-icon {
+            width: 28px;
+            height: 28px;
+        }
+        
+        .footer-links {
+            display: flex;
+            gap: 2rem;
+        }
+        
+        .footer-links a {
+            color: var(--gray-400);
+            text-decoration: none;
+            font-size: 0.9375rem;
+            transition: color 0.2s;
+        }
+        
+        .footer-links a:hover {
+            color: var(--white);
+        }
+        
+        .footer-social {
+            display: flex;
+            gap: 1rem;
+        }
+        
+        .footer-social a {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            color: var(--gray-400);
+            border: 1px solid var(--gray-800);
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+        
+        .footer-social a:hover {
+            color: var(--white);
+            border-color: var(--gray-600);
+            background: var(--gray-900);
+        }
+        
+        .footer-bottom {
+            max-width: 1400px;
+            margin: 2rem auto 0;
+            padding-top: 2rem;
+            border-top: 1px solid var(--gray-800);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .footer-copyright {
+            font-size: 0.875rem;
+            color: var(--gray-500);
+        }
+        
+        .footer-legal {
+            display: flex;
+            gap: 1.5rem;
+        }
+        
+        .footer-legal a {
+            font-size: 0.875rem;
+            color: var(--gray-500);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        
+        .footer-legal a:hover {
+            color: var(--white);
+        }
+        
+        .footer-legal a.active {
+            color: var(--white);
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+            
+            .nav-actions {
+                display: none;
+            }
+            
+            .mobile-menu-btn {
+                display: block;
+            }
+            
+            main {
+                padding: 100px 1.5rem 60px;
+            }
+            
+            .page-header h1 {
+                font-size: 2rem;
+            }
+            
+            .footer-container {
+                flex-direction: column;
+                gap: 2rem;
+                text-align: center;
+            }
+            
+            .footer-bottom {
+                flex-direction: column;
+                gap: 1rem;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="nav-container">
+            <a href="/" class="logo">
+                <div class="logo-icon">
+                    <img src="/assets/logo.svg" alt="Datachain Logo" style="width: 100%; height: 100%; object-fit: contain;">
+                </div>
+                <span class="logo-text">
+                    <span>Datachain</span>
+                    <span>Network</span>
+                </span>
+            </a>
+            
+            <div class="nav-links">
+                <a href="/#features">Features</a>
+                <a href="/#technology">Technology</a>
+                <a href="https://dcscan.io" target="_blank">Explorer</a>
+                <a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a>
+                <a href="/docs">Documentation</a>
+            </div>
+            
+            <div class="nav-actions">
+                <a href="https://dcscan.io" class="btn btn-primary">
+                    <i class="fa-solid fa-arrow-right"></i>
+                    Launch Explorer
+                </a>
+            </div>
+            
+            <button class="mobile-menu-btn">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+        </div>
+    </nav>
+    
+    <main>
+        <div class="page-header">
+            <h1>Privacy Policy</h1>
+            <p class="last-updated">Last Updated: January 30, 2026</p>
+        </div>
+        
+        <div class="highlight-box important">
+            <h4><i class="fa-solid fa-shield-halved"></i> Our Commitment to Privacy</h4>
+            <p>Datachain Rope does not collect, store, or track any user data including IP addresses, wallet addresses, or request metadata. All RPC requests are processed without logging. Only publicly available on-chain data is accessible.</p>
+        </div>
+        
+        <div class="content-section">
+            <h2>1. Introduction</h2>
+            <p>This Privacy Policy explains how Datachain Foundation ("we", "us", or "our") handles information when you use the Datachain Rope network, including our RPC endpoints, website, and related services.</p>
+            <p>We are committed to protecting your privacy and have designed our infrastructure to minimize data collection while providing reliable blockchain services.</p>
+        </div>
+        
+        <div class="content-section">
+            <h2>2. Information We Do NOT Collect</h2>
+            <p>Unlike many blockchain networks and RPC providers, we explicitly do not collect:</p>
+            <ul>
+                <li><strong>IP Addresses:</strong> We do not log, store, or track IP addresses of users making RPC requests</li>
+                <li><strong>Wallet Addresses:</strong> We do not correlate wallet addresses with any identifying information</li>
+                <li><strong>Request Metadata:</strong> We do not log request origins, user agents, or request patterns</li>
+                <li><strong>Transaction Data:</strong> We do not store transaction details beyond what is publicly available on the blockchain</li>
+                <li><strong>Geolocation Data:</strong> We do not track or store geographic location information</li>
+                <li><strong>Device Information:</strong> We do not collect browser fingerprints or device identifiers</li>
+            </ul>
+        </div>
+        
+        <div class="content-section">
+            <h2>3. Publicly Available Blockchain Data</h2>
+            <p>The Datachain Rope network is a public blockchain. By nature, certain information is publicly available to anyone:</p>
+            <ul>
+                <li>Transaction hashes and details</li>
+                <li>Wallet addresses and balances</li>
+                <li>Smart contract code and interactions</li>
+                <li>Block data and network statistics</li>
+            </ul>
+            <p>This publicly available on-chain data is accessible through our block explorer (dcscan.io) and RPC endpoints, but we do not correlate this data with any personal information.</p>
+        </div>
+        
+        <div class="content-section">
+            <h2>4. RPC Endpoint Privacy</h2>
+            <p>Our RPC endpoints are designed with privacy as a core principle:</p>
+            
+            <h3>4.1 No Logging Policy</h3>
+            <p>All RPC requests are processed in memory without persistent logging. We do not maintain access logs, error logs, or any form of request history.</p>
+            
+            <h3>4.2 No Rate Limiting Tracking</h3>
+            <p>Unlike many providers who track IPs for rate limiting, our infrastructure uses anonymous request counting that does not persist or identify users.</p>
+            
+            <h3>4.3 No Analytics</h3>
+            <p>We do not use any third-party analytics services on our RPC endpoints. Request statistics are aggregated anonymously for network health monitoring only.</p>
+        </div>
+        
+        <div class="content-section">
+            <h2>5. Website Privacy</h2>
+            <p>When you visit our website (datachain.network):</p>
+            <ul>
+                <li>We do not use tracking cookies</li>
+                <li>We do not use third-party analytics (no Google Analytics, etc.)</li>
+                <li>We do not use advertising networks</li>
+                <li>We do not collect form data unless you voluntarily submit it</li>
+            </ul>
+        </div>
+        
+        <div class="content-section">
+            <h2>6. Voluntary Information</h2>
+            <p>If you voluntarily contact us or submit information (such as through project submission forms), we will only use that information for the stated purpose and will not share it with third parties without your consent.</p>
+        </div>
+        
+        <div class="content-section">
+            <h2>7. Third-Party Services</h2>
+            <p>Our website may contain links to third-party services (GitHub, Discord, etc.). These services have their own privacy policies, and we encourage you to review them. We are not responsible for the privacy practices of third-party services.</p>
+        </div>
+        
+        <div class="content-section">
+            <h2>8. GDPR Compliance</h2>
+            <p>The Datachain Rope protocol includes built-in GDPR compliance features:</p>
+            <ul>
+                <li><strong>Right to be Forgotten:</strong> Our controlled erasure protocol enables true data deletion while maintaining network integrity</li>
+                <li><strong>Data Minimization:</strong> We collect no personal data, adhering to the principle of data minimization</li>
+                <li><strong>Privacy by Design:</strong> Privacy protection is built into our protocol architecture</li>
+            </ul>
+        </div>
+        
+        <div class="content-section">
+            <h2>9. Security</h2>
+            <p>We implement robust security measures to protect our infrastructure:</p>
+            <ul>
+                <li>Quantum-resistant cryptography (CRYSTALS-Dilithium)</li>
+                <li>End-to-end encryption for all communications</li>
+                <li>Regular security audits</li>
+                <li>DDoS protection without IP logging</li>
+            </ul>
+        </div>
+        
+        <div class="content-section">
+            <h2>10. Changes to This Policy</h2>
+            <p>We may update this Privacy Policy from time to time. We will notify users of any material changes by updating the "Last Updated" date at the top of this page. Continued use of our services after any changes constitutes acceptance of the updated policy.</p>
+        </div>
+        
+        <div class="content-section">
+            <h2>11. Contact Us</h2>
+            <p>If you have any questions about this Privacy Policy or our privacy practices, please contact us:</p>
+            <ul>
+                <li><strong>Email:</strong> privacy@datachain.network</li>
+                <li><strong>GitHub:</strong> <a href="https://github.com/KazeONGUENE/rope/issues" target="_blank">github.com/KazeONGUENE/rope</a></li>
+            </ul>
+        </div>
+        
+        <div class="highlight-box">
+            <h4><i class="fa-solid fa-circle-info"></i> Summary</h4>
+            <p>Datachain Rope is built with privacy at its core. We do not track you, we do not log your requests, and we do not sell or share any data. Your interactions with our network remain private.</p>
+        </div>
+    </main>
+    
+    <footer>
+        <div class="footer-container">
+            <div class="footer-brand">
+                <div class="logo-icon">
+                    <img src="/assets/logo.svg" alt="Datachain Logo" style="width: 100%; height: 100%; object-fit: contain;">
+                </div>
+                Datachain Rope
+            </div>
+            
+            <div class="footer-links">
+                <a href="https://dcscan.io">Explorer</a>
+                <a href="/docs">Documentation</a>
+                <a href="https://github.com/KazeONGUENE/rope">GitHub</a>
+                <a href="/contact">Contact</a>
+            </div>
+            
+            <div class="footer-social">
+                <a href="https://github.com/KazeONGUENE/rope" target="_blank">
+                    <i class="fa-brands fa-github"></i>
+                </a>
+                <a href="https://twitter.com/datachainrope" target="_blank">
+                    <i class="fa-brands fa-x-twitter"></i>
+                </a>
+                <a href="https://discord.gg/datachain" target="_blank">
+                    <i class="fa-brands fa-discord"></i>
+                </a>
+            </div>
+        </div>
+        
+        <div class="footer-bottom">
+            <div class="footer-copyright">
+                &copy; 2026 Datachain Foundation. All rights reserved.
+            </div>
+            <div class="footer-legal">
+                <a href="/privacy" class="active">Privacy Policy</a>
+                <a href="/terms">Terms of Service</a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

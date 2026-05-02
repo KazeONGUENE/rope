@@ -905,6 +905,17 @@
                     <li><a href="#federation-generation"><i class="fas fa-building"></i> Federation Generation</a></li>
                     <li><a href="#community-generation"><i class="fas fa-users"></i> Community Generation</a></li>
                     <li><a href="#data-wallets"><i class="fas fa-wallet"></i> Data Wallets</a></li>
+                    <li><a href="#datawalletconnect-sdk" style="padding-left: 2.5rem; font-size: 0.875rem;"><i class="fas fa-plug"></i> DatawalletConnect SDK</a></li>
+                    <li><a href="#identity-wallet" style="padding-left: 2.5rem; font-size: 0.875rem;"><i class="fas fa-id-card"></i> Identity Wallet</a></li>
+                    <li><a href="#cryptography" style="padding-left: 2.5rem; font-size: 0.875rem;"><i class="fas fa-key"></i> Cryptography</a></li>
+                    <li><a href="#asset-management" style="padding-left: 2.5rem; font-size: 0.875rem;"><i class="fas fa-coins"></i> Asset Management</a></li>
+                    <li><a href="#fiat-ramp" style="padding-left: 2.5rem; font-size: 0.875rem;"><i class="fas fa-money-bill-wave"></i> Fiat On/Off Ramp</a></li>
+                    <li><a href="#ecosystem-integration" style="padding-left: 2.5rem; font-size: 0.875rem;"><i class="fas fa-project-diagram"></i> Ecosystem Integration</a></li>
+                    <li><a href="#ipfs-integration" style="padding-left: 2.5rem; font-size: 0.875rem;"><i class="fas fa-database"></i> IPFS Integration</a></li>
+                    <li><a href="#multi-chain" style="padding-left: 2.5rem; font-size: 0.875rem;"><i class="fas fa-link"></i> Multi-Chain Support</a></li>
+                    <li><a href="#security" style="padding-left: 2.5rem; font-size: 0.875rem;"><i class="fas fa-shield-alt"></i> Security</a></li>
+                    <li><a href="#configuration" style="padding-left: 2.5rem; font-size: 0.875rem;"><i class="fas fa-cog"></i> Configuration</a></li>
+                    <li><a href="#datawallet-api" style="padding-left: 2.5rem; font-size: 0.875rem;"><i class="fas fa-code"></i> DatawalletConnect API v2.0</a></li>
                 </ul>
             </div>
             
@@ -971,6 +982,11 @@
                     <div class="doc-card-icon"><i class="fas fa-terminal"></i></div>
                     <h3>CLI Interface</h3>
                     <p>Interact with the network directly from your terminal.</p>
+                </a>
+                <a href="#data-wallets" class="doc-card">
+                    <div class="doc-card-icon"><i class="fas fa-wallet"></i></div>
+                    <h3>Data Wallets</h3>
+                    <p>Self-custody identity &amp; asset wallet with DatawalletConnect SDK.</p>
                 </a>
             </div>
             
@@ -1745,6 +1761,380 @@ oes_generation = 1         # OES evolution epoch</code></pre>
 │   • Network Statistics & Charts                                         │
 │   • Community Voting                                                    │
 └─────────────────────────────────────────────────────────────────────────┘</code></pre>
+            </section>
+            
+            <!-- Data Wallets — Datawallet+ -->
+            <section id="data-wallets" class="content-section">
+                <h2>Data Wallets — Datawallet+</h2>
+                
+                <p>
+                    Datawallet+ is the <strong>MetaMask of the Datachain Rope ecosystem</strong> — a self-custody identity and asset wallet for mobile (React Native / Expo) and web (React). It is the single entry point for sovereign identity, tokenized asset management, and cross-ecosystem interactions across Tanastok, DCSwap, NaturaProof, Careaway, Luzran, AlterOS, Picentriq, and Skywatcher.
+                </p>
+                
+                <h3>Architecture Overview</h3>
+                
+                <pre><code>┌──────────────────────────────────────────────────────────────────────────┐
+│                         DATAWALLET+                                      │
+│                                                                          │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌──────────────┐   │
+│  │  Identity    │  │  Asset      │  │  DeFi       │  │  Fiat Ramp   │   │
+│  │  Wallet      │  │  Manager    │  │  Hub        │  │  (Onramper)  │   │
+│  │             │  │             │  │             │  │              │   │
+│  │ ONCHAINID   │  │ DCNFT Deeds │  │ DCSwap      │  │ Buy/Sell     │   │
+│  │ DID/SSDI    │  │ ERC-3643    │  │ LP Positions │  │ DC FAT       │   │
+│  │ W3C VCs     │  │ DCR-20      │  │ Swap Router │  │ with fiat    │   │
+│  │ ERC-735     │  │ Multi-chain │  │ Quotes      │  │              │   │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬───────┘   │
+│         │                │                │                │            │
+│  ┌──────┴────────────────┴────────────────┴────────────────┴───────┐    │
+│  │              Core Services Layer                                │    │
+│  │                                                                 │    │
+│  │  NetworkService  │  MultiChainProvider  │  WalletConnectService │    │
+│  │  RopeCrypto (Ed25519 + Dilithium3)  │  BiometricGate          │    │
+│  │  IPFSService  │  EcosystemWebhooks  │  SecurityAuditService   │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│         │                                                               │
+│  ┌──────┴──────────────────────────────────────────────────────────┐    │
+│  │              DatawalletConnect API v2.0                          │    │
+│  │  WalletConnect v2 │ REST/SDK │ Ecosystem Connectors             │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│                                                                          │
+└──────────────────────────────────────────────────────────────────────────┘
+         │                    │                    │
+         ▼                    ▼                    ▼
+    Tanastok             DCSwap              NaturaProof
+    Careaway             Luzran              AlterOS
+    Picentriq            Skywatcher          Any dApp</code></pre>
+                
+                <!-- DatawalletConnect SDK -->
+                <h3 id="datawalletconnect-sdk">DatawalletConnect SDK</h3>
+                
+                <p>
+                    <code>@datawallet/connect</code> is the official npm package for any dApp to add <em>"Connect with Datawallet+"</em> in one line. It uses WalletConnect v2 under the hood and supports all 4 chains (Rope, Ethereum, Polygon, XDC).
+                </p>
+                
+                <h4>Installation</h4>
+                
+                <pre><code>npm install @datawallet/connect @walletconnect/sign-client</code></pre>
+                
+                <h4>Quick Start</h4>
+                
+                <pre><code>import { DatawalletConnect } from '@datawallet/connect';
+
+// Initialize
+const dw = new DatawalletConnect({
+  appName: 'My dApp',
+  appUrl: 'https://mydapp.com',
+});
+
+// Connect — opens Datawallet+ via deep link or QR
+const session = await dw.connect();
+console.log(session.address);  // 0x...
+console.log(session.chainId);  // 271828
+
+// Sign a message
+const signature = await dw.signMessage('Hello from My dApp');
+
+// Send a transaction
+const txHash = await dw.sendTransaction({
+  to: '0x...',
+  value: '1000000000000000000', // 1 FAT in wei
+});
+
+// Switch chain
+await dw.switchChain(1); // Switch to Ethereum
+
+// Disconnect
+await dw.disconnect();</code></pre>
+                
+                <h4>Datawallet+ Specific Methods</h4>
+                
+                <pre><code>// Request user's DID and identity claims
+const identity = await dw.getIdentity();
+// { did: 'did:datachain:...', address: '0x...', claims: [...] }
+
+// Request Datawallet+ to sign an ONCHAINID claim
+const claim = await dw.signClaim({
+  topic: 1,         // KYC_VALIDATED
+  data: '0x...',
+  uri: 'ipfs://...',
+});
+
+// Query wallet capabilities
+const caps = await dw.getCapabilities();
+// { onchainid: true, erc3643: true, ipfs: true, ... }</code></pre>
+                
+                <h4>Events</h4>
+                
+                <pre><code>dw.on('connect', (session) => { /* connected */ });
+dw.on('disconnect', () => { /* disconnected */ });
+dw.on('chainChanged', (chainId) => { /* chain switched */ });
+dw.on('accountsChanged', (accounts) => { /* account switched */ });</code></pre>
+                
+                <h4>Supported Chains</h4>
+                
+                <table>
+                    <tr><th>Chain</th><th>Chain ID</th><th>Currency</th><th>Priority</th></tr>
+                    <tr><td>Datachain Rope</td><td><code>271828</code></td><td>DC FAT</td><td>Primary</td></tr>
+                    <tr><td>Ethereum</td><td><code>1</code></td><td>ETH</td><td>Supported</td></tr>
+                    <tr><td>Polygon</td><td><code>137</code></td><td>POL</td><td>Supported</td></tr>
+                    <tr><td>XDC Network</td><td><code>50</code></td><td>XDC</td><td>Supported</td></tr>
+                </table>
+                
+                <h4>WalletConnect v2 Methods</h4>
+                
+                <table>
+                    <tr><th>Method</th><th>Description</th></tr>
+                    <tr><td><code>eth_sendTransaction</code></td><td>Send a transaction on the active chain</td></tr>
+                    <tr><td><code>personal_sign</code></td><td>Sign a message with the wallet's private key</td></tr>
+                    <tr><td><code>eth_signTypedData_v4</code></td><td>Sign EIP-712 typed data</td></tr>
+                    <tr><td><code>wallet_switchEthereumChain</code></td><td>Switch to a different EVM chain</td></tr>
+                    <tr><td><code>datawallet_getIdentity</code></td><td>Retrieve DID, address, and verified claims</td></tr>
+                    <tr><td><code>datawallet_signClaim</code></td><td>Sign an ONCHAINID ERC-735 claim</td></tr>
+                    <tr><td><code>datawallet_getCapabilities</code></td><td>Query supported features and standards</td></tr>
+                </table>
+                
+                <!-- Identity Wallet -->
+                <h3 id="identity-wallet">Identity Wallet</h3>
+                
+                <p>Datawallet+ implements a full self-sovereign identity stack:</p>
+                
+                <table>
+                    <tr><th>Standard</th><th>Implementation</th><th>Purpose</th></tr>
+                    <tr><td><strong>ONCHAINID</strong> (ERC-734/735)</td><td>On-chain identity + claims via IdFactory, IdentityRegistry</td><td>KYC, AML, Country, Accredited Investor, DCNFT Holder claims</td></tr>
+                    <tr><td><strong>ERC-3643</strong> (T-REX)</td><td>Compliance-gated security token transfers</td><td>Ensures only verified investors can hold/trade tokenized assets</td></tr>
+                    <tr><td><strong>W3C DID</strong></td><td><code>did:datachain:{nodeId}</code> with Ed25519VerificationKey2020</td><td>Decentralized identifier resolvable on Datachain Rope</td></tr>
+                    <tr><td><strong>W3C Verifiable Credentials</strong></td><td>Issue, hold, present VCs with JWS/EdDSA proofs</td><td>Portable credentials across ecosystem</td></tr>
+                    <tr><td><strong>Selective Disclosure</strong></td><td>Share only required attributes from credentials</td><td>Privacy-preserving identity verification</td></tr>
+                </table>
+                
+                <h4>Claim Topics (ERC-735)</h4>
+                
+                <table>
+                    <tr><th>Topic ID</th><th>Label</th><th>Issued By</th></tr>
+                    <tr><td><code>1</code></td><td>KYC Validated</td><td>Datawallet+ / Tanastok</td></tr>
+                    <tr><td><code>2</code></td><td>AML Validated</td><td>Datawallet+ / Tanastok</td></tr>
+                    <tr><td><code>3</code></td><td>Country of Residence</td><td>Datawallet+ / Tanastok</td></tr>
+                    <tr><td><code>4</code></td><td>Accredited Investor</td><td>Datawallet+ / Tanastok</td></tr>
+                    <tr><td><code>10</code></td><td>DCNFT Holder</td><td>Datawallet+</td></tr>
+                    <tr><td><code>99</code></td><td>Sovereign Identity</td><td>Datawallet+</td></tr>
+                </table>
+                
+                <h4>ONCHAINID Contracts (Mainnet)</h4>
+                
+                <table>
+                    <tr><th>Contract</th><th>Address</th></tr>
+                    <tr><td>IdFactory</td><td><code>0xB5218fcEc7a863e4907377F813f55d4a52F802FE</code></td></tr>
+                    <tr><td>DatawalletClaimIssuer</td><td><code>0xe5156dF30ed0645a585Cb8207cAa93d8D3847417</code></td></tr>
+                    <tr><td>IdentityRegistry</td><td><code>0x3065138F0CE815eB09f14d2e87E8BCbe98dD172B</code></td></tr>
+                    <tr><td>TrustedIssuersRegistry</td><td><code>0x42d605a05A063d91E83481867839bfD713D21666</code></td></tr>
+                    <tr><td>TREXFactory</td><td><code>0x76b40D5439F1CB661b2479fD15410662a7fe0991</code></td></tr>
+                    <tr><td>DCNFT Template</td><td><code>0x183c0666bFcFDab9453C0d48C0D39D511b4010B3</code></td></tr>
+                </table>
+                
+                <!-- Cryptography -->
+                <h3 id="cryptography">Cryptography</h3>
+                
+                <p>Datawallet+ is the <strong>first mobile wallet with post-quantum resistance</strong>. Every signature is dual-signed with classical Ed25519 and post-quantum ML-DSA-65 (Dilithium3).</p>
+                
+                <table>
+                    <tr><th>Algorithm</th><th>Type</th><th>Library</th><th>Key Size</th></tr>
+                    <tr><td><strong>secp256k1</strong></td><td>EVM transaction signing</td><td><code>@noble/curves</code> (audited)</td><td>32 bytes</td></tr>
+                    <tr><td><strong>Ed25519</strong></td><td>DID / ONCHAINID claims</td><td><code>@noble/curves</code> (audited)</td><td>32 bytes</td></tr>
+                    <tr><td><strong>ML-DSA-65</strong> (Dilithium3)</td><td>Post-quantum dual-sign</td><td>Local WASM / pure JS</td><td>1952 bytes (pub)</td></tr>
+                    <tr><td><strong>BIP-39 / BIP-32 / BIP-44</strong></td><td>HD key derivation</td><td><code>@scure/bip39</code>, <code>@scure/bip32</code> (audited)</td><td>12-24 word mnemonic</td></tr>
+                </table>
+                
+                <h4>Key Derivation</h4>
+                
+                <pre><code>Mnemonic (BIP-39, 12+ words)
+  └─► BIP-32 seed
+       └─► m/44'/60'/0'/0/0  →  secp256k1 private key  →  EVM address
+            └─► SHA-256(privkey)  →  Ed25519 seed  →  DID keypair
+                 └─► SHA-256(privkey + "Dilithium3 Seed")  →  ML-DSA-65 keypair</code></pre>
+                
+                <p>All keys are stored in <code>expo-secure-store</code> (iOS Keychain / Android Keystore). Sensitive operations are gated by biometric authentication (<code>expo-local-authentication</code>).</p>
+                
+                <!-- Asset Management -->
+                <h3 id="asset-management">Asset Management</h3>
+                
+                <h4>Domain Model: DCNFT → ERC-3643</h4>
+                
+                <p>Every real-world asset in the Datachain Rope ecosystem follows this model:</p>
+                
+                <pre><code>DCNFT (ERC-721)              ←  The DEED — minted once per asset
+  │                               Originates from Tanastok, NaturaProof, or Datawallet+
+  │
+  ├─► ERC-3643 Contract A    ←  Fractional SHARES — minted per customer purchase
+  │     tokenSymbol: "BFST"       maxSupply: 10,000 | mintedSupply: 3,247
+  │
+  └─► ERC-3643 Contract B    ←  Different tranche / jurisdiction
+        tokenSymbol: "BFST-EU"    maxSupply: 5,000 | mintedSupply: 891</code></pre>
+                
+                <ul style="margin: 1rem 0 1rem 1.5rem; color: var(--gray-700);">
+                    <li><strong>DCNFT (ERC-721)</strong> = the asset deed, always minted first (title, metadata, provenance on IPFS)</li>
+                    <li><strong>ERC-3643 tokens</strong> = fractional shares, minted each time a customer purchases. Supply grows with each acquisition.</li>
+                    <li>ERC-3643 transfers are compliance-gated: buyer must be verified in <code>IdentityRegistry</code> (KYC/AML claims on ONCHAINID)</li>
+                </ul>
+                
+                <h4>Token Tiers (Display Priority)</h4>
+                
+                <table>
+                    <tr><th>Tier</th><th>What</th><th>Example</th></tr>
+                    <tr><td><code>rope_native</code></td><td>DC FAT, WFAT</td><td>Native gas token</td></tr>
+                    <tr><td><code>rope_dcr20</code></td><td>DCR-20 tokens on chain 271828</td><td>USDC, USDT, EUROD</td></tr>
+                    <tr><td><code>rope_erc3643</code></td><td>ERC-3643 fractional shares</td><td>Tanastok asset shares</td></tr>
+                    <tr><td><code>bridged</code></td><td>Wrapped tokens from Ethereum/XDC/Polygon</td><td>wETH, wXDC</td></tr>
+                    <tr><td><code>external</code></td><td>Non-Rope tokens</td><td>Any external ERC-20</td></tr>
+                </table>
+                
+                <!-- Fiat On/Off Ramp -->
+                <h3 id="fiat-ramp">Fiat On/Off Ramp</h3>
+                
+                <p>Non-crypto users can buy DC FAT directly in Datawallet+ with credit card or bank transfer through two providers:</p>
+                
+                <table>
+                    <tr><th>Provider</th><th>Role</th><th>Integration</th></tr>
+                    <tr><td><strong>Onramper</strong></td><td>Buy/sell crypto with fiat — aggregates MoonPay, Transak, Banxa, etc.</td><td>Widget (WebView) with signed URLs</td></tr>
+                    <tr><td><strong>Blindpay</strong></td><td>Off-ramp — convert stablecoins to fiat bank payout (100+ countries)</td><td>REST API</td></tr>
+                </table>
+                
+                <p>
+                    Supported fiat currencies: USD, EUR, GBP, CHF, CAD, AUD, JPY, NGN, BRL, INR.<br>
+                    Supported crypto: DC FAT, ETH, MATIC, XDC, USDC, USDT.
+                </p>
+                
+                <!-- Ecosystem Integration -->
+                <h3 id="ecosystem-integration">Ecosystem Integration</h3>
+                
+                <p>Datawallet+ acts as the identity and asset hub for the entire Datachain Rope ecosystem. Events are broadcast via webhooks; data is shared through IPFS and on-chain state.</p>
+                
+                <table>
+                    <tr><th>Project</th><th>Integration</th><th>Data Flow</th></tr>
+                    <tr><td><strong>Tanastok</strong></td><td>Asset tokenization, KYC bridge, professional listings</td><td>DCNFT minting, ERC-3643 deployment, claim issuance</td></tr>
+                    <tr><td><strong>DCSwap</strong></td><td>In-app DEX, swap pairs, liquidity pools</td><td>DCSwapRouter on-chain, indexer API, token prices</td></tr>
+                    <tr><td><strong>NaturaProof</strong></td><td>Biodiversity credits, carbon offsets, sustainability certs</td><td>Environmental claims, provenance verification</td></tr>
+                    <tr><td><strong>Careaway</strong></td><td>Health data tokens, insurance credentials, wellness rewards</td><td>Encrypted health claims, credential verification</td></tr>
+                    <tr><td><strong>Luzran</strong></td><td>Content licensing, syndication royalties</td><td>IPFS content registration, royalty tracking</td></tr>
+                    <tr><td><strong>AlterOS</strong></td><td>AI data marketplace, identity-gated datasets</td><td>Dataset publishing, access control via DID</td></tr>
+                    <tr><td><strong>Picentriq</strong></td><td>Analytics, compliance metrics</td><td>Identity-verified metrics, compliance reports</td></tr>
+                    <tr><td><strong>Skywatcher</strong></td><td>Monitoring, risk alerts, compliance surveillance</td><td>Risk alerts, address screening</td></tr>
+                </table>
+                
+                <h4>Webhook Events</h4>
+                
+                <p>When events occur in Datawallet+, signed webhooks notify ecosystem projects:</p>
+                
+                <pre><code>claim.issued          // ONCHAINID claim issued (KYC, AML, etc.)
+claim.revoked         // Claim revoked
+identity.created      // New DID / ONCHAINID deployed
+identity.updated      // Identity claims updated
+asset.registered      // New DCNFT deed registered
+asset.transferred     // Asset ownership changed
+credential.issued     // W3C Verifiable Credential issued
+credential.presented  // Credential shared with a verifier
+swap.executed         // DCSwap trade completed</code></pre>
+                
+                <!-- IPFS Integration -->
+                <h3 id="ipfs-integration">IPFS Integration</h3>
+                
+                <p>All claim evidence, asset metadata, identity backups, and token lists are stored on IPFS via ecosystem-owned Kubo nodes. No centralized storage dependency.</p>
+                
+                <table>
+                    <tr><th>Service</th><th>Purpose</th></tr>
+                    <tr><td><code>IPFSService</code></td><td>Pin/fetch JSON and files to Kubo (primary) + ROPE node (replication)</td></tr>
+                    <tr><td><code>IPFSAssetService</code></td><td>ERC-721 metadata pinning with image CIDs, <code>tokenURI</code> generation</td></tr>
+                    <tr><td><code>IPFSIdentityBackup</code></td><td>Encrypted SSDI vault backup/restore on IPFS</td></tr>
+                    <tr><td><code>IPFSTokenList</code></td><td>DCSwap token list (Uniswap Token Lists standard) from IPFS CID</td></tr>
+                </table>
+                
+                <!-- Multi-Chain Support -->
+                <h3 id="multi-chain">Multi-Chain Support</h3>
+                
+                <p>While Datachain Rope is the primary chain, Datawallet+ provides real providers for Ethereum, Polygon, and XDC — users bring their entire portfolio into one wallet.</p>
+                
+                <pre><code>// Fetch balances across all chains
+const balances = await multiChainProvider.getAllNativeBalances(address);
+// [{ chain: 'Datachain Rope', native: '1250.5' }, { chain: 'Ethereum', native: '0.42' }, ...]
+
+// Send on any chain
+await multiChainProvider.sendNative(1, recipientAddress, '0.1'); // 0.1 ETH on Ethereum
+await multiChainProvider.sendNative(271828, recipientAddress, '100'); // 100 FAT on Rope</code></pre>
+                
+                <!-- Security -->
+                <h3 id="security">Security</h3>
+                
+                <table>
+                    <tr><th>Layer</th><th>Protection</th></tr>
+                    <tr><td><strong>Key storage</strong></td><td>iOS Keychain / Android Keystore via <code>expo-secure-store</code></td></tr>
+                    <tr><td><strong>Biometric gate</strong></td><td>Face ID / Touch ID / fingerprint before signing or key export</td></tr>
+                    <tr><td><strong>Post-quantum</strong></td><td>ML-DSA-65 (Dilithium3) dual-signing — local, no API dependency</td></tr>
+                    <tr><td><strong>HD derivation</strong></td><td>BIP-39/32/44 with audited <code>@scure</code> libraries (Trail of Bits audit)</td></tr>
+                    <tr><td><strong>WalletConnect v2</strong></td><td>Session approval with biometric confirmation</td></tr>
+                    <tr><td><strong>ONCHAINID compliance</strong></td><td>ERC-3643 transfers blocked for unverified wallets</td></tr>
+                    <tr><td><strong>Pre-audit framework</strong></td><td>14-point automated security checklist across 8 categories</td></tr>
+                </table>
+                
+                <h4>Pre-Audit Score</h4>
+                
+                <pre><code>// Run from within Datawallet+
+const report = await securityAuditService.runFullAudit();
+// { score: 92, passCount: 13, failCount: 1, summary: '13/14 checks passed' }</code></pre>
+                
+                <!-- Configuration -->
+                <h3 id="configuration">Configuration</h3>
+                
+                <pre><code># .env — Required
+EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID=your-walletconnect-project-id
+EXPO_PUBLIC_INFURA_API_KEY=your-infura-project-id
+
+# IPFS — Ecosystem-owned nodes
+EXPO_PUBLIC_IPFS_NODE_URL=http://localhost:5001
+EXPO_PUBLIC_ROPE_IPFS_NODE_URL=https://ipfs.datachain.network
+
+# Onramper — Fiat on/off ramp
+EXPO_PUBLIC_ONRAMPER_API_KEY=pk_prod_...
+EXPO_PUBLIC_ONRAMPER_SIGNING_SECRET=...
+
+# DCSwap contracts (Datachain Rope mainnet)
+EXPO_PUBLIC_DCSWAP_ROUTER_ADDRESS=0x8ebdd966e9e9af2ec5d02c886b1c4b5ba617e7c4
+EXPO_PUBLIC_WFAT_ADDRESS=0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4</code></pre>
+                
+                <!-- DatawalletConnect API v2.0 -->
+                <h3 id="datawallet-api">DatawalletConnect API v2.0</h3>
+                
+                <p>The public API is exposed via <code>DatawalletConnectAPI</code> and consumable through WalletConnect v2 or the <code>@datawallet/connect</code> SDK.</p>
+                
+                <h4>Capabilities</h4>
+                
+                <pre><code>const capabilities = await datawalletAPI.getCapabilities();
+{
+  version: '2.0.0',
+  walletConnect: true,
+  onchainid: true,
+  erc3643: true,
+  did: true,
+  ssdi: true,
+  ipfs: true,
+  verifiableCredentials: true,
+  selectiveDisclosure: true,
+  privacyProofs: true,
+  reputation: true,
+  dataMonetization: true,
+  universalAssetRegistry: true,
+  crossChainIdentity: true,
+  postQuantumSigning: true,
+  fiatRamp: true,
+  multiChain: true,
+  supportedChains: [271828, 1, 137, 50],
+  connectedEcosystemProjects: [
+    'tanastok', 'dcswap', 'datachain_rope',
+    'naturaproof', 'luzran', 'alteros',
+    'picentriq', 'careaway', 'skywatcher'
+  ]
+}</code></pre>
             </section>
         </main>
     </div>

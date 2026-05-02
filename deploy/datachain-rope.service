@@ -1,0 +1,24 @@
+# /etc/systemd/system/datachain-rope.service
+# Datachain Rope node (rope-cli start) — runs in parallel with Anvil
+
+[Unit]
+Description=Datachain Rope Node (rope start)
+After=network-online.target anvil-rope.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/datachain-rope
+Environment="PATH=/home/ubuntu/.cargo/bin:/usr/local/bin:/usr/bin:/bin"
+# Public RPC on 8545; Anvil backend on private 8595 (see deploy/config/rope-production.toml)
+ExecStart=/home/ubuntu/datachain-rope/target/release/rope node --config /home/ubuntu/datachain-rope/deploy/config/rope-production.toml --network mainnet --mode relay
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=datachain-rope
+
+[Install]
+WantedBy=multi-user.target
