@@ -253,6 +253,20 @@ pub mod constants {
 
     /// Maximum strings per gossip message
     pub const MAX_GOSSIP_BATCH: usize = 1000;
+
+    // === Personal Ledger Constants ===
+
+    /// Maximum ledger entry content size (1MB per interaction)
+    pub const MAX_LEDGER_ENTRY_SIZE: usize = 1 * 1024 * 1024;
+
+    /// Default repatriation timeout (60 seconds)
+    pub const REPATRIATION_TIMEOUT_SECS: u64 = 60;
+
+    /// GossipSub topic for ledger erasure broadcasts
+    pub const LEDGER_ERASURE_TOPIC: &str = "/rope/ledger-erasure/1.0.0";
+
+    /// GossipSub topic for ledger piece announcements
+    pub const LEDGER_PIECES_TOPIC: &str = "/rope/ledger-pieces/1.0.0";
 }
 
 /// Finality status for a string

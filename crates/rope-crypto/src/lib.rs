@@ -21,12 +21,14 @@ pub mod error;
 pub mod hash;
 pub mod hybrid;
 pub mod keys;
+pub mod ledger_encryption;
 pub mod oes;
 
 pub use error::*;
 pub use hash::*;
 pub use hybrid::*;
 pub use keys::*;
+pub use ledger_encryption::*;
 pub use oes::*;
 
 /// Cryptographic prelude
@@ -35,5 +37,9 @@ pub mod prelude {
     pub use crate::hash::{hash_blake3, hash_keyed};
     pub use crate::hybrid::{HybridKEM, HybridSigner, HybridVerifier};
     pub use crate::keys::{KeyPair, PublicKey, SecretKey};
+    pub use crate::ledger_encryption::{
+        decrypt_ledger_content, derive_ledger_key, encrypt_ledger_content, EncryptedLedgerEntry,
+        LedgerCryptoError, LedgerEnvelope, LedgerKey, WalletAddress,
+    };
     pub use crate::oes::{OESProof, OrganicEncryptionState};
 }

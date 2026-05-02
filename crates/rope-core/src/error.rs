@@ -108,6 +108,31 @@ pub enum RopeError {
     #[error("Rate limit exceeded: {limit} per second")]
     RateLimitExceeded { limit: u32 },
 
+    // === Personal Ledger Errors ===
+    /// Ledger already exists for wallet
+    #[error("Ledger already exists for wallet: {0}")]
+    LedgerAlreadyExists(String),
+
+    /// Ledger not found for wallet
+    #[error("Ledger not found for wallet: {0}")]
+    LedgerNotFound(String),
+
+    /// Ledger has been deleted
+    #[error("Ledger deleted for wallet: {0}")]
+    LedgerDeleted(String),
+
+    /// Repatriation failed
+    #[error("Repatriation failed: {0}")]
+    RepatriationFailed(String),
+
+    /// Piece verification failed
+    #[error("Piece hash mismatch for string {0:?} piece {1}")]
+    PieceVerificationFailed(StringId, u32),
+
+    /// Ledger encryption/decryption error
+    #[error("Ledger crypto error: {0}")]
+    LedgerCryptoError(String),
+
     // === Storage Errors ===
     /// Storage error
     #[error("Storage error: {0}")]
@@ -140,6 +165,12 @@ impl RopeError {
             Self::UnauthorizedErasure(_) | Self::ImmutableString(_) => 1006,
             Self::RegenerationFailed(_) | Self::InsufficientSources { .. } => 1007,
             Self::QuorumNotMet { .. } => 1008,
+            Self::LedgerAlreadyExists(_) => 2001,
+            Self::LedgerNotFound(_) => 2002,
+            Self::LedgerDeleted(_) => 2003,
+            Self::RepatriationFailed(_) => 2004,
+            Self::PieceVerificationFailed(_, _) => 2005,
+            Self::LedgerCryptoError(_) => 2006,
             _ => 9999,
         }
     }

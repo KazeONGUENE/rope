@@ -9,10 +9,12 @@
 pub mod erasure;
 pub mod federation;
 pub mod gossip;
+pub mod ledger_lifecycle;
 pub mod regeneration;
 
 // Re-exports
 pub use erasure::*;
 pub use federation::*;
 pub use gossip::{GossipDag, GossipEvent};
+pub use ledger_lifecycle::*;
 pub use regeneration::*;

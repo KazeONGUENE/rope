@@ -134,9 +134,165 @@ pub mod state_db {
     }
 }
 
+pub mod ledger_db {
+    //! Personal ledger storage — wallet→StringId index and piece map persistence.
+    //!
+    //! Provides the storage backend for the personal ledger model where each
+    //! wallet maps to a chain of StringIds. Maintains reverse indexes for
+    //! efficient lookups in both directions.
+
+    use parking_lot::RwLock;
+    use std::collections::HashMap;
+
+    /// Ledger descriptor stored per wallet
+    #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+    pub struct StoredLedgerDescriptor {
+        pub wallet_address: Vec<u8>,
+        pub genesis_string_id: [u8; 32],
+        pub head_string_id: [u8; 32],
+        pub entry_count: u64,
+        pub total_size_bytes: u64,
+        pub oes_generation_at_creation: u64,
+        pub current_oes_generation: u64,
+        pub created_at: i64,
+        pub last_appended_at: i64,
+        pub is_deleted: bool,
+        pub deleted_at: Option<i64>,
+        pub replication_factor: u32,
+    }
+
+    /// Piece map entry for storage
+    #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+    pub struct StoredPieceMap {
+        pub string_id: [u8; 32],
+        pub total_pieces: u32,
+        pub total_size: u64,
+        pub piece_hashes: Vec<[u8; 32]>,
+        pub piece_sizes: Vec<u32>,
+    }
+
+    /// Persistent ledger storage (in-memory; RocksDB column family in production)
+    pub struct LedgerStore {
+        descriptors: RwLock<HashMap<Vec<u8>, StoredLedgerDescriptor>>,
+        wallet_to_chain: RwLock<HashMap<Vec<u8>, Vec<[u8; 32]>>>,
+        string_to_wallet: RwLock<HashMap<[u8; 32], Vec<u8>>>,
+        piece_maps: RwLock<HashMap<[u8; 32], StoredPieceMap>>,
+        head_index: RwLock<HashMap<Vec<u8>, [u8; 32]>>,
+    }
+
+    impl LedgerStore {
+        pub fn new() -> Self {
+            Self {
+                descriptors: RwLock::new(HashMap::new()),
+                wallet_to_chain: RwLock::new(HashMap::new()),
+                string_to_wallet: RwLock::new(HashMap::new()),
+                piece_maps: RwLock::new(HashMap::new()),
+                head_index: RwLock::new(HashMap::new()),
+            }
+        }
+
+        pub fn put_descriptor(&self, wallet: &[u8], desc: StoredLedgerDescriptor) {
+            self.head_index.write().insert(wallet.to_vec(), desc.head_string_id);
+            self.descriptors.write().insert(wallet.to_vec(), desc);
+        }
+
+        pub fn get_descriptor(&self, wallet: &[u8]) -> Option<StoredLedgerDescriptor> {
+            self.descriptors.read().get(wallet).cloned()
+        }
+
+        pub fn append_to_chain(&self, wallet: &[u8], string_id: [u8; 32]) {
+            self.wallet_to_chain
+                .write()
+                .entry(wallet.to_vec())
+                .or_default()
+                .push(string_id);
+            self.string_to_wallet
+                .write()
+                .insert(string_id, wallet.to_vec());
+            self.head_index
+                .write()
+                .insert(wallet.to_vec(), string_id);
+        }
+
+        pub fn get_chain(&self, wallet: &[u8]) -> Vec<[u8; 32]> {
+            self.wallet_to_chain
+                .read()
+                .get(wallet)
+                .cloned()
+                .unwrap_or_default()
+        }
+
+        pub fn wallet_for_string(&self, string_id: &[u8; 32]) -> Option<Vec<u8>> {
+            self.string_to_wallet.read().get(string_id).cloned()
+        }
+
+        pub fn head_for_wallet(&self, wallet: &[u8]) -> Option<[u8; 32]> {
+            self.head_index.read().get(wallet).copied()
+        }
+
+        pub fn put_piece_map(&self, string_id: [u8; 32], map: StoredPieceMap) {
+            self.piece_maps.write().insert(string_id, map);
+        }
+
+        pub fn get_piece_map(&self, string_id: &[u8; 32]) -> Option<StoredPieceMap> {
+            self.piece_maps.read().get(string_id).cloned()
+        }
+
+        pub fn mark_deleted(&self, wallet: &[u8]) -> bool {
+            let mut descs = self.descriptors.write();
+            if let Some(desc) = descs.get_mut(wallet) {
+                desc.is_deleted = true;
+                desc.deleted_at = Some(chrono::Utc::now().timestamp());
+                true
+            } else {
+                false
+            }
+        }
+
+        pub fn all_wallets(&self) -> Vec<Vec<u8>> {
+            self.descriptors.read().keys().cloned().collect()
+        }
+
+        pub fn active_count(&self) -> usize {
+            self.descriptors
+                .read()
+                .values()
+                .filter(|d| !d.is_deleted)
+                .count()
+        }
+
+        pub fn total_count(&self) -> usize {
+            self.descriptors.read().len()
+        }
+
+        pub fn total_entries(&self) -> u64 {
+            self.descriptors
+                .read()
+                .values()
+                .map(|d| d.entry_count)
+                .sum()
+        }
+
+        pub fn total_bytes(&self) -> u64 {
+            self.descriptors
+                .read()
+                .values()
+                .map(|d| d.total_size_bytes)
+                .sum()
+        }
+    }
+
+    impl Default for LedgerStore {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+}
+
 // Re-export for convenience
 pub use complement_db::ComplementStore;
 pub use lattice_db::LatticeStore;
+pub use ledger_db::LedgerStore;
 pub use state_db::StateStore;
 
 // ============================================================================

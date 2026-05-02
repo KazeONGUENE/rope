@@ -31,6 +31,7 @@ pub mod complement;
 pub mod error;
 pub mod lattice;
 pub mod nucleotide;
+pub mod personal_ledger;
 pub mod string;
 pub mod types;
 
@@ -39,6 +40,7 @@ pub use complement::*;
 pub use error::*;
 pub use lattice::*;
 pub use nucleotide::*;
+pub use personal_ledger::*;
 pub use string::*;
 pub use types::*;
 
@@ -49,6 +51,10 @@ pub mod prelude {
     pub use crate::error::{Result, RopeError};
     pub use crate::lattice::StringLattice;
     pub use crate::nucleotide::Nucleotide;
+    pub use crate::personal_ledger::{
+        EntryPieceMap, InteractionRecord, InteractionType, LedgerChain, LedgerDescriptor,
+        LedgerRegistry,
+    };
     pub use crate::string::RopeString;
     pub use crate::types::*;
 }
