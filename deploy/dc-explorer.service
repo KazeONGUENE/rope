@@ -1,0 +1,25 @@
+# /etc/systemd/system/dc-explorer.service
+# DC Explorer — block explorer UI, uses local Anvil RPC
+
+[Unit]
+Description=DC Explorer (block explorer)
+After=network-online.target anvil-rope.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/datachain-rope
+Environment="PATH=/home/ubuntu/.cargo/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="RPC_URL=http://127.0.0.1:8545"
+Environment="DCSCAN_STATIC=/home/ubuntu/datachain-rope/crates/rope-explorer/static"
+ExecStart=/home/ubuntu/datachain-rope/target/release/dc-explorer
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=dc-explorer
+
+[Install]
+WantedBy=multi-user.target

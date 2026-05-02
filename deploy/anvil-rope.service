@@ -1,0 +1,45 @@
+# /etc/systemd/system/anvil-rope.service
+#
+# Datachain Rope EVM — Anvil (private RPC, chainId 271828)
+# Binds to 127.0.0.1:8595 so only the Rope node can reach it.
+
+[Unit]
+Description=Datachain Rope EVM — Anvil (chainId 271828, private :8595)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+
+ExecStartPre=/bin/mkdir -p /opt/datachain-rope/anvil-state
+
+ExecStart=/home/ubuntu/.foundry/bin/anvil \
+    --chain-id 271828 \
+    --host 127.0.0.1 \
+    --port 8595 \
+    --block-time 3 \
+    --gas-limit 30000000 \
+    --gas-price 1000000000 \
+    --accounts 1 \
+    --balance 10000000000
+
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=anvil-rope
+
+# Keep state file safe
+UMask=0077
+
+# Resource limits
+LimitNOFILE=65536
+LimitMEMLOCK=infinity
+
+[Install]
+WantedBy=multi-user.target
