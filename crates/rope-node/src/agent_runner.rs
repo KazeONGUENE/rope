@@ -10,14 +10,14 @@
 //! - InsuranceAgent: insurance claim validation
 
 use rope_consensus::{
-    AIAgentType, AITestimony, AITestimonyCollector, AITestimonyConfig,
-    AgentId as ConsensusAgentId, RiskLevel, SemanticVerdict, Testimony as ConsensusTestimony,
+    AIAgentType, AITestimony, AITestimonyCollector, AITestimonyConfig, AgentId as ConsensusAgentId,
+    RiskLevel, SemanticVerdict, Testimony as ConsensusTestimony,
 };
 use rope_core::clock::LamportClock;
 use rope_core::types::{AttestationType, NodeId, StringId};
 use rope_smartchain::testimony_agent::{
-    ActionType, AgentType, ComplianceAgent, InsuranceAgent, TestimonyAgent,
-    TestimonyDecision, TransactionRequest, ValidationAgent, ValidationContext,
+    ActionType, AgentType, ComplianceAgent, InsuranceAgent, TestimonyAgent, TestimonyDecision,
+    TransactionRequest, ValidationAgent, ValidationContext,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -169,13 +169,8 @@ impl AgentRunner {
                 },
             };
 
-            let ai_testimony = AITestimony::new(
-                base,
-                consensus_agent_id,
-                ai_agent_type,
-                verdict,
-                confidence,
-            );
+            let ai_testimony =
+                AITestimony::new(base, consensus_agent_id, ai_agent_type, verdict, confidence);
 
             last_consensus = self.ai_collector.submit_testimony(ai_testimony);
 
@@ -193,9 +188,15 @@ impl AgentRunner {
         });
 
         if last_consensus {
-            debug!("AI consensus reached for string {}", hex::encode(&string_id.as_bytes()[..8]));
+            debug!(
+                "AI consensus reached for string {}",
+                hex::encode(&string_id.as_bytes()[..8])
+            );
         } else {
-            warn!("AI consensus NOT reached for string {}", hex::encode(&string_id.as_bytes()[..8]));
+            warn!(
+                "AI consensus NOT reached for string {}",
+                hex::encode(&string_id.as_bytes()[..8])
+            );
         }
 
         last_consensus

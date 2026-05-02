@@ -127,10 +127,7 @@ impl ERC3643ComplianceModule {
     }
 
     /// Primary entry point: validate a pending ERC-3643 transfer.
-    pub fn validate_transfer(
-        &self,
-        request: &TransferValidationRequest,
-    ) -> ComplianceDecision {
+    pub fn validate_transfer(&self, request: &TransferValidationRequest) -> ComplianceDecision {
         let mut checked_rules = Vec::new();
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -150,14 +147,8 @@ impl ERC3643ComplianceModule {
 
         // Rule 2 — KYC & AML claims present for receiver
         checked_rules.push("kyc_aml_claims".to_string());
-        let receiver_has_kyc = request
-            .claims
-            .iter()
-            .any(|c| c.topic == KYC_VALIDATED);
-        let receiver_has_aml = request
-            .claims
-            .iter()
-            .any(|c| c.topic == AML_VALIDATED);
+        let receiver_has_kyc = request.claims.iter().any(|c| c.topic == KYC_VALIDATED);
+        let receiver_has_aml = request.claims.iter().any(|c| c.topic == AML_VALIDATED);
 
         if !receiver_has_kyc || !receiver_has_aml {
             return self.deny(
@@ -204,10 +195,7 @@ impl ERC3643ComplianceModule {
 
         // Rule 5 — Sovereign identity claim (Datawallet+ specific)
         checked_rules.push("sovereign_identity".to_string());
-        let has_sovereign = request
-            .claims
-            .iter()
-            .any(|c| c.topic == SOVEREIGN_IDENTITY);
+        let has_sovereign = request.claims.iter().any(|c| c.topic == SOVEREIGN_IDENTITY);
         if !has_sovereign {
             return self.deny(
                 request.nonce,

@@ -51,8 +51,8 @@ pub use message::{MessageType, NetworkMessage};
 pub use peer::{PeerId, PeerManager, PeerState};
 pub use rdp::{RdpConfig, RopeDistributionProtocol, Swarm as RdpSwarm};
 pub use repatriation::{
-    PieceRequest, RepatriatedLedger, RepatriationConfig, RepatriationEngine,
-    RepatriationRequest, RepatriationStatus,
+    PieceRequest, RepatriatedLedger, RepatriationConfig, RepatriationEngine, RepatriationRequest,
+    RepatriationStatus,
 };
 pub use rpc::RpcConfig;
 pub use swarm::{RopeSwarmRuntime, SwarmCommand, SwarmConfig, SwarmNetworkEvent, SwarmStats};

@@ -336,7 +336,11 @@ impl LedgerRegistry {
 
     /// Count of active (non-deleted) ledgers
     pub fn active_count(&self) -> usize {
-        self.ledgers.read().values().filter(|d| !d.is_deleted).count()
+        self.ledgers
+            .read()
+            .values()
+            .filter(|d| !d.is_deleted)
+            .count()
     }
 
     /// Count of total ledgers
@@ -533,10 +537,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(string.replication_factor(), 5);
-        assert_eq!(
-            *string.mutability_class(),
-            MutabilityClass::GDPRCompliant
-        );
+        assert_eq!(*string.mutability_class(), MutabilityClass::GDPRCompliant);
         assert_eq!(string.parentage(), &[StringId::ZERO]);
     }
 

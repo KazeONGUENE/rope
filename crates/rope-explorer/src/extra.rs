@@ -115,7 +115,9 @@ pub struct ContractsListQuery {
 pub async fn contracts_list(Query(q): Query<ContractsListQuery>) -> Json<serde_json::Value> {
     let page = q.page.unwrap_or(1);
     let limit = q.limit.unwrap_or(20);
-    Json(serde_json::json!({ "contracts": [], "pagination": { "page": page, "limit": limit, "total": 0 } }))
+    Json(
+        serde_json::json!({ "contracts": [], "pagination": { "page": page, "limit": limit, "total": 0 } }),
+    )
 }
 
 pub async fn accounts_stats() -> Json<serde_json::Value> {
@@ -145,7 +147,13 @@ pub async fn account_overview(
         "params": [address, "latest"],
         "id": 1
     });
-    if let Ok(res) = state.http_client.post(&state.rpc_url).json(&body).send().await {
+    if let Ok(res) = state
+        .http_client
+        .post(&state.rpc_url)
+        .json(&body)
+        .send()
+        .await
+    {
         if let Ok(json) = res.json::<serde_json::Value>().await {
             if let Some(result) = json.get("result").and_then(|r| r.as_str()) {
                 balance_wei = result.to_string();
@@ -159,10 +167,17 @@ pub async fn account_overview(
         "params": [address, "latest"],
         "id": 1
     });
-    if let Ok(res) = state.http_client.post(&state.rpc_url).json(&body2).send().await {
+    if let Ok(res) = state
+        .http_client
+        .post(&state.rpc_url)
+        .json(&body2)
+        .send()
+        .await
+    {
         if let Ok(json) = res.json::<serde_json::Value>().await {
             if let Some(r) = json.get("result").and_then(|r| r.as_str()) {
-                transaction_count = u64::from_str_radix(r.trim_start_matches("0x"), 16).unwrap_or(0);
+                transaction_count =
+                    u64::from_str_radix(r.trim_start_matches("0x"), 16).unwrap_or(0);
             }
         }
     }
@@ -228,7 +243,10 @@ pub async fn account_events(
 }
 
 pub async fn defi_overview(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
-    let url = format!("{}/v1/analytics/overview", state.dcswap_api.trim_end_matches('/'));
+    let url = format!(
+        "{}/v1/analytics/overview",
+        state.dcswap_api.trim_end_matches('/')
+    );
     match state.http_client.get(&url).send().await {
         Ok(r) if r.status().is_success() => {
             if let Ok(data) = r.json::<serde_json::Value>().await {
@@ -246,11 +264,16 @@ pub async fn defi_overview(State(state): State<Arc<AppState>>) -> Json<serde_jso
         }
         _ => {}
     }
-    Json(serde_json::json!({ "source": "DCSwap", "error": "Failed to fetch", "tvl": "0", "volume24h": "0", "pools": [] }))
+    Json(
+        serde_json::json!({ "source": "DCSwap", "error": "Failed to fetch", "tvl": "0", "volume24h": "0", "pools": [] }),
+    )
 }
 
 pub async fn defi_swaps(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
-    let url = format!("{}/v1/swaps?limit=20", state.dcswap_api.trim_end_matches('/'));
+    let url = format!(
+        "{}/v1/swaps?limit=20",
+        state.dcswap_api.trim_end_matches('/')
+    );
     match state.http_client.get(&url).send().await {
         Ok(r) if r.status().is_success() => {
             if let Ok(data) = r.json::<serde_json::Value>().await {
@@ -268,9 +291,7 @@ pub async fn defi_swaps(State(state): State<Arc<AppState>>) -> Json<serde_json::
     Json(serde_json::json!({ "source": "DCSwap", "swaps": [] }))
 }
 
-pub async fn services_registry_get(
-    State(state): State<Arc<AppState>>,
-) -> Json<serde_json::Value> {
+pub async fn services_registry_get(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let reg = state.services_registry.read().await;
     let services: Vec<serde_json::Value> = reg
         .iter()
@@ -311,14 +332,20 @@ pub async fn services_registry_post(
             Json(serde_json::json!({ "success": false, "error": "Name is required" })),
         );
     }
-    let provider_id = body
-        .provider_id
-        .unwrap_or_else(|| name.to_lowercase().replace(' ', "-").chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-').collect::<String>());
+    let provider_id = body.provider_id.unwrap_or_else(|| {
+        name.to_lowercase()
+            .replace(' ', "-")
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
+            .collect::<String>()
+    });
     let mut reg = state.services_registry.write().await;
     if reg.iter().any(|r| r.provider_id == provider_id) {
         return (
             StatusCode::CONFLICT,
-            Json(serde_json::json!({ "success": false, "error": "Provider ID already registered" })),
+            Json(
+                serde_json::json!({ "success": false, "error": "Provider ID already registered" }),
+            ),
         );
     }
     let mut port = THIRD_PARTY_PORT_START;
@@ -337,8 +364,12 @@ pub async fn services_registry_post(
         name: name.clone(),
         description: body.description.unwrap_or_default(),
         port,
-        health_url: body.health_url.unwrap_or_else(|| format!("http://127.0.0.1:{}/health", port)),
-        capabilities: body.capabilities.unwrap_or_else(|| vec!["agent".to_string()]),
+        health_url: body
+            .health_url
+            .unwrap_or_else(|| format!("http://127.0.0.1:{}/health", port)),
+        capabilities: body
+            .capabilities
+            .unwrap_or_else(|| vec!["agent".to_string()]),
         created_at: chrono::Utc::now().to_rfc3339(),
     };
     reg.push(entry);
@@ -395,18 +426,25 @@ pub async fn verify_certify_post(
     if address.is_empty() || provider.is_empty() {
         return (
             StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "success": false, "error": "contractAddress and providerId are required" })),
+            Json(
+                serde_json::json!({ "success": false, "error": "contractAddress and providerId are required" }),
+            ),
         );
     }
     let addr = address.to_lowercase();
-    let c_type = body.certification_type.unwrap_or_else(|| "security_audit".to_string());
+    let c_type = body
+        .certification_type
+        .unwrap_or_else(|| "security_audit".to_string());
     let mut certs = state.certifications_store.write().await;
-    certs.entry(addr.clone()).or_default().push(CertificationEntry {
-        provider_id: provider.clone(),
-        certification_type: c_type.clone(),
-        report_url: body.report_url.clone(),
-        attested_at: chrono::Utc::now().to_rfc3339(),
-    });
+    certs
+        .entry(addr.clone())
+        .or_default()
+        .push(CertificationEntry {
+            provider_id: provider.clone(),
+            certification_type: c_type.clone(),
+            report_url: body.report_url.clone(),
+            attested_at: chrono::Utc::now().to_rfc3339(),
+        });
     (
         StatusCode::CREATED,
         Json(serde_json::json!({
@@ -450,10 +488,14 @@ pub async fn verify_post(
     if source.is_empty() {
         return (
             StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "success": false, "error": "Contract source code is required" })),
+            Json(
+                serde_json::json!({ "success": false, "error": "Contract source code is required" }),
+            ),
         );
     }
-    let compiler_ver = body.compiler_version.unwrap_or_else(|| "v0.8.20+commit.a1b79de6".to_string());
+    let compiler_ver = body
+        .compiler_version
+        .unwrap_or_else(|| "v0.8.20+commit.a1b79de6".to_string());
     let key = address.to_lowercase();
     let entry = VerificationEntry {
         verified: true,
@@ -499,7 +541,9 @@ pub async fn tokens_register_post(
     if address.is_empty() || !address.starts_with("0x") || address.len() != 42 {
         return (
             StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "success": false, "error": "Valid contract address is required" })),
+            Json(
+                serde_json::json!({ "success": false, "error": "Valid contract address is required" }),
+            ),
         );
     }
     (

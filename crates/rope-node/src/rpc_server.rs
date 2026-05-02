@@ -16,18 +16,18 @@
 //! EVM-specific queries return proper errors indicating the EVM backend is
 //! offline.
 
-use crate::evm_backend::EvmBackend;
 use crate::config::RpcSettings;
 use crate::consensus_orchestrator::ConsensusOrchestrator;
+use crate::evm_backend::EvmBackend;
 use crate::ledger_manager::LedgerManager;
-use rope_iot_gateway::IoTGateway;
 use rope_ai_framework::AgentFramework;
+use rope_iot_gateway::IoTGateway;
+use sha1::{Digest, Sha1};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::{broadcast, RwLock};
-use sha1::{Sha1, Digest};
 
 /// RPC Server with mTLS and WebSocket support
 pub struct RpcServer {
@@ -105,7 +105,14 @@ pub struct RpcHandlers {
 
 impl RpcServer {
     pub async fn new(config: &RpcSettings) -> anyhow::Result<Self> {
-        Self::new_with_state(config, 271828, Arc::new(parking_lot::RwLock::new(0)), None, None).await
+        Self::new_with_state(
+            config,
+            271828,
+            Arc::new(parking_lot::RwLock::new(0)),
+            None,
+            None,
+        )
+        .await
     }
 
     pub async fn new_with_state(
@@ -115,7 +122,17 @@ impl RpcServer {
         evm_backend: Option<Arc<EvmBackend>>,
         orchestrator: Option<Arc<ConsensusOrchestrator>>,
     ) -> anyhow::Result<Self> {
-        Self::new_full(config, chain_id, current_round, evm_backend, orchestrator, None, None, None).await
+        Self::new_full(
+            config,
+            chain_id,
+            current_round,
+            evm_backend,
+            orchestrator,
+            None,
+            None,
+            None,
+        )
+        .await
     }
 
     pub async fn new_full(
@@ -226,7 +243,9 @@ impl RpcServer {
                                 return;
                             }
 
-                            if let Err(e) = handle_connection(stream, handlers, metrics.clone()).await {
+                            if let Err(e) =
+                                handle_connection(stream, handlers, metrics.clone()).await
+                            {
                                 tracing::debug!("HTTP connection error from {}: {}", peer_addr, e);
                             }
 
@@ -266,8 +285,19 @@ impl RpcServer {
                                 return;
                             }
 
-                            if let Err(e) = handle_websocket_connection(stream, handlers, metrics.clone(), broadcast).await {
-                                tracing::debug!("WebSocket connection error from {}: {}", peer_addr, e);
+                            if let Err(e) = handle_websocket_connection(
+                                stream,
+                                handlers,
+                                metrics.clone(),
+                                broadcast,
+                            )
+                            .await
+                            {
+                                tracing::debug!(
+                                    "WebSocket connection error from {}: {}",
+                                    peer_addr,
+                                    e
+                                );
                             }
                         });
                     }
@@ -579,7 +609,7 @@ async fn handle_websocket_connection(
 }
 
 fn generate_websocket_accept_key(key: &str) -> String {
-    use base64::{Engine as _, engine::general_purpose};
+    use base64::{engine::general_purpose, Engine as _};
 
     let magic = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
     let combined = format!("{}{}", key, magic);
@@ -675,7 +705,8 @@ impl RpcHandlers {
                 "jsonrpc": "2.0",
                 "error": e,
                 "id": id
-            }).to_string()),
+            })
+            .to_string()),
             EvmResult::Unavailable => Err(self.evm_unavailable_error(method, id)),
         }
     }
@@ -699,7 +730,8 @@ impl RpcHandlers {
             return result;
         }
         // Use zero 32-byte hash so the field is present and is a string (Forge-compatible).
-        const ZERO_HASH: &str = "0x0000000000000000000000000000000000000000000000000000000000000000";
+        const ZERO_HASH: &str =
+            "0x0000000000000000000000000000000000000000000000000000000000000000";
         let mut out = obj;
         out.insert("hash".to_string(), serde_json::json!(ZERO_HASH));
         serde_json::Value::Object(out)
@@ -756,7 +788,8 @@ impl RpcHandlers {
                 if evm.is_healthy() {
                     match evm.forward_request(&request).await {
                         Ok(response) => {
-                            return serde_json::to_string(&response).unwrap_or_else(|_| "[]".to_string());
+                            return serde_json::to_string(&response)
+                                .unwrap_or_else(|_| "[]".to_string());
                         }
                         Err(e) => {
                             tracing::warn!("EVM backend batch forward failed: {}", e);
@@ -836,7 +869,8 @@ impl RpcHandlers {
                 match self.delegate_to_evm(&upstream_request).await {
                     EvmResult::Ok(result) => {
                         if let Some(hex_str) = result.as_str() {
-                            if let Ok(n) = u64::from_str_radix(hex_str.trim_start_matches("0x"), 16) {
+                            if let Ok(n) = u64::from_str_radix(hex_str.trim_start_matches("0x"), 16)
+                            {
                                 *self.block_number.write() = n;
                             }
                         }
@@ -867,22 +901,20 @@ impl RpcHandlers {
             }
 
             // Fee history: rope-node can construct this from its own data.
-            "eth_feeHistory" => {
-                match self.delegate_to_evm(&request).await {
-                    EvmResult::Ok(result) => result,
-                    EvmResult::EvmError(e) => {
-                        return serde_json::json!({"jsonrpc":"2.0","error":e,"id":id}).to_string();
-                    }
-                    EvmResult::Unavailable => {
-                        let block_count = params
-                            .and_then(|p| p.as_array())
-                            .and_then(|p| p.first())
-                            .and_then(|b| b.as_u64())
-                            .unwrap_or(1) as usize;
-                        self.native_fee_history(block_count)
-                    }
+            "eth_feeHistory" => match self.delegate_to_evm(&request).await {
+                EvmResult::Ok(result) => result,
+                EvmResult::EvmError(e) => {
+                    return serde_json::json!({"jsonrpc":"2.0","error":e,"id":id}).to_string();
                 }
-            }
+                EvmResult::Unavailable => {
+                    let block_count = params
+                        .and_then(|p| p.as_array())
+                        .and_then(|p| p.first())
+                        .and_then(|b| b.as_u64())
+                        .unwrap_or(1) as usize;
+                    self.native_fee_history(block_count)
+                }
+            },
 
             // Peer count: rope-node knows its own peer count.
             "net_peerCount" => serde_json::json!("0x0"),
@@ -902,8 +934,10 @@ impl RpcHandlers {
             // (rewriting the method name on the wire so the EVM backend
             // understands it), and additionally enrich the response with the
             // `knot` shape.
-            "eth_getBlockByNumber" | "eth_getBlockByHash"
-            | "rope_getKnotByIndex" | "rope_getKnotByHash" => {
+            "eth_getBlockByNumber"
+            | "eth_getBlockByHash"
+            | "rope_getKnotByIndex"
+            | "rope_getKnotByHash" => {
                 let is_canon = matches!(method, "rope_getKnotByIndex" | "rope_getKnotByHash");
                 let upstream_request = if is_canon {
                     let upstream_method = match method {
@@ -941,7 +975,9 @@ impl RpcHandlers {
                                 }
                                 obj.insert(
                                     "canon".to_string(),
-                                    serde_json::json!("v1.1 §3 — eth_getBlockBy* preserved as alias"),
+                                    serde_json::json!(
+                                        "v1.1 §3 — eth_getBlockBy* preserved as alias"
+                                    ),
                                 );
                             }
                         }
@@ -950,12 +986,18 @@ impl RpcHandlers {
                     Err(err_response) => return err_response,
                 }
             }
-            "eth_getBalance" | "eth_getTransactionCount" | "eth_getCode" |
-            "eth_call" | "eth_estimateGas" | "eth_getStorageAt" |
-            "eth_getLogs" |
-            "eth_getBlockTransactionCountByNumber" | "eth_getBlockTransactionCountByHash" |
-            "eth_getTransactionByHash" | "eth_getTransactionByBlockNumberAndIndex" |
-            "eth_getTransactionReceipt" => {
+            "eth_getBalance"
+            | "eth_getTransactionCount"
+            | "eth_getCode"
+            | "eth_call"
+            | "eth_estimateGas"
+            | "eth_getStorageAt"
+            | "eth_getLogs"
+            | "eth_getBlockTransactionCountByNumber"
+            | "eth_getBlockTransactionCountByHash"
+            | "eth_getTransactionByHash"
+            | "eth_getTransactionByBlockNumberAndIndex"
+            | "eth_getTransactionReceipt" => {
                 match self.unwrap_evm_or_error(self.delegate_to_evm(&request).await, method, &id) {
                     Ok(result) => result,
                     Err(err_response) => return err_response,
@@ -996,11 +1038,20 @@ impl RpcHandlers {
             // the correct, expected behaviour and is forwarded to the client
             // unchanged.
             // ================================================================
-            "anvil_impersonateAccount" | "anvil_stopImpersonatingAccount" |
-            "anvil_setBalance" | "anvil_setCode" | "anvil_setNonce" |
-            "anvil_dumpState" | "anvil_loadState" | "anvil_mine" |
-            "anvil_setStorageAt" | "anvil_reset" |
-            "evm_snapshot" | "evm_revert" | "evm_increaseTime" | "evm_mine" => {
+            "anvil_impersonateAccount"
+            | "anvil_stopImpersonatingAccount"
+            | "anvil_setBalance"
+            | "anvil_setCode"
+            | "anvil_setNonce"
+            | "anvil_dumpState"
+            | "anvil_loadState"
+            | "anvil_mine"
+            | "anvil_setStorageAt"
+            | "anvil_reset"
+            | "evm_snapshot"
+            | "evm_revert"
+            | "evm_increaseTime"
+            | "evm_mine" => {
                 match self.unwrap_evm_or_error(self.delegate_to_evm(&request).await, method, &id) {
                     Ok(result) => result,
                     Err(err_response) => return err_response,
@@ -1047,8 +1098,14 @@ impl RpcHandlers {
                 }
             }
             "rope_getNetworkInfo" => {
-                let evm_connected = self.evm_backend.as_ref().map(|b| b.is_healthy()).unwrap_or(false);
-                let ai_agents = self.orchestrator.as_ref()
+                let evm_connected = self
+                    .evm_backend
+                    .as_ref()
+                    .map(|b| b.is_healthy())
+                    .unwrap_or(false);
+                let ai_agents = self
+                    .orchestrator
+                    .as_ref()
                     .map(|o| o.stats().ai_agents_active)
                     .unwrap_or(0);
 
@@ -1091,7 +1148,10 @@ impl RpcHandlers {
                     Some(l) => l,
                     None => return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32603,"message":"Ledger subsystem not initialized"},"id":id}).to_string(),
                 };
-                let owner = params.and_then(|p| p.get(0)).and_then(|v| v.as_str()).unwrap_or("");
+                let owner = params
+                    .and_then(|p| p.get(0))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
                 if owner.is_empty() {
                     return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32602,"message":"Missing owner address parameter"},"id":id}).to_string();
                 }
@@ -1127,23 +1187,37 @@ impl RpcHandlers {
                     Some(l) => l,
                     None => return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32603,"message":"Ledger subsystem not initialized"},"id":id}).to_string(),
                 };
-                let owner = params.and_then(|p| p.get(0)).and_then(|v| v.as_str()).unwrap_or("");
+                let owner = params
+                    .and_then(|p| p.get(0))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
                 let interaction_val = params.and_then(|p| p.get(1));
                 if owner.is_empty() || interaction_val.is_none() {
                     return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32602,"message":"Missing owner address or interaction parameter"},"id":id}).to_string();
                 }
                 let interaction_val = interaction_val.unwrap();
 
-                let itype_str = interaction_val.get("interaction_type").and_then(|v| v.as_str()).unwrap_or("Custom");
-                let description = interaction_val.get("description").and_then(|v| v.as_str()).unwrap_or("");
-                let metadata = interaction_val.get("metadata").cloned().unwrap_or(serde_json::json!({}));
+                let itype_str = interaction_val
+                    .get("interaction_type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Custom");
+                let description = interaction_val
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let metadata = interaction_val
+                    .get("metadata")
+                    .cloned()
+                    .unwrap_or(serde_json::json!({}));
 
                 use rope_core::personal_ledger::InteractionType;
                 let interaction_type = match itype_str {
                     "Transfer" => InteractionType::Transfer,
                     "ContractCall" | "ContractDeploy" => InteractionType::ContractCall,
                     "TokenApproval" | "Approval" => InteractionType::TokenApproval,
-                    "IdentityClaim" | "DIDCreation" | "DIDUpdate" | "ClaimIssuance" => InteractionType::IdentityClaim,
+                    "IdentityClaim" | "DIDCreation" | "DIDUpdate" | "ClaimIssuance" => {
+                        InteractionType::IdentityClaim
+                    }
                     "TestimonySubmission" => InteractionType::TestimonySubmission,
                     "DataSharing" | "PlatformConnection" => InteractionType::DataSharing,
                     "StakeDeposit" | "Stake" => InteractionType::StakeDeposit,
@@ -1162,7 +1236,10 @@ impl RpcHandlers {
                         let mut map = hashbrown::HashMap::new();
                         if let Some(obj) = metadata.as_object() {
                             for (k, v) in obj {
-                                map.insert(k.clone(), v.as_str().unwrap_or(&v.to_string()).to_string());
+                                map.insert(
+                                    k.clone(),
+                                    v.as_str().unwrap_or(&v.to_string()).to_string(),
+                                );
                             }
                         }
                         map
@@ -1191,7 +1268,10 @@ impl RpcHandlers {
                     Some(l) => l,
                     None => return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32603,"message":"Ledger subsystem not initialized"},"id":id}).to_string(),
                 };
-                let owner = params.and_then(|p| p.get(0)).and_then(|v| v.as_str()).unwrap_or("");
+                let owner = params
+                    .and_then(|p| p.get(0))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
                 if owner.is_empty() {
                     return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32602,"message":"Missing owner address parameter"},"id":id}).to_string();
                 }
@@ -1218,20 +1298,27 @@ impl RpcHandlers {
                     Some(l) => l,
                     None => return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32603,"message":"Ledger subsystem not initialized"},"id":id}).to_string(),
                 };
-                let owner = params.and_then(|p| p.get(0)).and_then(|v| v.as_str()).unwrap_or("");
+                let owner = params
+                    .and_then(|p| p.get(0))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
                 if owner.is_empty() {
                     return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32602,"message":"Missing owner address parameter"},"id":id}).to_string();
                 }
                 match ledger.repatriate_ledger(owner, false) {
                     Ok(resp) => {
-                        let fragments: Vec<serde_json::Value> = resp.entries.iter().map(|e| {
-                            serde_json::json!({
-                                "index": e.sequence,
-                                "hash": e.string_id,
-                                "timestamp": chrono::Utc::now().timestamp(),
-                                "interaction": null
+                        let fragments: Vec<serde_json::Value> = resp
+                            .entries
+                            .iter()
+                            .map(|e| {
+                                serde_json::json!({
+                                    "index": e.sequence,
+                                    "hash": e.string_id,
+                                    "timestamp": chrono::Utc::now().timestamp(),
+                                    "interaction": null
+                                })
                             })
-                        }).collect();
+                            .collect();
                         let integrity = format!("0x{:0>64x}", resp.total_bytes);
                         serde_json::json!({
                             "owner": resp.wallet_address,
@@ -1265,7 +1352,10 @@ impl RpcHandlers {
                     Some(l) => l,
                     None => return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32603,"message":"Ledger subsystem not initialized"},"id":id}).to_string(),
                 };
-                let owner = params.and_then(|p| p.get(0)).and_then(|v| v.as_str()).unwrap_or("");
+                let owner = params
+                    .and_then(|p| p.get(0))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
                 if owner.is_empty() {
                     return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32602,"message":"Missing owner address parameter"},"id":id}).to_string();
                 }
@@ -1343,9 +1433,18 @@ impl RpcHandlers {
                     Some(l) => l,
                     None => return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32603,"message":"Ledger subsystem not initialized"},"id":id}).to_string(),
                 };
-                let owner = params.and_then(|p| p.get(0)).and_then(|v| v.as_str()).unwrap_or("");
-                let knot_id_raw = params.and_then(|p| p.get(1)).and_then(|v| v.as_str()).unwrap_or("");
-                let reason = params.and_then(|p| p.get(2)).and_then(|v| v.as_str()).unwrap_or("OwnerRequest");
+                let owner = params
+                    .and_then(|p| p.get(0))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let knot_id_raw = params
+                    .and_then(|p| p.get(1))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let reason = params
+                    .and_then(|p| p.get(2))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("OwnerRequest");
 
                 if owner.is_empty() || knot_id_raw.is_empty() {
                     return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32602,"message":"Expected params [ wallet_address, knot_string_id, [reason] ]"},"id":id}).to_string();
@@ -1407,7 +1506,10 @@ impl RpcHandlers {
                     Some(l) => l,
                     None => return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32603,"message":"Ledger subsystem not initialized"},"id":id}).to_string(),
                 };
-                let owner = params.and_then(|p| p.get(0)).and_then(|v| v.as_str()).unwrap_or("");
+                let owner = params
+                    .and_then(|p| p.get(0))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
                 if owner.is_empty() {
                     return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32602,"message":"Missing wallet address parameter"},"id":id}).to_string();
                 }
@@ -1436,8 +1538,16 @@ impl RpcHandlers {
                                 }),
                             })
                             .collect();
-                        let active = knots.iter().filter(|k| k.get("status").and_then(|v| v.as_str()) == Some("active")).count();
-                        let tombs = knots.iter().filter(|k| k.get("status").and_then(|v| v.as_str()) == Some("tombstone")).count();
+                        let active = knots
+                            .iter()
+                            .filter(|k| k.get("status").and_then(|v| v.as_str()) == Some("active"))
+                            .count();
+                        let tombs = knots
+                            .iter()
+                            .filter(|k| {
+                                k.get("status").and_then(|v| v.as_str()) == Some("tombstone")
+                            })
+                            .count();
                         serde_json::json!({
                             "wallet_address": owner,
                             "string_id": format!("0x{}", string_id_hex),
@@ -1465,12 +1575,34 @@ impl RpcHandlers {
                     Some(g) => g,
                     None => return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32603,"message":"IoT Gateway not initialized"},"id":id}).to_string(),
                 };
-                let p = params.and_then(|p| p.get(0)).cloned().unwrap_or(serde_json::json!({}));
-                let device_id = p.get("device_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                let wallet = p.get("wallet_address").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                let dtype = p.get("device_type").and_then(|v| v.as_str()).unwrap_or("sensor");
-                let name = p.get("name").and_then(|v| v.as_str()).unwrap_or(&device_id).to_string();
-                let owner = p.get("owner_wallet").and_then(|v| v.as_str()).unwrap_or(&wallet).to_string();
+                let p = params
+                    .and_then(|p| p.get(0))
+                    .cloned()
+                    .unwrap_or(serde_json::json!({}));
+                let device_id = p
+                    .get("device_id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let wallet = p
+                    .get("wallet_address")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let dtype = p
+                    .get("device_type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("sensor");
+                let name = p
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(&device_id)
+                    .to_string();
+                let owner = p
+                    .get("owner_wallet")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(&wallet)
+                    .to_string();
                 let location = p.get("location").and_then(|v| {
                     let lat = v.get("lat").and_then(|l| l.as_f64())?;
                     let lng = v.get("lng").and_then(|l| l.as_f64())?;
@@ -1508,8 +1640,15 @@ impl RpcHandlers {
                     Some(g) => g,
                     None => return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32603,"message":"IoT Gateway not initialized"},"id":id}).to_string(),
                 };
-                let p = params.and_then(|p| p.get(0)).cloned().unwrap_or(serde_json::json!({}));
-                let wallet = p.get("device_wallet").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let p = params
+                    .and_then(|p| p.get(0))
+                    .cloned()
+                    .unwrap_or(serde_json::json!({}));
+                let wallet = p
+                    .get("device_wallet")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
                 if wallet.is_empty() {
                     return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32602,"message":"Missing device_wallet"},"id":id}).to_string();
                 }
@@ -1518,13 +1657,25 @@ impl RpcHandlers {
                 if let Some(obj) = p.get("readings").and_then(|v| v.as_object()) {
                     for (k, v) in obj {
                         if let Some(f) = v.as_f64() {
-                            readings.insert(k.clone(), rope_iot_gateway::protocol::TelemetryValue::Float(f));
+                            readings.insert(
+                                k.clone(),
+                                rope_iot_gateway::protocol::TelemetryValue::Float(f),
+                            );
                         } else if let Some(i) = v.as_i64() {
-                            readings.insert(k.clone(), rope_iot_gateway::protocol::TelemetryValue::Integer(i));
+                            readings.insert(
+                                k.clone(),
+                                rope_iot_gateway::protocol::TelemetryValue::Integer(i),
+                            );
                         } else if let Some(b) = v.as_bool() {
-                            readings.insert(k.clone(), rope_iot_gateway::protocol::TelemetryValue::Boolean(b));
+                            readings.insert(
+                                k.clone(),
+                                rope_iot_gateway::protocol::TelemetryValue::Boolean(b),
+                            );
                         } else if let Some(s) = v.as_str() {
-                            readings.insert(k.clone(), rope_iot_gateway::protocol::TelemetryValue::Text(s.to_string()));
+                            readings.insert(
+                                k.clone(),
+                                rope_iot_gateway::protocol::TelemetryValue::Text(s.to_string()),
+                            );
                         }
                     }
                 }
@@ -1539,7 +1690,9 @@ impl RpcHandlers {
                 };
 
                 match gw.ingest_telemetry(payload) {
-                    Ok(()) => serde_json::json!({"status": "ingested", "timestamp": chrono::Utc::now().timestamp()}),
+                    Ok(()) => {
+                        serde_json::json!({"status": "ingested", "timestamp": chrono::Utc::now().timestamp()})
+                    }
                     Err(e) => {
                         return serde_json::json!({"jsonrpc":"2.0","error":{"code":3002,"message":e},"id":id}).to_string();
                     }
@@ -1551,7 +1704,10 @@ impl RpcHandlers {
                     Some(g) => g,
                     None => return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32603,"message":"IoT Gateway not initialized"},"id":id}).to_string(),
                 };
-                let device_id = params.and_then(|p| p.get(0)).and_then(|v| v.as_str()).unwrap_or("");
+                let device_id = params
+                    .and_then(|p| p.get(0))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
                 if device_id.is_empty() {
                     return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32602,"message":"Missing device_id parameter"},"id":id}).to_string();
                 }
@@ -1596,17 +1752,22 @@ impl RpcHandlers {
                     Some(g) => g,
                     None => return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32603,"message":"IoT Gateway not initialized"},"id":id}).to_string(),
                 };
-                let devices: Vec<serde_json::Value> = gw.registry().list_devices().iter().map(|d| {
-                    serde_json::json!({
-                        "device_id": d.device_id,
-                        "wallet_address": d.wallet_address,
-                        "device_type": d.device_type.as_str(),
-                        "name": d.name,
-                        "status": format!("{:?}", d.status),
-                        "telemetry_count": d.telemetry_count,
-                        "last_seen_at": d.last_seen_at
+                let devices: Vec<serde_json::Value> = gw
+                    .registry()
+                    .list_devices()
+                    .iter()
+                    .map(|d| {
+                        serde_json::json!({
+                            "device_id": d.device_id,
+                            "wallet_address": d.wallet_address,
+                            "device_type": d.device_type.as_str(),
+                            "name": d.name,
+                            "status": format!("{:?}", d.status),
+                            "telemetry_count": d.telemetry_count,
+                            "last_seen_at": d.last_seen_at
+                        })
                     })
-                }).collect();
+                    .collect();
                 serde_json::json!({"devices": devices, "count": devices.len()})
             }
 
@@ -1637,7 +1798,10 @@ impl RpcHandlers {
                     Some(f) => f,
                     None => return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32603,"message":"AI Agent Framework not initialized"},"id":id}).to_string(),
                 };
-                let agent_id = params.and_then(|p| p.get(0)).and_then(|v| v.as_str()).unwrap_or("");
+                let agent_id = params
+                    .and_then(|p| p.get(0))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
                 if agent_id.is_empty() {
                     let stats = fw.stats();
                     serde_json::json!({
@@ -1676,17 +1840,21 @@ impl RpcHandlers {
                     Some(f) => f,
                     None => return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32603,"message":"AI Agent Framework not initialized"},"id":id}).to_string(),
                 };
-                let agents: Vec<serde_json::Value> = fw.list_agents().iter().map(|a| {
-                    serde_json::json!({
-                        "agent_id": a.agent_id,
-                        "name": a.name,
-                        "domain": a.domain.as_str(),
-                        "version": a.version,
-                        "state": a.state.as_str(),
-                        "run_count": a.run_count,
-                        "avg_confidence": a.avg_confidence
+                let agents: Vec<serde_json::Value> = fw
+                    .list_agents()
+                    .iter()
+                    .map(|a| {
+                        serde_json::json!({
+                            "agent_id": a.agent_id,
+                            "name": a.name,
+                            "domain": a.domain.as_str(),
+                            "version": a.version,
+                            "state": a.state.as_str(),
+                            "run_count": a.run_count,
+                            "avg_confidence": a.avg_confidence
+                        })
                     })
-                }).collect();
+                    .collect();
                 serde_json::json!({"agents": agents, "count": agents.len()})
             }
 
@@ -1695,13 +1863,21 @@ impl RpcHandlers {
                     Some(f) => f,
                     None => return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32603,"message":"AI Agent Framework not initialized"},"id":id}).to_string(),
                 };
-                let agent_id = params.and_then(|p| p.get(0)).and_then(|v| v.as_str()).unwrap_or("");
-                let wallet = params.and_then(|p| p.get(1)).and_then(|v| v.as_str()).unwrap_or("");
+                let agent_id = params
+                    .and_then(|p| p.get(0))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let wallet = params
+                    .and_then(|p| p.get(1))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
                 if agent_id.is_empty() || wallet.is_empty() {
                     return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32602,"message":"Missing agent_id or wallet parameter"},"id":id}).to_string();
                 }
                 match fw.subscribe_agent_to_wallet(agent_id, wallet) {
-                    Ok(()) => serde_json::json!({"status": "subscribed", "agent_id": agent_id, "wallet": wallet}),
+                    Ok(()) => {
+                        serde_json::json!({"status": "subscribed", "agent_id": agent_id, "wallet": wallet})
+                    }
                     Err(e) => {
                         return serde_json::json!({"jsonrpc":"2.0","error":{"code":4002,"message":e},"id":id}).to_string();
                     }
@@ -1713,43 +1889,49 @@ impl RpcHandlers {
                     Some(f) => f,
                     None => return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32603,"message":"AI Agent Framework not initialized"},"id":id}).to_string(),
                 };
-                let limit = params.and_then(|p| p.get(0)).and_then(|v| v.as_u64()).unwrap_or(10) as usize;
-                let diagnoses: Vec<serde_json::Value> = fw.recent_diagnoses(limit).iter().map(|d| {
-                    serde_json::json!({
-                        "agent_id": d.agent_id,
-                        "target_wallet": d.target_wallet,
-                        "diagnosis_type": d.diagnosis_type,
-                        "severity": d.severity.as_str(),
-                        "confidence": d.confidence.value,
-                        "description": d.description,
-                        "timestamp": d.timestamp,
-                        "recommendations": d.recommendations.iter().map(|r| serde_json::json!({
-                            "action": r.action,
-                            "priority": format!("{:?}", r.priority)
-                        })).collect::<Vec<_>>()
+                let limit = params
+                    .and_then(|p| p.get(0))
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(10) as usize;
+                let diagnoses: Vec<serde_json::Value> = fw
+                    .recent_diagnoses(limit)
+                    .iter()
+                    .map(|d| {
+                        serde_json::json!({
+                            "agent_id": d.agent_id,
+                            "target_wallet": d.target_wallet,
+                            "diagnosis_type": d.diagnosis_type,
+                            "severity": d.severity.as_str(),
+                            "confidence": d.confidence.value,
+                            "description": d.description,
+                            "timestamp": d.timestamp,
+                            "recommendations": d.recommendations.iter().map(|r| serde_json::json!({
+                                "action": r.action,
+                                "priority": format!("{:?}", r.priority)
+                            })).collect::<Vec<_>>()
+                        })
                     })
-                }).collect();
+                    .collect();
                 serde_json::json!({"diagnoses": diagnoses, "count": diagnoses.len()})
             }
 
-            _ => {
-                match self.delegate_to_evm(&request).await {
-                    EvmResult::Ok(result) => result,
-                    EvmResult::EvmError(e) => {
-                        return serde_json::json!({"jsonrpc":"2.0","error":e,"id":id}).to_string();
-                    }
-                    EvmResult::Unavailable => {
-                        return serde_json::json!({
-                            "jsonrpc": "2.0",
-                            "error": {
-                                "code": -32601,
-                                "message": format!("Method not found: {}", method)
-                            },
-                            "id": id
-                        }).to_string();
-                    }
+            _ => match self.delegate_to_evm(&request).await {
+                EvmResult::Ok(result) => result,
+                EvmResult::EvmError(e) => {
+                    return serde_json::json!({"jsonrpc":"2.0","error":e,"id":id}).to_string();
                 }
-            }
+                EvmResult::Unavailable => {
+                    return serde_json::json!({
+                        "jsonrpc": "2.0",
+                        "error": {
+                            "code": -32601,
+                            "message": format!("Method not found: {}", method)
+                        },
+                        "id": id
+                    })
+                    .to_string();
+                }
+            },
         };
 
         serde_json::json!({
@@ -1901,7 +2083,11 @@ mod tests {
 
         assert!(response.contains("0x425d4"));
         // Result must be a plain hex string for Forge/cast; not an object.
-        assert!(response.contains(r#""result":"0x425d4""#), "eth_chainId must return result as string, got: {}", response);
+        assert!(
+            response.contains(r#""result":"0x425d4""#),
+            "eth_chainId must return result as string, got: {}",
+            response
+        );
     }
 
     #[tokio::test]
@@ -1919,9 +2105,21 @@ mod tests {
         };
         // Invalid JSON — must return -32700 Parse error, not extended chain info object.
         let response = handlers.handle_json_rpc(r#"not valid json"#).await;
-        assert!(response.contains("-32700"), "expected Parse error code: {}", response);
-        assert!(response.contains("Parse error"), "expected Parse error message: {}", response);
-        assert!(!response.contains("networkName"), "must not return extended object so Forge can parse: {}", response);
+        assert!(
+            response.contains("-32700"),
+            "expected Parse error code: {}",
+            response
+        );
+        assert!(
+            response.contains("Parse error"),
+            "expected Parse error message: {}",
+            response
+        );
+        assert!(
+            !response.contains("networkName"),
+            "must not return extended object so Forge can parse: {}",
+            response
+        );
     }
 
     #[tokio::test]

@@ -11,9 +11,9 @@
 //! Every write transaction is notarized into a RopeString.
 
 pub mod agent_runner;
-pub mod evm_backend;
 pub mod config;
 pub mod consensus_orchestrator;
+pub mod evm_backend;
 pub mod genesis;
 pub mod ledger_manager;
 pub mod metrics;
@@ -32,9 +32,9 @@ pub mod string_producer;
 pub use evm_backend as anvil_backend;
 
 pub use agent_runner::AgentRunner;
-pub use evm_backend::{EvmBackend, EvmBackendConfig};
 pub use config::NodeConfig;
 pub use consensus_orchestrator::{ConsensusOrchestrator, OrchestratorConfig};
+pub use evm_backend::{EvmBackend, EvmBackendConfig};
 pub use ledger_manager::LedgerManager;
 pub use node::RopeNode;
 pub use string_producer::{ProductionEvent, ProductionStats, StringProducer, StringProducerConfig};

@@ -285,7 +285,8 @@ impl StringLattice {
         }
 
         // Populate creator index
-        self.creator_index.write()
+        self.creator_index
+            .write()
             .entry(creator_key)
             .or_default()
             .push(id);
@@ -564,7 +565,10 @@ impl StringLattice {
             } else if let Some(ts) = tombstones.get(&current) {
                 chain.push(LedgerEntry::Tombstone(current, ts.clone()));
                 // Use DAG to hop past the tombstone.
-                dag.get_parents(&current).into_iter().next().unwrap_or(StringId::ZERO)
+                dag.get_parents(&current)
+                    .into_iter()
+                    .next()
+                    .unwrap_or(StringId::ZERO)
             } else {
                 // Unknown id — neither live nor tombstoned. Stop walking.
                 break;
@@ -905,7 +909,11 @@ mod tests {
 
         let entries = lattice.walk_string_with_tombstones(&b_id);
 
-        assert_eq!(entries.len(), 3, "walk should return all 3 positions including the tombstone");
+        assert_eq!(
+            entries.len(),
+            3,
+            "walk should return all 3 positions including the tombstone"
+        );
         assert_eq!(entries[0].string_id(), g_id, "genesis first");
         assert_eq!(entries[1].string_id(), a_id, "tombstone preserves position");
         assert!(entries[1].is_tombstone(), "middle entry must be tombstone");
