@@ -15,9 +15,9 @@ rope-core = { path = "../rope-core" }
 rope-crypto = { path = "../rope-crypto" }
 
 # Web framework
-axum = { version = "0.7", features = ["macros"] }
+axum = { version = "0.7", features = ["macros", "tokio"] }
 tower = { version = "0.4", features = ["full"] }
-tower-http = { version = "0.5", features = ["cors", "compression-gzip"] }
+tower-http = { version = "0.5", features = ["cors", "compression-gzip", "fs"] }
 
 # Async runtime
 tokio = { workspace = true }

@@ -27,6 +27,12 @@ serde_json = { workspace = true }
 # Cryptography
 blake3 = { workspace = true }
 uuid = { version = "1.0", features = ["v4", "serde"] }
+hmac = "0.12"
+sha2 = "0.10"
+rand = "0.8"
+
+# Security (CERBER v3.0)
+regex = "1.10"
 
 # Time
 chrono = { workspace = true }
