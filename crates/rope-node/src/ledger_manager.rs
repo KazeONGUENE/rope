@@ -176,10 +176,7 @@ impl LedgerManager {
     /// 4. Register in ledger registry
     /// 5. Slice genesis string for distribution
     /// 6. Record creation event
-    pub fn create_ledger(
-        &self,
-        wallet_hex: &str,
-    ) -> Result<CreateLedgerResponse, String> {
+    pub fn create_ledger(&self, wallet_hex: &str) -> Result<CreateLedgerResponse, String> {
         let wallet = WalletAddress::from_hex(wallet_hex).map_err(|e| e.to_string())?;
         let wallet_bytes = wallet.as_bytes().to_vec();
 
@@ -212,7 +209,8 @@ impl LedgerManager {
             .create_ledger(&wallet_bytes, genesis_id, generation, replication)
             .map_err(|e| e.to_string())?;
 
-        self.store.append_to_chain(&wallet_bytes, *genesis_id.as_bytes());
+        self.store
+            .append_to_chain(&wallet_bytes, *genesis_id.as_bytes());
         let stored_desc = rope_storage::ledger_db::StoredLedgerDescriptor {
             wallet_address: wallet_bytes.clone(),
             genesis_string_id: *genesis_id.as_bytes(),
@@ -229,11 +227,8 @@ impl LedgerManager {
         };
         self.store.put_descriptor(&wallet_bytes, stored_desc);
 
-        self.lifecycle.record_creation(
-            wallet_bytes,
-            *genesis_id.as_bytes(),
-            generation,
-        );
+        self.lifecycle
+            .record_creation(wallet_bytes, *genesis_id.as_bytes(), generation);
 
         tracing::info!(
             "Created personal ledger for wallet {} — genesis {}",
@@ -290,14 +285,9 @@ impl LedgerManager {
             generation,
         );
 
-        let encrypted = encrypt_ledger_content(
-            &key,
-            &plaintext,
-            &wallet,
-            generation,
-            sequence_number,
-        )
-        .map_err(|e| e.to_string())?;
+        let encrypted =
+            encrypt_ledger_content(&key, &plaintext, &wallet, generation, sequence_number)
+                .map_err(|e| e.to_string())?;
 
         let envelope = LedgerEnvelope::encrypted_v1(encrypted);
         let envelope_bytes = envelope.serialize();
@@ -328,7 +318,8 @@ impl LedgerManager {
         self.registry
             .record_append(&wallet_bytes, new_id, encrypted_size, generation)
             .map_err(|e| e.to_string())?;
-        self.store.append_to_chain(&wallet_bytes, *new_id.as_bytes());
+        self.store
+            .append_to_chain(&wallet_bytes, *new_id.as_bytes());
 
         self.lifecycle.record_append(
             wallet_bytes,
@@ -356,10 +347,7 @@ impl LedgerManager {
     }
 
     /// Get the status of a wallet's ledger
-    pub fn get_ledger_status(
-        &self,
-        wallet_hex: &str,
-    ) -> Result<LedgerStatusResponse, String> {
+    pub fn get_ledger_status(&self, wallet_hex: &str) -> Result<LedgerStatusResponse, String> {
         let wallet = WalletAddress::from_hex(wallet_hex).map_err(|e| e.to_string())?;
         let wallet_bytes = wallet.as_bytes().to_vec();
 
@@ -503,10 +491,10 @@ impl LedgerManager {
         }
 
         // Walk the chain (tombstone-aware) and verify the target belongs to this wallet's string.
-        let entries_before = self.lattice.walk_string_with_tombstones(&desc.head_string_id);
-        let belongs = entries_before
-            .iter()
-            .any(|e| e.string_id() == knot_id);
+        let entries_before = self
+            .lattice
+            .walk_string_with_tombstones(&desc.head_string_id);
+        let belongs = entries_before.iter().any(|e| e.string_id() == knot_id);
         if !belongs {
             return Err(format!(
                 "Knot {} does not belong to wallet {}'s string",
@@ -529,7 +517,9 @@ impl LedgerManager {
             .map_err(|e| format!("mark_knot_untied failed: {}", e))?;
 
         // Recompute counts after the untying for the response.
-        let entries_after = self.lattice.walk_string_with_tombstones(&desc.head_string_id);
+        let entries_after = self
+            .lattice
+            .walk_string_with_tombstones(&desc.head_string_id);
         let knots_remaining = entries_after.iter().filter(|e| !e.is_tombstone()).count();
         let tombstones_total = entries_after.iter().filter(|e| e.is_tombstone()).count();
 
@@ -619,24 +609,22 @@ impl LedgerManager {
 
             let decrypted_content = if decrypt && seq > 0 {
                 match LedgerEnvelope::deserialize(&content) {
-                    Ok(envelope) => {
-                        match &envelope.payload {
-                            rope_crypto::ledger_encryption::LedgerEnvelopePayload::EncryptedV1(
-                                encrypted,
-                            ) => {
-                                let oes_state = self.oes.clone();
-                                let key = derive_ledger_key(
-                                    &|len, purpose| oes_state.derive_key(len, purpose),
-                                    &wallet,
-                                    encrypted.oes_generation,
-                                );
-                                decrypt_ledger_content(&key, encrypted).ok()
-                            }
-                            rope_crypto::ledger_encryption::LedgerEnvelopePayload::Plaintext(
-                                data,
-                            ) => Some(data.clone()),
+                    Ok(envelope) => match &envelope.payload {
+                        rope_crypto::ledger_encryption::LedgerEnvelopePayload::EncryptedV1(
+                            encrypted,
+                        ) => {
+                            let oes_state = self.oes.clone();
+                            let key = derive_ledger_key(
+                                &|len, purpose| oes_state.derive_key(len, purpose),
+                                &wallet,
+                                encrypted.oes_generation,
+                            );
+                            decrypt_ledger_content(&key, encrypted).ok()
                         }
-                    }
+                        rope_crypto::ledger_encryption::LedgerEnvelopePayload::Plaintext(data) => {
+                            Some(data.clone())
+                        }
+                    },
                     Err(_) => None,
                 }
             } else {

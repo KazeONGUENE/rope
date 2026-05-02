@@ -3,16 +3,16 @@
 //! Full node implementation with integrated libp2p swarm networking
 //! and string production.
 
-use crate::evm_backend::{EvmBackend, EvmBackendConfig};
 use crate::config::{NodeConfig, NodeMode};
 use crate::consensus_orchestrator::{ConsensusOrchestrator, OrchestratorConfig};
+use crate::evm_backend::{EvmBackend, EvmBackendConfig};
 use crate::genesis;
 use crate::ledger_manager::LedgerManager;
 use crate::metrics::MetricsServer;
 use crate::rpc_server::RpcServer;
 use crate::string_producer::{ProductionEvent, StringProducer, StringProducerConfig};
-use rope_iot_gateway::{IoTGateway, IoTGatewayConfig};
 use rope_ai_framework::{AgentFramework, AgentFrameworkConfig};
+use rope_iot_gateway::{IoTGateway, IoTGatewayConfig};
 
 use parking_lot::RwLock;
 use rope_core::clock::ClockManager;
@@ -192,19 +192,21 @@ impl RopeNode {
             let mut gateway = IoTGateway::new(iot_config);
 
             let ledger_for_iot = ledger.clone();
-            let sink: rope_iot_gateway::gateway::IoTSink = Arc::new(move |wallet, itype, desc, meta| {
-                use rope_core::personal_ledger::{InteractionRecord, InteractionType};
-                let record = InteractionRecord {
-                    interaction_type: InteractionType::Custom(itype),
-                    counterparty: None,
-                    data: desc.as_bytes().to_vec(),
-                    timestamp: chrono::Utc::now().timestamp(),
-                    metadata: meta,
-                };
-                ledger_for_iot.append_to_ledger(&wallet, record)
-                    .map(|_| ())
-                    .map_err(|e| e.to_string())
-            });
+            let sink: rope_iot_gateway::gateway::IoTSink =
+                Arc::new(move |wallet, itype, desc, meta| {
+                    use rope_core::personal_ledger::{InteractionRecord, InteractionType};
+                    let record = InteractionRecord {
+                        interaction_type: InteractionType::Custom(itype),
+                        counterparty: None,
+                        data: desc.as_bytes().to_vec(),
+                        timestamp: chrono::Utc::now().timestamp(),
+                        metadata: meta,
+                    };
+                    ledger_for_iot
+                        .append_to_ledger(&wallet, record)
+                        .map(|_| ())
+                        .map_err(|e| e.to_string())
+                });
             gateway.set_sink(sink);
 
             let gateway = Arc::new(gateway);
@@ -236,19 +238,21 @@ impl RopeNode {
             let mut framework = AgentFramework::new(fw_config);
 
             let ledger_for_ai = ledger.clone();
-            let ai_sink: rope_ai_framework::framework::DiagnosisSink = Arc::new(move |wallet, itype, desc, meta| {
-                use rope_core::personal_ledger::{InteractionRecord, InteractionType};
-                let record = InteractionRecord {
-                    interaction_type: InteractionType::Custom(itype),
-                    counterparty: None,
-                    data: desc.as_bytes().to_vec(),
-                    timestamp: chrono::Utc::now().timestamp(),
-                    metadata: meta,
-                };
-                ledger_for_ai.append_to_ledger(&wallet, record)
-                    .map(|_| ())
-                    .map_err(|e| e.to_string())
-            });
+            let ai_sink: rope_ai_framework::framework::DiagnosisSink =
+                Arc::new(move |wallet, itype, desc, meta| {
+                    use rope_core::personal_ledger::{InteractionRecord, InteractionType};
+                    let record = InteractionRecord {
+                        interaction_type: InteractionType::Custom(itype),
+                        counterparty: None,
+                        data: desc.as_bytes().to_vec(),
+                        timestamp: chrono::Utc::now().timestamp(),
+                        metadata: meta,
+                    };
+                    ledger_for_ai
+                        .append_to_ledger(&wallet, record)
+                        .map(|_| ())
+                        .map_err(|e| e.to_string())
+                });
             framework.set_sink(ai_sink);
 
             let framework = Arc::new(framework);
@@ -605,7 +609,11 @@ impl RopeNode {
         }
 
         if self.config.ai_framework.enabled {
-            let agent_count = self.ai_framework.as_ref().map(|f| f.agent_count()).unwrap_or(0);
+            let agent_count = self
+                .ai_framework
+                .as_ref()
+                .map(|f| f.agent_count())
+                .unwrap_or(0);
             tracing::info!(
                 "AI Agent Framework: {} agents registered (scheduler: {}s)",
                 agent_count,

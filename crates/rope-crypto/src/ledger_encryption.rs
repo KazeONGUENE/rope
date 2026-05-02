@@ -161,8 +161,7 @@ impl LedgerEnvelope {
                 if data.len() < 5 {
                     return Err(LedgerCryptoError::InvalidEnvelope);
                 }
-                let len =
-                    u32::from_be_bytes(data[1..5].try_into().unwrap()) as usize;
+                let len = u32::from_be_bytes(data[1..5].try_into().unwrap()) as usize;
                 if data.len() < 5 + len {
                     return Err(LedgerCryptoError::InvalidEnvelope);
                 }
@@ -222,11 +221,7 @@ pub fn derive_ledger_key(
 /// Nonces must never repeat for the same key. Since each (wallet, generation)
 /// pair produces a unique key, and each entry within that generation has a
 /// unique sequence_number, the nonce is guaranteed unique.
-fn derive_nonce(
-    wallet: &WalletAddress,
-    generation: u64,
-    sequence_number: u64,
-) -> [u8; 12] {
+fn derive_nonce(wallet: &WalletAddress, generation: u64, sequence_number: u64) -> [u8; 12] {
     let mut input = Vec::new();
     input.extend_from_slice(b"ledger_nonce:");
     input.extend_from_slice(wallet.as_bytes());
@@ -279,9 +274,14 @@ pub fn decrypt_ledger_content(
         entry.sequence_number,
     );
 
-    let plaintext =
-        chacha20_poly1305_decrypt(key.as_bytes(), &entry.nonce, &entry.ciphertext, &entry.tag, &aad)
-            .map_err(|_| LedgerCryptoError::DecryptionFailed)?;
+    let plaintext = chacha20_poly1305_decrypt(
+        key.as_bytes(),
+        &entry.nonce,
+        &entry.ciphertext,
+        &entry.tag,
+        &aad,
+    )
+    .map_err(|_| LedgerCryptoError::DecryptionFailed)?;
 
     let hash = *blake3::hash(&plaintext).as_bytes();
     if hash != entry.content_hash {
@@ -317,8 +317,7 @@ fn chacha20_poly1305_encrypt(
         aead::UnboundKey::new(&aead::CHACHA20_POLY1305, key).map_err(|e| format!("{}", e))?;
     let sealing_key = aead::LessSafeKey::new(unbound_key);
 
-    let ring_nonce =
-        aead::Nonce::try_assume_unique_for_key(nonce).map_err(|e| format!("{}", e))?;
+    let ring_nonce = aead::Nonce::try_assume_unique_for_key(nonce).map_err(|e| format!("{}", e))?;
     let ring_aad = aead::Aad::from(aad);
 
     let mut in_out = plaintext.to_vec();
@@ -347,8 +346,7 @@ fn chacha20_poly1305_decrypt(
         aead::UnboundKey::new(&aead::CHACHA20_POLY1305, key).map_err(|e| format!("{}", e))?;
     let opening_key = aead::LessSafeKey::new(unbound_key);
 
-    let ring_nonce =
-        aead::Nonce::try_assume_unique_for_key(nonce).map_err(|e| format!("{}", e))?;
+    let ring_nonce = aead::Nonce::try_assume_unique_for_key(nonce).map_err(|e| format!("{}", e))?;
     let ring_aad = aead::Aad::from(aad);
 
     let mut in_out = Vec::with_capacity(ciphertext.len() + 16);

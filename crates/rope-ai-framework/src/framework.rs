@@ -13,9 +13,7 @@ use std::sync::Arc;
 /// Callback: the node provides a closure that writes diagnosis results
 /// back to the target wallet's String.
 pub type DiagnosisSink = Arc<
-    dyn Fn(String, String, String, HashMap<String, String>) -> Result<(), String>
-        + Send
-        + Sync,
+    dyn Fn(String, String, String, HashMap<String, String>) -> Result<(), String> + Send + Sync,
 >;
 
 /// Callback: the node provides a closure that reads recent fragments
@@ -149,7 +147,11 @@ impl AgentFramework {
         };
 
         self.agents.write().insert(id.clone(), registered);
-        tracing::info!("AI agent registered: {} ({:?})", descriptor.name, descriptor.domain);
+        tracing::info!(
+            "AI agent registered: {} ({:?})",
+            descriptor.name,
+            descriptor.domain
+        );
 
         self.update_stats();
         Ok(id)
@@ -158,7 +160,8 @@ impl AgentFramework {
     /// Subscribe an agent to analyze a specific wallet's String.
     pub fn subscribe_agent_to_wallet(&self, agent_id: &str, wallet: &str) -> Result<(), String> {
         let mut agents = self.agents.write();
-        let reg = agents.get_mut(agent_id)
+        let reg = agents
+            .get_mut(agent_id)
             .ok_or_else(|| format!("Agent {} not found", agent_id))?;
         if !reg.subscribed_wallets.contains(&wallet.to_string()) {
             reg.subscribed_wallets.push(wallet.to_string());
@@ -167,17 +170,16 @@ impl AgentFramework {
     }
 
     /// Run a single agent against a specific wallet.
-    pub async fn run_agent(
-        &self,
-        agent_id: &str,
-        wallet: &str,
-    ) -> Result<DiagnosisResult, String> {
-        let reader = self.reader.as_ref()
+    pub async fn run_agent(&self, agent_id: &str, wallet: &str) -> Result<DiagnosisResult, String> {
+        let reader = self
+            .reader
+            .as_ref()
             .ok_or("Fragment reader not configured")?;
 
         let agent = {
             let agents = self.agents.read();
-            let reg = agents.get(agent_id)
+            let reg = agents
+                .get(agent_id)
                 .ok_or_else(|| format!("Agent {} not found", agent_id))?;
             reg.agent.clone()
         };
@@ -209,8 +211,9 @@ impl AgentFramework {
                 reg.descriptor.last_run_at = Some(chrono::Utc::now().timestamp());
                 reg.descriptor.run_count += 1;
                 let n = reg.descriptor.run_count as f64;
-                reg.descriptor.avg_confidence =
-                    (reg.descriptor.avg_confidence * (n - 1.0) + output.diagnosis.confidence.value) / n;
+                reg.descriptor.avg_confidence = (reg.descriptor.avg_confidence * (n - 1.0)
+                    + output.diagnosis.confidence.value)
+                    / n;
             }
         }
 
@@ -218,11 +221,20 @@ impl AgentFramework {
             if let Some(sink) = &self.sink {
                 let mut meta = HashMap::new();
                 meta.insert("agent_id".into(), agent_id.to_string());
-                meta.insert("diagnosis_type".into(), output.diagnosis.diagnosis_type.clone());
+                meta.insert(
+                    "diagnosis_type".into(),
+                    output.diagnosis.diagnosis_type.clone(),
+                );
                 meta.insert("severity".into(), output.diagnosis.severity.as_str().into());
-                meta.insert("confidence".into(), format!("{:.2}", output.diagnosis.confidence.value));
+                meta.insert(
+                    "confidence".into(),
+                    format!("{:.2}", output.diagnosis.confidence.value),
+                );
                 if !output.diagnosis.recommendations.is_empty() {
-                    meta.insert("recommendation".into(), output.diagnosis.recommendations[0].action.clone());
+                    meta.insert(
+                        "recommendation".into(),
+                        output.diagnosis.recommendations[0].action.clone(),
+                    );
                 }
                 let _ = sink(
                     wallet.to_string(),
@@ -243,12 +255,19 @@ impl AgentFramework {
 
     /// List all registered agents.
     pub fn list_agents(&self) -> Vec<AgentDescriptor> {
-        self.agents.read().values().map(|r| r.descriptor.clone()).collect()
+        self.agents
+            .read()
+            .values()
+            .map(|r| r.descriptor.clone())
+            .collect()
     }
 
     /// Get a specific agent's descriptor.
     pub fn get_agent(&self, agent_id: &str) -> Option<AgentDescriptor> {
-        self.agents.read().get(agent_id).map(|r| r.descriptor.clone())
+        self.agents
+            .read()
+            .get(agent_id)
+            .map(|r| r.descriptor.clone())
     }
 
     /// Get recent diagnosis results.
@@ -282,7 +301,10 @@ impl AgentFramework {
                 .sum::<f64>()
                 / agents.len() as f64;
         }
-        s.last_run_at = agents.values().filter_map(|r| r.descriptor.last_run_at).max();
+        s.last_run_at = agents
+            .values()
+            .filter_map(|r| r.descriptor.last_run_at)
+            .max();
     }
 
     /// Start the scheduler loop.
@@ -300,15 +322,14 @@ impl AgentFramework {
         );
 
         tokio::spawn(async move {
-            let mut tick = tokio::time::interval(
-                tokio::time::Duration::from_secs(interval),
-            );
+            let mut tick = tokio::time::interval(tokio::time::Duration::from_secs(interval));
             loop {
                 tick.tick().await;
 
                 let work: Vec<(String, Vec<String>)> = {
                     let agents = self.agents.read();
-                    agents.iter()
+                    agents
+                        .iter()
                         .filter(|(_, r)| {
                             r.descriptor.state == AgentState::Active
                                 && !r.subscribed_wallets.is_empty()

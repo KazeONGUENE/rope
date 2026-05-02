@@ -153,8 +153,7 @@ impl AIModelConfig {
             // Legacy: use simple strategy-based provider selection
             match &self.strategy {
                 ModelStrategy::LocalOnly | ModelStrategy::LocalFirst => {
-                    if let (Some(endpoint), Some(model)) =
-                        (&self.local_endpoint, &self.local_model)
+                    if let (Some(endpoint), Some(model)) = (&self.local_endpoint, &self.local_model)
                     {
                         Box::new(OllamaProvider::new(endpoint, model))
                     } else {

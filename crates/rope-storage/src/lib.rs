@@ -192,7 +192,9 @@ pub mod ledger_db {
         }
 
         pub fn put_descriptor(&self, wallet: &[u8], desc: StoredLedgerDescriptor) {
-            self.head_index.write().insert(wallet.to_vec(), desc.head_string_id);
+            self.head_index
+                .write()
+                .insert(wallet.to_vec(), desc.head_string_id);
             self.descriptors.write().insert(wallet.to_vec(), desc);
         }
 
@@ -209,9 +211,7 @@ pub mod ledger_db {
             self.string_to_wallet
                 .write()
                 .insert(string_id, wallet.to_vec());
-            self.head_index
-                .write()
-                .insert(wallet.to_vec(), string_id);
+            self.head_index.write().insert(wallet.to_vec(), string_id);
         }
 
         pub fn get_chain(&self, wallet: &[u8]) -> Vec<[u8; 32]> {

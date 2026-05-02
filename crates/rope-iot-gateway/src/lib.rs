@@ -41,5 +41,5 @@ pub mod gateway;
 pub mod protocol;
 
 pub use device::{DeviceInfo, DeviceRegistry, DeviceStatus, DeviceType};
-pub use gateway::{IoTGateway, IoTGatewayConfig, GatewayStats};
-pub use protocol::{TelemetryPayload, TelemetryBatch, DeviceEvent};
+pub use gateway::{GatewayStats, IoTGateway, IoTGatewayConfig};
+pub use protocol::{DeviceEvent, TelemetryBatch, TelemetryPayload};

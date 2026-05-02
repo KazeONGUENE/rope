@@ -5,8 +5,8 @@
 
 use crate::agent::{AgentInput, AgentOutput, DomainAgent};
 use crate::scoring::{
-    ConfidenceScore, DiagnosisResult, EvidenceItem, Recommendation,
-    RecommendationPriority, ScoringMethod, Severity,
+    ConfidenceScore, DiagnosisResult, EvidenceItem, Recommendation, RecommendationPriority,
+    ScoringMethod, Severity,
 };
 use crate::types::{AgentCapability, AgentDomain};
 use async_trait::async_trait;
@@ -105,7 +105,8 @@ impl DomainAgent for MaintenanceAgent {
         let mut issues = Vec::new();
 
         for fragment in &input.fragments {
-            let ts = fragment.get("timestamp")
+            let ts = fragment
+                .get("timestamp")
                 .and_then(|v| v.as_i64())
                 .unwrap_or(0);
 
@@ -119,17 +120,25 @@ impl DomainAgent for MaintenanceAgent {
                                 source: "telemetry".into(),
                                 reading_key: "temperature".into(),
                                 value: format!("{}°C", temp),
-                                expected_range: Some(format!("<{}°C", self.thresholds.temperature_critical)),
+                                expected_range: Some(format!(
+                                    "<{}°C",
+                                    self.thresholds.temperature_critical
+                                )),
                                 timestamp: ts,
                             });
                         } else if temp >= self.thresholds.temperature_high {
-                            if max_severity == Severity::Info { max_severity = Severity::Medium; }
+                            if max_severity == Severity::Info {
+                                max_severity = Severity::Medium;
+                            }
                             issues.push("High temperature");
                             evidence.push(EvidenceItem {
                                 source: "telemetry".into(),
                                 reading_key: "temperature".into(),
                                 value: format!("{}°C", temp),
-                                expected_range: Some(format!("<{}°C", self.thresholds.temperature_high)),
+                                expected_range: Some(format!(
+                                    "<{}°C",
+                                    self.thresholds.temperature_high
+                                )),
                                 timestamp: ts,
                             });
                         }
@@ -145,7 +154,10 @@ impl DomainAgent for MaintenanceAgent {
                                 source: "telemetry".into(),
                                 reading_key: "vibration".into(),
                                 value: format!("{} mm/s", vib),
-                                expected_range: Some(format!("<{} mm/s", self.thresholds.vibration_critical)),
+                                expected_range: Some(format!(
+                                    "<{} mm/s",
+                                    self.thresholds.vibration_critical
+                                )),
                                 timestamp: ts,
                             });
                         } else if vib >= self.thresholds.vibration_high {
@@ -160,7 +172,9 @@ impl DomainAgent for MaintenanceAgent {
                 if let Some(bat_str) = meta.get("reading_battery").and_then(|v| v.as_str()) {
                     if let Ok(bat) = bat_str.parse::<f64>() {
                         if bat <= self.thresholds.battery_critical {
-                            if max_severity != Severity::Critical { max_severity = Severity::High; }
+                            if max_severity != Severity::Critical {
+                                max_severity = Severity::High;
+                            }
                             issues.push("Critical battery");
                             evidence.push(EvidenceItem {
                                 source: "telemetry".into(),
@@ -265,10 +279,7 @@ impl DomainAgent for AnomalyAgent {
     }
 
     fn capabilities(&self) -> Vec<AgentCapability> {
-        vec![
-            AgentCapability::AnomalyDetection,
-            AgentCapability::Alerting,
-        ]
+        vec![AgentCapability::AnomalyDetection, AgentCapability::Alerting]
     }
 
     fn schedule_interval_secs(&self) -> u64 {
@@ -342,7 +353,11 @@ impl DomainAgent for AnomalyAgent {
                 "{} anomal{} detected in: {}",
                 anomalies.len(),
                 if anomalies.len() == 1 { "y" } else { "ies" },
-                anomalies.iter().map(|(k, _, _, _, _)| k.replace("reading_", "")).collect::<Vec<_>>().join(", ")
+                anomalies
+                    .iter()
+                    .map(|(k, _, _, _, _)| k.replace("reading_", ""))
+                    .collect::<Vec<_>>()
+                    .join(", ")
             )
         };
 
