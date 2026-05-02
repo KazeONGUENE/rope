@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>String Detail | DC Explorer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+:root {
+    --black: #000000; --white: #ffffff;
+    --gray-50: #fafafa; --gray-100: #f4f4f5; --gray-200: #e4e4e7;
+    --gray-300: #d4d4d8; --gray-400: #a1a1aa; --gray-500: #71717a;
+    --gray-600: #52525b; --gray-700: #3f3f46; --gray-800: #27272a; --gray-900: #18181b;
+    --success: #22c55e; --success-bg: #dcfce7;
+    --warning: #f59e0b; --error: #ef4444; --info: #3b82f6;
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+    --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px;
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+    font-family: var(--font-sans);
+    background: var(--gray-50);
+    color: var(--gray-900);
+    line-height: 1.6;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    font-size: 14px;
+}
+a { color: var(--black); text-decoration: none; transition: color .15s; }
+a:hover { color: var(--gray-600); }
+
+/* Top bar — matches landing */
+.top-bar {
+    background: var(--gray-900);
+    color: var(--white);
+    padding: 0.5rem 0;
+    font-size: 12px;
+}
+.top-bar-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.top-bar-left { display: flex; align-items: center; gap: 1.5rem; }
+.top-bar-item { display: flex; align-items: center; gap: 0.375rem; color: var(--gray-400); }
+.top-bar-value { color: var(--white); font-weight: 500; }
+.top-bar-right { display: flex; align-items: center; gap: 1rem; }
+
+/* Header — matches landing */
+header {
+    background: var(--white);
+    border-bottom: 1px solid var(--gray-200);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+.header-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 64px;
+}
+.logo { display: flex; align-items: center; gap: 0.625rem; font-weight: 450; font-size: 1rem; color: var(--black); text-decoration: none; }
+.logo:hover { color: var(--black); }
+.logo-text { display: flex; flex-direction: column; }
+.logo-icon { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; }
+.logo-icon svg, .logo-icon img { width: 100%; height: 100%; }
+.main-nav { display: flex; align-items: center; gap: 0.25rem; }
+.nav-item { position: relative; }
+.nav-link {
+    display: flex; align-items: center; gap: 0.375rem;
+    padding: 0.5rem 0.875rem;
+    color: var(--gray-600);
+    font-weight: 500;
+    font-size: 13px;
+    border-radius: var(--radius-md);
+    transition: all 0.15s;
+    text-decoration: none;
+}
+.nav-link:hover { color: var(--black); background: var(--gray-100); }
+.nav-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 220px;
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    padding: 0.5rem;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(10px);
+    transition: all 0.2s;
+    z-index: 200;
+}
+.nav-item:hover .nav-dropdown { opacity: 1; visibility: visible; transform: translateY(0); }
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 0.75rem;
+    color: var(--gray-700);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    text-decoration: none;
+}
+.dropdown-item:hover { background: var(--gray-100); color: var(--black); }
+.dropdown-divider { height: 1px; background: var(--gray-200); margin: 0.5rem 0; }
+.header-actions { display: flex; align-items: center; gap: 0.75rem; }
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    padding: 0.5rem 1rem;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: var(--radius-md);
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+    text-decoration: none;
+}
+.btn-primary { background: var(--black); color: var(--white); }
+.btn-primary:hover { background: var(--gray-800); }
+.btn-secondary { background: var(--gray-100); color: var(--gray-700); }
+.btn-secondary:hover { background: var(--gray-200); }
+
+/* Footer — matches landing (light) */
+footer {
+    background: var(--white);
+    border-top: 1px solid var(--gray-200);
+    padding: 2rem 0;
+    margin-top: auto;
+}
+.footer-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.footer-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 400;
+    font-size: 1rem;
+    color: var(--gray-500);
+}
+.footer-links { display: flex; gap: 1.5rem; }
+.footer-links a { font-size: 12px; color: var(--gray-500); text-decoration: none; }
+.footer-links a:hover { color: var(--black); }
+
+/* Page content container */
+.container { max-width: 1400px; margin: 0 auto; padding: 0 1rem; width: 100%; }
+main { flex: 1; padding: 32px 0 48px; }
+code, .mono { font-family: var(--font-mono); font-size: 0.875rem; }
+
+/* Page content */
+.page-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 4px; }
+.page-subtitle { color: var(--gray-500); font-size: 0.875rem; margin-bottom: 24px; }
+.breadcrumb { font-size: 0.8125rem; color: var(--gray-500); margin-bottom: 16px; display: flex; align-items: center; gap: 6px; }
+.breadcrumb a { color: var(--gray-600); }
+.breadcrumb a:hover { color: var(--black); }
+
+/* Cards */
+.card {
+    background: var(--white); border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg); box-shadow: 0 1px 2px rgba(0,0,0,.04);
+    overflow: hidden;
+}
+.card-header {
+    padding: 16px 20px; border-bottom: 1px solid var(--gray-100);
+    display: flex; align-items: center; justify-content: space-between;
+}
+.card-header h2 { font-size: 0.9375rem; font-weight: 600; }
+.card-body { padding: 20px; }
+
+/* Tables */
+.table-wrapper { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+thead th {
+    text-align: left; padding: 12px 16px; font-weight: 600; font-size: 0.8125rem;
+    color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em;
+    background: var(--gray-50); border-bottom: 1px solid var(--gray-200);
+    white-space: nowrap;
+}
+tbody td {
+    padding: 12px 16px; border-bottom: 1px solid var(--gray-100);
+    color: var(--gray-700); vertical-align: middle;
+}
+tbody tr:hover { background: var(--gray-50); }
+tbody tr:last-child td { border-bottom: none; }
+
+/* Badges */
+.badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600;
+}
+.badge-success { background: var(--success-bg); color: #15803d; }
+.badge-warning { background: #fef9c3; color: #a16207; }
+.badge-error { background: #fee2e2; color: #dc2626; }
+.badge-info { background: #dbeafe; color: #1d4ed8; }
+.badge-gray { background: var(--gray-100); color: var(--gray-600); }
+
+/* Detail rows */
+.detail-grid { display: grid; gap: 0; }
+.detail-row {
+    display: grid; grid-template-columns: 200px 1fr; gap: 16px;
+    padding: 14px 20px; border-bottom: 1px solid var(--gray-100);
+    align-items: baseline;
+}
+.detail-row:last-child { border-bottom: none; }
+.detail-label { font-size: 0.8125rem; color: var(--gray-500); font-weight: 500; }
+.detail-value { font-size: 0.875rem; color: var(--gray-800); word-break: break-all; }
+.detail-value .mono { font-size: 0.8125rem; }
+
+/* Copy button */
+.copy-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border: 1px solid var(--gray-200);
+    border-radius: var(--radius-sm); background: var(--white);
+    cursor: pointer; color: var(--gray-400); font-size: 12px; margin-left: 6px;
+    transition: all .15s; vertical-align: middle;
+}
+.copy-btn:hover { color: var(--black); border-color: var(--gray-600); }
+.copy-btn.copied { color: var(--success); border-color: var(--success); }
+
+/* Pagination */
+.pagination { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 20px 0; }
+.pagination button, .pagination .page-num {
+    padding: 8px 14px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm);
+    background: var(--white); font-size: 0.8125rem; cursor: pointer; transition: all .15s;
+    font-family: var(--font-sans); color: var(--gray-700);
+}
+.pagination button:hover:not(:disabled) { border-color: var(--black); color: var(--black); }
+.pagination button:disabled { opacity: .4; cursor: not-allowed; }
+.pagination .page-num.active { background: var(--black); color: var(--white); border-color: var(--black); }
+.pagination .page-info { color: var(--gray-500); font-size: 0.8125rem; }
+
+/* Address detail page: header, panels, tabs */
+.addr-header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 16px; }
+.addr-header h1 { font-size: 1.25rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 10px; }
+.addr-header .addr-hex { font-family: var(--font-mono); font-size: 0.9375rem; font-weight: 500; color: var(--gray-700); }
+.addr-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.addr-tag {
+    display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px;
+    background: var(--gray-100); color: var(--gray-700); border-radius: 999px;
+    font-size: 0.75rem; font-weight: 500;
+}
+.addr-tag.contract { background: var(--gray-200); color: var(--gray-800); }
+.addr-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.addr-panels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+@media (max-width: 900px) { .addr-panels { grid-template-columns: 1fr; } }
+.addr-panel {
+    background: var(--white); border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg); padding: 20px; box-shadow: 0 1px 2px rgba(0,0,0,.04);
+}
+.addr-panel-title { font-size: 0.75rem; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
+.addr-panel-row { font-size: 0.875rem; margin-bottom: 10px; }
+.addr-panel-row:last-child { margin-bottom: 0; }
+.addr-panel-label { color: var(--gray-500); margin-bottom: 2px; }
+.addr-panel-value { font-weight: 600; color: var(--gray-900); }
+.addr-tabs { display: flex; flex-wrap: wrap; gap: 0; border-bottom: 2px solid var(--gray-200); margin-bottom: 0; }
+.addr-tab {
+    padding: 12px 16px; font-size: 0.875rem; font-weight: 500; color: var(--gray-600);
+    background: none; border: none; cursor: pointer; border-bottom: 2px solid transparent;
+    margin-bottom: -2px; transition: all .15s; font-family: inherit;
+}
+.addr-tab:hover { color: var(--gray-900); }
+.addr-tab.active { color: var(--black); border-bottom-color: var(--black); }
+.addr-tab-content { display: none; padding: 20px 0; }
+.addr-tab-content.active { display: block; }
+.bytecode-box { background: var(--gray-900); color: var(--gray-300); padding: 16px; border-radius: var(--radius-md); font-family: var(--font-mono); font-size: 0.75rem; word-break: break-all; max-height: 400px; overflow: auto; }
+
+/* Overview stats row */
+.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.stat-card {
+    background: var(--white); border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg); padding: 20px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04);
+}
+.stat-label { font-size: 0.8125rem; color: var(--gray-500); margin-bottom: 4px; }
+.stat-value { font-size: 1.25rem; font-weight: 700; color: var(--gray-900); }
+
+/* Loading / empty */
+.loading {
+    display: flex; align-items: center; justify-content: center;
+    padding: 48px 24px; color: var(--gray-400); gap: 10px;
+}
+.spinner {
+    width: 20px; height: 20px; border: 2px solid var(--gray-200);
+    border-top-color: var(--black); border-radius: 50%;
+    animation: spin .6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.empty-state { text-align: center; padding: 48px 24px; color: var(--gray-400); }
+
+/* Direction badges */
+.dir-in { background: var(--success-bg); color: #15803d; padding: 2px 8px; border-radius: 4px; font-size: .75rem; font-weight: 600; }
+.dir-out { background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 4px; font-size: .75rem; font-weight: 600; }
+
+/* Nav button pair for string detail */
+.nav-btns { display: flex; gap: 8px; }
+.nav-btns a {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 6px 14px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm);
+    font-size: 0.8125rem; color: var(--gray-600); background: var(--white); transition: all .15s;
+}
+.nav-btns a:hover { border-color: var(--info); color: var(--info); text-decoration: none; }
+
+/* Tabs */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--gray-200); padding: 0 20px; }
+.tab-btn {
+    padding: 10px 18px; font-size: .8125rem; font-weight: 500; color: var(--gray-500);
+    background: none; border: none; border-bottom: 2px solid transparent;
+    cursor: pointer; transition: all .15s; font-family: var(--font-sans);
+}
+.tab-btn:hover { color: var(--gray-700); }
+.tab-btn.active { color: var(--info); border-bottom-color: var(--info); }
+
+/* Event log */
+.event-log {
+    background: var(--gray-50); border: 1px solid var(--gray-200);
+    border-radius: var(--radius-md); padding: 14px; margin-bottom: 10px;
+    font-size: .8125rem;
+}
+.event-log-header { font-weight: 600; margin-bottom: 8px; color: var(--gray-700); }
+.event-log .topic { color: var(--gray-500); word-break: break-all; margin: 2px 0; }
+.event-log .data-hex {
+    background: var(--white); border: 1px solid var(--gray-200);
+    border-radius: var(--radius-sm); padding: 8px; margin-top: 6px;
+    word-break: break-all; font-family: var(--font-mono); font-size: .75rem; color: var(--gray-600);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .main-nav { display: none; }
+    .detail-row { grid-template-columns: 1fr; gap: 4px; }
+    .header-container { flex-wrap: wrap; }
+    .stats-row { grid-template-columns: 1fr 1fr; }
+}
+
+
+    </style>
+    <link rel="stylesheet" href="/css/dcscan-labels.css">
+</head>
+<body>
+    <div class="top-bar">
+        <div class="top-bar-container">
+            <div class="top-bar-left">
+                <div class="top-bar-item">
+                    <i class="fa-solid fa-coins"></i>
+                    DC FAT Price:
+                    <span class="top-bar-value">$0.00390</span>
+                    <span style="color: #ef4444; margin-left: 0.25rem;">-2.94%</span>
+                </div>
+                <div class="top-bar-item">
+                    <i class="fa-solid fa-gas-pump"></i>
+                    Gas:
+                    <span class="top-bar-value">0.001 gwei</span>
+                </div>
+                <div class="top-bar-item">
+                    <i class="fa-solid fa-clock"></i>
+                    Finality:
+                    <span class="top-bar-value">&lt;5s</span>
+                </div>
+            </div>
+            <div class="top-bar-right">
+                <button class="theme-toggle" aria-label="Theme"><i class="fa-solid fa-sun"></i></button>
+            </div>
+        </div>
+    </div>
+    <header>
+        <div class="header-container">
+            <a href="/" class="logo">
+                <div class="logo-icon">
+                    <img src="/assets/logo.svg" alt="DC Explorer Logo" style="width: 100%; height: 100%; object-fit: contain;">
+                </div>
+                <span class="logo-text"><span>DC</span><span>Explorer</span></span>
+            </a>
+            <nav class="main-nav">
+                <div class="nav-item">
+                    <a href="#" class="nav-link">Smartchain <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/strings" class="dropdown-item">View Strings</a>
+                        <a href="/txs" class="dropdown-item">Transactions</a>
+                        <a href="/txsPending" class="dropdown-item">Pending Txns</a>
+                        <div class="dropdown-divider"></div>
+                        <a href="/accounts" class="dropdown-item">Top Accounts</a>
+                        <a href="/contracts" class="dropdown-item">Verified Contracts</a>
+                    </div>
+                </div>
+                <div class="nav-item">
+                    <a href="#" class="nav-link">AI Agents <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/agents" class="dropdown-item">All Agents</a>
+                        <a href="/testimonies" class="dropdown-item">Testimonies</a>
+                        <a href="/validations" class="dropdown-item">Validators</a>
+                    </div>
+                </div>
+                <div class="nav-item">
+                    <a href="#" class="nav-link">Tokens <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/tokens" class="dropdown-item">DCR-20 Tokens</a>
+                        <a href="/tokentxns" class="dropdown-item">Token Transfers</a>
+                    </div>
+                </div>
+                <div class="nav-item">
+                    <a href="#" class="nav-link">Network <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/network/validators" class="dropdown-item">Validators</a>
+                        <a href="/databases" class="dropdown-item">Databases</a>
+                        <a href="/stats" class="dropdown-item">Charts &amp; Stats</a>
+                    </div>
+                </div>
+                <div class="nav-item">
+                    <a href="#" class="nav-link">More <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/apis" class="dropdown-item">API Docs</a>
+                        <a href="/verify" class="dropdown-item">Verify Contract</a>
+                        <a href="/faucet" class="dropdown-item">Faucet</a>
+                        <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank">GitHub</a>
+                        <a href="/contact" class="dropdown-item">Contact</a>
+                    </div>
+                </div>
+            </nav>
+            <div class="header-actions">
+                <button class="btn btn-secondary"><i class="fa-solid fa-wallet"></i> Connect</button>
+            </div>
+        </div>
+    </header>
+<main>
+    <div class="container">
+        <div class="breadcrumb"><a href="/"><i class="fas fa-home"></i></a><span>/</span><a href="/strings">Strings</a><span>/</span><span>String Detail</span></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+    <div>
+        <h1 class="page-title"><i class="fas fa-link" style="color:var(--black)"></i> String <span id="str-num">—</span> <span style="font-size:11px;font-weight:600;color:#0f766e;background:#ccfbf1;padding:3px 10px;border-radius:999px;letter-spacing:0.3px;text-transform:uppercase;vertical-align:middle;margin-left:8px;"><i class="fas fa-scroll"></i> Knot</span></h1>
+        <p class="page-subtitle" id="str-hash-display">Loading…</p>
+        <p class="page-subtitle" style="font-size:12px;color:var(--gray-500);margin-top:-4px;"><em>Quipu Canon v1.1</em> — this string is one knot tied on the federation cord. EVM-compat alias: block #<span id="str-num-alias">—</span>.</p>
+    </div>
+    <div class="nav-btns" id="str-nav"></div>
+</div>
+
+<div class="card" id="str-card" style="display:none; margin-top:20px;">
+    <div class="card-header"><h2><i class="fas fa-info-circle"></i> Overview</h2></div>
+    <div class="detail-grid" id="str-details"></div>
+</div>
+
+<div class="card" id="str-txns-card" style="display:none; margin-top:20px;">
+    <div class="card-header"><h2><i class="fas fa-exchange-alt"></i> Transactions (<span id="str-tx-count">0</span>)</h2></div>
+    <div class="table-wrapper">
+        <table>
+            <thead><tr><th>Hash</th><th>From</th><th>To</th><th>Value</th><th>Gas Used</th></tr></thead>
+            <tbody id="str-txns-body"></tbody>
+        </table>
+    </div>
+</div>
+
+<div class="loading" id="str-loading"><div class="spinner"></div> Loading string data…</div>
+<div class="empty-state" id="str-error" style="display:none;"><i class="fas fa-exclamation-triangle" style="color:var(--warning);font-size:1.5rem;"></i><br>String not found.</div>
+
+    </div>
+</main>
+    <footer>
+        <div class="footer-container">
+            <div class="footer-brand">
+                <div class="logo-icon" style="width: 24px; height: 24px;">
+                    <img src="/assets/logo.svg" alt="DC Explorer Logo" style="width: 100%; height: 100%; object-fit: contain;">
+                </div>
+                DC Explorer - Powered by Datachain Rope
+            </div>
+            <div class="footer-links">
+                <a href="https://datachain.network">Datachain</a>
+                <a href="/apis">API</a>
+                <a href="https://github.com/KazeONGUENE/rope">GitHub</a>
+                <a href="/contact">Contact</a>
+            </div>
+        </div>
+    </footer>
+<script>
+function timeAgo(ts) {
+    if (!ts) return '<span style="color:var(--gray-400)">—</span>';
+    const d = typeof ts === 'number' ? ts * 1000 : Date.parse(ts);
+    if (isNaN(d)) return '<span style="color:var(--gray-400)">—</span>';
+    const s = Math.floor((Date.now() - d) / 1000);
+    if (s < 5) return 'just now';
+    if (s < 60) return s + 's ago';
+    if (s < 3600) return Math.floor(s / 60) + 'm ago';
+    if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+    return Math.floor(s / 86400) + 'd ago';
+}
+function short(hash, n) {
+    n = n || 8;
+    if (!hash) return '—';
+    if (hash.length <= n * 2 + 2) return hash;
+    return hash.slice(0, n + 2) + '…' + hash.slice(-n);
+}
+function fmtNum(v) {
+    if (v == null || v === '') return '0';
+    const n = typeof v === 'string' ? parseFloat(v) : v;
+    if (isNaN(n)) return v;
+    return n.toLocaleString(undefined, { maximumFractionDigits: 6 });
+}
+function copyToClip(text, btn) {
+    navigator.clipboard.writeText(text).then(() => {
+        if (btn) {
+            btn.classList.add('copied');
+            btn.innerHTML = '<i class="fas fa-check"></i>';
+            setTimeout(() => { btn.classList.remove('copied'); btn.innerHTML = '<i class="fas fa-copy"></i>'; }, 1500);
+        }
+    });
+}
+function getPathSegment(idx) {
+    const parts = window.location.pathname.split('/').filter(Boolean);
+    return parts[idx] || null;
+}
+function escHtml(s) {
+    if (!s) return '';
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+function statusBadge(s) {
+    if (!s) return '<span class="badge badge-gray">Unknown</span>';
+    const lower = (s + '').toLowerCase();
+    if (lower === 'success' || lower === '1' || lower === 'true' || lower === 'final')
+        return '<span class="badge badge-success"><i class="fas fa-check-circle"></i> ' + (lower === 'final' ? 'Final' : 'Success') + '</span>';
+    if (lower === 'pending' || lower === 'tentative')
+        return '<span class="badge badge-warning"><i class="fas fa-clock"></i> ' + (lower === 'tentative' ? 'Tentative' : 'Pending') + '</span>';
+    if (lower === 'rejected' || lower === 'expired')
+        return '<span class="badge badge-error"><i class="fas fa-times-circle"></i> ' + s + '</span>';
+    if (lower === 'failed' || lower === '0' || lower === 'false')
+        return '<span class="badge badge-error"><i class="fas fa-times-circle"></i> Failed</span>';
+    return '<span class="badge badge-gray">' + s + '</span>';
+}
+function addrLink(addr, label, hidden) {
+    if (hidden && label) {
+        return window.DCScanLabels && window.DCScanLabels.ready()
+            ? window.DCScanLabels.addrDisplay(null, { label: label, hidden: true })
+            : '<span class="addr-label-tag" data-cat="treasury">' + escHtml(label) + '</span>';
+    }
+    if (!addr) return '—';
+    if (window.DCScanLabels && window.DCScanLabels.ready()) {
+        return window.DCScanLabels.addrDisplay(addr, { label: label, short: 10 });
+    }
+    const display = label || short(addr, 10);
+    return '<a href="/address/' + addr + '" class="mono">' + escHtml(display) + '</a>';
+}
+function txLink(hash) {
+    if (!hash) return '—';
+    return '<a href="/tx/' + hash + '" class="mono">' + short(hash, 10) + '</a>';
+}
+function stringLink(num) {
+    if (num == null) return '—';
+    return '<a href="/string/' + num + '">' + fmtNum(num) + '</a>';
+}
+function tokenLink(addr, name) {
+    if (!addr) return '—';
+    return '<a href="/token/' + addr + '">' + escHtml(name || short(addr, 10)) + '</a>';
+}
+
+(function() {
+    const num = getPathSegment(1);
+    if (!num) {
+        document.getElementById('str-loading').style.display = 'none';
+        document.getElementById('str-error').style.display = 'block';
+        return;
+    }
+    document.getElementById('str-num').textContent = '#' + fmtNum(parseInt(num));
+    var alias = document.getElementById('str-num-alias');
+    if (alias) alias.textContent = fmtNum(parseInt(num));
+
+    const prev = parseInt(num) - 1;
+    const next = parseInt(num) + 1;
+    document.getElementById('str-nav').innerHTML =
+        (prev >= 0 ? '<a href="/string/' + prev + '"><i class="fas fa-arrow-left"></i> Knot ' + fmtNum(prev) + '</a>' : '') +
+        '<a href="/string/' + next + '">Knot ' + fmtNum(next) + ' <i class="fas fa-arrow-right"></i></a>';
+
+    fetch('/api/v1/strings/' + num)
+        .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(blk => {
+            if (blk.error) throw new Error(blk.error);
+            document.getElementById('str-loading').style.display = 'none';
+            document.getElementById('str-card').style.display = 'block';
+            document.getElementById('str-hash-display').innerHTML = '<span class="mono">' + escHtml(blk.hash) + '</span>';
+
+            const gasPct = blk.gasLimit ? ((parseInt(blk.gasUsed) / parseInt(blk.gasLimit)) * 100).toFixed(1) : '—';
+            const rows = [
+                ['String Height', fmtNum(blk.number)],
+                ['Timestamp', blk.timestamp ? timeAgo(blk.timestamp) + ' <span style="color:var(--gray-400)">(' + new Date(typeof blk.timestamp==='number'?blk.timestamp*1000:blk.timestamp).toLocaleString() + ')</span>' : '—'],
+                ['Hash', '<span class="mono">' + escHtml(blk.hash) + '</span><button class="copy-btn" onclick="copyToClip(\''+blk.hash+'\',this)"><i class="fas fa-copy"></i></button>'],
+                ['Parent Hash', blk.parentHash ? '<a href="/string/' + (parseInt(num)-1) + '" class="mono">' + escHtml(blk.parentHash) + '</a>' : '—'],
+                ['Validator', blk.validator ? addrLink(blk.validator) : '—'],
+                ['Transactions', blk.transactions + ' transaction(s)'],
+                ['Gas Used', fmtNum(blk.gasUsed) + ' <span style="color:var(--gray-400)">(' + gasPct + '%)</span>'],
+                ['Gas Limit', fmtNum(blk.gasLimit)],
+            ];
+
+            document.getElementById('str-details').innerHTML = rows.map(function(r) {
+                return '<div class="detail-row"><div class="detail-label">' + r[0] + '</div><div class="detail-value">' + r[1] + '</div></div>';
+            }).join('');
+
+            const txns = blk.transactionsList || [];
+            document.getElementById('str-tx-count').textContent = txns.length;
+            if (txns.length > 0) {
+                document.getElementById('str-txns-card').style.display = 'block';
+                document.getElementById('str-txns-body').innerHTML = txns.map(function(tx) {
+                    return '<tr>'
+                        + '<td>' + txLink(tx.hash) + '</td>'
+                        + '<td>' + (tx.fromHidden ? addrLink(null, tx.fromLabel, true) : addrLink(tx.from, tx.fromLabel)) + '</td>'
+                        + '<td>' + (tx.toHidden ? addrLink(null, tx.toLabel, true) : (tx.to ? addrLink(tx.to, tx.toLabel) : '<span class="badge badge-info">Contract Creation</span>')) + '</td>'
+                        + '<td>' + escHtml(tx.value || '0 FAT') + '</td>'
+                        + '<td>' + fmtNum(tx.gasUsed) + '</td>'
+                        + '</tr>';
+                }).join('');
+            }
+        })
+        .catch(function() {
+            document.getElementById('str-loading').style.display = 'none';
+            document.getElementById('str-error').style.display = 'block';
+        });
+})();
+
+</script>
+<script src="/js/dcscan-labels.js"></script>
+<script src="/js/dcscan-stats.js"></script>
+</body>
+</html>

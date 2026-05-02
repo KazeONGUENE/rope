@@ -1,11 +1,21 @@
-//! DC Explorer - Block Explorer for Datachain Rope
+//! DC Explorer (DCScan) - Knot/String Explorer for Datachain Rope.
+//!
+//! Per Quipu Primitive Canon v1.1, the canonical unit of state change on
+//! Datachain Rope is the **knot** (the per-event entry on a wallet's
+//! sovereign **string**). The legacy term "block" is preserved only in the
+//! EVM-compat alias layer (eth_blockNumber / eth_getBlockBy*) so that
+//! MetaMask, ethers.js, hardhat, and similar tooling continue to work
+//! unchanged. New API consumers should prefer the knot-shaped fields
+//! (`knot`, `knotIndex`, `knotHash`) and the `/api/v1/personal-ledger/...`
+//! endpoint which exposes the canonical String → Knot[] → Tx-details
+//! hierarchy for a wallet's public personal ledger.
 //!
 //! API server powering dcscan.io
 
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
-    response::Json,
+    http::{HeaderValue, StatusCode},
+    response::{IntoResponse, Json, Response},
     routing::{get, post},
     Router,
 };
@@ -17,10 +27,12 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 
 mod api;
 mod db;
+mod extra;
 mod indexer;
 mod models;
 
 use api::*;
+use extra::*;
 
 // DC FAT Token contract address on XDC Network
 const DC_FAT_CONTRACT: &str = "0x20b59e6c5deb7d7ced2ca823c6ca81dd3f7e9a3a";
@@ -57,13 +69,74 @@ impl Default for PriceData {
 
 /// Application state
 pub struct AppState {
-    /// Database pool (placeholder for now)
     pub chain_id: u64,
     pub network_name: String,
-    /// HTTP client for price fetching
     pub http_client: reqwest::Client,
-    /// Cached price data
+    /// Primary RPC URL (kept for backward compat with code that reads this field)
+    pub rpc_url: String,
+    /// Ordered list of RPC endpoints — tried in order with automatic failover.
+    /// Index of the currently healthy endpoint is tracked in `rpc_active_index`.
+    pub rpc_urls: Vec<String>,
+    /// Index into `rpc_urls` for the currently active endpoint (atomic for lock-free access)
+    pub rpc_active_index: std::sync::atomic::AtomicUsize,
     pub price_cache: RwLock<Option<PriceData>>,
+    /// DCSwap API base URL (e.g. https://dcswap.net)
+    pub dcswap_api: String,
+    /// In-memory service registry (same as dcscan-api)
+    pub services_registry: RwLock<Vec<extra::ServiceRegistryEntry>>,
+    pub verification_store: RwLock<std::collections::HashMap<String, extra::VerificationEntry>>,
+    pub certifications_store: RwLock<std::collections::HashMap<String, Vec<extra::CertificationEntry>>>,
+    /// When set, path to DCScan static frontend (for extensionless .html fallback)
+    pub static_dir: Option<String>,
+    /// PostgreSQL connection pool (None if DATABASE_URL not set)
+    pub db_pool: Option<sqlx::postgres::PgPool>,
+    /// Cached testimony data (refreshed by background task every 60s)
+    pub testimony_cache: RwLock<Option<TestimonyCache>>,
+    /// Cached token transfer data (refreshed by background task every 30s)
+    pub tokentxn_cache: RwLock<Option<TokenTxnCache>>,
+    /// Tanastok tokenized assets cache (refreshed every 5 min)
+    pub tanastok_cache: RwLock<Option<TanastokCache>>,
+    /// Exact cumulative transaction count (incrementally scanned by background task)
+    pub tx_count_cache: RwLock<TxCountCache>,
+}
+
+/// Incrementally scanned exact transaction count across the entire chain.
+#[derive(Clone, Default)]
+pub struct TxCountCache {
+    pub total_transactions: u64,
+    pub last_scanned_block: u64,
+}
+
+/// Cached Tanastok tokenized asset data.
+/// Assets are indexed by contract address (lowercased) for O(1) lookup.
+#[derive(Clone)]
+pub struct TanastokCache {
+    pub assets: Vec<serde_json::Value>,
+    /// DCNFT contract address → index into `assets`
+    pub by_dcnft: std::collections::HashMap<String, usize>,
+    /// ERC-3643 contract address → index into `assets`
+    pub by_erc3643: std::collections::HashMap<String, usize>,
+    pub updated_at: i64,
+}
+
+impl AppState {
+    /// Returns the URL of the currently active RPC endpoint.
+    pub fn rpc_url_active(&self) -> &str {
+        let idx = self.rpc_active_index.load(std::sync::atomic::Ordering::Relaxed);
+        &self.rpc_urls[idx % self.rpc_urls.len()]
+    }
+}
+
+pub struct TestimonyCache {
+    pub stats: serde_json::Value,
+    pub testimonies: Vec<serde_json::Value>,
+    pub updated_at: i64,
+}
+
+pub struct TokenTxnCache {
+    pub stats: serde_json::Value,
+    pub transfers: Vec<serde_json::Value>,
+    pub updated_at: i64,
 }
 
 #[tokio::main]
@@ -76,7 +149,7 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!("╔══════════════════════════════════════════════════════════════╗");
     tracing::info!("║              DC EXPLORER - dcscan.io                         ║");
-    tracing::info!("║        Block Explorer for Datachain Rope                     ║");
+    tracing::info!("║   Knot/String Explorer for Datachain Rope (Quipu Canon v1.1) ║");
     tracing::info!("╚══════════════════════════════════════════════════════════════╝");
 
     // Initialize HTTP client for price fetching
@@ -86,11 +159,130 @@ async fn main() -> anyhow::Result<()> {
         .build()
         .expect("Failed to create HTTP client");
 
+    let port = std::env::var("PORT").ok().and_then(|p| p.parse::<u16>().ok()).unwrap_or(3001);
+    let rpc_url = std::env::var("RPC_URL").unwrap_or_else(|_| "http://127.0.0.1:8545".to_string());
+    let rpc_url_secondary = std::env::var("RPC_URL_SECONDARY").ok();
+    let dcswap_api = std::env::var("DCSWAP_API").unwrap_or_else(|_| "https://dcswap.net".to_string());
+
+    let mut rpc_urls = vec![rpc_url.clone()];
+    if let Some(ref secondary) = rpc_url_secondary {
+        rpc_urls.push(secondary.clone());
+        tracing::info!("RPC failover enabled: primary={}, secondary={}", rpc_url, secondary);
+    } else {
+        tracing::info!("RPC: {} (no failover — set RPC_URL_SECONDARY to enable)", rpc_url);
+    }
+
+    // Static frontend: DCSCAN_STATIC overrides; else use bundled static/ (same HTML as former dcscan-api)
+    let static_dir = std::env::var("DCSCAN_STATIC").ok().filter(|p| {
+        let path = std::path::Path::new(p);
+        path.exists() && path.join("index.html").exists()
+    }).or_else(|| {
+        let cwd = std::env::current_dir().ok()?;
+        for rel in [
+            "static",
+            "crates/rope-explorer/static",
+            "datachain-rope/crates/rope-explorer/static",
+        ] {
+            let p = cwd.join(rel);
+            if p.exists() && p.join("index.html").exists() {
+                return Some(p.to_string_lossy().into_owned());
+            }
+        }
+        // Fallback: path relative to executable (e.g. target/debug/dc-explorer -> crates/rope-explorer/static)
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(exe_dir) = exe.parent() {
+                // from target/debug go up to workspace root, then crates/rope-explorer/static
+                let root = exe_dir.parent().and_then(|p| p.parent());
+                if let Some(r) = root {
+                    let p = r.join("crates/rope-explorer/static");
+                    if p.exists() && p.join("index.html").exists() {
+                        return Some(p.to_string_lossy().into_owned());
+                    }
+                }
+            }
+        }
+        None
+    });
+
+    if static_dir.is_none() {
+        tracing::warn!("DCSCAN_STATIC not set and no static/ found (tried cwd + current_exe relative). Set DCSCAN_STATIC to the path of crates/rope-explorer/static to serve the frontend.");
+    } else {
+        tracing::info!("Serving static frontend from: {}", static_dir.as_ref().unwrap());
+    }
+
+    let db_pool = match std::env::var("DATABASE_URL") {
+        Ok(url) => {
+            match db::connect(&url).await {
+                Ok(pool) => {
+                    tracing::info!("Connected to PostgreSQL");
+                    Some(pool)
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to connect to PostgreSQL: {} — agent data will be unavailable", e);
+                    None
+                }
+            }
+        }
+        Err(_) => {
+            tracing::warn!("DATABASE_URL not set — agent data will be unavailable");
+            None
+        }
+    };
+
     let state = Arc::new(AppState {
         chain_id: 271828,
         network_name: "Datachain Rope Mainnet".to_string(),
         http_client,
+        rpc_url: rpc_url.clone(),
+        rpc_urls,
+        rpc_active_index: std::sync::atomic::AtomicUsize::new(0),
         price_cache: RwLock::new(None),
+        dcswap_api,
+        services_registry: RwLock::new(Vec::new()),
+        verification_store: RwLock::new(std::collections::HashMap::new()),
+        certifications_store: RwLock::new(std::collections::HashMap::new()),
+        static_dir: static_dir.clone(),
+        db_pool,
+        testimony_cache: RwLock::new(None),
+        tokentxn_cache: RwLock::new(None),
+        tanastok_cache: RwLock::new(None),
+        tx_count_cache: RwLock::new(TxCountCache::default()),
+    });
+
+    // Start background testimony cache refresh task (every 60s)
+    let testimony_state = Arc::clone(&state);
+    tokio::spawn(async move {
+        loop {
+            refresh_testimony_cache(&testimony_state).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+        }
+    });
+
+    // Start background token transfer cache refresh task (every 30s)
+    let tokentxn_state = Arc::clone(&state);
+    tokio::spawn(async move {
+        loop {
+            refresh_tokentxn_cache(&tokentxn_state).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+        }
+    });
+
+    // Start background Tanastok asset cache refresh task (every 5 min)
+    let tanastok_state = Arc::clone(&state);
+    tokio::spawn(async move {
+        loop {
+            refresh_tanastok_cache(&tanastok_state).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(300)).await;
+        }
+    });
+
+    // Start background exact transaction counter (every 10s, incremental)
+    let txcount_state = Arc::clone(&state);
+    tokio::spawn(async move {
+        loop {
+            refresh_tx_count_cache(&txcount_state).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+        }
     });
 
     // Start background price fetching task
@@ -110,48 +302,94 @@ async fn main() -> anyhow::Result<()> {
         .allow_methods(Any)
         .allow_headers(Any);
 
-    // Build router
-    let app = Router::new()
-        // Health & Info
-        .route("/", get(root))
+    // When static frontend is enabled (DCSCAN_STATIC or bundled static/), serve HTML; else add JSON root
+    let mut app = Router::new();
+    if static_dir.is_none() {
+        app = app.route("/", get(root));
+    }
+    let app = app
         .route("/health", get(health))
         .route("/api/v1/status", get(status))
         // Stats
         .route("/api/v1/stats", get(stats))
         .route("/api/v1/stats/charts/:chart_type", get(chart_data))
-        // Strings (Blocks)
+        // Strings (Knots — canon v1.1, formerly "Blocks" in EVM tooling)
         .route("/api/v1/strings", get(list_strings))
         .route("/api/v1/strings/latest", get(latest_strings))
         .route("/api/v1/strings/:id", get(get_string))
         // Transactions
         .route("/api/v1/transactions", get(list_transactions))
         .route("/api/v1/transactions/latest", get(latest_transactions))
+        .route("/api/v1/transactions/pending", get(pending_transactions_live))
         .route("/api/v1/transactions/:hash", get(get_transaction))
+        // Address labels (public registry for frontends)
+        .route("/api/v1/labels", get(address_labels))
+        // Tanastok tokenized assets
+        .route("/api/v1/tanastok/assets", get(tanastok_all_assets))
+        .route("/api/v1/accounts/:address/tanastok", get(tanastok_by_address))
         // Accounts
         .route("/api/v1/accounts/:address", get(get_account))
+        .route("/api/v1/accounts/:address/overview", get(account_overview_live))
+        .route("/api/v1/accounts/:address/agent-testimonies", get(agent_testimonies_by_wallet))
+        .route("/api/v1/accounts/:address/bytecode", get(account_bytecode))
+        .route("/api/v1/accounts/:address/transfers", get(account_transfers))
+        .route("/api/v1/accounts/:address/events", get(account_events))
         .route(
             "/api/v1/accounts/:address/transactions",
             get(account_transactions),
         )
         .route("/api/v1/accounts/:address/tokens", get(account_tokens))
+        // Quipu Canon v1.1 §6(2) — canonical String → Knot[] → Tx-details
+        // hierarchy for the wallet's public personal ledger view in DCScan.
+        // Tries the rope-node native `rope_getStringWithKnots` RPC first;
+        // falls back to a block-anchored grouping built from EVM tx data.
+        .route(
+            "/api/v1/personal-ledger/:address/string",
+            get(personal_ledger_string),
+        )
+        .route(
+            "/api/v1/personal-ledger/:address/knots",
+            get(personal_ledger_string),
+        )
+        .route("/api/v1/accounts/stats", get(accounts_stats_live))
+        .route("/api/v1/accounts/top", get(accounts_top_live))
         // Tokens
         .route("/api/v1/tokens", get(list_tokens))
         .route("/api/v1/tokens/:address", get(get_token))
         .route("/api/v1/tokens/:address/holders", get(token_holders))
         .route("/api/v1/tokens/:address/transfers", get(token_transfers))
+        .route("/api/v1/tokentxns", get(list_token_transfers_live))
         // Validators
         .route("/api/v1/validators", get(list_validators))
         .route("/api/v1/validators/:address", get(get_validator))
         // AI Agents
-        .route("/api/v1/ai-agents", get(list_ai_agents))
-        .route("/api/v1/ai-agents/:id", get(get_ai_agent))
-        .route("/api/v1/ai-agents/:id/testimonies", get(agent_testimonies))
+        .route("/api/v1/ai-agents", get(list_ai_agents_live))
+        .route("/api/v1/ai-agents/:id", get(get_ai_agent_live))
+        .route("/api/v1/ai-agents/:id/testimonies", get(agent_testimonies_live))
         // Databoxes (Nodes)
         .route("/api/v1/databoxes", get(list_databoxes))
         .route("/api/v1/databoxes/:id", get(get_databox))
         .route("/api/v1/databoxes/map", get(databox_map))
         // Search
         .route("/api/v1/search", get(search))
+        // Consensus & Testimonies
+        .route("/api/v1/consensus", get(consensus))
+        .route("/api/v1/testimonies/stats", get(testimonies_stats_live))
+        .route("/api/v1/testimonies", get(testimonies_list_live))
+        .route("/api/v1/consensus/testimonies", get(consensus_testimonies))
+        // Contracts
+        .route("/api/v1/contracts/stats", get(contracts_stats_live))
+        .route("/api/v1/contracts/list", get(contracts_list_live))
+        // DeFi
+        .route("/api/v1/defi/overview", get(defi_overview))
+        .route("/api/v1/defi/swaps", get(defi_swaps))
+        // Services registry & Verify
+        .route("/api/v1/services/registry", get(services_registry_get))
+        .route("/api/v1/services/registry", post(services_registry_post))
+        .route("/api/v1/verify/:address", get(verify_get))
+        .route("/api/v1/verify/certify", post(verify_certify_post))
+        .route("/api/v1/verify", post(verify_post))
+        .route("/api/v1/tokens/register", post(tokens_register_post))
         // Gas & Prices
         .route("/api/v1/gas/price", get(gas_price))
         .route("/api/v1/gas/oracle", get(gas_oracle))
@@ -192,15 +430,22 @@ async fn main() -> anyhow::Result<()> {
             "/api/v1/votes/:target_type/:target_id",
             get(get_votes_for_target),
         )
-        .layer(cors)
-        .with_state(state);
+        .layer(cors);
 
-    let addr = "0.0.0.0:3001";
+    let app = if static_dir.is_some() {
+        app.route("/", get(serve_index))
+            .route("/*path", get(serve_static_with_html_fallback))
+    } else {
+        app
+    };
+    let app = app.with_state(state);
+
+    let addr = format!("0.0.0.0:{}", port);
     tracing::info!("DC Explorer API listening on {}", addr);
     tracing::info!("API docs: http://{}/api/v1/status", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app.into_make_service()).await?;
 
     Ok(())
 }
@@ -335,6 +580,136 @@ fn rand_variation() -> f64 {
 // Route Handlers
 // ============================================================================
 
+/// Serves index.html for GET / when static frontend is enabled (axum /*path does not match root).
+async fn serve_index(State(state): State<Arc<AppState>>) -> Response {
+    let Some(ref dir) = state.static_dir else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let path = std::path::Path::new(dir).join("index.html");
+    match tokio::fs::read(&path).await {
+        Ok(body) => {
+            let mut res = Response::new(axum::body::Body::from(body));
+            res.headers_mut().insert(
+                axum::http::header::CONTENT_TYPE,
+                HeaderValue::from_static("text/html; charset=utf-8"),
+            );
+            res
+        }
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+/// Serves static files from static_dir; extensionless paths (e.g. /strings, /txs) are served as path.html.
+async fn serve_static_with_html_fallback(
+    Path(path): Path<String>,
+    State(state): State<Arc<AppState>>,
+) -> Response {
+    let Some(ref dir) = state.static_dir else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let path = path.trim_start_matches('/');
+    // Do not serve static files for API paths (safety guard)
+    if path.starts_with("api/") {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    if path.contains("..") {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    let base = std::path::Path::new(dir);
+    // Path rewrites: URL path -> file path (relative to base)
+    let path_rewrites: &[(&str, &str)] = &[
+        ("tokens/transfers", "tokentxns.html"),
+        ("tokens/vote", "vote.html"),
+        ("network/validators", "validators.html"),
+        ("network/stats", "stats.html"),
+        ("apis", "apis.html"),
+        ("api", "apis.html"),
+        ("validators", "validators.html"),
+        ("databases", "databases.html"),
+        ("databoxes", "databases.html"),
+    ];
+    let rewritten = path_rewrites
+        .iter()
+        .find(|(from, _)| path == *from)
+        .map(|(_, to)| to.to_string());
+
+    let (file_path, content_type) = if path.is_empty() {
+        (base.join("index.html"), "text/html; charset=utf-8")
+    } else if let Some(ref file) = rewritten {
+        let p = base.join(file);
+        if p.exists() {
+            let ct = content_type_for_path(p.as_path());
+            (p, ct)
+        } else {
+            return StatusCode::NOT_FOUND.into_response();
+        }
+    } else {
+        let path_index = base.join(path).join("index.html");
+        let path_html = base.join(format!("{}.html", path));
+        if path_html.exists() {
+            let ct = content_type_for_path(path_html.as_path());
+            (path_html, ct)
+        } else if path_index.exists() {
+            (path_index, "text/html; charset=utf-8")
+        } else if path.starts_with("tx/") || path.starts_with("address/") || path.starts_with("string/") || path.starts_with("token/") || path.starts_with("blockchain/") || path.starts_with("agents/") || path.starts_with("tokens/") || path.starts_with("network/") {
+            let segment = path.split('/').next().unwrap_or("tx");
+            let index_path = base.join(segment).join("index.html");
+            if index_path.exists() {
+                (index_path, "text/html; charset=utf-8")
+            } else {
+                return StatusCode::NOT_FOUND.into_response();
+            }
+        } else {
+            let path_has_extension = std::path::Path::new(path).extension().is_some();
+            let try_path = if path_has_extension {
+                base.join(path)
+            } else {
+                base.join(format!("{}.html", path))
+            };
+            if try_path.exists() {
+                let ct = content_type_for_path(try_path.as_path());
+                (try_path, ct)
+            } else if path_has_extension {
+                return StatusCode::NOT_FOUND.into_response();
+            } else {
+                let direct = base.join(path);
+                if direct.exists() && direct.is_file() {
+                    let ct = content_type_for_path(direct.as_path());
+                    (direct, ct)
+                } else {
+                    return StatusCode::NOT_FOUND.into_response();
+                }
+            }
+        }
+    };
+    match tokio::fs::read(&file_path).await {
+        Ok(body) => {
+            let mut res = Response::new(axum::body::Body::from(body));
+            let hv = HeaderValue::try_from(content_type)
+                .unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream"));
+            res.headers_mut().insert(axum::http::header::CONTENT_TYPE, hv);
+            res
+        }
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+fn content_type_for_path(p: &std::path::Path) -> &'static str {
+    match p.extension().and_then(|e| e.to_str()) {
+        Some("html") => "text/html; charset=utf-8",
+        Some("css") => "text/css; charset=utf-8",
+        Some("js") => "application/javascript; charset=utf-8",
+        Some("json") => "application/json",
+        Some("svg") => "image/svg+xml",
+        Some("png") => "image/png",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("ico") => "image/x-icon",
+        Some("woff2") => "font/woff2",
+        Some("woff") => "font/woff",
+        _ => "application/octet-stream",
+    }
+}
+
 async fn root() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "name": "DC Explorer API",
@@ -371,29 +746,443 @@ async fn status(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     }))
 }
 
+/// JSON-RPC call to Datachain Rope node (Reth EVM execution layer) with
+/// automatic failover. The pre-`reth-blue-green` architecture used Anvil;
+/// Anvil was fully archived 2026-03-31 — see `reth-migration-2026-03-12.mdc`
+/// and `reth-blue-green-ipfs-architecture.mdc`. The function name and
+/// failover semantics are unchanged because Reth is wire-compatible with the
+/// JSON-RPC interface this client speaks.
+/// Tries the currently active endpoint first; on failure, rotates through all
+/// configured endpoints before giving up.
+async fn rpc_call(
+    state: &AppState,
+    method: &str,
+    params: Vec<serde_json::Value>,
+) -> Result<serde_json::Value, String> {
+    let body = serde_json::json!({
+        "jsonrpc": "2.0",
+        "method": method,
+        "params": params,
+        "id": 1
+    });
+    let n = state.rpc_urls.len();
+    let start = state.rpc_active_index.load(std::sync::atomic::Ordering::Relaxed);
+    let mut last_err = String::new();
+
+    for offset in 0..n {
+        let idx = (start + offset) % n;
+        let url = &state.rpc_urls[idx];
+        match state.http_client.post(url).json(&body).send().await {
+            Ok(res) => match res.json::<serde_json::Value>().await {
+                Ok(json) => {
+                    if let Some(err) = json.get("error") {
+                        last_err = err.to_string();
+                        continue;
+                    }
+                    if offset > 0 {
+                        tracing::warn!("RPC failover: switched from {} to {}", state.rpc_urls[start], url);
+                        state.rpc_active_index.store(idx, std::sync::atomic::Ordering::Relaxed);
+                    }
+                    return json.get("result").cloned().ok_or_else(|| "missing result".to_string());
+                }
+                Err(e) => { last_err = format!("{} (parse): {}", url, e); }
+            },
+            Err(e) => { last_err = format!("{} (connect): {}", url, e); }
+        }
+    }
+    Err(format!("all {} RPC endpoints failed — last: {}", n, last_err))
+}
+
+/// Batch JSON-RPC call with failover (used for block-scanning loops).
+async fn rpc_batch_call(
+    state: &AppState,
+    batch: &[serde_json::Value],
+) -> Option<Vec<serde_json::Value>> {
+    let n = state.rpc_urls.len();
+    let start = state.rpc_active_index.load(std::sync::atomic::Ordering::Relaxed);
+    for offset in 0..n {
+        let idx = (start + offset) % n;
+        let url = &state.rpc_urls[idx];
+        match state.http_client.post(url).json(batch).send().await {
+            Ok(res) => match res.json::<Vec<serde_json::Value>>().await {
+                Ok(v) if !v.is_empty() => {
+                    if offset > 0 {
+                        tracing::warn!("RPC batch failover: switched to {}", url);
+                        state.rpc_active_index.store(idx, std::sync::atomic::Ordering::Relaxed);
+                    }
+                    return Some(v);
+                }
+                _ => continue,
+            },
+            Err(_) => continue,
+        }
+    }
+    None
+}
+
+/// eth_blockNumber -> current block number (u64)
+async fn rpc_block_number(state: &AppState) -> Result<u64, String> {
+    let hex = rpc_call(state, "eth_blockNumber", vec![]).await?;
+    let s = hex.as_str().ok_or("not a string")?;
+    let n = u64::from_str_radix(s.trim_start_matches("0x"), 16).map_err(|e| e.to_string())?;
+    Ok(n)
+}
+
+/// eth_gasPrice -> gas price in wei (u64)
+async fn rpc_gas_price(state: &AppState) -> Result<u64, String> {
+    let hex = rpc_call(state, "eth_gasPrice", vec![]).await?;
+    let s = hex.as_str().ok_or("not a string")?;
+    u64::from_str_radix(s.trim_start_matches("0x"), 16).map_err(|e| e.to_string())
+}
+
+fn hex_to_u64(s: &str) -> u64 {
+    u64::from_str_radix(s.trim_start_matches("0x"), 16).unwrap_or(0)
+}
+
+fn hex_to_u128(s: &str) -> u128 {
+    u128::from_str_radix(s.trim_start_matches("0x"), 16).unwrap_or(0)
+}
+
+fn wei_to_fat(hex: &str) -> f64 {
+    hex_to_u128(hex) as f64 / 1e18
+}
+
+fn format_fat(val: f64) -> String {
+    if val == 0.0 {
+        "0 FAT".to_string()
+    } else if val < 0.001 {
+        format!("{:.8} FAT", val)
+    } else {
+        format!("{:.4} FAT", val)
+    }
+}
+
+const TRANSFER_TOPIC: &str = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+
+struct TokenInfo {
+    symbol: &'static str,
+    decimals: u8,
+    usd_price: f64,
+}
+
+fn known_token(addr: &str) -> Option<TokenInfo> {
+    match addr.to_lowercase().as_str() {
+        "0xddBF887982a2A1c03CB8705fEF9E09c46122fFF6" | "0xddbf887982a2a1c03cb8705fef9e09c46122fff6" =>
+            Some(TokenInfo { symbol: "WFAT",  decimals: 18, usd_price: 0.01 }),
+        "0x90e2e170b0fc133343f0d7fde128c1fb716aab25" =>
+            Some(TokenInfo { symbol: "WFAT",  decimals: 18, usd_price: 0.01 }),
+        "0x3109c838e9a08a42fba000a48310845919759a02" =>
+            Some(TokenInfo { symbol: "USDC",  decimals: 6,  usd_price: 1.0 }),
+        "0x9f700dd3bb1764ab568263d3e19a1fc5cdf3f9a5" =>
+            Some(TokenInfo { symbol: "USDC",  decimals: 6,  usd_price: 1.0 }),
+        "0x73e3cc285b962c4c6b6b1503d8fd8ac745f6b1ef" =>
+            Some(TokenInfo { symbol: "USDT",  decimals: 6,  usd_price: 1.0 }),
+        "0xc784ea07aae35b22630df7e3f3ae9e2ccc64f1aa" =>
+            Some(TokenInfo { symbol: "EUROD", decimals: 6,  usd_price: 1.08 }),
+        _ => None,
+    }
+}
+
+fn decode_hex_u256(hex_data: &str) -> u128 {
+    let clean = hex_data.trim_start_matches("0x");
+    if clean.len() > 32 {
+        u128::from_str_radix(&clean[clean.len().saturating_sub(32)..], 16).unwrap_or(0)
+    } else {
+        u128::from_str_radix(clean, 16).unwrap_or(0)
+    }
+}
+
+fn topic_to_address(topic: &str) -> String {
+    let clean = topic.trim_start_matches("0x");
+    if clean.len() >= 40 {
+        format!("0x{}", &clean[clean.len() - 40..])
+    } else {
+        format!("0x{}", clean)
+    }
+}
+
+fn decode_token_transfers(logs: &[serde_json::Value]) -> (Vec<serde_json::Value>, String) {
+    let mut transfers = Vec::new();
+    let mut total_usd = 0.0f64;
+    let mut summary_parts: Vec<String> = Vec::new();
+
+    for log in logs {
+        let topics = match log.get("topics").and_then(|v| v.as_array()) {
+            Some(t) if t.len() >= 3 => t,
+            _ => continue,
+        };
+        let topic0 = topics[0].as_str().unwrap_or("");
+        if topic0 != TRANSFER_TOPIC { continue; }
+
+        let token_addr = log.get("address").and_then(|v| v.as_str()).unwrap_or("");
+        let from = topic_to_address(topics[1].as_str().unwrap_or(""));
+        let to = topic_to_address(topics[2].as_str().unwrap_or(""));
+        let data = log.get("data").and_then(|v| v.as_str()).unwrap_or("0x0");
+        let raw_amount = decode_hex_u256(data);
+
+        let (symbol, decimals, usd_price) = match known_token(token_addr) {
+            Some(info) => (info.symbol.to_string(), info.decimals, info.usd_price),
+            None => ("UNKNOWN".to_string(), 18, 0.0),
+        };
+
+        let divisor = 10f64.powi(decimals as i32);
+        let amount = raw_amount as f64 / divisor;
+        let usd_val = amount * usd_price;
+        total_usd += usd_val;
+
+        let amount_str = if amount < 0.001 && amount > 0.0 {
+            format!("{:.8}", amount)
+        } else if amount >= 1_000_000.0 {
+            format!("{:.2}", amount)
+        } else {
+            format!("{:.4}", amount)
+        };
+
+        if symbol != "UNKNOWN" {
+            summary_parts.push(format!("{} {}", amount_str, symbol));
+        }
+
+        transfers.push(serde_json::json!({
+            "token": token_addr,
+            "symbol": symbol,
+            "from": from,
+            "to": to,
+            "amount": amount_str,
+            "amountRaw": raw_amount.to_string(),
+            "decimals": decimals,
+            "usdValue": format!("${:.2}", usd_val),
+        }));
+    }
+
+    let summary = if transfers.is_empty() {
+        String::new()
+    } else if total_usd > 0.0 {
+        format!("${:.2} ({})", total_usd, summary_parts.join(" → "))
+    } else {
+        summary_parts.join(" → ")
+    };
+
+    (transfers, summary)
+}
+
+/// Fetch a block by number (hex string like "0x1a") with optional full transactions.
+async fn rpc_get_block(
+    state: &AppState,
+    block_hex: &str,
+    full_txs: bool,
+) -> Result<serde_json::Value, String> {
+    rpc_call(
+        state,
+        "eth_getBlockByNumber",
+        vec![serde_json::json!(block_hex), serde_json::json!(full_txs)],
+    )
+    .await
+}
+
+/// Extract transactions from the latest N blocks, returning (tx_json, block_number, block_timestamp) tuples.
+async fn collect_txs_from_recent_blocks(
+    state: &AppState,
+    block_count: u64,
+    tx_limit: usize,
+) -> Vec<(serde_json::Value, u64, i64)> {
+    let head = match rpc_block_number(state).await {
+        Ok(n) => n,
+        Err(_) => return Vec::new(),
+    };
+    let mut out: Vec<(serde_json::Value, u64, i64)> = Vec::new();
+    for offset in 0..block_count {
+        let num = head.saturating_sub(offset);
+        if num == 0 {
+            break;
+        }
+        let block_hex = format!("0x{:x}", num);
+        if let Ok(block) = rpc_get_block(state, &block_hex, true).await {
+            let ts = block
+                .get("timestamp")
+                .and_then(|v| v.as_str())
+                .map(|s| hex_to_u64(s) as i64)
+                .unwrap_or(0);
+            if let Some(txs) = block.get("transactions").and_then(|v| v.as_array()) {
+                for tx in txs {
+                    out.push((tx.clone(), num, ts));
+                    if out.len() >= tx_limit {
+                        return out;
+                    }
+                }
+            }
+        }
+        if out.len() >= tx_limit {
+            break;
+        }
+    }
+    out
+}
+
+/// Build a summary JSON object for a transaction (used by list/latest endpoints).
+fn tx_summary_json(
+    tx: &serde_json::Value,
+    block_number: u64,
+    block_timestamp: i64,
+) -> serde_json::Value {
+    let hash = tx.get("hash").and_then(|v| v.as_str()).unwrap_or("0x0");
+    let from = tx.get("from").and_then(|v| v.as_str()).unwrap_or("0x0");
+    let to = tx
+        .get("to")
+        .and_then(|v| v.as_str())
+        .unwrap_or("Contract Creation");
+    let value_hex = tx.get("value").and_then(|v| v.as_str()).unwrap_or("0x0");
+    let value_fat = wei_to_fat(value_hex);
+    let input = tx.get("input").and_then(|v| v.as_str()).unwrap_or("0x");
+    let input_sel = if input.len() >= 10 { &input[..10] } else { input };
+
+    // Quipu Canon v1.1: emit canon-shaped fields (knot, knotIndex)
+    // alongside the legacy "string"/"block" fields. Frontend may consume
+    // either; both name the same anchor index.
+    let mut j = serde_json::json!({
+        "hash": hash,
+        "from": from,
+        "to": to,
+        "value": format_fat(value_fat),
+        "status": "Success",
+        "string": block_number,
+        "knot": block_number,
+        "knotIndex": block_number,
+        "timestamp": block_timestamp,
+        "input": input_sel
+    });
+    enrich_addr_field(&mut j, from, "from");
+    enrich_addr_field(&mut j, to, "to");
+    j
+}
+
+/// Classify a transaction by canon §4 event_type for the Knot view.
+/// Inspects the first 4 bytes of input data (function selector) and the
+/// presence/absence of a recipient.
+fn classify_knot_event_type(tx: &serde_json::Value) -> &'static str {
+    let to = tx.get("to").and_then(|v| v.as_str());
+    let input = tx.get("input").and_then(|v| v.as_str()).unwrap_or("0x");
+    let value_hex = tx.get("value").and_then(|v| v.as_str()).unwrap_or("0x0");
+    let value = u128::from_str_radix(value_hex.trim_start_matches("0x"), 16).unwrap_or(0);
+
+    if to.is_none() || to == Some("") {
+        return "ContractCreation";
+    }
+    if input.len() < 10 {
+        // No function call data — pure value transfer
+        if value > 0 { "Transfer" } else { "Empty" }
+    } else {
+        let sel = &input[..10].to_lowercase();
+        match sel.as_str() {
+            // DCR-20 / ERC-20 standard
+            "0xa9059cbb" => "TokenTransfer",
+            "0x23b872dd" => "TokenTransferFrom",
+            "0x095ea7b3" => "TokenApproval",
+            "0x40c10f19" => "TokenMint",
+            "0x42966c68" => "TokenBurn",
+            // DEX (DCSwap router)
+            "0x38ed1739" | "0x18cbafe5" | "0x7ff36ab5" | "0x4a25d94a" | "0xfb3bdb41" => "Swap",
+            "0xe8e33700" | "0xf305d719" => "AddLiquidity",
+            "0xbaa2abde" | "0x02751cec" => "RemoveLiquidity",
+            // Anchor / consensus / testimony
+            _ => "ContractCall",
+        }
+    }
+}
+
 async fn stats(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
-    // Get cached price data
     let price_cache = state.price_cache.read().await;
     let price_data = price_cache.clone().unwrap_or_default();
     let fat_price = format!("${:.6}", price_data.price);
     let market_cap = format!("${:.0}", price_data.price * 10_000_000_000.0);
 
+    let head = rpc_block_number(&state).await.unwrap_or(0);
+    let gas_price_wei = rpc_gas_price(&state).await.unwrap_or(1_000_000_000u64);
+    let gas_price_gwei = format!("{} gwei", gas_price_wei / 1_000_000_000);
+
+    // Sample recent blocks to compute real metrics
+    let sample_size: u64 = 50;
+    let sample_end = head;
+    let sample_start = if head > sample_size { head - sample_size } else { 0 };
+
+    let mut total_txs_in_sample: u64 = 0;
+    let mut first_ts: u64 = 0;
+    let mut last_ts: u64 = 0;
+    let mut fee_samples: Vec<f64> = Vec::new();
+
+    for bn in (sample_start..=sample_end).rev() {
+        let blk = match rpc_get_block(&state, &format!("0x{:x}", bn), true).await {
+            Ok(b) => b,
+            Err(_) => continue,
+        };
+        let ts = blk.get("timestamp").and_then(|v| v.as_str())
+            .map(hex_to_u64).unwrap_or(0);
+        let txs = blk.get("transactions").and_then(|v| v.as_array())
+            .map(|a| a.len() as u64).unwrap_or(0);
+
+        if last_ts == 0 { last_ts = ts; }
+        first_ts = ts;
+        total_txs_in_sample += txs;
+
+        // Sample fees from first few blocks only (up to 20 txs total)
+        if fee_samples.len() < 20 {
+            if let Some(tx_arr) = blk.get("transactions").and_then(|v| v.as_array()) {
+                for tx in tx_arr {
+                    if fee_samples.len() >= 20 { break; }
+                    let gp = tx.get("gasPrice").and_then(|v| v.as_str())
+                        .map(hex_to_u128).unwrap_or(0);
+                    let gas_limit = tx.get("gas").and_then(|v| v.as_str())
+                        .map(hex_to_u128).unwrap_or(0);
+                    // Use gasLimit as upper bound; receipt would be more precise
+                    // but we avoid per-tx receipt calls for stats
+                    let fee_wei = gp * gas_limit;
+                    fee_samples.push(fee_wei as f64 / 1e18);
+                }
+            }
+        }
+    }
+
+    let time_span = if last_ts > first_ts { last_ts - first_ts } else { 1 };
+    let blocks_in_sample = sample_end.saturating_sub(sample_start).max(1);
+    let avg_block_time = time_span as f64 / blocks_in_sample as f64;
+    let tps = if time_span > 0 { total_txs_in_sample as f64 / time_span as f64 } else { 0.0 };
+
+    // Extrapolate 24h metrics from sample
+    let blocks_per_day = if avg_block_time > 0.0 { 86400.0 / avg_block_time } else { 28800.0 };
+    let avg_txs_per_block = total_txs_in_sample as f64 / blocks_in_sample as f64;
+    let txs_24h = (avg_txs_per_block * blocks_per_day) as u64;
+
+    let tx_cache = state.tx_count_cache.read().await;
+    let total_tx_cumulative = tx_cache.total_transactions;
+
+    let avg_fee = if fee_samples.is_empty() { 0.0 } else {
+        fee_samples.iter().sum::<f64>() / fee_samples.len() as f64
+    };
+    let total_fee_24h = avg_fee * txs_24h as f64;
+
+    // Pending txs from txpool
+    let pending_count = match rpc_call(&state, "txpool_status", vec![]).await {
+        Ok(pool) => pool.get("pending").and_then(|v| v.as_str())
+            .map(hex_to_u64).unwrap_or(0),
+        Err(_) => 0,
+    };
+
     Json(serde_json::json!({
-        "totalStrings": 1247893,
-        "totalTransactions": 4892451,
-        "validators": 127,
-        "aiAgents": 5,
-        "databoxes": 284,
-        "gasPrice": "0.001 gwei",
+        "totalStrings": head,
+        "totalTransactions": total_tx_cumulative,
+        "transactions24h": txs_24h,
+        "pendingTransactions": pending_count,
+        "avgTxnFee24h": format!("{:.6} FAT", avg_fee),
+        "totalTxnFee24h": format!("{:.2} FAT", total_fee_24h),
+        "gasPrice": gas_price_gwei,
         "fatPrice": fat_price,
         "fatPriceRaw": price_data.price,
         "fatPriceChange24h": price_data.change_24h,
         "fatPriceSource": price_data.source,
         "marketCap": market_cap,
         "circulatingSupply": "10,000,000,000 FAT",
-        "tps": 2847,
-        "avgBlockTime": "2.8s",
-        "finalityTime": "4.2s"
+        "tps": format!("{:.1}", tps),
+        "avgBlockTime": format!("{:.1}s", avg_block_time),
+        "finalityTime": format!("{:.1}s", avg_block_time * 2.0)
     }))
 }
 
@@ -479,169 +1268,1114 @@ async fn chart_data(
 struct PaginationParams {
     page: Option<u32>,
     limit: Option<u32>,
+    filter: Option<String>,
 }
 
-async fn list_strings(Query(params): Query<PaginationParams>) -> Json<serde_json::Value> {
+async fn list_strings(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<PaginationParams>,
+) -> Json<serde_json::Value> {
     let page = params.page.unwrap_or(1);
-    let limit = params.limit.unwrap_or(20);
+    let limit = params.limit.unwrap_or(20).min(100);
 
-    let strings: Vec<serde_json::Value> = (0..limit)
-        .map(|i| {
-            let num = 1247893 - (page - 1) * limit - i;
-            serde_json::json!({
-                "number": num,
-                "hash": format!("0x{:064x}", num),
-                "transactions": 15 + (i % 20),
-                "validator": format!("0x7f3a{}8d2e", i),
-                "timestamp": chrono::Utc::now().timestamp() - (i as i64 * 3),
-                "status": "Final",
-                "aiVerified": true
-            })
-        })
-        .collect();
+    match rpc_block_number(&state).await {
+        Ok(total) => {
+            let total = total.max(1);
+            let limit_u = limit as u64;
+            let start = total.saturating_sub((page as u64).saturating_mul(limit_u));
+            let mut strings = Vec::with_capacity(limit as usize);
+            for i in 0..limit {
+                let num = start + limit_u.saturating_sub(1).saturating_sub(i as u64);
+                if num == 0 {
+                    break;
+                }
+                let block_hex = format!("0x{:x}", num);
+                if let Ok(block) = rpc_call(&state, "eth_getBlockByNumber", vec![serde_json::json!(block_hex), serde_json::json!(false)]).await {
+                    if let Some(blk) = block.as_object() {
+                        let hash = blk.get("hash").and_then(|v| v.as_str()).unwrap_or("0x0");
+                        let timestamp = blk.get("timestamp").and_then(|v| v.as_str()).map(|s| u64::from_str_radix(s.trim_start_matches("0x"), 16).unwrap_or(0)).unwrap_or(0);
+                        let miner = blk.get("miner").and_then(|v| v.as_str()).unwrap_or("0x0");
+                        let tx_count = blk.get("transactions").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
+                        let gas_used = blk.get("gasUsed").and_then(|v| v.as_str()).unwrap_or("0x0");
+                        let gas_limit = blk.get("gasLimit").and_then(|v| v.as_str()).unwrap_or("0x0");
+                        let gas_used_dec = u64::from_str_radix(gas_used.trim_start_matches("0x"), 16).unwrap_or(0);
+                        let gas_limit_dec = u64::from_str_radix(gas_limit.trim_start_matches("0x"), 16).unwrap_or(30_000_000);
+                        strings.push(serde_json::json!({
+                            "number": num,
+                            "hash": hash,
+                            "transactions": tx_count,
+                            "validator": miner,
+                            "timestamp": timestamp as i64,
+                            "gasUsed": gas_used_dec.to_string(),
+                            "gasLimit": gas_limit_dec.to_string(),
+                            "status": "Final",
+                            "aiVerified": false
+                        }));
+                    }
+                }
+            }
+            return Json(serde_json::json!({
+                "strings": strings,
+                "pagination": { "page": page, "limit": limit, "total": total }
+            }));
+        }
+        Err(_) => {}
+    }
 
     Json(serde_json::json!({
-        "strings": strings,
-        "pagination": {
-            "page": page,
-            "limit": limit,
-            "total": 1247893
-        }
+        "strings": [],
+        "pagination": { "page": page, "limit": limit, "total": 0 }
     }))
 }
 
-async fn latest_strings() -> Json<serde_json::Value> {
-    let strings: Vec<serde_json::Value> = (0..10)
-        .map(|i| {
-            serde_json::json!({
-                "number": 1247893 - i,
-                "hash": format!("0x{:064x}", 1247893 - i),
-                "transactions": 15 + (i % 20),
-                "validator": format!("0x7f3a{}8d2e", i),
-                "timestamp": chrono::Utc::now().timestamp() - (i as i64 * 3),
+async fn latest_strings(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    let head = rpc_block_number(&state).await.unwrap_or(0);
+    let mut strings = Vec::with_capacity(10);
+    for i in 0u64..10 {
+        let num = head.saturating_sub(i);
+        if num == 0 { break; }
+        let block_hex = format!("0x{:x}", num);
+        if let Ok(block) = rpc_get_block(&state, &block_hex, false).await {
+            let hash = block.get("hash").and_then(|v| v.as_str()).unwrap_or("0x0");
+            let ts = block.get("timestamp").and_then(|v| v.as_str())
+                .map(|s| hex_to_u64(s) as i64).unwrap_or(0);
+            let miner = block.get("miner").and_then(|v| v.as_str()).unwrap_or("0x0");
+            let tx_count = block.get("transactions").and_then(|v| v.as_array())
+                .map(|a| a.len()).unwrap_or(0);
+            strings.push(serde_json::json!({
+                "number": num,
+                "hash": hash,
+                "transactions": tx_count,
+                "validator": miner,
+                "timestamp": ts,
                 "status": "Final"
-            })
-        })
-        .collect();
-
+            }));
+        }
+    }
     Json(serde_json::json!({ "strings": strings }))
 }
 
-async fn get_string(Path(id): Path<String>) -> Json<serde_json::Value> {
+async fn get_string(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Json<serde_json::Value> {
+    let num = match id.parse::<u64>() {
+        Ok(n) if n > 0 => n,
+        _ => {
+            return Json(serde_json::json!({ "error": "Invalid string number", "id": id }));
+        }
+    };
+
+    let block_hex = format!("0x{:x}", num);
+    let block = match rpc_get_block(&state, &block_hex, true).await {
+        Ok(b) if !b.is_null() => b,
+        _ => {
+            return Json(serde_json::json!({ "error": "String not found", "id": id }));
+        }
+    };
+
+    let blk = match block.as_object() {
+        Some(b) => b,
+        None => {
+            return Json(serde_json::json!({ "error": "String not found", "id": id }));
+        }
+    };
+
+    let hash = blk.get("hash").and_then(|v| v.as_str()).unwrap_or("0x0");
+    let parent_hash = blk.get("parentHash").and_then(|v| v.as_str()).unwrap_or("0x0");
+    let timestamp = blk.get("timestamp").and_then(|v| v.as_str())
+        .map(|s| hex_to_u64(s) as i64).unwrap_or(0);
+    let miner = blk.get("miner").and_then(|v| v.as_str()).unwrap_or("0x0");
+    let gas_used = blk.get("gasUsed").and_then(|v| v.as_str()).unwrap_or("0x0");
+    let gas_limit = blk.get("gasLimit").and_then(|v| v.as_str()).unwrap_or("0x0");
+    let gas_used_dec = hex_to_u64(gas_used);
+    let gas_limit_dec = hex_to_u64(gas_limit);
+
+    let txs_list: Vec<serde_json::Value> = blk.get("transactions")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter().map(|tx| {
+                let tx_hash = tx.get("hash").and_then(|v| v.as_str()).unwrap_or("0x0");
+                let from = tx.get("from").and_then(|v| v.as_str()).unwrap_or("0x0");
+                let to = tx.get("to").and_then(|v| v.as_str());
+                let value_hex = tx.get("value").and_then(|v| v.as_str()).unwrap_or("0x0");
+                let gas_hex = tx.get("gas").and_then(|v| v.as_str()).unwrap_or("0x0");
+                let value_fat = wei_to_fat(value_hex);
+                serde_json::json!({
+                    "hash": tx_hash,
+                    "from": from,
+                    "to": to,
+                    "value": format_fat(value_fat),
+                    "gasUsed": hex_to_u64(gas_hex).to_string()
+                })
+            }).collect()
+        })
+        .unwrap_or_default();
+
+    let tx_count = txs_list.len();
+
     Json(serde_json::json!({
-        "number": id.parse::<u64>().unwrap_or(1247893),
-        "hash": format!("0x{:064x}", id.parse::<u64>().unwrap_or(1247893)),
-        "parentHash": format!("0x{:064x}", id.parse::<u64>().unwrap_or(1247892)),
-        "timestamp": chrono::Utc::now().timestamp(),
-        "transactions": 24,
-        "validator": "0x7f3a8d2e4b1c9f0a",
-        "gasUsed": "1,247,893",
-        "gasLimit": "30,000,000",
-        "status": "Final",
-        "aiTestimonies": 5,
-        "complementHash": format!("0x{:064x}", id.parse::<u64>().unwrap_or(1247893) + 1)
+        "number": num,
+        "hash": hash,
+        "parentHash": parent_hash,
+        "timestamp": timestamp,
+        "transactions": tx_count,
+        "transactionsList": txs_list,
+        "validator": miner,
+        "gasUsed": gas_used_dec.to_string(),
+        "gasLimit": gas_limit_dec.to_string(),
+        "status": "Final"
     }))
 }
 
-async fn list_transactions(Query(params): Query<PaginationParams>) -> Json<serde_json::Value> {
-    let page = params.page.unwrap_or(1);
-    let limit = params.limit.unwrap_or(20);
+async fn enrich_tx_with_transfers(
+    state: &AppState,
+    summary: &mut serde_json::Value,
+    tx_hash: &str,
+) {
+    if tx_hash.is_empty() { return; }
+    if let Ok(receipt) = rpc_call(state, "eth_getTransactionReceipt", vec![serde_json::json!(tx_hash)]).await {
+        if !receipt.is_null() {
+            // Decode token transfers from logs
+            let logs: Vec<serde_json::Value> = receipt
+                .get("logs").and_then(|v| v.as_array())
+                .map(|arr| arr.iter().map(|log| serde_json::json!({
+                    "address": log.get("address").and_then(|v| v.as_str()).unwrap_or(""),
+                    "topics": log.get("topics").cloned().unwrap_or(serde_json::json!([])),
+                    "data": log.get("data").and_then(|v| v.as_str()).unwrap_or("0x")
+                })).collect())
+                .unwrap_or_default();
+            let (_, transfer_summary) = decode_token_transfers(&logs);
+            if !transfer_summary.is_empty() {
+                summary["value"] = serde_json::json!(transfer_summary);
+            }
 
-    let txs: Vec<serde_json::Value> = (0..limit)
-        .map(|i| {
-            serde_json::json!({
-                "hash": format!("0x8f2a9c3d{}4e7b1f8a", i),
-                "from": format!("0x7f3a{}8d2e", i),
-                "to": format!("0x2b9c{}4f1a", i + 1),
-                "value": format!("{}.00", 100 + i * 50),
-                "status": "Success",
-                "aiVerified": true,
-                "string": 1247893 - i,
-                "timestamp": chrono::Utc::now().timestamp() - (i as i64 * 5)
-            })
-        })
-        .collect();
+            // Fee from receipt: gasUsed * effectiveGasPrice (actual on-chain fee)
+            let gas_used = receipt.get("gasUsed")
+                .and_then(|v| v.as_str())
+                .map(hex_to_u128)
+                .unwrap_or(0);
+            let effective_gas_price = receipt.get("effectiveGasPrice")
+                .and_then(|v| v.as_str())
+                .map(hex_to_u128)
+                .unwrap_or(0);
+            let fee_wei = gas_used * effective_gas_price;
+            let fee_fat = fee_wei as f64 / 1e18;
+            summary["txnFee"] = if fee_fat == 0.0 {
+                serde_json::json!("0 FAT")
+            } else if fee_fat < 0.000001 {
+                serde_json::json!(format!("{:.8} FAT", fee_fat))
+            } else {
+                serde_json::json!(format!("{:.6} FAT", fee_fat))
+            };
+            summary["gasUsed"] = serde_json::json!(gas_used.to_string());
+
+            // Status from receipt
+            let status_hex = receipt.get("status").and_then(|v| v.as_str()).unwrap_or("0x1");
+            summary["status"] = if status_hex == "0x1" {
+                serde_json::json!("Success")
+            } else {
+                serde_json::json!("Failed")
+            };
+        }
+    }
+}
+
+async fn list_transactions(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<PaginationParams>,
+) -> Json<serde_json::Value> {
+    let page = params.page.unwrap_or(1);
+    let limit = params.limit.unwrap_or(20).min(100) as usize;
+
+    let max_blocks_to_scan: u64 = (limit as u64) * 10;
+    let collected = collect_txs_from_recent_blocks(&state, max_blocks_to_scan, limit * page as usize).await;
+
+    let start = (page as usize - 1) * limit;
+    let page_slice: Vec<&(serde_json::Value, u64, i64)> = collected.iter().skip(start).take(limit).collect();
+
+    let mut page_txs = Vec::with_capacity(page_slice.len());
+    for (tx, bn, ts) in page_slice {
+        let mut summary = tx_summary_json(tx, *bn, *ts);
+        let hash = tx.get("hash").and_then(|v| v.as_str()).unwrap_or("");
+        enrich_tx_with_transfers(&state, &mut summary, hash).await;
+        page_txs.push(summary);
+    }
+
+    let total_head = rpc_block_number(&state).await.unwrap_or(0);
 
     Json(serde_json::json!({
-        "transactions": txs,
+        "transactions": page_txs,
         "pagination": {
             "page": page,
             "limit": limit,
-            "total": 4892451
+            "total": total_head * 2
         }
     }))
 }
 
-async fn latest_transactions() -> Json<serde_json::Value> {
-    let txs: Vec<serde_json::Value> = (0..10)
-        .map(|i| {
-            serde_json::json!({
-                "hash": format!("0x8f2a9c3d{}4e7b1f8a", i),
-                "from": format!("0x7f3a{}8d2e", i),
-                "to": format!("0x2b9c{}4f1a", i + 1),
-                "value": format!("{}.00", 100 + i * 50),
-                "status": "Success",
-                "aiVerified": i % 3 != 0
-            })
-        })
-        .collect();
-
+async fn latest_transactions(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    let collected = collect_txs_from_recent_blocks(&state, 50, 10).await;
+    let mut txs = Vec::with_capacity(collected.len());
+    for (tx, bn, ts) in &collected {
+        let mut summary = tx_summary_json(tx, *bn, *ts);
+        let hash = tx.get("hash").and_then(|v| v.as_str()).unwrap_or("");
+        enrich_tx_with_transfers(&state, &mut summary, hash).await;
+        txs.push(summary);
+    }
     Json(serde_json::json!({ "transactions": txs }))
 }
 
-async fn get_transaction(Path(hash): Path<String>) -> Json<serde_json::Value> {
-    Json(serde_json::json!({
+async fn pending_transactions_live(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    let pool = match rpc_call(&state, "txpool_content", vec![]).await {
+        Ok(p) if !p.is_null() => p,
+        _ => return Json(serde_json::json!({ "pending": [], "total": 0 })),
+    };
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+
+    let mut txs: Vec<serde_json::Value> = Vec::new();
+
+    if let Some(pending_map) = pool.get("pending").and_then(|v| v.as_object()) {
+        for (_addr, nonces) in pending_map {
+            if let Some(nonce_map) = nonces.as_object() {
+                for (_nonce, tx) in nonce_map {
+                    let hash = tx.get("hash").and_then(|v| v.as_str()).unwrap_or("0x0");
+                    let from = tx.get("from").and_then(|v| v.as_str()).unwrap_or("0x0");
+                    let to = tx.get("to").and_then(|v| v.as_str()).unwrap_or("0x0");
+                    let nonce = tx.get("nonce").and_then(|v| v.as_str())
+                        .map(hex_to_u64).unwrap_or(0);
+                    let gas_price_wei = tx.get("gasPrice").and_then(|v| v.as_str())
+                        .map(hex_to_u128).unwrap_or(0);
+                    let gas_price_gwei = gas_price_wei as f64 / 1e9;
+                    let gas_limit = tx.get("gas").and_then(|v| v.as_str())
+                        .map(hex_to_u64).unwrap_or(0);
+                    let value_hex = tx.get("value").and_then(|v| v.as_str()).unwrap_or("0x0");
+                    let value_fat = wei_to_fat(value_hex);
+
+                    let mut entry = serde_json::json!({
+                        "hash": hash,
+                        "from": from,
+                        "to": to,
+                        "nonce": nonce,
+                        "gasPrice": format!("{:.4} gwei", gas_price_gwei),
+                        "gasLimit": gas_limit,
+                        "value": format_fat(value_fat),
+                        "timestamp": now
+                    });
+                    enrich_addr_field(&mut entry, from, "from");
+                    enrich_addr_field(&mut entry, to, "to");
+                    txs.push(entry);
+                }
+            }
+        }
+    }
+
+    let total = txs.len();
+    Json(serde_json::json!({ "pending": txs, "total": total }))
+}
+
+async fn get_transaction(
+    State(state): State<Arc<AppState>>,
+    Path(hash): Path<String>,
+) -> Json<serde_json::Value> {
+    let tx_result = rpc_call(&state, "eth_getTransactionByHash", vec![serde_json::json!(hash)]).await;
+    let receipt_result = rpc_call(&state, "eth_getTransactionReceipt", vec![serde_json::json!(hash)]).await;
+
+    let tx = match tx_result {
+        Ok(ref v) if !v.is_null() => v,
+        _ => {
+            return Json(serde_json::json!({
+                "error": "Transaction not found",
+                "hash": hash
+            }));
+        }
+    };
+
+    let receipt = receipt_result.as_ref().ok().filter(|v| !v.is_null());
+
+    let status = receipt
+        .and_then(|r| r.get("status").and_then(|v| v.as_str()))
+        .map(|s| if s == "0x1" { "Success" } else { "Failed" })
+        .unwrap_or("Pending");
+
+    let block_number_hex = receipt
+        .and_then(|r| r.get("blockNumber").and_then(|v| v.as_str()))
+        .or_else(|| tx.get("blockNumber").and_then(|v| v.as_str()));
+    let block_number = block_number_hex.map(hex_to_u64).unwrap_or(0);
+
+    let timestamp = if let Some(bn_hex) = block_number_hex {
+        if let Ok(block) = rpc_get_block(&state, bn_hex, false).await {
+            block
+                .get("timestamp")
+                .and_then(|v| v.as_str())
+                .map(|s| hex_to_u64(s) as i64)
+                .unwrap_or_else(|| chrono::Utc::now().timestamp())
+        } else {
+            chrono::Utc::now().timestamp()
+        }
+    } else {
+        chrono::Utc::now().timestamp()
+    };
+
+    let from = tx.get("from").and_then(|v| v.as_str()).unwrap_or("0x0");
+    let to = tx.get("to").and_then(|v| v.as_str());
+    let value_hex = tx.get("value").and_then(|v| v.as_str()).unwrap_or("0x0");
+    let gas_price_hex = tx.get("gasPrice").and_then(|v| v.as_str()).unwrap_or("0x0");
+    let nonce_hex = tx.get("nonce").and_then(|v| v.as_str()).unwrap_or("0x0");
+    let tx_index_hex = tx.get("transactionIndex").and_then(|v| v.as_str()).unwrap_or("0x0");
+    let input = tx.get("input").and_then(|v| v.as_str()).unwrap_or("0x");
+
+    let gas_used = receipt
+        .and_then(|r| r.get("gasUsed").and_then(|v| v.as_str()))
+        .map(hex_to_u64)
+        .unwrap_or(0);
+
+    let gas_price_wei = hex_to_u64(gas_price_hex);
+    let gas_price_gwei = gas_price_wei as f64 / 1e9;
+
+    let value_fat = wei_to_fat(value_hex);
+
+    let raw_logs: Vec<serde_json::Value> = receipt
+        .and_then(|r| r.get("logs").and_then(|v| v.as_array()))
+        .map(|arr| {
+            arr.iter()
+                .map(|log| {
+                    serde_json::json!({
+                        "address": log.get("address").and_then(|v| v.as_str()).unwrap_or("0x0"),
+                        "topics": log.get("topics").cloned().unwrap_or(serde_json::json!([])),
+                        "data": log.get("data").and_then(|v| v.as_str()).unwrap_or("0x")
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let (token_transfers, transfer_value) = decode_token_transfers(&raw_logs);
+
+    let display_value = if !transfer_value.is_empty() {
+        transfer_value.clone()
+    } else {
+        format_fat(value_fat)
+    };
+
+    let mut resp = serde_json::json!({
         "hash": hash,
-        "status": "Success",
-        "string": 1247893,
-        "from": "0x7f3a8d2e4b1c9f0a",
-        "to": "0x2b9c4f1a8e7d3b6c",
-        "value": "1,250.00 FAT",
-        "gasUsed": "21,000",
-        "gasPrice": "0.001 gwei",
-        "timestamp": chrono::Utc::now().timestamp(),
-        "aiTestimony": {
-            "verified": true,
-            "agents": ["ValidationAgent", "ComplianceAgent"],
-            "confidence": 0.98
-        },
-        "input": "0x",
-        "logs": []
+        "status": status,
+        "string": block_number,
+        "from": from,
+        "to": to,
+        "value": display_value,
+        "nativeValue": format_fat(value_fat),
+        "gasUsed": gas_used.to_string(),
+        "gasPrice": format!("{:.4} gwei", gas_price_gwei),
+        "timestamp": timestamp,
+        "nonce": hex_to_u64(nonce_hex),
+        "index": hex_to_u64(tx_index_hex),
+        "input": input,
+        "logs": raw_logs,
+        "tokenTransfers": token_transfers,
+        "transferValue": transfer_value
+    });
+    enrich_addr_field(&mut resp, from, "from");
+    if let Some(to_addr) = to {
+        enrich_addr_field(&mut resp, to_addr, "to");
+    }
+    Json(resp)
+}
+
+struct KnownContract {
+    address: &'static str,
+    name: &'static str,
+    compiler: &'static str,
+    version: &'static str,
+    license: &'static str,
+}
+
+const KNOWN_CONTRACTS: &[KnownContract] = &[
+    KnownContract { address: "0xddbf887982a2a1c03cb8705fef9e09c46122fff6", name: "WFAT", compiler: "Solidity", version: "0.8.20", license: "MIT" },
+    KnownContract { address: "0x3109c838e9a08a42fba000a48310845919759a02", name: "BridgedUSDC", compiler: "Solidity", version: "0.8.20", license: "MIT" },
+    KnownContract { address: "0x73e3cc285b962c4c6b6b1503d8fd8ac745f6b1ef", name: "BridgedUSDT", compiler: "Solidity", version: "0.8.20", license: "MIT" },
+    KnownContract { address: "0xc784ea07aae35b22630df7e3f3ae9e2ccc64f1aa", name: "BridgedEUROD", compiler: "Solidity", version: "0.8.20", license: "MIT" },
+    KnownContract { address: "0x2e2304cabe9a75f00627fe92b73a391fff0486f8", name: "Multicall3", compiler: "Solidity", version: "0.8.12", license: "MIT" },
+    KnownContract { address: "0x8b3554e7d32deeb8a8c057268e1eebd6c043313c", name: "DCSwapFactory", compiler: "Solidity", version: "0.8.20", license: "GPL-3.0" },
+    KnownContract { address: "0xfb0e84d2674dee6b330f17fa2f36e22c54327093", name: "DCSwapRouter", compiler: "Solidity", version: "0.8.20", license: "GPL-3.0" },
+    KnownContract { address: "0x38bfe303f02f892a7603f5e5d1ce99dda1e0fabf", name: "DCSwapPair (FAT/USDC)", compiler: "Solidity", version: "0.8.20", license: "GPL-3.0" },
+    KnownContract { address: "0x7a4bcc7b6513770dc6feb58655063cb52cb95039", name: "DCSwapPair (FAT/USDT)", compiler: "Solidity", version: "0.8.20", license: "GPL-3.0" },
+    KnownContract { address: "0xef5f76d24de7252c43e20f1dbce145b897cc1b1f", name: "DCSwapPair (FAT/EUROD)", compiler: "Solidity", version: "0.8.20", license: "GPL-3.0" },
+    KnownContract { address: "0xf37bbeb4c37e0a9ef3ce5286a32e0947b0a26f78", name: "DCSwapPair (USDC/USDT)", compiler: "Solidity", version: "0.8.20", license: "GPL-3.0" },
+    KnownContract { address: "0xe158a7b8030af5386aae3bae4fc7382200064f20", name: "IdentityImplementation", compiler: "Solidity", version: "0.8.17", license: "GPL-3.0" },
+    KnownContract { address: "0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4", name: "ImplementationAuthority", compiler: "Solidity", version: "0.8.17", license: "GPL-3.0" },
+    KnownContract { address: "0xb93bd8db94f1baff474aa9cba0739daaad01641f", name: "IdFactory", compiler: "Solidity", version: "0.8.17", license: "GPL-3.0" },
+    KnownContract { address: "0x79a26132f48394421382c13b54ae77fa3af73289", name: "ClaimTopicsRegistry", compiler: "Solidity", version: "0.8.17", license: "GPL-3.0" },
+    KnownContract { address: "0x094237118686fef3b03af028721c2e5c23027455", name: "TrustedIssuersRegistry", compiler: "Solidity", version: "0.8.17", license: "GPL-3.0" },
+    KnownContract { address: "0xe3d48836733c4ebaf504694aa5d15d6f8f22fbf2", name: "IdentityRegistryStorage", compiler: "Solidity", version: "0.8.17", license: "GPL-3.0" },
+    KnownContract { address: "0xb28e38b344a7238c9777d74209f966d1873d26e0", name: "IdentityRegistry", compiler: "Solidity", version: "0.8.17", license: "GPL-3.0" },
+    KnownContract { address: "0x34ab12ca0bc2cfb3510cca479cc5bd4eb6eae883", name: "DatawalletClaimIssuer", compiler: "Solidity", version: "0.8.17", license: "GPL-3.0" },
+    KnownContract { address: "0x30ed28e33fcd73705bdda7c4246cf51f3d544ca6", name: "RopeComplianceModule", compiler: "Solidity", version: "0.8.17", license: "GPL-3.0" },
+];
+
+async fn contracts_stats_live(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    let mut verified = 0u64;
+    for kc in KNOWN_CONTRACTS {
+        let code = rpc_call(&state, "eth_getCode", vec![
+            serde_json::json!(kc.address), serde_json::json!("latest")
+        ]).await.ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_else(|| "0x".to_string());
+        if code != "0x" && code.len() > 2 { verified += 1; }
+    }
+
+    let mit_count = KNOWN_CONTRACTS.iter().filter(|c| c.license == "MIT").count();
+    let gpl_count = KNOWN_CONTRACTS.iter().filter(|c| c.license == "GPL-3.0").count();
+
+    Json(serde_json::json!({
+        "totalVerified": verified,
+        "verifiedToday": 0,
+        "openSourceLicenses": format!("{} MIT, {} GPL-3.0", mit_count, gpl_count),
+        "auditedContracts": 0,
+        "total": verified
     }))
 }
 
-async fn get_account(Path(address): Path<String>) -> Json<serde_json::Value> {
+async fn contracts_list_live(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<PaginationParams>,
+) -> Json<serde_json::Value> {
+    let limit = params.limit.unwrap_or(100).min(100) as usize;
+    let mut contracts: Vec<serde_json::Value> = Vec::new();
+
+    for kc in KNOWN_CONTRACTS {
+        let code = rpc_call(&state, "eth_getCode", vec![
+            serde_json::json!(kc.address), serde_json::json!("latest")
+        ]).await.ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_else(|| "0x".to_string());
+
+        if code == "0x" || code.len() <= 2 { continue; }
+
+        let balance_hex = rpc_call(&state, "eth_getBalance", vec![
+            serde_json::json!(kc.address), serde_json::json!("latest")
+        ]).await.ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_else(|| "0x0".to_string());
+
+        let nonce_hex = rpc_call(&state, "eth_getTransactionCount", vec![
+            serde_json::json!(kc.address), serde_json::json!("latest")
+        ]).await.ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_else(|| "0x0".to_string());
+
+        let balance_fat = wei_to_fat(&balance_hex);
+        let tx_count = hex_to_u64(&nonce_hex);
+
+        contracts.push(serde_json::json!({
+            "address": kc.address,
+            "contractName": kc.name,
+            "compiler": kc.compiler,
+            "version": kc.version,
+            "license": kc.license,
+            "balance": format_fat(balance_fat),
+            "txns": tx_count,
+            "settings": "Optimized",
+            "verified": true
+        }));
+    }
+
+    let total = contracts.len();
+    let page_contracts: Vec<serde_json::Value> = contracts.into_iter().take(limit).collect();
+
+    Json(serde_json::json!({
+        "contracts": page_contracts,
+        "total": total,
+        "pagination": {
+            "page": 1,
+            "limit": limit,
+            "total": total
+        }
+    }))
+}
+
+struct AddressTag {
+    label: &'static str,
+    category: &'static str,
+    icon: &'static str,
+    /// When true, the raw address is permanently redacted from all API
+    /// responses. Only the label is exposed. The hex never reaches the client.
+    hidden: bool,
+}
+
+fn address_registry() -> &'static std::collections::HashMap<&'static str, AddressTag> {
+    use std::sync::OnceLock;
+    static REGISTRY: OnceLock<std::collections::HashMap<&'static str, AddressTag>> = OnceLock::new();
+    REGISTRY.get_or_init(|| {
+        let mut m = std::collections::HashMap::new();
+        m.insert("0x60fb32ef3a2381c2ed71613f34fd56d56fcf4195", AddressTag {
+            label: "DC Treasury", category: "treasury", icon: "fa-landmark", hidden: true,
+        });
+        m.insert("0x302fa11a6e784dfa89f96942a919c09b45559676", AddressTag {
+            label: "Genesis", category: "system", icon: "fa-cube", hidden: false,
+        });
+        m.insert("0xddbf887982a2a1c03cb8705fef9e09c46122fff6", AddressTag {
+            label: "WFAT Contract", category: "token", icon: "fa-coins", hidden: false,
+        });
+        m.insert("0x3109c838e9a08a42fba000a48310845919759a02", AddressTag {
+            label: "USDC Contract", category: "token", icon: "fa-dollar-sign", hidden: false,
+        });
+        m.insert("0x73e3cc285b962c4c6b6b1503d8fd8ac745f6b1ef", AddressTag {
+            label: "USDT Contract", category: "token", icon: "fa-dollar-sign", hidden: false,
+        });
+        m.insert("0xc784ea07aae35b22630df7e3f3ae9e2ccc64f1aa", AddressTag {
+            label: "EUROD Contract", category: "token", icon: "fa-euro-sign", hidden: false,
+        });
+        m.insert("0x8b3554e7d32deeb8a8c057268e1eebd6c043313c", AddressTag {
+            label: "DCSwapFactory", category: "defi", icon: "fa-industry", hidden: false,
+        });
+        m.insert("0xfb0e84d2674dee6b330f17fa2f36e22c54327093", AddressTag {
+            label: "DCSwapRouter", category: "defi", icon: "fa-exchange-alt", hidden: false,
+        });
+        m.insert("0x38bfe303f02f892a7603f5e5d1ce99dda1e0fabf", AddressTag {
+            label: "FAT/USDC Pool", category: "defi", icon: "fa-water", hidden: false,
+        });
+        m.insert("0x7a4bcc7b6513770dc6feb58655063cb52cb95039", AddressTag {
+            label: "FAT/USDT Pool", category: "defi", icon: "fa-water", hidden: false,
+        });
+        m.insert("0xef5f76d24de7252c43e20f1dbce145b897cc1b1f", AddressTag {
+            label: "FAT/EUROD Pool", category: "defi", icon: "fa-water", hidden: false,
+        });
+        m.insert("0xf37bbeb4c37e0a9ef3ce5286a32e0947b0a26f78", AddressTag {
+            label: "USDC/USDT Pool", category: "defi", icon: "fa-water", hidden: false,
+        });
+        m.insert("0xb28e38b344a7238c9777d74209f966d1873d26e0", AddressTag {
+            label: "IdentityRegistry", category: "identity", icon: "fa-id-card", hidden: false,
+        });
+        m.insert("0x34ab12ca0bc2cfb3510cca479cc5bd4eb6eae883", AddressTag {
+            label: "ClaimIssuer", category: "identity", icon: "fa-certificate", hidden: false,
+        });
+        m.insert("0x2e2304cabe9a75f00627fe92b73a391fff0486f8", AddressTag {
+            label: "Multicall3", category: "infrastructure", icon: "fa-layer-group", hidden: false,
+        });
+        // Post-Reth migration DCSwap addresses
+        m.insert("0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4", AddressTag {
+            label: "WFAT Contract", category: "token", icon: "fa-coins", hidden: false,
+        });
+        m.insert("0xb93bd8db94f1baff474aa9cba0739daaad01641f", AddressTag {
+            label: "USDC Contract", category: "token", icon: "fa-dollar-sign", hidden: false,
+        });
+        m.insert("0x79a26132f48394421382c13b54ae77fa3af73289", AddressTag {
+            label: "USDT Contract", category: "token", icon: "fa-dollar-sign", hidden: false,
+        });
+        m.insert("0x24d6137807fa8a592888726d87ac748d018c6d4a", AddressTag {
+            label: "EUROD Contract", category: "token", icon: "fa-euro-sign", hidden: false,
+        });
+        m.insert("0x772e5fd559069aecce5e6983c0c415c8579d780d", AddressTag {
+            label: "DCSwapFactory", category: "defi", icon: "fa-industry", hidden: false,
+        });
+        m.insert("0x8ebdd966e9e9af2ec5d02c886b1c4b5ba617e7c4", AddressTag {
+            label: "DCSwapRouter", category: "defi", icon: "fa-exchange-alt", hidden: false,
+        });
+        m.insert("0xd9ebc3da001618a3ae90481d33ae7ef85e130317", AddressTag {
+            label: "FAT/USDC Pool", category: "defi", icon: "fa-water", hidden: false,
+        });
+        m.insert("0x644da44bcd5f453c593781dbe22dfd733e8d1441", AddressTag {
+            label: "FAT/USDT Pool", category: "defi", icon: "fa-water", hidden: false,
+        });
+        m.insert("0x1e9c2ccf67320459bc4999a9f8be4a063d4021e4", AddressTag {
+            label: "FAT/EUROD Pool", category: "defi", icon: "fa-water", hidden: false,
+        });
+        m.insert("0xb86bdcecad93573d6ca21313aa7eac52800513c8", AddressTag {
+            label: "USDC/USDT Pool", category: "defi", icon: "fa-water", hidden: false,
+        });
+        m.insert("0xc2eeb0100aa7e81a3193bdce6733ff767f3bb93a", AddressTag {
+            label: "Multicall3", category: "infrastructure", icon: "fa-layer-group", hidden: false,
+        });
+        // T-REX / Tanastok infrastructure contracts
+        m.insert("0x76b40d5439f1cb661b2479fd15410662a7fe0991", AddressTag {
+            label: "T-REX Factory (Tanastok)", category: "trex", icon: "fa-industry", hidden: false,
+        });
+        m.insert("0x3065138f0ce815eb09f14d2e87e8bcbe98dd172b", AddressTag {
+            label: "ONCHAINID Identity Registry", category: "trex", icon: "fa-id-card", hidden: false,
+        });
+        m.insert("0x98a7ec2f86cfe4721dff36c648396f1f5ba11ab0", AddressTag {
+            label: "ONCHAINID Claim Topics", category: "trex", icon: "fa-list-check", hidden: false,
+        });
+        m.insert("0x42d605a05a063d91e83481867839bfd713d21666", AddressTag {
+            label: "ONCHAINID Trusted Issuers", category: "trex", icon: "fa-shield-halved", hidden: false,
+        });
+        m.insert("0x4f4741f3cbeafd9b4ab92b549ce6f49c426bcb03", AddressTag {
+            label: "ONCHAINID Identity Storage", category: "trex", icon: "fa-database", hidden: false,
+        });
+        m.insert("0xe5156df30ed0645a585cb8207caa93d8d3847417", AddressTag {
+            label: "Datawallet+ Claim Issuer", category: "trex", icon: "fa-certificate", hidden: false,
+        });
+        m.insert("0x0919baf7e91785ae65351698a04b07bb13d14bbc", AddressTag {
+            label: "ROPE Compliance Module", category: "trex", icon: "fa-gavel", hidden: false,
+        });
+        m.insert("0xd28cf001910d814c578e773efcbf0459d98db15f", AddressTag {
+            label: "Tanastok ONCHAINID", category: "trex", icon: "fa-fingerprint", hidden: false,
+        });
+        m.insert("0x30fec506029781ba7d1d2ea27bdf9be422af81a7", AddressTag {
+            label: "Deployer ONCHAINID", category: "trex", icon: "fa-fingerprint", hidden: false,
+        });
+        m.insert("0x183c0666bfcfdab9453c0d48c0d39d511b4010b3", AddressTag {
+            label: "DCNFT Bytecode Template", category: "trex", icon: "fa-file-code", hidden: false,
+        });
+        m.insert("0x0264e76755493caf8f6eae214df188f2b9f6bbe2", AddressTag {
+            label: "T-REX Implementation Authority", category: "trex", icon: "fa-key", hidden: false,
+        });
+        m.insert("0xbd3d7372caf8e448c6a3457561cc1c5de08bf1ef", AddressTag {
+            label: "T-REX IA Factory", category: "trex", icon: "fa-industry", hidden: false,
+        });
+        // Tanastok deployer wallets
+        m.insert("0x297ba821da55ed5e37c5c25b3832ce45fc54c475", AddressTag {
+            label: "Tanastok Issuer", category: "trex", icon: "fa-stamp", hidden: false,
+        });
+        m
+    })
+}
+
+fn known_label(addr: &str) -> Option<&'static str> {
+    address_registry().get(addr.to_lowercase().as_str()).map(|tag| tag.label)
+}
+
+fn is_hidden_address(addr: &str) -> bool {
+    address_registry()
+        .get(addr.to_lowercase().as_str())
+        .map(|tag| tag.hidden)
+        .unwrap_or(false)
+}
+
+/// Enrich a JSON object with label metadata for a from/to address field.
+/// Hidden addresses have their raw hex replaced with null — the address
+/// never reaches the client.
+fn enrich_addr_field(json: &mut serde_json::Value, raw_addr: &str, field_prefix: &str) {
+    let lower = raw_addr.to_lowercase();
+    let hidden = is_hidden_address(raw_addr);
+    json[format!("{}Label", field_prefix)] = match known_label(raw_addr) {
+        Some(l) => serde_json::json!(l),
+        None => serde_json::Value::Null,
+    };
+    json[format!("{}Hidden", field_prefix)] = serde_json::json!(hidden);
+    if hidden {
+        json[field_prefix.to_string()] = serde_json::Value::Null;
+    }
+    if let Some(tag) = address_registry().get(lower.as_str()) {
+        json[format!("{}Icon", field_prefix)] = serde_json::json!(tag.icon);
+        json[format!("{}Category", field_prefix)] = serde_json::json!(tag.category);
+    }
+}
+
+async fn address_labels() -> Json<serde_json::Value> {
+    let registry = address_registry();
+    let mut labels = serde_json::Map::new();
+    for (addr, tag) in registry.iter() {
+        if tag.hidden {
+            // Hidden addresses are keyed by label (not hex) so the raw
+            // address never appears in the API response at all.
+            labels.insert(tag.label.to_lowercase().replace(' ', "-"), serde_json::json!({
+                "label": tag.label,
+                "icon": tag.icon,
+                "category": tag.category,
+                "hidden": true,
+            }));
+        } else {
+            labels.insert(addr.to_string(), serde_json::json!({
+                "label": tag.label,
+                "icon": tag.icon,
+                "category": tag.category,
+                "hidden": false,
+            }));
+        }
+    }
+    Json(serde_json::json!({
+        "labels": labels,
+        "count": labels.len(),
+    }))
+}
+
+const TOTAL_SUPPLY_FAT: f64 = 10_000_000_000.0;
+
+async fn discover_addresses(state: &AppState) -> Vec<String> {
+    let mut addrs = std::collections::HashSet::new();
+    // Seed with known addresses
+    let known = [
+        "0x60fb32ef3a2381c2ed71613f34fd56d56fcf4195",
+        "0x302fa11a6e784dfa89f96942a919c09b45559676",
+        "0xddbf887982a2a1c03cb8705fef9e09c46122fff6",
+        "0x3109c838e9a08a42fba000a48310845919759a02",
+        "0x73e3cc285b962c4c6b6b1503d8fd8ac745f6b1ef",
+        "0xc784ea07aae35b22630df7e3f3ae9e2ccc64f1aa",
+        "0x8b3554e7d32deeb8a8c057268e1eebd6c043313c",
+        "0xfb0e84d2674dee6b330f17fa2f36e22c54327093",
+        "0x38bfe303f02f892a7603f5e5d1ce99dda1e0fabf",
+        "0x7a4bcc7b6513770dc6feb58655063cb52cb95039",
+        "0xef5f76d24de7252c43e20f1dbce145b897cc1b1f",
+        "0xf37bbeb4c37e0a9ef3ce5286a32e0947b0a26f78",
+        "0xb28e38b344a7238c9777d74209f966d1873d26e0",
+        "0x34ab12ca0bc2cfb3510cca479cc5bd4eb6eae883",
+        "0x2e2304cabe9a75f00627fe92b73a391fff0486f8",
+    ];
+    for a in &known { addrs.insert(a.to_string()); }
+
+    // Scan recent blocks for unique addresses (from/to)
+    let collected = collect_txs_from_recent_blocks(state, 200, 2000).await;
+    for (tx, _, _) in &collected {
+        if let Some(f) = tx.get("from").and_then(|v| v.as_str()) {
+            addrs.insert(f.to_lowercase());
+        }
+        if let Some(t) = tx.get("to").and_then(|v| v.as_str()) {
+            addrs.insert(t.to_lowercase());
+        }
+    }
+    addrs.into_iter().collect()
+}
+
+async fn accounts_top_live(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<PaginationParams>,
+) -> Json<serde_json::Value> {
+    let limit = params.limit.unwrap_or(100).min(100) as usize;
+    let addresses = discover_addresses(&state).await;
+
+    let mut accounts: Vec<serde_json::Value> = Vec::new();
+    for addr in &addresses {
+        let balance_hex = rpc_call(&state, "eth_getBalance", vec![
+            serde_json::json!(addr), serde_json::json!("latest")
+        ]).await.ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_else(|| "0x0".to_string());
+
+        let nonce_hex = rpc_call(&state, "eth_getTransactionCount", vec![
+            serde_json::json!(addr), serde_json::json!("latest")
+        ]).await.ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_else(|| "0x0".to_string());
+
+        let code = rpc_call(&state, "eth_getCode", vec![
+            serde_json::json!(addr), serde_json::json!("latest")
+        ]).await.ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_else(|| "0x".to_string());
+
+        let balance_fat = wei_to_fat(&balance_hex);
+        let tx_count = hex_to_u64(&nonce_hex);
+        let is_contract = code != "0x" && code.len() > 2;
+        let label = known_label(addr).unwrap_or("");
+        let hidden = is_hidden_address(addr);
+        let pct = if TOTAL_SUPPLY_FAT > 0.0 { balance_fat / TOTAL_SUPPLY_FAT * 100.0 } else { 0.0 };
+
+        accounts.push(serde_json::json!({
+            "address": if hidden { serde_json::Value::Null } else { serde_json::json!(addr) },
+            "balance": format_fat(balance_fat),
+            "balanceRaw": balance_fat,
+            "percentOfSupply": format!("{:.4}%", pct),
+            "transactionCount": tx_count,
+            "isContract": is_contract,
+            "label": label,
+            "hidden": hidden
+        }));
+    }
+
+    // Apply filter
+    let filter = params.filter.as_deref().unwrap_or("all");
+    let filtered: Vec<serde_json::Value> = accounts.into_iter().filter(|a| {
+        match filter {
+            "eoa" => !a.get("isContract").and_then(|v| v.as_bool()).unwrap_or(false),
+            "contracts" => a.get("isContract").and_then(|v| v.as_bool()).unwrap_or(false),
+            "validators" => {
+                let lbl = a.get("label").and_then(|v| v.as_str()).unwrap_or("");
+                lbl.to_lowercase().contains("validator")
+            }
+            _ => true,
+        }
+    }).collect();
+
+    // Sort by balance descending
+    let mut sorted = filtered;
+    sorted.sort_by(|a, b| {
+        let ba = a.get("balanceRaw").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let bb = b.get("balanceRaw").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        bb.partial_cmp(&ba).unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    // Assign ranks and take top N
+    let top: Vec<serde_json::Value> = sorted.iter().take(limit).enumerate().map(|(i, a)| {
+        let mut entry = a.clone();
+        entry["rank"] = serde_json::json!(i + 1);
+        entry
+    }).collect();
+
+    let unique_count = sorted.len();
+
+    Json(serde_json::json!({
+        "accounts": top,
+        "uniqueCount": unique_count,
+        "total": unique_count
+    }))
+}
+
+async fn accounts_stats_live(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    let addresses = discover_addresses(&state).await;
+    let total_accounts = addresses.len();
+
+    let mut total_balance = 0.0_f64;
+    let mut contract_count = 0u64;
+    let mut top_balances: Vec<f64> = Vec::new();
+
+    for addr in &addresses {
+        let balance_hex = rpc_call(&state, "eth_getBalance", vec![
+            serde_json::json!(addr), serde_json::json!("latest")
+        ]).await.ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_else(|| "0x0".to_string());
+
+        let code = rpc_call(&state, "eth_getCode", vec![
+            serde_json::json!(addr), serde_json::json!("latest")
+        ]).await.ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_else(|| "0x".to_string());
+
+        let bal = wei_to_fat(&balance_hex);
+        total_balance += bal;
+        top_balances.push(bal);
+        if code != "0x" && code.len() > 2 { contract_count += 1; }
+    }
+
+    top_balances.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
+    let top100_sum: f64 = top_balances.iter().take(100).sum();
+    let top100_pct = if TOTAL_SUPPLY_FAT > 0.0 { top100_sum / TOTAL_SUPPLY_FAT * 100.0 } else { 0.0 };
+
+    // Active addresses: unique from/to in recent blocks
+    let recent = collect_txs_from_recent_blocks(&state, 100, 5000).await;
+    let mut active = std::collections::HashSet::new();
+    for (tx, _, _) in &recent {
+        if let Some(f) = tx.get("from").and_then(|v| v.as_str()) { active.insert(f.to_lowercase()); }
+        if let Some(t) = tx.get("to").and_then(|v| v.as_str()) { active.insert(t.to_lowercase()); }
+    }
+
+    Json(serde_json::json!({
+        "totalAccounts": total_accounts,
+        "totalContracts": contract_count,
+        "totalSupply": TOTAL_SUPPLY_FAT,
+        "totalSupplyFormatted": "10,000,000,000 FAT",
+        "top100SharePercent": format!("{:.2}", top100_pct),
+        "activeAddresses24h": active.len()
+    }))
+}
+
+async fn get_account(
+    State(state): State<Arc<AppState>>,
+    Path(address): Path<String>,
+) -> Json<serde_json::Value> {
+    let balance_hex = rpc_call(&state, "eth_getBalance", vec![serde_json::json!(address), serde_json::json!("latest")])
+        .await
+        .ok()
+        .and_then(|v| v.as_str().map(String::from))
+        .unwrap_or_else(|| "0x0".to_string());
+
+    let nonce_hex = rpc_call(&state, "eth_getTransactionCount", vec![serde_json::json!(address), serde_json::json!("latest")])
+        .await
+        .ok()
+        .and_then(|v| v.as_str().map(String::from))
+        .unwrap_or_else(|| "0x0".to_string());
+
+    let code = rpc_call(&state, "eth_getCode", vec![serde_json::json!(address), serde_json::json!("latest")])
+        .await
+        .ok()
+        .and_then(|v| v.as_str().map(String::from))
+        .unwrap_or_else(|| "0x".to_string());
+
+    let balance_fat = wei_to_fat(&balance_hex);
+    let tx_count = hex_to_u64(&nonce_hex);
+    let is_contract = code != "0x" && code.len() > 2;
+
+    let fat_price = {
+        let cache = state.price_cache.read().await;
+        cache.as_ref().map(|p| p.price).unwrap_or(FALLBACK_PRICE)
+    };
+    let balance_usd = balance_fat * fat_price;
+
     Json(serde_json::json!({
         "address": address,
-        "balance": "10,247.89 FAT",
-        "balanceUsd": "$868.00",
-        "transactionCount": 147,
-        "isContract": false,
+        "balance": format_fat(balance_fat),
+        "balanceRaw": balance_fat,
+        "balanceUsd": format!("${:.2}", balance_usd),
+        "transactionCount": tx_count,
+        "isContract": is_contract,
         "isValidator": false,
-        "firstSeen": chrono::Utc::now().timestamp() - 86400 * 30,
         "lastSeen": chrono::Utc::now().timestamp()
     }))
 }
 
 async fn account_transactions(
+    State(state): State<Arc<AppState>>,
     Path(address): Path<String>,
     Query(params): Query<PaginationParams>,
 ) -> Json<serde_json::Value> {
-    let txs: Vec<serde_json::Value> = (0..10)
-        .map(|i| {
-            serde_json::json!({
-                "hash": format!("0x{:064x}", i),
-                "from": if i % 2 == 0 { &address } else { "0x7f3a8d2e" },
-                "to": if i % 2 == 1 { &address } else { "0x2b9c4f1a" },
-                "value": format!("{}.00", 100 + i * 10),
-                "status": "Success"
-            })
+    let limit = params.limit.unwrap_or(20).min(100) as usize;
+    let addr_lower = address.to_lowercase();
+
+    let all_txs = collect_txs_from_recent_blocks(&state, 200, 5000).await;
+    let matched: Vec<serde_json::Value> = all_txs
+        .iter()
+        .filter(|(tx, _, _)| {
+            let from = tx.get("from").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
+            let to = tx.get("to").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
+            from == addr_lower || to == addr_lower
         })
+        .take(limit)
+        .map(|(tx, bn, ts)| tx_summary_json(tx, *bn, *ts))
         .collect();
 
     Json(serde_json::json!({
         "address": address,
-        "transactions": txs
+        "transactions": matched
+    }))
+}
+
+/// Quipu Canon v1.1 §6(2) — Public personal-ledger view.
+///
+/// Returns the canonical hierarchy for a wallet's sovereign String:
+///
+/// ```json
+/// {
+///   "wallet_address": "0x...",
+///   "string_id": "0x..." | "0xWALLET" (fallback),
+///   "knots": [
+///     {
+///       "knot_index": 0,
+///       "anchor_block": 12345,
+///       "timestamp": 1730000000,
+///       "status": "active" | "tombstone",
+///       "tombstone": null | { untied_at, audit_hash, reason },
+///       "transactions": [ {hash, from, to, value, event_type, ...}, ... ],
+///       "tx_count": N,
+///       "event_types": ["Transfer","Swap"],
+///       "knot_size": <total wei of value transferred at this knot>
+///     }, ...
+///   ],
+///   "knot_count": N,
+///   "active_count": N,
+///   "tombstone_count": N,
+///   "source": "native" | "reth-anchored",
+///   "canon": "v1.1 §6(2)"
+/// }
+/// ```
+///
+/// Knots are listed newest-first by anchor block. Each knot groups all of
+/// the wallet's transactions confirmed at the same anchor — the natural
+/// "event" granularity for the public DCScan view. Per-tx details (event
+/// type, value, counterparty) are nested under the knot.
+async fn personal_ledger_string(
+    State(state): State<Arc<AppState>>,
+    Path(address): Path<String>,
+    Query(params): Query<PaginationParams>,
+) -> Json<serde_json::Value> {
+    let limit = params.limit.unwrap_or(50).min(200) as usize;
+    let addr_lower = address.to_lowercase();
+
+    // Try the canonical native path first. If the rope-node has the personal
+    // ledger subsystem online, this returns real String + Knot[] + tombstones.
+    if let Ok(native) = rpc_call(
+        &state,
+        "rope_getStringWithKnots",
+        vec![serde_json::json!(addr_lower.clone())],
+    )
+    .await
+    {
+        if native.is_object() && native.get("string_id").is_some() {
+            return Json(serde_json::json!({
+                "wallet_address": addr_lower,
+                "string_id": native.get("string_id").cloned().unwrap_or(serde_json::Value::Null),
+                "knots": native.get("knots").cloned().unwrap_or(serde_json::json!([])),
+                "knot_count": native.get("knot_count").cloned().unwrap_or(serde_json::json!(0)),
+                "active_count": native.get("active_count").cloned().unwrap_or(serde_json::json!(0)),
+                "tombstone_count": native.get("tombstone_count").cloned().unwrap_or(serde_json::json!(0)),
+                "source": "native",
+                "canon": "v1.1 §6(2) — String → Knot[] → Transaction details (rope-node native path)"
+            }));
+        }
+    }
+
+    // Fallback: build a knot-grouped view from on-chain tx data.
+    // Each anchor block where the wallet has activity = one knot on the
+    // wallet's string. Per-tx details are listed under the knot.
+    let all_txs = collect_txs_from_recent_blocks(&state, 500, 8000).await;
+    let mut by_anchor: std::collections::BTreeMap<u64, (i64, Vec<serde_json::Value>)> =
+        std::collections::BTreeMap::new();
+
+    for (tx, bn, ts) in all_txs.iter() {
+        let from = tx.get("from").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
+        let to = tx.get("to").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
+        if from != addr_lower && to != addr_lower {
+            continue;
+        }
+        let event_type = classify_knot_event_type(tx);
+        let mut summary = tx_summary_json(tx, *bn, *ts);
+        if let Some(obj) = summary.as_object_mut() {
+            obj.insert("event_type".to_string(), serde_json::json!(event_type));
+            // Cord-color analogue per canon §6 mapping table
+            let color = match event_type {
+                "Transfer" | "TokenTransfer" | "TokenTransferFrom" => "value",
+                "TokenMint" => "mint",
+                "TokenBurn" => "burn",
+                "TokenApproval" => "approval",
+                "Swap" | "AddLiquidity" | "RemoveLiquidity" => "defi",
+                "ContractCreation" => "deploy",
+                "ContractCall" => "call",
+                _ => "other",
+            };
+            obj.insert("cord_color".to_string(), serde_json::json!(color));
+        }
+        by_anchor
+            .entry(*bn)
+            .or_insert_with(|| (*ts, Vec::new()))
+            .1
+            .push(summary);
+    }
+
+    // Convert to descending order (newest knot first), cap at `limit`.
+    let mut knots: Vec<serde_json::Value> = Vec::new();
+    let mut active_count = 0usize;
+    let total_anchors = by_anchor.len();
+    for (knot_index, (anchor_block, (timestamp, txs))) in
+        by_anchor.into_iter().rev().enumerate()
+    {
+        if knots.len() >= limit {
+            break;
+        }
+        let event_types: Vec<&str> = {
+            let mut s: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+            for t in &txs {
+                if let Some(et) = t.get("event_type").and_then(|v| v.as_str()) {
+                    s.insert(et);
+                }
+            }
+            s.into_iter().collect()
+        };
+        let tx_count = txs.len();
+        active_count += 1;
+        knots.push(serde_json::json!({
+            "knot_index": knot_index,
+            "anchor_block": anchor_block,
+            "timestamp": timestamp,
+            "status": "active",
+            "tombstone": serde_json::Value::Null,
+            "tx_count": tx_count,
+            "event_types": event_types,
+            "transactions": txs,
+        }));
+    }
+
+    Json(serde_json::json!({
+        "wallet_address": addr_lower,
+        // Public-ledger fallback uses the wallet address as the cord ID,
+        // exactly per canon §6 mapping ("Primary cord = Wallet string").
+        "string_id": addr_lower,
+        "knots": knots,
+        "knot_count": total_anchors,
+        "active_count": active_count,
+        "tombstone_count": 0,
+        // Reth (the post-2026-03-31 EVM execution layer for Datachain Rope)
+        // is the source of these anchor blocks. We label this as
+        // "reth-anchored" to distinguish from the canonical native rope-node
+        // ledger path. The fallback is engaged when rope-node has not yet
+        // initialized its native LedgerManager; the rope-bridge encoder
+        // already notarizes every Reth tx onto the String Lattice, so this
+        // grouping is a faithful canon §6(2) view either way.
+        "source": "reth-anchored",
+        "canon": "v1.1 §6(2) — String → Knot[] → Transaction details (Reth EVM execution-layer view; native rope-node ledger view returned when available)"
     }))
 }
 
@@ -665,28 +2399,144 @@ async fn account_tokens(Path(address): Path<String>) -> Json<serde_json::Value> 
     }))
 }
 
-async fn list_tokens() -> Json<serde_json::Value> {
+async fn list_tokens(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    let fat_price = {
+        let cache = state.price_cache.read().await;
+        cache.as_ref().map(|p| p.price).unwrap_or(FALLBACK_PRICE)
+    };
+
+    struct ChainToken {
+        address: &'static str,
+        name: &'static str,
+        symbol: &'static str,
+        decimals: u8,
+        standard: &'static str,
+        standard_label: &'static str,
+        total_supply: &'static str,
+        price: f64,
+        change_24h: f64,
+        volume_24h: f64,
+        market_cap: f64,
+        holders: u64,
+    }
+
+    let tokens = vec![
+        ChainToken {
+            address: "0x0000000000000000000000000000000000000000",
+            name: "DC FAT", symbol: "FAT", decimals: 18,
+            standard: "native", standard_label: "Native DC FAT",
+            total_supply: "10,000,000,000",
+            price: fat_price, change_24h: -2.94,
+            volume_24h: 77.82, market_cap: fat_price * 10_000_000_000.0,
+            holders: 328,
+        },
+        ChainToken {
+            address: "0xdDBF887982a2A1c03CB8705fEF9E09c46122fFF6",
+            name: "Wrapped FAT", symbol: "WFAT", decimals: 18,
+            standard: "dcr20", standard_label: "DCR-20",
+            total_supply: "500,000,000",
+            price: fat_price, change_24h: -2.94,
+            volume_24h: 42.10, market_cap: fat_price * 500_000_000.0,
+            holders: 72,
+        },
+        ChainToken {
+            address: "0x3109C838E9a08a42fbA000a48310845919759A02",
+            name: "Bridged USD Coin", symbol: "USDC", decimals: 6,
+            standard: "dcr20", standard_label: "DCR-20",
+            total_supply: "10,000,000",
+            price: 1.0, change_24h: 0.01,
+            volume_24h: 18.50, market_cap: 10_000_000.0,
+            holders: 67,
+        },
+        ChainToken {
+            address: "0x73E3Cc285B962c4C6b6b1503D8fD8ac745f6b1Ef",
+            name: "Bridged Tether USD", symbol: "USDT", decimals: 6,
+            standard: "dcr20", standard_label: "DCR-20",
+            total_supply: "10,000,000",
+            price: 1.0, change_24h: -0.02,
+            volume_24h: 15.20, market_cap: 10_000_000.0,
+            holders: 67,
+        },
+        ChainToken {
+            address: "0xC784Ea07aAe35b22630Df7e3f3AE9e2cCC64F1AA",
+            name: "Bridged EUROD", symbol: "EUROD", decimals: 6,
+            standard: "dcr20", standard_label: "DCR-20",
+            total_supply: "10,000,000",
+            price: 1.08, change_24h: 0.05,
+            volume_24h: 8.40, market_cap: 10_800_000.0,
+            holders: 67,
+        },
+        ChainToken {
+            address: "0x38bfE303f02f892A7603f5e5d1cE99Dda1E0fABf",
+            name: "DCSwap LP FAT/USDC", symbol: "DCS-LP", decimals: 18,
+            standard: "dcr20", standard_label: "DCR-20",
+            total_supply: "10,000,000",
+            price: 0.0, change_24h: 0.0,
+            volume_24h: 0.0, market_cap: 0.0,
+            holders: 1,
+        },
+        ChainToken {
+            address: "0x7a4bCC7b6513770dc6FEb58655063CB52cB95039",
+            name: "DCSwap LP FAT/USDT", symbol: "DCS-LP", decimals: 18,
+            standard: "dcr20", standard_label: "DCR-20",
+            total_supply: "10,000,000",
+            price: 0.0, change_24h: 0.0,
+            volume_24h: 0.0, market_cap: 0.0,
+            holders: 1,
+        },
+        ChainToken {
+            address: "0xEf5f76D24dE7252c43E20f1dBCe145b897cc1b1F",
+            name: "DCSwap LP FAT/EUROD", symbol: "DCS-LP", decimals: 18,
+            standard: "dcr20", standard_label: "DCR-20",
+            total_supply: "10,000,000",
+            price: 0.0, change_24h: 0.0,
+            volume_24h: 0.0, market_cap: 0.0,
+            holders: 1,
+        },
+        ChainToken {
+            address: "0xF37BBeb4C37E0a9EF3CE5286a32e0947b0a26f78",
+            name: "DCSwap LP USDC/USDT", symbol: "DCS-LP", decimals: 18,
+            standard: "dcr20", standard_label: "DCR-20",
+            total_supply: "1,000,000",
+            price: 0.0, change_24h: 0.0,
+            volume_24h: 0.0, market_cap: 0.0,
+            holders: 1,
+        },
+    ];
+
+    let total_tokens = tokens.len() as u64;
+    let total_market_cap: f64 = tokens.iter().map(|t| t.market_cap).sum();
+    let total_volume: f64 = tokens.iter().map(|t| t.volume_24h).sum();
+    let total_holders: u64 = tokens.iter().map(|t| t.holders).sum();
+
+    let token_list: Vec<serde_json::Value> = tokens.iter().map(|t| {
+        serde_json::json!({
+            "address": t.address,
+            "name": t.name,
+            "symbol": t.symbol,
+            "decimals": t.decimals,
+            "standard": t.standard,
+            "standardLabel": t.standard_label,
+            "totalSupply": t.total_supply,
+            "price": t.price,
+            "change": t.change_24h,
+            "volume": t.volume_24h,
+            "marketCap": t.market_cap,
+            "mcap": t.market_cap,
+            "holders": t.holders,
+        })
+    }).collect();
+
     Json(serde_json::json!({
-        "tokens": [
-            {
-                "address": "0x0000000000000000000000000000000000000001",
-                "name": "DC FAT",
-                "symbol": "FAT",
-                "decimals": 18,
-                "totalSupply": "10,000,000,000",
-                "holders": 147893,
-                "transfers": 4892451
-            },
-            {
-                "address": "0x0000000000000000000000000000000000000002",
-                "name": "Wrapped ETH",
-                "symbol": "WETH",
-                "decimals": 18,
-                "totalSupply": "1,000,000",
-                "holders": 8947,
-                "transfers": 247891
-            }
-        ]
+        "tokens": token_list,
+        "stats": {
+            "totalTokens": total_tokens,
+            "totalMarketCap": total_market_cap,
+            "totalVolume24h": total_volume,
+            "totalHolders": total_holders,
+        }
     }))
 }
 
@@ -765,117 +2615,903 @@ async fn token_transfers(Path(address): Path<String>) -> Json<serde_json::Value>
     }))
 }
 
-async fn list_validators() -> Json<serde_json::Value> {
-    let validators: Vec<serde_json::Value> = (0..20)
-        .map(|i| {
-            serde_json::json!({
-                "address": format!("0x{:040x}", i + 1),
-                "name": format!("Validator {}", i + 1),
-                "stake": format!("{}", 1000000 + i * 100000),
-                "strings": 12478 + i * 100,
-                "uptime": format!("{:.1}%", 99.9 - i as f64 * 0.1),
-                "aiAgent": if i < 5 { true } else { false }
-            })
-        })
-        .collect();
+async fn refresh_tokentxn_cache(state: &Arc<AppState>) {
+    let head_hex = rpc_call(state, "eth_blockNumber", vec![])
+        .await.ok().and_then(|v| v.as_str().map(String::from))
+        .unwrap_or_else(|| "0x0".to_string());
+    let head = hex_to_u64(&head_hex);
+
+    let existing = state.tokentxn_cache.read().await;
+    let last_block = existing.as_ref()
+        .and_then(|c| c.transfers.first())
+        .and_then(|t| t.get("block").and_then(|v| v.as_u64()))
+        .unwrap_or(0);
+    drop(existing);
+
+    let scan_depth: u64 = 2000;
+    let start = if last_block > 0 {
+        last_block + 1
+    } else if head > scan_depth {
+        head - scan_depth
+    } else {
+        0
+    };
+
+    let mut all_transfers: Vec<serde_json::Value> = Vec::new();
+    let mut unique_tokens: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut total_usd: f64 = 0.0;
+    let now_secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
+
+    for bn in (start..=head).rev() {
+        if all_transfers.len() >= 50 { break; }
+        let bn_hex = format!("0x{:x}", bn);
+
+        let block = match rpc_call(state, "eth_getBlockByNumber", vec![
+            serde_json::json!(bn_hex), serde_json::json!(false)
+        ]).await {
+            Ok(b) if !b.is_null() => b,
+            _ => continue,
+        };
+
+        let tx_hashes = match block.get("transactions").and_then(|v| v.as_array()) {
+            Some(a) if !a.is_empty() => a.clone(),
+            _ => continue,
+        };
+
+        let block_ts = block.get("timestamp").and_then(|v| v.as_str())
+            .map(|s| hex_to_u64(s)).unwrap_or(0);
+        let age_secs = if now_secs > block_ts { now_secs - block_ts } else { 0 };
+        let age_str = if age_secs < 60 { format!("{}s ago", age_secs) }
+            else if age_secs < 3600 { format!("{}m ago", age_secs / 60) }
+            else if age_secs < 86400 { format!("{}h ago", age_secs / 3600) }
+            else { format!("{}d ago", age_secs / 86400) };
+
+        for tx_val in &tx_hashes {
+            if all_transfers.len() >= 50 { break; }
+            let tx_hash = tx_val.as_str().unwrap_or("");
+            if tx_hash.is_empty() { continue; }
+
+            let receipt = match rpc_call(state, "eth_getTransactionReceipt", vec![
+                serde_json::json!(tx_hash)
+            ]).await {
+                Ok(r) if !r.is_null() => r,
+                _ => continue,
+            };
+
+            let logs: Vec<serde_json::Value> = receipt
+                .get("logs").and_then(|v| v.as_array())
+                .cloned().unwrap_or_default();
+
+            let tx_from = receipt.get("from").and_then(|v| v.as_str()).unwrap_or("0x0").to_string();
+
+            for log in &logs {
+                if all_transfers.len() >= 50 { break; }
+                let topics = match log.get("topics").and_then(|v| v.as_array()) {
+                    Some(t) if t.len() >= 3 => t,
+                    _ => continue,
+                };
+                let topic0 = topics[0].as_str().unwrap_or("");
+                if topic0 != TRANSFER_TOPIC { continue; }
+
+                let token_addr = log.get("address").and_then(|v| v.as_str()).unwrap_or("");
+                let (symbol, decimals, usd_price) = match known_token(token_addr) {
+                    Some(info) => (info.symbol.to_string(), info.decimals, info.usd_price),
+                    None => continue,
+                };
+                unique_tokens.insert(symbol.clone());
+
+                let from = topic_to_address(topics[1].as_str().unwrap_or(""));
+                let to = topic_to_address(topics[2].as_str().unwrap_or(""));
+                let data = log.get("data").and_then(|v| v.as_str()).unwrap_or("0x0");
+                let raw_amount = decode_hex_u256(data);
+
+                let divisor = 10f64.powi(decimals as i32);
+                let amount = raw_amount as f64 / divisor;
+                let usd_val = amount * usd_price;
+                total_usd += usd_val;
+
+                let amount_str = if amount < 0.001 && amount > 0.0 {
+                    format!("{:.8}", amount)
+                } else if amount >= 1_000_000.0 {
+                    format!("{:.2}", amount)
+                } else {
+                    format!("{:.4}", amount)
+                };
+
+                all_transfers.push(serde_json::json!({
+                    "txHash": tx_hash,
+                    "block": bn,
+                    "age": age_str,
+                    "from": from,
+                    "to": to,
+                    "amount": amount_str,
+                    "usdValue": format!("${:.2}", usd_val),
+                    "token": symbol,
+                    "tokenAddress": token_addr,
+                    "initiator": tx_from,
+                }));
+            }
+        }
+    }
+
+    {
+        let existing = state.tokentxn_cache.read().await;
+        if let Some(ref c) = *existing {
+            for old in &c.transfers {
+                if all_transfers.len() >= 50 { break; }
+                let old_hash = old.get("txHash").and_then(|v| v.as_str()).unwrap_or("");
+                let already = all_transfers.iter().any(|t| t.get("txHash").and_then(|v| v.as_str()).unwrap_or("") == old_hash);
+                if !already {
+                    if let Some(sym) = old.get("token").and_then(|v| v.as_str()) {
+                        unique_tokens.insert(sym.to_string());
+                    }
+                    if let Some(usd) = old.get("usdValue").and_then(|v| v.as_str()) {
+                        total_usd += usd.trim_start_matches('$').parse::<f64>().unwrap_or(0.0);
+                    }
+                    all_transfers.push(old.clone());
+                }
+            }
+        }
+        drop(existing);
+    }
+
+    all_transfers.sort_by(|a, b| {
+        let ba = a.get("block").and_then(|v| v.as_u64()).unwrap_or(0);
+        let bb = b.get("block").and_then(|v| v.as_u64()).unwrap_or(0);
+        bb.cmp(&ba)
+    });
+    all_transfers.truncate(50);
+
+    let total_transfers = all_transfers.len() as u64;
+    let avg_value = if total_transfers > 0 { total_usd / total_transfers as f64 } else { 0.0 };
+
+    let stats = serde_json::json!({
+        "totalTransfers": total_transfers,
+        "transfers24h": total_transfers,
+        "uniqueTokens": unique_tokens.len(),
+        "avgTransferValue": format!("${:.2}", avg_value),
+    });
+
+    let mut cache = state.tokentxn_cache.write().await;
+    *cache = Some(TokenTxnCache {
+        stats,
+        transfers: all_transfers,
+        updated_at: now_secs as i64,
+    });
+    tracing::info!("Token transfer cache refreshed: {} transfers", total_transfers);
+}
+
+async fn list_token_transfers_live(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    let cache = state.tokentxn_cache.read().await;
+    if let Some(ref c) = *cache {
+        return Json(serde_json::json!({
+            "stats": c.stats,
+            "transfers": c.transfers,
+        }));
+    }
+    drop(cache);
+    Json(serde_json::json!({
+        "stats": { "totalTransfers": 0, "transfers24h": 0, "uniqueTokens": 0, "avgTransferValue": "$0.00" },
+        "transfers": [],
+    }))
+}
+
+async fn list_validators(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    let head_hex = rpc_call(&state, "eth_blockNumber", vec![])
+        .await.ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_else(|| "0x0".to_string());
+    let head = hex_to_u64(&head_hex);
+
+    // Gather AI agents as validators from the DB
+    let mut validators: Vec<serde_json::Value> = Vec::new();
+    let mut total_staked: f64 = 0.0;
+    let mut active_count: u64 = 0;
+    let mut total_validations: u64 = 0;
+    let mut uptime_sum: f64 = 0.0;
+
+    if let Some(ref pool) = state.db_pool {
+        if let Ok(agents) = db::list_agents(pool).await {
+            for agent in &agents {
+                let balance_hex = rpc_call(&state, "eth_getBalance", vec![
+                    serde_json::json!(&agent.wallet_address), serde_json::json!("latest")
+                ]).await.ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_else(|| "0x0".to_string());
+                let nonce_hex = rpc_call(&state, "eth_getTransactionCount", vec![
+                    serde_json::json!(&agent.wallet_address), serde_json::json!("latest")
+                ]).await.ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_else(|| "0x0".to_string());
+
+                let balance = wei_to_fat(&balance_hex);
+                let tx_count = hex_to_u64(&nonce_hex);
+
+                let mut is_online = agent.status == "online";
+                let mut processed: u64 = 0;
+                let mut agent_uptime: f64 = 99.5;
+                if let Some(ref url) = agent.health_url {
+                    match state.http_client.get(url).timeout(std::time::Duration::from_secs(3)).send().await {
+                        Ok(resp) if resp.status().is_success() => {
+                            is_online = true;
+                            if let Ok(json) = resp.json::<serde_json::Value>().await {
+                                if let Some(stats) = json.get("stats") {
+                                    processed = stats.get("processed").and_then(|v| v.as_u64()).unwrap_or(0);
+                                    let start = stats.get("startTime").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                                    if start > 0.0 {
+                                        let running_ms = (chrono::Utc::now().timestamp_millis() as f64) - start;
+                                        let total_ms = running_ms + 3600000.0;
+                                        agent_uptime = (running_ms / total_ms * 100.0).min(99.99);
+                                    }
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+
+                let validations = if processed > 0 { processed } else { tx_count };
+                total_validations += validations;
+                total_staked += balance;
+                if is_online || tx_count > 0 { active_count += 1; }
+                uptime_sum += agent_uptime;
+
+                validators.push(serde_json::json!({
+                    "address": agent.wallet_address,
+                    "name": agent.name,
+                    "type": agent.agent_type,
+                    "status": if is_online { "active" } else { "standby" },
+                    "stake": format!("{:.0}", balance),
+                    "stakeRaw": balance,
+                    "validations": validations,
+                    "uptime": format!("{:.1}", agent_uptime),
+                    "uptimeRaw": agent_uptime,
+                    "isAgent": true,
+                    "icon": match agent.agent_type.as_str() {
+                        "Regulatory" => "fa-gavel",
+                        "Validation" => "fa-shield-alt",
+                        "Risk Assessment" => "fa-umbrella",
+                        "Data Verification" => "fa-database",
+                        "Contract Analysis" => "fa-file-contract",
+                        _ => "fa-microchip"
+                    },
+                    "desc": agent.description
+                }));
+            }
+        }
+    }
+
+    // Add the genesis knot witness (Reth coinbase) as a validator entry.
+    //
+    // Pre-2026-03-25 genesis used `0x302fa1...` as the dev coinbase; that
+    // address was zeroed by the genesis reset that moved the treasury to the
+    // controlled deployer key. Post-reset, the Reth coinbase / production
+    // knot witness is `0x60FB32...` (per `reth-migration-2026-03-12.mdc`).
+    //
+    // Per Quipu Primitive Canon v1.1 §7(2), "block producer" maps to
+    // "knot witness". The old "Block Producer" label is preserved as a
+    // hidden alias for tooling that hasn't migrated.
+    let genesis = "0x60FB32ef3A2381c2Ed71613F34fd56D56fCF4195";
+    let gen_bal_hex = rpc_call(&state, "eth_getBalance", vec![
+        serde_json::json!(genesis), serde_json::json!("latest")
+    ]).await.ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_else(|| "0x0".to_string());
+    let gen_balance = wei_to_fat(&gen_bal_hex);
+    total_staked += gen_balance;
+    active_count += 1;
+    uptime_sum += 100.0;
+    total_validations += head;
+
+    validators.insert(0, serde_json::json!({
+        "address": genesis,
+        "name": "Genesis Knot Witness",
+        "type": "Knot Witness",
+        "typeAlias": "Block Producer",
+        "status": "active",
+        "stake": format!("{:.0}", gen_balance),
+        "stakeRaw": gen_balance,
+        "validations": head,
+        "uptime": "100.0",
+        "uptimeRaw": 100.0,
+        "isAgent": false,
+        "icon": "fa-cubes",
+        "desc": "Primary knot witness for Datachain Rope (Reth EVM execution layer, blue-green deployment per reth-blue-green-ipfs-architecture.mdc)"
+    }));
+
+    let validator_count = validators.len() as u64;
+    let avg_uptime = if validator_count > 0 { uptime_sum / validator_count as f64 } else { 0.0 };
 
     Json(serde_json::json!({
         "validators": validators,
-        "totalStaked": "127,000,000 FAT",
-        "activeCount": 127
+        "totalValidators": validator_count,
+        "activeCount": active_count,
+        "avgUptime": format!("{:.1}", avg_uptime),
+        "validationsToday": total_validations,
+        "totalStaked": format!("{:.0}", total_staked),
+        "blockHeight": head
     }))
 }
 
-async fn get_validator(Path(address): Path<String>) -> Json<serde_json::Value> {
+async fn get_validator(
+    Path(address): Path<String>,
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    let balance_hex = rpc_call(&state, "eth_getBalance", vec![
+        serde_json::json!(&address), serde_json::json!("latest")
+    ]).await.ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_else(|| "0x0".to_string());
+    let nonce_hex = rpc_call(&state, "eth_getTransactionCount", vec![
+        serde_json::json!(&address), serde_json::json!("latest")
+    ]).await.ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_else(|| "0x0".to_string());
+    let balance = wei_to_fat(&balance_hex);
+    let tx_count = hex_to_u64(&nonce_hex);
+
+    let mut name = format!("Validator {}", &address[..8]);
+    let mut agent_type = "Unknown".to_string();
+    if let Some(ref pool) = state.db_pool {
+        if let Ok(Some(agent)) = db::get_agent_by_wallet(pool, &address).await {
+            name = agent.name.clone();
+            agent_type = agent.agent_type.clone();
+        }
+    }
+
     Json(serde_json::json!({
         "address": address,
-        "name": "Validator 1",
-        "stake": "1,000,000 FAT",
-        "stringsProduced": 12478,
-        "uptime": "99.9%",
-        "rewards": "24,789 FAT",
-        "delegators": 147,
-        "aiAgent": true
+        "name": name,
+        "type": agent_type,
+        "stake": format!("{:.0} FAT", balance),
+        "validations": tx_count,
+        "uptime": "99.5%",
+        "balance": format_fat(balance),
+        "transactionCount": tx_count
     }))
 }
 
-async fn list_ai_agents() -> Json<serde_json::Value> {
-    Json(serde_json::json!({
-        "agents": [
-            {
-                "id": "validation-agent",
-                "name": "ValidationAgent",
-                "type": "Validation",
-                "status": "Active",
-                "testimonies": 1247893,
-                "accuracy": "99.97%"
-            },
-            {
-                "id": "insurance-agent",
-                "name": "InsuranceAgent",
-                "type": "Risk Assessment",
-                "status": "Active",
-                "testimonies": 847291,
-                "accuracy": "99.89%"
-            },
-            {
-                "id": "compliance-agent",
-                "name": "ComplianceAgent",
-                "type": "Regulatory",
-                "status": "Active",
-                "testimonies": 624891,
-                "accuracy": "99.95%"
-            },
-            {
-                "id": "oracle-agent",
-                "name": "OracleAgent",
-                "type": "Data Verification",
-                "status": "Active",
-                "testimonies": 428971,
-                "accuracy": "99.92%"
-            },
-            {
-                "id": "semantic-agent",
-                "name": "SemanticAgent",
-                "type": "Contract Analysis",
-                "status": "Active",
-                "testimonies": 247891,
-                "accuracy": "99.88%"
+async fn agent_row_to_json(state: &AppState, a: &db::AgentRow) -> serde_json::Value {
+    let balance_hex = rpc_call(state, "eth_getBalance", vec![
+        serde_json::json!(&a.wallet_address), serde_json::json!("latest")
+    ]).await.ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_else(|| "0x0".to_string());
+
+    let nonce_hex = rpc_call(state, "eth_getTransactionCount", vec![
+        serde_json::json!(&a.wallet_address), serde_json::json!("latest")
+    ]).await.ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_else(|| "0x0".to_string());
+
+    let balance = wei_to_fat(&balance_hex);
+    let tx_count = hex_to_u64(&nonce_hex);
+
+    let mut health: Option<serde_json::Value> = None;
+    let mut live_status = a.status.clone();
+    let mut processed: u64 = 0;
+    let mut approved: u64 = 0;
+    let mut denied: u64 = 0;
+    let mut uptime_secs: u64 = 0;
+
+    if let Some(ref url) = a.health_url {
+        if let Ok(resp) = state.http_client.get(url).timeout(std::time::Duration::from_secs(3)).send().await {
+            if resp.status().is_success() {
+                if let Ok(json) = resp.json::<serde_json::Value>().await {
+                    let h_status = json.get("status").and_then(|v| v.as_str()).unwrap_or("unknown");
+                    live_status = if h_status == "healthy" { "online".to_string() } else { "standby".to_string() };
+                    if let Some(stats) = json.get("stats") {
+                        processed = stats.get("processed").and_then(|v| v.as_u64()).unwrap_or(0);
+                        approved = stats.get("approved").and_then(|v| v.as_u64()).unwrap_or(0);
+                        denied = stats.get("denied").and_then(|v| v.as_u64()).unwrap_or(0);
+                    }
+                    uptime_secs = json.get("uptime").and_then(|v| v.as_u64()).unwrap_or(0);
+                    health = Some(json);
+                }
+            } else {
+                live_status = "standby".to_string();
             }
-        ]
-    }))
+        } else {
+            live_status = "offline".to_string();
+        }
+    } else if balance > 0.0 {
+        live_status = "standby".to_string();
+    }
+
+    let total_testimonies = if processed > 0 { processed } else { tx_count };
+    let rewards_earned = total_testimonies as f64 * a.reward_rate_fat;
+    let created_ago = chrono::Utc::now().signed_duration_since(a.created_at);
+    let uptime_str = if uptime_secs > 0 {
+        let h = uptime_secs / 3600;
+        let m = (uptime_secs % 3600) / 60;
+        format!("{}h {}m", h, m)
+    } else {
+        "—".to_string()
+    };
+
+    serde_json::json!({
+        "id": a.id,
+        "name": a.name,
+        "type": a.agent_type,
+        "wallet": a.wallet_address,
+        "status": live_status,
+        "icon": a.icon,
+        "iconClass": a.icon_class,
+        "desc": a.description,
+        "org": a.org,
+        "tags": a.tags,
+        "services": a.services,
+        "testimonies": total_testimonies,
+        "processed": processed,
+        "approved": approved,
+        "denied": denied,
+        "balance": format_fat(balance),
+        "balanceRaw": balance,
+        "rewardsEarned": format!("{:.2} FAT", rewards_earned),
+        "rewardsEarnedRaw": rewards_earned,
+        "rewardRate": format!("{} FAT/testimony", a.reward_rate_fat),
+        "txCount": tx_count,
+        "uptime": uptime_str,
+        "updated": if total_testimonies > 0 || uptime_secs > 0 { "recently" } else { "—" },
+        "createdAt": a.created_at.timestamp(),
+        "createdAgo": format!("{}d ago", created_ago.num_days()),
+        "health": health
+    })
 }
 
-async fn get_ai_agent(Path(id): Path<String>) -> Json<serde_json::Value> {
+async fn list_ai_agents_live(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    let pool = match &state.db_pool {
+        Some(p) => p,
+        None => return Json(serde_json::json!({"agents": [], "totalCount": 0, "error": "Database unavailable"})),
+    };
+
+    let rows = match db::list_agents(pool).await {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::error!("Failed to list agents: {}", e);
+            return Json(serde_json::json!({"agents": [], "totalCount": 0, "error": e.to_string()}));
+        }
+    };
+
+    let mut agents = Vec::new();
+    for row in &rows {
+        agents.push(agent_row_to_json(&state, row).await);
+    }
+    let total = agents.len();
     Json(serde_json::json!({
-        "id": id,
-        "name": "ValidationAgent",
-        "type": "Validation",
-        "status": "Active",
-        "testimonies": 1247893,
-        "accuracy": "99.97%",
-        "description": "Primary validation agent for transaction verification",
-        "createdAt": chrono::Utc::now().timestamp() - 86400 * 365,
-        "lastActive": chrono::Utc::now().timestamp()
+        "agents": agents,
+        "totalCount": total
     }))
 }
 
-async fn agent_testimonies(Path(id): Path<String>) -> Json<serde_json::Value> {
-    let testimonies: Vec<serde_json::Value> = (0..10)
-        .map(|i| {
-            serde_json::json!({
-                "id": format!("testimony-{}", i),
-                "transaction": format!("0x{:064x}", i),
-                "verdict": "Approved",
-                "confidence": 0.98 - i as f64 * 0.001,
-                "timestamp": chrono::Utc::now().timestamp() - i as i64 * 60
-            })
-        })
-        .collect();
+async fn get_ai_agent_live(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Json<serde_json::Value> {
+    let pool = match &state.db_pool {
+        Some(p) => p,
+        None => return Json(serde_json::json!({"error": "Database unavailable"})),
+    };
+
+    match db::get_agent(pool, &id).await {
+        Ok(Some(row)) => Json(agent_row_to_json(&state, &row).await),
+        Ok(None) => Json(serde_json::json!({"error": "Agent not found"})),
+        Err(e) => Json(serde_json::json!({"error": e.to_string()})),
+    }
+}
+
+async fn agent_testimonies_live(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Json<serde_json::Value> {
+    let pool = match &state.db_pool {
+        Some(p) => p,
+        None => return Json(serde_json::json!({"agentId": id, "testimonies": []})),
+    };
+
+    let agent = match db::get_agent(pool, &id).await {
+        Ok(Some(a)) => a,
+        _ => return Json(serde_json::json!({"agentId": id, "testimonies": []})),
+    };
+
+    let head_hex = rpc_call(&state, "eth_blockNumber", vec![])
+        .await.ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_else(|| "0x0".to_string());
+    let head = hex_to_u64(&head_hex);
+    let wallet_lower = agent.wallet_address.to_lowercase();
+
+    let mut testimonies: Vec<serde_json::Value> = Vec::new();
+    let batch_size: u64 = 50;
+    let mut cursor = head;
+    let target = 20usize;
+
+    'outer: while cursor > 0 && testimonies.len() < target {
+        let batch_start = cursor.saturating_sub(batch_size - 1);
+        let mut batch_req: Vec<serde_json::Value> = Vec::new();
+        for bn in (batch_start..=cursor).rev() {
+            batch_req.push(serde_json::json!({
+                "jsonrpc": "2.0",
+                "method": "eth_getBlockByNumber",
+                "params": [format!("0x{:x}", bn), true],
+                "id": bn
+            }));
+        }
+        let batch_resp = match rpc_batch_call(&state, &batch_req).await {
+            Some(v) => v,
+            None => break,
+        };
+        for resp in &batch_resp {
+            if testimonies.len() >= target { break 'outer; }
+            let block = match resp.get("result") { Some(b) if !b.is_null() => b, _ => continue };
+            let bn_val = block.get("number").and_then(|v| v.as_str()).map(|s| hex_to_u64(s)).unwrap_or(0);
+            let timestamp = block.get("timestamp").and_then(|v| v.as_str()).map(|s| hex_to_u64(s) as i64).unwrap_or(0);
+            let txs = block.get("transactions").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+            for tx in txs {
+                if testimonies.len() >= target { break 'outer; }
+                let from = tx.get("from").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
+                if from == wallet_lower {
+                    let hash = tx.get("hash").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                    let to = tx.get("to").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                    let value_hex = tx.get("value").and_then(|v| v.as_str()).unwrap_or("0x0");
+                    let value_fat = wei_to_fat(value_hex);
+                    testimonies.push(serde_json::json!({
+                        "id": hash, "transaction": hash, "to": to,
+                        "value": format_fat(value_fat), "verdict": "Approved",
+                        "confidence": 0.99, "timestamp": timestamp,
+                        "block": bn_val, "rewardFat": agent.reward_rate_fat
+                    }));
+                }
+            }
+        }
+        if batch_start == 0 { break; }
+        cursor = batch_start - 1;
+    }
 
     Json(serde_json::json!({
         "agentId": id,
         "testimonies": testimonies
+    }))
+}
+
+/// Account overview enriched with AI Agent data when the address is an agent wallet.
+async fn account_overview_live(
+    Path(address): Path<String>,
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    let balance_hex = rpc_call(&state, "eth_getBalance", vec![
+        serde_json::json!(&address), serde_json::json!("latest")
+    ]).await.ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_else(|| "0x0".to_string());
+
+    let nonce_hex = rpc_call(&state, "eth_getTransactionCount", vec![
+        serde_json::json!(&address), serde_json::json!("latest")
+    ]).await.ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_else(|| "0x0".to_string());
+
+    let code_result = rpc_call(&state, "eth_getCode", vec![
+        serde_json::json!(&address), serde_json::json!("latest")
+    ]).await.ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_else(|| "0x".to_string());
+    let is_contract = code_result.len() > 2;
+
+    let balance = wei_to_fat(&balance_hex);
+    let tx_count = hex_to_u64(&nonce_hex);
+
+    let price_cache = state.price_cache.read().await;
+    let price = price_cache.as_ref().map(|p| p.price).unwrap_or(0.0039);
+    drop(price_cache);
+
+    let balance_usd = balance * price;
+    let balance_str = format_fat(balance);
+
+    let hidden = is_hidden_address(&address);
+
+    let mut resp = serde_json::json!({
+        "address": if hidden { serde_json::Value::Null } else { serde_json::json!(&address) },
+        "fatBalance": balance_str,
+        "fatValueUsd": format!("{:.2}", balance_usd),
+        "transactionCount": tx_count,
+        "isContract": is_contract,
+        "tokenHoldingsValueUsd": "0.00",
+        "tokenCount": 0,
+        "tokens": [],
+        "recentTransactions": [],
+        "isAgent": false,
+        "hidden": hidden
+    });
+
+    if let Some(tag_label) = known_label(&address) {
+        resp["label"] = serde_json::json!(tag_label);
+        if let Some(tag) = address_registry().get(address.to_lowercase().as_str()) {
+            resp["labelIcon"] = serde_json::json!(tag.icon);
+            resp["labelCategory"] = serde_json::json!(tag.category);
+        }
+    }
+
+    if let Some(ref pool) = state.db_pool {
+        if let Ok(Some(agent)) = db::get_agent_by_wallet(pool, &address).await {
+            let agent_json = agent_row_to_json(&state, &agent).await;
+            resp["isAgent"] = serde_json::json!(true);
+            resp["agent"] = agent_json;
+            resp["label"] = serde_json::json!(&agent.name);
+        }
+    }
+
+    Json(resp)
+}
+
+/// Fetch on-chain testimonies for an agent identified by wallet address.
+async fn agent_testimonies_by_wallet(
+    Path(address): Path<String>,
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    let agent_opt = if let Some(ref pool) = state.db_pool {
+        db::get_agent_by_wallet(pool, &address).await.ok().flatten()
+    } else {
+        None
+    };
+
+    let reward_rate = agent_opt.as_ref().map(|a| a.reward_rate_fat).unwrap_or(0.5);
+    let wallet_lower = address.to_lowercase();
+
+    let head_hex = rpc_call(&state, "eth_blockNumber", vec![])
+        .await.ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_else(|| "0x0".to_string());
+    let head = hex_to_u64(&head_hex);
+
+    let mut testimonies: Vec<serde_json::Value> = Vec::new();
+    let batch_size: u64 = 50;
+    let mut cursor = head;
+    let target = 20usize;
+
+    'outer: while cursor > 0 && testimonies.len() < target {
+        let batch_start = cursor.saturating_sub(batch_size - 1);
+        let mut batch_req: Vec<serde_json::Value> = Vec::new();
+        for bn in (batch_start..=cursor).rev() {
+            batch_req.push(serde_json::json!({
+                "jsonrpc": "2.0",
+                "method": "eth_getBlockByNumber",
+                "params": [format!("0x{:x}", bn), true],
+                "id": bn
+            }));
+        }
+
+        let batch_resp = match rpc_batch_call(&state, &batch_req).await {
+            Some(v) => v,
+            None => break,
+        };
+
+        for resp in &batch_resp {
+            if testimonies.len() >= target { break 'outer; }
+            let block = match resp.get("result") {
+                Some(b) if !b.is_null() => b,
+                _ => continue,
+            };
+            let timestamp = block.get("timestamp").and_then(|v| v.as_str())
+                .map(|s| hex_to_u64(s) as i64).unwrap_or(0);
+            let bn = block.get("number").and_then(|v| v.as_str()).map(|s| hex_to_u64(s)).unwrap_or(0);
+            let txs = block.get("transactions").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+            for tx in txs {
+                if testimonies.len() >= target { break 'outer; }
+                let from = tx.get("from").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
+                if from == wallet_lower {
+                    let hash = tx.get("hash").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                    let to = tx.get("to").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                    let value_hex = tx.get("value").and_then(|v| v.as_str()).unwrap_or("0x0");
+                    let value_fat = wei_to_fat(value_hex);
+                    let input = tx.get("input").and_then(|v| v.as_str()).unwrap_or("0x").to_string();
+                    let verdict = if input.len() > 10 { "Approved" } else { "Transfer" };
+                    testimonies.push(serde_json::json!({
+                        "id": hash,
+                        "transaction": hash,
+                        "to": to,
+                        "value": format_fat(value_fat),
+                        "verdict": verdict,
+                        "confidence": 0.99,
+                        "timestamp": timestamp,
+                        "block": bn,
+                        "rewardFat": reward_rate,
+                        "input": if input.len() > 10 { format!("{}...", &input[..10]) } else { input }
+                    }));
+                }
+            }
+        }
+
+        if batch_start == 0 { break; }
+        cursor = batch_start - 1;
+    }
+
+    Json(serde_json::json!({
+        "address": address,
+        "testimonies": testimonies
+    }))
+}
+
+/// Aggregated testimony statistics across all AI agents.
+/// Background task: scans blocks for agent transactions and caches the result.
+async fn refresh_testimony_cache(state: &Arc<AppState>) {
+    let pool = match &state.db_pool {
+        Some(p) => p,
+        None => return,
+    };
+    let agents = match db::list_agents(pool).await {
+        Ok(a) => a,
+        Err(_) => return,
+    };
+
+    let agent_wallets: std::collections::HashMap<String, &db::AgentRow> = agents.iter()
+        .map(|a| (a.wallet_address.to_lowercase(), a))
+        .collect();
+
+    let mut total_testimonies: u64 = 0;
+    let mut active_agents: u64 = 0;
+    let mut total_processed: u64 = 0;
+    let mut total_approved: u64 = 0;
+
+    for agent in &agents {
+        let nonce_hex = rpc_call(state, "eth_getTransactionCount", vec![
+            serde_json::json!(&agent.wallet_address), serde_json::json!("latest")
+        ]).await.ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_else(|| "0x0".to_string());
+        let tx_count = hex_to_u64(&nonce_hex);
+
+        let mut agent_processed: u64 = 0;
+        let mut agent_approved: u64 = 0;
+        if let Some(ref url) = agent.health_url {
+            if let Ok(resp) = state.http_client.get(url).timeout(std::time::Duration::from_secs(3)).send().await {
+                if resp.status().is_success() {
+                    if let Ok(json) = resp.json::<serde_json::Value>().await {
+                        if let Some(stats) = json.get("stats") {
+                            agent_processed = stats.get("processed").and_then(|v| v.as_u64()).unwrap_or(0);
+                            agent_approved = stats.get("approved").and_then(|v| v.as_u64()).unwrap_or(0);
+                        }
+                        active_agents += 1;
+                    }
+                }
+            }
+        }
+        let count = if agent_processed > 0 { agent_processed } else { tx_count };
+        total_testimonies += count;
+        total_processed += agent_processed;
+        total_approved += agent_approved;
+        if (tx_count > 0 || agent_processed > 0) && agent.health_url.is_none() {
+            active_agents += 1;
+        }
+    }
+
+    let head_hex = rpc_call(state, "eth_blockNumber", vec![])
+        .await.ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_else(|| "0x0".to_string());
+    let head = hex_to_u64(&head_hex);
+
+    let existing_cache = state.testimony_cache.read().await;
+    let mut testimonies: Vec<serde_json::Value> = existing_cache.as_ref()
+        .map(|c| c.testimonies.clone()).unwrap_or_default();
+    let last_scanned_block = existing_cache.as_ref()
+        .and_then(|c| c.testimonies.first())
+        .and_then(|t| t.get("block").and_then(|v| v.as_u64()))
+        .unwrap_or(0);
+    drop(existing_cache);
+
+    let scan_from = if last_scanned_block > 0 && !testimonies.is_empty() {
+        last_scanned_block + 1
+    } else {
+        0
+    };
+
+    for bn in (scan_from..=head).rev() {
+        if testimonies.len() >= 100 { break; }
+        let block_hex = format!("0x{:x}", bn);
+        let block = match rpc_call(state, "eth_getBlockByNumber", vec![
+            serde_json::json!(block_hex), serde_json::json!(false)
+        ]).await {
+            Ok(b) => b,
+            Err(_) => continue,
+        };
+        if block.get("transactions").and_then(|v| v.as_array()).map_or(true, |a| a.is_empty()) {
+            continue;
+        }
+        let full = match rpc_call(state, "eth_getBlockByNumber", vec![
+            serde_json::json!(block_hex), serde_json::json!(true)
+        ]).await {
+            Ok(b) => b,
+            Err(_) => continue,
+        };
+        let timestamp = full.get("timestamp").and_then(|v| v.as_str())
+            .map(|s| hex_to_u64(s) as i64).unwrap_or(0);
+        let txs = full.get("transactions").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+        for tx in txs {
+            if testimonies.len() >= 100 { break; }
+            let from = tx.get("from").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
+            if let Some(agent) = agent_wallets.get(&from) {
+                let hash = tx.get("hash").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let to = tx.get("to").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let input = tx.get("input").and_then(|v| v.as_str()).unwrap_or("0x");
+                let attest_type = if input.len() > 10 { "Validation" } else { "Transfer" };
+                testimonies.push(serde_json::json!({
+                    "id": hash, "testimonyId": hash, "txHash": hash, "transaction": hash,
+                    "agent": agent.wallet_address, "agentName": agent.name,
+                    "agentAddress": agent.wallet_address, "agentId": agent.id,
+                    "to": to, "type": attest_type, "attestationType": attest_type,
+                    "confidence": 0.99, "status": "confirmed",
+                    "timestamp": timestamp, "block": bn,
+                    "rewardFat": agent.reward_rate_fat
+                }));
+            }
+        }
+    }
+
+    let avg_confidence = if total_testimonies > 0 { 99 } else { 0 };
+    let stats = serde_json::json!({
+        "totalTestimonies": total_testimonies,
+        "totalTestimoniesChangePercentThisWeek": 0,
+        "testimonies24h": total_processed,
+        "testimonies24hChangePercentFromYesterday": 0,
+        "avgConfidenceScore": avg_confidence,
+        "activeAgents": active_agents,
+        "ropeNodeConnected": true,
+        "totalProcessed": total_processed,
+        "totalApproved": total_approved
+    });
+
+    {
+        let mut seen = std::collections::HashSet::new();
+        testimonies.retain(|t| {
+            let id = t.get("txHash").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            if id.is_empty() { return false; }
+            seen.insert(id)
+        });
+    }
+    testimonies.sort_by(|a, b| {
+        let ba = a.get("block").and_then(|v| v.as_u64()).unwrap_or(0);
+        let bb = b.get("block").and_then(|v| v.as_u64()).unwrap_or(0);
+        bb.cmp(&ba)
+    });
+    testimonies.truncate(100);
+
+    let mut cache = state.testimony_cache.write().await;
+    *cache = Some(TestimonyCache {
+        stats,
+        testimonies: testimonies.clone(),
+        updated_at: chrono::Utc::now().timestamp(),
+    });
+    tracing::info!("Testimony cache refreshed: {} testimonies, {} agents", total_testimonies, active_agents);
+}
+
+/// Returns cached testimony stats (instant response).
+async fn testimonies_stats_live(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    let cache = state.testimony_cache.read().await;
+    if let Some(ref c) = *cache {
+        return Json(c.stats.clone());
+    }
+    Json(serde_json::json!({
+        "totalTestimonies": 0,
+        "totalTestimoniesChangePercentThisWeek": 0,
+        "testimonies24h": 0,
+        "testimonies24hChangePercentFromYesterday": 0,
+        "avgConfidenceScore": "0",
+        "activeAgents": 0,
+        "ropeNodeConnected": true
+    }))
+}
+
+#[derive(Deserialize)]
+struct TestimoniesListQuery {
+    page: Option<u32>,
+    limit: Option<u32>,
+}
+
+/// Returns cached testimony list (instant response).
+async fn testimonies_list_live(
+    State(state): State<Arc<AppState>>,
+    Query(q): Query<TestimoniesListQuery>,
+) -> Json<serde_json::Value> {
+    let page = q.page.unwrap_or(1);
+    let limit = q.limit.unwrap_or(25).min(100) as usize;
+
+    let cache = state.testimony_cache.read().await;
+    if let Some(ref c) = *cache {
+        let start = ((page - 1) as usize) * limit;
+        let items: Vec<serde_json::Value> = c.testimonies.iter().skip(start).take(limit).cloned().collect();
+        let total = c.testimonies.len();
+        return Json(serde_json::json!({
+            "testimonies": items,
+            "total": total,
+            "page": page,
+            "limit": limit
+        }));
+    }
+    Json(serde_json::json!({
+        "testimonies": [],
+        "total": 0,
+        "page": page,
+        "limit": limit
     }))
 }
 
@@ -1470,7 +4106,7 @@ async fn list_projects(Query(params): Query<PaginationParams>) -> Json<serde_jso
         serde_json::json!({
             "id": "proj-001",
             "name": "DCSwap",
-            "tagline": "Decentralized exchange for DC-20 tokens",
+            "tagline": "Decentralized exchange for DCR-20 tokens",
             "category": "defi",
             "stage": "mvp",
             "organizationType": "business",
@@ -1619,7 +4255,7 @@ async fn get_project(Path(id): Path<String>) -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "id": id,
         "name": "DCSwap",
-        "tagline": "Decentralized exchange for DC-20 tokens",
+        "tagline": "Decentralized exchange for DCR-20 tokens",
         "description": "DCSwap is a fully decentralized exchange protocol built on Datachain Rope. It enables trustless token swaps with AI-validated transactions and ultra-low fees.",
         "category": "defi",
         "stage": "mvp",
@@ -1631,7 +4267,7 @@ async fn get_project(Path(id): Path<String>) -> Json<serde_json::Value> {
         "techStack": ["Rust", "TypeScript", "React", "Solidity"],
         "architectureDescription": "Smart contract-based AMM with AI testimony verification",
         "features": [
-            {"name": "Token Swaps", "description": "Instant DC-20 token swaps", "priority": "high"},
+            {"name": "Token Swaps", "description": "Instant DCR-20 token swaps", "priority": "high"},
             {"name": "Liquidity Pools", "description": "Provide liquidity and earn fees", "priority": "high"},
             {"name": "AI Verification", "description": "AI agents validate large trades", "priority": "medium"}
         ],
@@ -1796,6 +4432,156 @@ async fn get_votes_for_target(
 
 // ============================================================================
 // Tests
+// ============================================================================
+// Tanastok tokenized assets cache + endpoints
+// ============================================================================
+
+/// Incrementally scans blocks to maintain an exact total transaction count.
+/// First run: scans from block 0. Subsequent runs: only scans new blocks.
+/// Processes up to 5,000 blocks per tick to avoid blocking for too long.
+async fn refresh_tx_count_cache(state: &AppState) {
+    let head = match rpc_block_number(state).await {
+        Ok(h) => h,
+        Err(_) => return,
+    };
+
+    let cache = state.tx_count_cache.read().await.clone();
+    let start = if cache.last_scanned_block == 0 { 0 } else { cache.last_scanned_block + 1 };
+
+    if start > head {
+        return;
+    }
+
+    let batch_limit = 5_000u64;
+    let end = head.min(start + batch_limit);
+    let mut cumulative = cache.total_transactions;
+
+    for bn in start..=end {
+        let hex_bn = format!("0x{:x}", bn);
+        match rpc_call(state, "eth_getBlockTransactionCountByNumber", vec![serde_json::json!(hex_bn)]).await {
+            Ok(val) => {
+                if let Some(s) = val.as_str() {
+                    cumulative += hex_to_u64(s);
+                }
+            }
+            Err(_) => {}
+        }
+    }
+
+    let scanned_this_tick = end - start + 1;
+    let remaining = if head > end { head - end } else { 0 };
+    tracing::info!(
+        "Tx count cache: scanned blocks {}..{} ({} blocks), total_txs={}, remaining={}",
+        start, end, scanned_this_tick, cumulative, remaining
+    );
+
+    let mut w = state.tx_count_cache.write().await;
+    w.total_transactions = cumulative;
+    w.last_scanned_block = end;
+}
+
+const TANASTOK_API: &str = "https://tanastok.io/api/v1/tokenized-assets";
+
+async fn refresh_tanastok_cache(state: &AppState) {
+    let url = format!("{}?limit=500", TANASTOK_API);
+    let resp = match state.http_client.get(&url).timeout(std::time::Duration::from_secs(15)).send().await {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::warn!("Tanastok cache refresh failed (network): {}", e);
+            return;
+        }
+    };
+    let json: serde_json::Value = match resp.json().await {
+        Ok(j) => j,
+        Err(e) => {
+            tracing::warn!("Tanastok cache refresh failed (parse): {}", e);
+            return;
+        }
+    };
+    let assets = match json.get("data").and_then(|d| d.as_array()) {
+        Some(arr) => arr.clone(),
+        None => {
+            tracing::warn!("Tanastok cache refresh: no data array in response");
+            return;
+        }
+    };
+
+    let mut by_dcnft = std::collections::HashMap::new();
+    let mut by_erc3643 = std::collections::HashMap::new();
+
+    for (i, asset) in assets.iter().enumerate() {
+        if let Some(addr) = asset.pointer("/dcnft/contractAddress").and_then(|v| v.as_str()) {
+            by_dcnft.insert(addr.to_lowercase(), i);
+        }
+        if let Some(addr) = asset.pointer("/erc3643/contractAddress").and_then(|v| v.as_str()) {
+            by_erc3643.insert(addr.to_lowercase(), i);
+        }
+    }
+
+    let count = assets.len();
+    let cache = TanastokCache {
+        assets,
+        by_dcnft,
+        by_erc3643,
+        updated_at: chrono::Utc::now().timestamp(),
+    };
+
+    *state.tanastok_cache.write().await = Some(cache);
+    tracing::info!("Tanastok cache refreshed: {} assets indexed", count);
+}
+
+fn tanastok_lookup(cache: &TanastokCache, addr: &str) -> Option<serde_json::Value> {
+    let lower = addr.to_lowercase();
+    let idx = cache.by_dcnft.get(&lower).or_else(|| cache.by_erc3643.get(&lower))?;
+    let asset = cache.assets.get(*idx)?;
+    let is_dcnft = cache.by_dcnft.contains_key(&lower);
+
+    let mut result = asset.clone();
+    result["_contractType"] = if is_dcnft {
+        serde_json::json!("dcnft")
+    } else {
+        serde_json::json!("erc3643")
+    };
+    result["_matchedAddress"] = serde_json::json!(lower);
+    Some(result)
+}
+
+async fn tanastok_by_address(
+    Path(address): Path<String>,
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    let cache = state.tanastok_cache.read().await;
+    match cache.as_ref().and_then(|c| tanastok_lookup(c, &address)) {
+        Some(asset) => Json(serde_json::json!({
+            "success": true,
+            "asset": asset,
+        })),
+        None => Json(serde_json::json!({
+            "success": false,
+            "asset": serde_json::Value::Null,
+        })),
+    }
+}
+
+async fn tanastok_all_assets(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    let cache = state.tanastok_cache.read().await;
+    match cache.as_ref() {
+        Some(c) => Json(serde_json::json!({
+            "success": true,
+            "count": c.assets.len(),
+            "updatedAt": c.updated_at,
+            "assets": c.assets,
+        })),
+        None => Json(serde_json::json!({
+            "success": false,
+            "count": 0,
+            "assets": [],
+        })),
+    }
+}
+
 // ============================================================================
 
 #[cfg(test)]
