@@ -99,6 +99,18 @@ pub struct AppState {
     pub tanastok_cache: RwLock<Option<TanastokCache>>,
     /// Exact cumulative transaction count (incrementally scanned by background task)
     pub tx_count_cache: RwLock<TxCountCache>,
+    /// Quipu Canon v1.2 — `rope_globalStats` cache. The data changes
+    /// only when a new string is created or a knot appended, so a
+    /// short TTL is enough to absorb burst load on `/api/v1/stats`.
+    pub global_stats_cache: RwLock<Option<GlobalStatsCacheEntry>>,
+}
+
+/// One snapshot of `rope_globalStats`. TTL enforced at read time.
+#[derive(Clone)]
+pub struct GlobalStatsCacheEntry {
+    pub fetched_at: i64,
+    pub total_strings: u64,
+    pub by_kind: serde_json::Value,
 }
 
 /// Incrementally scanned exact transaction count across the entire chain.
@@ -268,6 +280,7 @@ async fn main() -> anyhow::Result<()> {
         tokentxn_cache: RwLock::new(None),
         tanastok_cache: RwLock::new(None),
         tx_count_cache: RwLock::new(TxCountCache::default()),
+        global_stats_cache: RwLock::new(None),
     });
 
     // Start background testimony cache refresh task (every 60s)
@@ -1191,25 +1204,66 @@ fn classify_knot_event_type(tx: &serde_json::Value) -> &'static str {
     }
 }
 
+/// Quipu Canon v1.2 — TTL on the cached `rope_globalStats` snapshot.
+/// 5 s is plenty: strings are typically created on human timescales,
+/// not per-block, so the visible drift is negligible. The cache also
+/// shields the `/api/v1/stats` handler from rope-node RPC flakiness
+/// under burst load (the v1.2 call would otherwise sometimes drop and
+/// the handler would emit a degenerate `totalStrings: 0`).
+const GLOBAL_STATS_CACHE_TTL_SECS: i64 = 5;
+
+/// Get `rope_globalStats` from the local cache when fresh, otherwise
+/// fetch & store. Returns `(total_strings, by_kind_value)` — falls
+/// back to the previous cached value (regardless of age) if the live
+/// fetch fails, and only returns `(0, Null)` on a cold-cache miss.
+async fn fetch_global_stats_cached(
+    state: &AppState,
+) -> (u64, serde_json::Value) {
+    let now = chrono::Utc::now().timestamp();
+    {
+        let cache = state.global_stats_cache.read().await;
+        if let Some(entry) = cache.as_ref() {
+            if now - entry.fetched_at < GLOBAL_STATS_CACHE_TTL_SECS {
+                return (entry.total_strings, entry.by_kind.clone());
+            }
+        }
+    }
+    match rpc_call(state, "rope_globalStats", vec![]).await {
+        Ok(v) => {
+            let s = v.get("total_strings").and_then(|x| x.as_u64()).unwrap_or(0);
+            let bk = v
+                .get("by_kind")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null);
+            *state.global_stats_cache.write().await = Some(GlobalStatsCacheEntry {
+                fetched_at: now,
+                total_strings: s,
+                by_kind: bk.clone(),
+            });
+            (s, bk)
+        }
+        Err(_) => {
+            // Live call failed — return last known good if we have one,
+            // otherwise the cold-cache zero default.
+            let cache = state.global_stats_cache.read().await;
+            match cache.as_ref() {
+                Some(entry) => (entry.total_strings, entry.by_kind.clone()),
+                None => (0u64, serde_json::Value::Null),
+            }
+        }
+    }
+}
+
 async fn stats(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let price_cache = state.price_cache.read().await;
     let price_data = price_cache.clone().unwrap_or_default();
     let fat_price = format!("${:.6}", price_data.price);
     let market_cap = format!("${:.0}", price_data.price * 10_000_000_000.0);
 
-    // Quipu Canon v1.2: call rope_globalStats EARLY, before the
-    // 50-block sample loop below. If we waited until after that loop
-    // the cumulative request time can exceed the reqwest 10s budget
-    // and we'd drop this call, returning a degenerate `totalStrings: 0`.
+    // Quipu Canon v1.2 — pull from the TTL cache so the response is
+    // never poisoned by a transient rope-node RPC drop.
     let (total_strings_real, by_kind_breakdown) =
-        match rpc_call(&state, "rope_globalStats", vec![]).await {
-            Ok(v) => {
-                let s = v.get("total_strings").and_then(|x| x.as_u64()).unwrap_or(0);
-                let bk = v.get("by_kind").cloned().unwrap_or(serde_json::Value::Null);
-                (s, bk)
-            }
-            Err(_) => (0u64, serde_json::Value::Null),
-        };
+        fetch_global_stats_cached(&state).await;
 
     let head = rpc_block_number(&state).await.unwrap_or(0);
     let gas_price_wei = rpc_gas_price(&state).await.unwrap_or(1_000_000_000u64);
@@ -1485,14 +1539,51 @@ async fn registry_list_strings(
 
 async fn registry_global_stats(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     match rpc_call(&state, "rope_globalStats", vec![]).await {
-        Ok(v) => Json(v),
-        Err(_) => Json(serde_json::json!({
-            "total_strings": 0,
-            "total_knots": 0,
-            "by_kind": {},
-            "invariant_holds": true,
-            "error": "rope_globalStats unavailable on this node (Quipu Canon v1.2 RPC required)"
-        })),
+        Ok(v) => {
+            // Refresh the cache opportunistically so /api/v1/stats and
+            // /api/v1/registry/stats never disagree.
+            if let Some(s) = v.get("total_strings").and_then(|x| x.as_u64()) {
+                let bk = v.get("by_kind").cloned().unwrap_or(serde_json::Value::Null);
+                *state.global_stats_cache.write().await = Some(GlobalStatsCacheEntry {
+                    fetched_at: chrono::Utc::now().timestamp(),
+                    total_strings: s,
+                    by_kind: bk,
+                });
+            }
+            Json(v)
+        }
+        Err(_) => {
+            // Fall back to the last known good snapshot before declaring
+            // the RPC unavailable. Smooths over rope-node hiccups.
+            let cache = state.global_stats_cache.read().await;
+            if let Some(entry) = cache.as_ref() {
+                let total_knots = entry
+                    .by_kind
+                    .as_object()
+                    .map(|m| {
+                        m.values()
+                            .filter_map(|v| v.get("knots").and_then(|k| k.as_u64()))
+                            .sum::<u64>()
+                    })
+                    .unwrap_or(0);
+                Json(serde_json::json!({
+                    "total_strings": entry.total_strings,
+                    "total_knots": total_knots,
+                    "by_kind": entry.by_kind,
+                    "invariant_holds": total_knots >= entry.total_strings,
+                    "stale_at": entry.fetched_at,
+                    "note": "served from local cache — rope_globalStats RPC briefly unavailable"
+                }))
+            } else {
+                Json(serde_json::json!({
+                    "total_strings": 0,
+                    "total_knots": 0,
+                    "by_kind": {},
+                    "invariant_holds": true,
+                    "error": "rope_globalStats unavailable on this node (Quipu Canon v1.2 RPC required)"
+                }))
+            }
+        }
     }
 }
 
