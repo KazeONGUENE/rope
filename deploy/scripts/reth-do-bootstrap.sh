@@ -1,13 +1,21 @@
 #!/usr/bin/env bash
 # Reth Blue-DO Bootstrap — used only when DO mdbx is corrupt or empty.
 # Briefly stops BLUE, streams a clean tar to DO, restarts both.
-# Run manually: sudo -u ubuntu /opt/datachain-rope/scripts/reth-do-bootstrap.sh
+#
+# Usage:
+#   reth-do-bootstrap.sh                       # rpc-1 (157.230.18.45)
+#   reth-do-bootstrap.sh 167.172.106.174       # rpc-2 (or any DO host)
+#
+# IMPORTANT: For DO→DO bootstrap (e.g. rpc-1 → rpc-2), prefer running the
+# tar-stream directly between the two DO hosts (much faster, no BLUE downtime).
+# This script always streams from the LOCAL host (BLUE), so only use it from BLUE.
 
 set -uo pipefail
+DO_TARGET="${1:-${DO_TARGET:-157.230.18.45}}"
 DATA_DIR="/opt/datachain-rope/reth"
-DO_HOST="root@157.230.18.45"
+DO_HOST="root@${DO_TARGET}"
 DO_DATA="/opt/datachain-rope/reth"
-LOG_PREFIX="[reth-do-bootstrap $(date -u +%H:%M:%S)]"
+LOG_PREFIX="[reth-do-bootstrap ${DO_TARGET} $(date -u +%H:%M:%S)]"
 log() { echo "$LOG_PREFIX $1"; }
 
 log "=== Bootstrapping DO from clean BLUE snapshot ==="
