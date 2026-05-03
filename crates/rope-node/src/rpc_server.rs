@@ -1975,11 +1975,14 @@ impl RpcHandlers {
             "rope_governanceInfo" => {
                 let gov = match &self.governance {
                     Some(g) => g,
-                    None => return serde_json::json!({
-                        "jsonrpc":"2.0",
-                        "error":{"code":-32603,"message":"Governance not initialized"},
-                        "id":id
-                    }).to_string(),
+                    None => {
+                        return serde_json::json!({
+                            "jsonrpc":"2.0",
+                            "error":{"code":-32603,"message":"Governance not initialized"},
+                            "id":id
+                        })
+                        .to_string()
+                    }
                 };
                 let registry = gov.registry_snapshot();
                 let recent_log = gov.recent_log(20);
@@ -2007,11 +2010,14 @@ impl RpcHandlers {
             "rope_listMasterNodes" => {
                 let gov = match &self.governance {
                     Some(g) => g,
-                    None => return serde_json::json!({
-                        "jsonrpc":"2.0",
-                        "error":{"code":-32603,"message":"Governance not initialized"},
-                        "id":id
-                    }).to_string(),
+                    None => {
+                        return serde_json::json!({
+                            "jsonrpc":"2.0",
+                            "error":{"code":-32603,"message":"Governance not initialized"},
+                            "id":id
+                        })
+                        .to_string()
+                    }
                 };
                 serde_json::json!({"master_nodes": gov.registry_snapshot().master_nodes})
             }
@@ -2019,13 +2025,13 @@ impl RpcHandlers {
             "rope_nodeIdentity" => {
                 // Optional first param: target node_id (hex). When omitted,
                 // returns this node's own attestation.
-                let target_node_id = params
-                    .and_then(|p| p.get(0))
-                    .and_then(|v| {
-                        v.as_str()
+                let target_node_id = params.and_then(|p| p.get(0)).and_then(|v| {
+                    v.as_str().map(|s| s.to_string()).or_else(|| {
+                        v.get("node_id")
+                            .and_then(|s| s.as_str())
                             .map(|s| s.to_string())
-                            .or_else(|| v.get("node_id").and_then(|s| s.as_str()).map(|s| s.to_string()))
-                    });
+                    })
+                });
                 let target = target_node_id.unwrap_or_else(|| self.self_node_id.clone());
 
                 if target == self.self_node_id || self.self_node_id.is_empty() {
@@ -2081,25 +2087,168 @@ impl RpcHandlers {
                 }
             }
 
+            "rope_anchorDeployerAttestation" => {
+                // Anchor THIS node's signed [deployer] attestation onto the
+                // deployer's personal ledger (== global Rope lattice). Useful
+                // after re-signing with a fresh founder key, or on operator
+                // demand for audit. Optional param: { force: bool }. When
+                // `force` is false (default), the call is a no-op if the
+                // ledger already contains an entry whose metadata matches
+                // the current self_signature.
+                let force = params
+                    .and_then(|p| p.get(0))
+                    .and_then(|v| v.get("force"))
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+
+                let dep =
+                    match self.deployer.as_ref() {
+                        Some(d) => d.clone(),
+                        None => return serde_json::json!({
+                            "jsonrpc":"2.0",
+                            "error":{"code":-32603,"message":"deployer settings not initialized"},
+                            "id":id
+                        })
+                        .to_string(),
+                    };
+                if dep.self_signature.trim().is_empty() {
+                    return serde_json::json!({
+                        "jsonrpc":"2.0",
+                        "error":{"code":-32602,"message":"deployer.self_signature is empty (run `rope identity sign-deployer`)"},
+                        "id":id
+                    }).to_string();
+                }
+                if dep.wallet_address.trim().is_empty() {
+                    return serde_json::json!({
+                        "jsonrpc":"2.0",
+                        "error":{"code":-32602,"message":"deployer.wallet_address is empty"},
+                        "id":id
+                    })
+                    .to_string();
+                }
+                let ledger = match &self.ledger {
+                    Some(l) => l,
+                    None => return serde_json::json!({
+                        "jsonrpc":"2.0",
+                        "error":{"code":-32603,"message":"personal ledger subsystem not initialized"},
+                        "id":id
+                    }).to_string(),
+                };
+                let canonical =
+                    crate::node::deployer_canonical_json_bytes(&dep).unwrap_or_default();
+                let _ = force; // forced re-anchor — we always append on RPC.
+                match ledger.anchor_deployer_attestation(
+                    &dep.wallet_address,
+                    &canonical,
+                    &dep.self_signature,
+                    &self.self_node_id,
+                    self.chain_id,
+                ) {
+                    Ok(resp) => serde_json::json!({
+                        "string_id": resp.string_id,
+                        "parent_id": resp.parent_id,
+                        "wallet_address": dep.wallet_address,
+                        "attesting_node_id": self.self_node_id,
+                        "chain_id": self.chain_id,
+                        "self_signature": dep.self_signature,
+                        "encrypted_size": resp.encrypted_size,
+                        "oes_generation": resp.oes_generation,
+                        "anchored_at": chrono::Utc::now().to_rfc3339(),
+                    }),
+                    Err(e) => {
+                        return serde_json::json!({
+                            "jsonrpc":"2.0",
+                            "error":{"code":-32603,"message":format!("anchor failed: {e}")},
+                            "id":id
+                        })
+                        .to_string()
+                    }
+                }
+            }
+
+            "rope_listDeployerAttestations" => {
+                // Return the personal-ledger status for a given deployer
+                // wallet so callers can verify how many attestation knots
+                // have been anchored. Param: { wallet: "0x..." }. Defaults
+                // to this node's own [deployer].wallet_address.
+                let wallet = params
+                    .and_then(|p| p.get(0))
+                    .and_then(|v| {
+                        v.as_str()
+                            .map(|s| s.to_string())
+                            .or_else(|| v.get("wallet").and_then(|s| s.as_str()).map(String::from))
+                    })
+                    .or_else(|| self.deployer.as_ref().map(|d| d.wallet_address.clone()))
+                    .unwrap_or_default();
+
+                if wallet.is_empty() {
+                    return serde_json::json!({
+                        "jsonrpc":"2.0",
+                        "error":{"code":-32602,"message":"wallet parameter required (or set [deployer].wallet_address)"},
+                        "id":id
+                    }).to_string();
+                }
+                let ledger = match &self.ledger {
+                    Some(l) => l,
+                    None => return serde_json::json!({
+                        "jsonrpc":"2.0",
+                        "error":{"code":-32603,"message":"personal ledger subsystem not initialized"},
+                        "id":id
+                    }).to_string(),
+                };
+                match ledger.get_ledger_status(&wallet) {
+                    Ok(status) => serde_json::json!({
+                        "wallet_address": status.wallet_address,
+                        "genesis_string_id": status.genesis_string_id,
+                        "head_string_id": status.head_string_id,
+                        "attestation_count": status.entry_count,
+                        "total_size_bytes": status.total_size_bytes,
+                        "oes_generation": status.oes_generation,
+                        "is_deleted": status.is_deleted,
+                        "created_at": status.created_at,
+                        "last_anchored_at": status.last_appended_at,
+                        "note": "attestation_count includes ALL personal-ledger entries for this wallet, not only deployer attestations. Use rope_repatriateLedger + filter on metadata.attestation_kind=deployer_v1 for an exact count."
+                    }),
+                    Err(e) => serde_json::json!({
+                        "wallet_address": wallet,
+                        "attestation_count": 0,
+                        "note": format!("no personal ledger for this wallet ({e}); call rope_anchorDeployerAttestation first")
+                    }),
+                }
+            }
+
             method @ ("rope_suspendNode" | "rope_isolateNode" | "rope_eraseNode") => {
                 let gov = match &self.governance {
                     Some(g) => g,
-                    None => return serde_json::json!({
-                        "jsonrpc":"2.0",
-                        "error":{"code":-32603,"message":"Governance not initialized"},
-                        "id":id
-                    }).to_string(),
+                    None => {
+                        return serde_json::json!({
+                            "jsonrpc":"2.0",
+                            "error":{"code":-32603,"message":"Governance not initialized"},
+                            "id":id
+                        })
+                        .to_string()
+                    }
                 };
-                let p = match params.and_then(|p| p.get(0)).and_then(|v| v.as_object()) {
-                    Some(p) => p,
-                    None => return serde_json::json!({
-                        "jsonrpc":"2.0",
-                        "error":{"code":-32602,"message":"Expected single object parameter"},
-                        "id":id
-                    }).to_string(),
-                };
-                let node_id = p.get("node_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                let reason = p.get("reason").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let p =
+                    match params.and_then(|p| p.get(0)).and_then(|v| v.as_object()) {
+                        Some(p) => p,
+                        None => return serde_json::json!({
+                            "jsonrpc":"2.0",
+                            "error":{"code":-32602,"message":"Expected single object parameter"},
+                            "id":id
+                        })
+                        .to_string(),
+                    };
+                let node_id = p
+                    .get("node_id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let reason = p
+                    .get("reason")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
                 let issued_at = p
                     .get("issued_at")
                     .and_then(|v| v.as_str())
@@ -2136,10 +2285,7 @@ impl RpcHandlers {
                     "rope_suspendNode" => GovernanceAction::Suspend {
                         node_id: node_id.clone(),
                         reason: reason.clone(),
-                        ttl_secs: p
-                            .get("ttl_secs")
-                            .and_then(|v| v.as_u64())
-                            .unwrap_or(3600),
+                        ttl_secs: p.get("ttl_secs").and_then(|v| v.as_u64()).unwrap_or(3600),
                         issued_at: issued_at.clone(),
                         nonce: nonce.clone(),
                     },
@@ -2166,7 +2312,8 @@ impl RpcHandlers {
                             "jsonrpc":"2.0",
                             "error":{"code":-32401,"message":format!("Forbidden: {}", reason)},
                             "id":id
-                        }).to_string();
+                        })
+                        .to_string();
                     }
                 };
                 gov.record_action(&action, &authorized_as, &pubkey, &signature);

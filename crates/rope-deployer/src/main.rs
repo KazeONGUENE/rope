@@ -39,7 +39,10 @@ async fn main() -> anyhow::Result<()> {
         );
     }
 
-    println!("{}", serde_json::to_string_pretty(&rope_deployer::api::providers(&state))?);
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&rope_deployer::api::providers(&state))?
+    );
     println!(
         "rope-deployer MVP ready. HTTP API surface defined in `rope_deployer::api` \
          — see deploy/EXOSCALE_AS_A_SERVICE.md for the live integration plan."

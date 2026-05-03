@@ -22,7 +22,7 @@ use async_trait::async_trait;
 use parking_lot::RwLock;
 
 use super::{CloudProvider, ProviderError};
-use crate::types::{InstanceInfo, ProvisionRequest, ProvisionResponse, Provider};
+use crate::types::{InstanceInfo, Provider, ProvisionRequest, ProvisionResponse};
 
 /// Exoscale provider state.
 pub struct ExoscaleProvider {
@@ -70,10 +70,7 @@ impl CloudProvider for ExoscaleProvider {
         self.has_creds()
     }
 
-    async fn provision(
-        &self,
-        req: &ProvisionRequest,
-    ) -> Result<ProvisionResponse, ProviderError> {
+    async fn provision(&self, req: &ProvisionRequest) -> Result<ProvisionResponse, ProviderError> {
         let zone = self.resolve_zone(&req.zone);
 
         // Generate the deterministic identifiers we'd send to the
@@ -148,11 +145,7 @@ impl CloudProvider for ExoscaleProvider {
             .collect())
     }
 
-    async fn stop(
-        &self,
-        tenant_did: &str,
-        instance_id: &str,
-    ) -> Result<(), ProviderError> {
+    async fn stop(&self, tenant_did: &str, instance_id: &str) -> Result<(), ProviderError> {
         let mut g = self.state.write();
         match g.get_mut(instance_id) {
             Some(info) if info.tenant_did == tenant_did => {
@@ -168,11 +161,7 @@ impl CloudProvider for ExoscaleProvider {
         }
     }
 
-    async fn destroy(
-        &self,
-        tenant_did: &str,
-        instance_id: &str,
-    ) -> Result<(), ProviderError> {
+    async fn destroy(&self, tenant_did: &str, instance_id: &str) -> Result<(), ProviderError> {
         let mut g = self.state.write();
         match g.get(instance_id) {
             Some(info) if info.tenant_did == tenant_did => {
