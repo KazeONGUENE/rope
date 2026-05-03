@@ -1,0 +1,58 @@
+# Rope node — Quipu Canon Knot Witness configuration
+#
+# Per the Quipu Primitive Canon v1.1, "Quipucamayoq" map to Testimony
+# witnesses (consensus participants in the Testimony Consensus layer).
+# Witness nodes participate in consensus by signing knot testimonies.
+# They do not run a local Reth — they delegate eth_* calls to the public
+# erpc endpoint, which load-balances across BLUE/GREEN/rpc-1/rpc-2.
+#
+# Used by: datachain-validator-1 (159.89.3.160), datachain-validator-2 (159.65.119.231)
+# Both have only ~25 GB disk, sufficient for rope-node MDBX state but not for
+# the full Reth chain DB.
+
+[node]
+name = "rope-knot-witness"
+mode = "validator"
+chain_id = 271828
+
+[network]
+listen_addr = "0.0.0.0:9000"
+bootstrap_nodes = ["/ip4/92.243.26.189/tcp/9000/p2p/12D3KooWBXNzc2E4Z9CLypkRXro5iSdbM5oTnTkmf8ncZAqjhAfM"]
+max_peers = 50
+enable_quic = true
+enable_nat = true
+
+[consensus]
+enabled = true
+block_time_ms = 3000
+min_testimonies = 5
+ai_agents_enabled = false
+
+[storage]
+db_path = "~/.rope/mainnet/db"
+enable_compression = true
+cache_size_mb = 256
+pruning = "archive"
+
+[rpc]
+enabled = true
+# Local-only RPC by default; UFW will additionally restrict to trusted Gandi IPs
+http_addr = "0.0.0.0:8545"
+grpc_addr = "127.0.0.1:9001"
+ws_addr = "127.0.0.1:8546"
+enable_tls = false
+enable_mtls = false
+cors_origins = ["*"]
+rate_limit = 100
+
+[metrics]
+enabled = true
+prometheus_addr = "127.0.0.1:9090"
+
+# Witnesses don't run local Reth; they delegate eth_* RPC calls to the
+# public erpc endpoint (which routes to BLUE/GREEN/rpc-1/rpc-2).
+[evm_backend]
+enabled = true
+url = "https://erpc.datachain.network"
+health_interval_secs = 60
+max_failures = 5

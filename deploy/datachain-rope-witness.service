@@ -1,0 +1,31 @@
+# /etc/systemd/system/datachain-rope.service (witness variant)
+# Datachain Rope Quipu Canon Knot Witness node.
+#
+# Runs rope-node in `mode = validator` with `[consensus] enabled = true`.
+# Witness nodes do NOT run a local Reth (insufficient disk for full chain DB);
+# they delegate eth_* RPC calls to https://erpc.datachain.network via
+# [evm_backend] in rope-witness.toml. They participate in Testimony Consensus
+# by signing knot testimonies as the consensus orchestrator dispatches them.
+#
+# Used by: datachain-validator-1 (159.89.3.160), datachain-validator-2 (159.65.119.231)
+
+[Unit]
+Description=Datachain Rope Knot Witness (Quipu Canon validator mode)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/datachain-rope
+Environment="PATH=/home/ubuntu/.cargo/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/home/ubuntu/datachain-rope/target/release/rope node --config /home/ubuntu/datachain-rope/deploy/config/rope-witness.toml --network mainnet --mode validator
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=datachain-rope-witness
+
+[Install]
+WantedBy=multi-user.target

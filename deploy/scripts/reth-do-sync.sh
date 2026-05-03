@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Reth Blue-DO State Sync — Primary → DigitalOcean rpc-1
+# Reth Blue-DO State Sync — Primary → DigitalOcean (rpc-1 or rpc-2)
 #
 # Hot rsync (no BLUE downtime) — same pattern as reth-blue-green-sync.sh.
 # DO Reth is briefly stopped during the rsync window to avoid mdbx
@@ -9,16 +9,24 @@
 # state via /opt/datachain-rope/scripts/reth-do-bootstrap.sh. If DO mdbx
 # is corrupt or empty, run the bootstrap script first.
 #
-# Run: every 15 minutes via cron (offset 7 min from blue-green sync)
-# Cron: 7,22,37,52 * * * * /opt/datachain-rope/scripts/reth-do-sync.sh >> /var/log/datachain-rope-reth-do-sync.log 2>&1
+# Usage:
+#   reth-do-sync.sh                          # defaults to rpc-1 (157.230.18.45)
+#   reth-do-sync.sh 167.172.106.174          # rpc-2 (or any DO host)
+#   DO_TARGET=167.172.106.174 reth-do-sync.sh
+#
+# Cron (rpc-1):  7,22,37,52 * * * * /opt/datachain-rope/scripts/reth-do-sync.sh >> /var/log/datachain-rope-reth-do-sync.log 2>&1
+# Cron (rpc-2): 12,27,42,57 * * * * /opt/datachain-rope/scripts/reth-do-sync.sh 167.172.106.174 >> /var/log/datachain-rope-reth-do2-sync.log 2>&1
 
 set -uo pipefail
 
-LOCK_FILE="/tmp/reth-do-sync.lock"
+DO_TARGET="${1:-${DO_TARGET:-157.230.18.45}}"
+DO_HOST="root@${DO_TARGET}"
+# Lock + log are per-target so rpc-1 and rpc-2 syncs can run concurrently
+TARGET_TAG="${DO_TARGET//./_}"
+LOCK_FILE="/tmp/reth-do-sync-${TARGET_TAG}.lock"
 DATA_DIR="/opt/datachain-rope/reth/data"
-DO_HOST="root@157.230.18.45"
 DO_DATA="/opt/datachain-rope/reth/data"
-LOG_PREFIX="[reth-do-sync $(date -u +%H:%M:%S)]"
+LOG_PREFIX="[reth-do-sync ${DO_TARGET} $(date -u +%H:%M:%S)]"
 
 log() { echo "$LOG_PREFIX $1"; }
 

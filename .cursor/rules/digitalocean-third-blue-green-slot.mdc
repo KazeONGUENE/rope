@@ -1,21 +1,24 @@
 ---
-description: DigitalOcean rpc-1 promoted to third Datachain Rope blue-green slot (2026-05-03)
+description: DigitalOcean nodes for Datachain Rope — 4-way blue-green slots + 2 Quipu Canon witnesses (2026-05-03)
 alwaysApply: true
 ---
 
-# DigitalOcean Third Blue-Green Slot — Datachain Rope (2026-05-03)
+# DigitalOcean Nodes — Datachain Rope (2026-05-03)
 
 ## Topology
 
-The Datachain Rope mainnet (chainId 271828) now runs across **3 production nodes** in 2 cloud providers and 2 regions:
+The Datachain Rope mainnet (chainId 271828) now runs across **4 production blue-green slots** + **2 Quipu Canon knot witnesses** spanning 2 cloud providers and 2 regions:
 
-| Slot | Hostname | Provider | Region | IP | Disk | RAM | Role |
+| Role | Hostname | Provider | Region | IP | Disk | RAM | Description |
 |---|---|---|---|---|---|---|---|
 | **BLUE (primary)** | `dcrope` | Gandi | Paris SD6 | `92.243.26.189` | 484 GB | 8 GB | active sequencer; Reth produces blocks |
-| **GREEN (secondary)** | `dcrope-node2` | Gandi | Paris SD6 | `92.243.25.119` | — | 8 GB | hot-warm spare; receives state-sync from BLUE every 15 min |
-| **DO (tertiary)** | `datachain-rpc-1` | DigitalOcean | Frankfurt (fra1) | `157.230.18.45` | 78 GB | 3.8 GB + 4 GB swap | hot-warm spare; receives state-sync from BLUE every 15 min (offset 7 min) |
+| **GREEN (secondary)** | `dcrope-node2` | Gandi | Paris SD6 | `92.243.25.119` | — | 8 GB | hot-warm spare; receives state-sync from BLUE every 15 min (`*/15 * * * *`) |
+| **DO rpc-1 (tertiary)** | `datachain-rpc-1` | DigitalOcean | Frankfurt (fra1) | `157.230.18.45` | 78 GB | 3.8 GB + 4 GB swap | hot-warm spare; receives state-sync from BLUE every 15 min (offset `7,22,37,52`) |
+| **DO rpc-2 (quaternary)** | `datachain-rpc-2` | DigitalOcean | Frankfurt (fra1) | `167.172.106.174` | 78 GB | 3.8 GB + 4 GB swap | hot-warm spare; receives state-sync from rpc-1 every 15 min (offset `12,27,42,57`) |
+| **Witness 1** | `datachain-validator-1` | DigitalOcean | Frankfurt (fra1) | `159.89.3.160` | 25 GB | 1 GB | rope-node only (no Reth); `mode=validator`, `[consensus] enabled=true`; produces local anchors, ready for Testimony Consensus |
+| **Witness 2** | `datachain-validator-2` | DigitalOcean | Frankfurt (fra1) | `159.65.119.231` | 25 GB | 1 GB | same as witness 1; paired |
 
-All 3 nodes share **identical genesis hash** `0x6a425482c849cfa07ec253c272a661375469b71c47f499048218a377a24d7203` and `chainId 0x425d4 (271828)`.
+All 4 RPC slots share **identical genesis hash** `0x6a425482c849cfa07ec253c272a661375469b71c47f499048218a377a24d7203` and `chainId 0x425d4 (271828)`. Witnesses also report the same `eth_chainId` because they delegate to `https://erpc.datachain.network` via `[evm_backend]`.
 
 ## Public RPC failover order
 
@@ -25,88 +28,120 @@ Nginx upstream `digitalocean_rpc` (legacy name preserved for stability) on BLUE:
 upstream digitalocean_rpc {
     server host.docker.internal:8545 max_fails=2 fail_timeout=5s;  # BLUE primary
     server 92.243.25.119:8545 backup;                              # GREEN secondary
-    server 157.230.18.45:8545 backup;                              # DO tertiary (added 2026-05-03)
+    server 157.230.18.45:8545 backup;                              # DO rpc-1 tertiary (2026-05-03)
+    server 167.172.106.174:8545 backup;                            # DO rpc-2 quaternary (2026-05-03)
 }
 ```
 
-Public traffic via `https://erpc.datachain.network` flows: **BLUE → GREEN if BLUE down → DO if both Gandi down**.
+Public traffic via `https://erpc.datachain.network` flows: **BLUE → GREEN if BLUE down → rpc-1 if both Gandi down → rpc-2 if all three down**.
 
-## DO services
+## DO RPC slot services (rpc-1, rpc-2)
 
-Each DO node runs the same 3-service stack as BLUE/GREEN:
+Each DO RPC node runs the same 3-service stack as BLUE/GREEN:
 
 | Service | Port | Role |
 |---|---|---|
 | `reth-rope.service` | 8595 (private) | Reth v1.11.2 EVM backend in `--dev --dev.block-time 3s` mode |
 | `datachain-rope.service` | 8545 (firewalled) | rope-node serving Quipu Canon v1.1 RPC (`rope_*` + `eth_*` aliases) |
-| `dc-explorer.service` | 3001 (private) | DCScan explorer API (currently failover-routed to `https://erpc.datachain.network` for read-through) |
+| `dc-explorer.service` | 3001 (private) | DCScan explorer API (read-through to local rope-node) |
 
-## Firewall (UFW on DO rpc-1)
+## Witness services (validator-1, validator-2)
 
-```
-22/tcp                ALLOW    Anywhere      # SSH
-8545,8595,8547/tcp    ALLOW    92.243.26.189 # BLUE rope-vps
-8545,8595,8547/tcp    ALLOW    92.243.25.119 # GREEN anvil-vps
-8545,8595,8547/tcp    ALLOW    92.243.26.114 # dcswap-vps
-8545,8595,8547/tcp    DENY     Anywhere      # public denied
-9000,30304            ALLOW    Anywhere      # libp2p + Reth p2p
-```
+Witness nodes do **not** run Reth (insufficient disk for full chain DB). They run a single service:
 
-Public internet **cannot** reach DO RPC ports — only the Gandi infrastructure (which hosts `erpc.datachain.network` nginx) can reach DO.
+| Service | Port | Role |
+|---|---|---|
+| `datachain-rope.service` | 8545 (firewalled), 9000 (libp2p public) | rope-node in `mode=validator` with `[consensus] enabled=true`. Produces local anchors via `string_producer`. Delegates `eth_*` to `https://erpc.datachain.network` via `[evm_backend]`. |
+| `dc-explorer.service` | 3001 (private) | DCScan explorer API |
+
+Witness config: `deploy/config/rope-witness.toml`. Witness systemd unit: `deploy/datachain-rope-witness.service` (installed on the host as `/etc/systemd/system/datachain-rope.service`).
+
+## Firewall (UFW) — every DO node
+
+| Port | Allowed sources | Notes |
+|---|---|---|
+| `22/tcp` | Anywhere | SSH |
+| `9000` | Anywhere (witnesses only) | rope-node libp2p (public for peer discovery) |
+| `8545` (rope-node RPC) | BLUE, GREEN, all other DO nodes (mutual) | private mesh |
+| `8595` (Reth RPC) | BLUE, GREEN, all other RPC slots (rpc-1↔rpc-2) | private mesh; not opened on witnesses (no Reth) |
+| `3001` (dc-explorer) | BLUE only | management plane |
+
+Public internet **cannot** reach DO RPC ports — only the Gandi infrastructure (which hosts `erpc.datachain.network` nginx) plus the DO peer mesh can reach DO RPC ports.
 
 ## State-sync mechanism
 
-Two scripts on BLUE in `/opt/datachain-rope/scripts/`:
+Three scripts in `/opt/datachain-rope/scripts/`:
 
-### `reth-do-sync.sh` — routine (cron every 15 min)
+### `reth-do-sync.sh <target-ip>` — routine BLUE → DO RPC slot (cron, 15 min)
 
 Hot rsync from BLUE → DO. **BLUE never stops.** DO Reth is briefly stopped for the rsync window (~30-60 s) to avoid mdbx concurrent-write corruption on destination. Then verifies block height + deployer nonce match.
 
-Cron: `7,22,37,52 * * * *` (offset 7 min from `reth-blue-green-sync.sh` to spread load).
+- Cron on BLUE (ubuntu): `7,22,37,52 * * * * reth-do-sync.sh >> .../reth-do-sync.log` (defaults to rpc-1 = 157.230.18.45)
+- Parameterized: pass an IP arg to target other DO nodes
 
-### `reth-do-bootstrap.sh` — recovery (manual)
+### `reth-do-peer-sync.sh user@host` — DO peer (rpc-1 → rpc-2) every 15 min
 
-Used only when DO mdbx is corrupt or empty. Briefly stops BLUE (~3-4 min), streams an uncompressed tar of the data dir over SSH, restarts both. GREEN takes over public traffic during BLUE's stop window.
+Pattern: **stop-tar-stream-restart** (safe even with `--dev` divergent chains). Briefly stops the LOCAL Reth (~30-60 s) to take a consistent MDBX snapshot, tar-streams over the DO-internal network (fra1↔fra1, ~80 MB/s), then both restart. Safe because rpc-1 is itself a backup (no public traffic).
 
-**Why two scripts?** Empirical finding (2026-05-03): hot rsync over a *clean* DO data dir works (mdbx tolerates small page-level deltas). Hot rsync of a *full bootstrap* (6.2 GB cold) corrupts mdbx because the long transfer window encompasses many BLUE writes. The split keeps routine cycles cheap (zero BLUE downtime) while having a proven cold-start path.
+- Cron on rpc-1 (root): `12,27,42,57 * * * * reth-do-peer-sync.sh root@167.172.106.174 >> /var/log/reth-do-peer-sync.log`
+- Why DO→DO and not BLUE→rpc-2 hot rsync? Empirical (2026-05-03): hot rsync of a *full bootstrap* corrupts mdbx because each Reth node runs `--dev` with its own divergent block sequence; the rsync overlay merges inconsistent MDBX pages. Stop-tar-stream-restart on a backup source is safer and stays out of BLUE.
+
+### `reth-do-bootstrap.sh [target-ip]` — recovery (manual, BLUE → DO)
+
+Used only when DO mdbx is corrupt or empty AND no DO peer can supply a snapshot. Briefly stops BLUE (~3-4 min), streams an uncompressed tar, restarts both. GREEN takes over public traffic during BLUE's stop window. Defaults to rpc-1; pass an IP for other targets.
 
 ## SSH access
 
 | Path | Key | User |
 |---|---|---|
-| Local Mac → DO rpc-1 | `~/.ssh/datachain_rope_id_rsa` | `root` |
-| BLUE → DO rpc-1 | BLUE's `~/.ssh/id_ed25519` (authorized in DO root authorized_keys 2026-05-03) | `root` |
+| Local Mac → any DO droplet | `~/.ssh/datachain_rope_id_rsa` | `root` |
+| BLUE → all DO droplets | BLUE's `~/.ssh/id_ed25519` (authorized 2026-05-03) | `root` |
+| rpc-1 → rpc-2 | rpc-1's `/root/.ssh/id_ed25519` (authorized 2026-05-03 for peer-sync) | `root` |
 
-Other 3 DO droplets (kept as standby spares, mock PoC stopped):
+## Deployment journal — 2026-05-03
 
-| Hostname | IP | Disk | Notes |
-|---|---|---|---|
-| `datachain-validator-1` | `159.89.3.160` | 25 GB | mock PoC archived in `/opt/legacy-mock-poc-archived-2026-05-03/`; could be repurposed as future Quipu Canon witness |
-| `datachain-validator-2` | `159.65.119.231` | 25 GB | same |
-| `datachain-rpc-2` | `167.172.106.174` | 78 GB | same; could be promoted to **fourth** blue-green slot if needed |
+What was replaced: the 4 DO droplets previously ran a 321-line Python `http.server` mock at `/opt/datachain-rope/rpc-server.py` that hardcoded `PEER_COUNT = 5`, computed `eth_blockNumber` as `(time.time() - START_TIME) // 5` (fake progression), and returned a different (unrelated) genesis hash `0xb8c6f33f1780d30977c5e964f62e7959102a3694f1c28ae0834ab12f98a3dcb0`. External wallet/exchange scanners were probing these public IPs (port 8545) and getting **fake responses**. This was a real production hazard — eliminated 2026-05-03 by stopping the mock services on all 4 droplets and replacing them with real follower nodes (rpc-1, rpc-2) and Quipu Canon witnesses (validator-1, validator-2).
 
-## What was replaced (2026-05-03)
+| Stage | Date | Outcome |
+|---|---|---|
+| Mock PoC stopped on all 4 droplets | 2026-05-03 | services disabled, source archived in `/opt/legacy-mock-poc-archived-2026-05-03/` |
+| rpc-1 promoted to third blue-green slot | 2026-05-03 | bootstrap from BLUE, hot-rsync cron, nginx upstream |
+| rpc-2 promoted to fourth blue-green slot | 2026-05-03 | bootstrap from rpc-1 (DO-internal, 41 s), peer-sync cron from rpc-1, added to nginx upstream |
+| validator-1 + validator-2 prepped as Quipu Canon witnesses | 2026-05-03 | rope-node `mode=validator`, `[consensus] enabled=true`, no Reth, delegating eth_* to public erpc |
 
-The 4 DO droplets previously ran a 321-line Python `http.server` mock at `/opt/datachain-rope/rpc-server.py` that:
-- Hardcoded `PEER_COUNT = 5`
-- Computed `eth_blockNumber` as `(time.time() - START_TIME) // 5` — fake progression
-- Returned identical mock data on all chain queries
-- Used a different (unrelated) genesis hash `0xb8c6f33f1780d30977c5e964f62e7959102a3694f1c28ae0834ab12f98a3dcb0`
+## Quipu Canon witnesses — current status
 
-External wallet/exchange scanners were probing these public IPs (port 8545) and getting **fake responses**. This was a real production hazard — eliminated 2026-05-03 by stopping the mock services on all 4 droplets and replacing rpc-1 with a real follower node.
+The 2 witness nodes are **operational but not yet networked into a peer mesh**.
+
+- They each run `string_producer` and locally produce knots/anchors at `block_time_ms = 3000`.
+- They warn `Failed to publish to /rope/anchors/1.0.0: InsufficientPeers` because BLUE/GREEN/rpc-1/rpc-2 currently run in `mode = relay` (not validator) and don't actively maintain a libp2p validator mesh.
+- This is **expected** for the canon-prep stage. When the consensus orchestrator is fully wired (per Quipu Canon v1.1, Phase C), the witnesses will:
+  1. Discover each other and the validator nodes via `bootstrap_nodes`
+  2. Sign knot testimonies as the orchestrator dispatches them
+  3. Reach quorum based on `min_testimonies = 5`
+- Until then, witnesses are warm spares ready for activation. Their MDBX state grows slowly and stays well within the 25 GB disk envelope.
 
 ## Verification
 
 ```bash
-# All 3 nodes report same genesis hash:
-for endpoint in 'ssh rope-vps -- curl http://127.0.0.1:8595' \
-                'ssh anvil-vps -- curl http://127.0.0.1:8595' \
-                'ssh -i ~/.ssh/datachain_rope_id_rsa root@157.230.18.45 -- curl http://127.0.0.1:8595'; do
-  $endpoint -X POST -H 'Content-Type: application/json' \
-    -d '{"jsonrpc":"2.0","method":"eth_getBlockByNumber","params":["0x0",false],"id":1}'
+# All 4 RPC slots report same genesis hash
+for ep in 'ssh rope-vps' 'ssh anvil-vps' \
+          'ssh -i ~/.ssh/datachain_rope_id_rsa root@157.230.18.45' \
+          'ssh -i ~/.ssh/datachain_rope_id_rsa root@167.172.106.174'; do
+  $ep "curl -s -X POST -H 'Content-Type: application/json' \
+    -d '{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBlockByNumber\",\"params\":[\"0x0\",false],\"id\":1}' \
+    http://127.0.0.1:8595" | python3 -c "import json,sys; print(json.load(sys.stdin)['result']['hash'])"
 done
 
-# Public RPC works:
+# Witnesses report knot index
+for ip in 159.89.3.160 159.65.119.231; do
+  ssh -i ~/.ssh/datachain_rope_id_rsa root@$ip \
+    "curl -s -X POST -H 'Content-Type: application/json' \
+    -d '{\"jsonrpc\":\"2.0\",\"method\":\"rope_knotIndex\",\"params\":[],\"id\":1}' \
+    http://127.0.0.1:8545"
+done
+
+# Public RPC works
 curl -s -X POST -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","method":"rope_knotIndex","params":[],"id":1}' \
   https://erpc.datachain.network
@@ -114,16 +149,17 @@ curl -s -X POST -H 'Content-Type: application/json' \
 
 ## Cost / operational notes
 
-- **No DigitalOcean LB** in front of DO droplets — saves ~$10/month. Failover is handled by Gandi nginx upstream.
-- **Daily cost impact** of activating DO rpc-1 vs idle Python PoC: zero (droplet was already paid for and running).
-- **Other 3 DO droplets** are still billed; if not needed as future witnesses or fourth slot, they can be destroyed for ~$120/year savings. **User decision pending.**
+- No DigitalOcean LB in front of DO droplets — saves ~$10/month. Failover is handled by Gandi nginx upstream.
+- All 6 nodes (4 RPC + 2 witnesses) are now in productive use; no idle billable resources to destroy.
 
 ## Operational runbook
 
 | Scenario | Action |
 |---|---|
 | BLUE Reth crashes | GREEN auto-takes traffic via nginx; bring BLUE back; sync resumes |
-| BLUE + GREEN both down | DO auto-takes traffic via nginx (third backup); fix Gandi infra |
-| DO mdbx corrupted | `ssh rope-vps 'sudo -u ubuntu /opt/datachain-rope/scripts/reth-do-bootstrap.sh'` (briefly stops BLUE, streams clean snapshot) |
-| Promote a different DO droplet to fourth slot | Repeat the Reth+rope-node deployment on `167.172.106.174` (rpc-2, 78 GB), copy the cron sync, add to nginx upstream |
-| Decommission DO entirely | Remove `server 157.230.18.45:8545 backup;` from nginx upstream, remove cron entry, `doctl droplet delete` (requires DO API token) |
+| BLUE + GREEN both down | rpc-1 auto-takes traffic via nginx; fix Gandi infra |
+| All Gandi + rpc-1 down | rpc-2 auto-takes traffic via nginx |
+| DO rpc-1 mdbx corrupted | `ssh rope-vps '/opt/datachain-rope/scripts/reth-do-bootstrap.sh'` (briefly stops BLUE, streams clean snapshot) |
+| DO rpc-2 mdbx corrupted | `ssh root@157.230.18.45 '/opt/datachain-rope/scripts/reth-do-peer-sync.sh root@167.172.106.174'` (briefly stops rpc-1, no public impact) |
+| Witness needs reset | `ssh root@<witness-ip> 'systemctl stop datachain-rope; rm -rf /home/ubuntu/.rope/mainnet/db/*; systemctl start datachain-rope'` |
+| Decommission a node | Remove from nginx upstream, remove cron entry, `doctl droplet delete` (requires DO API token) |
