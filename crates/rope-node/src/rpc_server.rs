@@ -16,9 +16,10 @@
 //! EVM-specific queries return proper errors indicating the EVM backend is
 //! offline.
 
-use crate::config::RpcSettings;
+use crate::config::{DeployerSettings, RpcSettings};
 use crate::consensus_orchestrator::ConsensusOrchestrator;
 use crate::evm_backend::EvmBackend;
+use crate::governance::{Authorized, GovernanceAction, GovernanceManager};
 use crate::ledger_manager::LedgerManager;
 use rope_ai_framework::AgentFramework;
 use rope_iot_gateway::IoTGateway;
@@ -101,6 +102,12 @@ pub struct RpcHandlers {
     ledger: Option<Arc<LedgerManager>>,
     iot_gateway: Option<Arc<IoTGateway>>,
     ai_framework: Option<Arc<AgentFramework>>,
+    /// Master-node governance + ACL (added 2026-05-03)
+    governance: Option<Arc<GovernanceManager>>,
+    /// This node's deployer-identity attestation (added 2026-05-03)
+    deployer: Option<DeployerSettings>,
+    /// This node's own NodeId hex (used by `rope_nodeIdentity` self-lookup)
+    self_node_id: String,
 }
 
 impl RpcServer {
@@ -145,6 +152,39 @@ impl RpcServer {
         iot_gateway: Option<Arc<IoTGateway>>,
         ai_framework: Option<Arc<AgentFramework>>,
     ) -> anyhow::Result<Self> {
+        Self::new_full_v2(
+            config,
+            chain_id,
+            current_round,
+            evm_backend,
+            orchestrator,
+            ledger,
+            iot_gateway,
+            ai_framework,
+            None,
+            None,
+            String::new(),
+        )
+        .await
+    }
+
+    /// Extended constructor that wires in master-node governance + deployer
+    /// identity. Existing callers can keep using `new_full`; this is the
+    /// preferred constructor for production rope-node startup.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn new_full_v2(
+        config: &RpcSettings,
+        chain_id: u64,
+        current_round: Arc<parking_lot::RwLock<u64>>,
+        evm_backend: Option<Arc<EvmBackend>>,
+        orchestrator: Option<Arc<ConsensusOrchestrator>>,
+        ledger: Option<Arc<LedgerManager>>,
+        iot_gateway: Option<Arc<IoTGateway>>,
+        ai_framework: Option<Arc<AgentFramework>>,
+        governance: Option<Arc<GovernanceManager>>,
+        deployer: Option<DeployerSettings>,
+        self_node_id: String,
+    ) -> anyhow::Result<Self> {
         let rate_limiter = Arc::new(RateLimiter {
             requests_per_second: 100,
             burst: 200,
@@ -161,6 +201,9 @@ impl RpcServer {
             ledger,
             iot_gateway,
             ai_framework,
+            governance,
+            deployer,
+            self_node_id,
         });
 
         let (ws_broadcast, _) = broadcast::channel(1000);
@@ -1913,6 +1956,236 @@ impl RpcHandlers {
                     })
                     .collect();
                 serde_json::json!({"diagnoses": diagnoses, "count": diagnoses.len()})
+            }
+
+            // === Master-node governance (added 2026-05-03) ===
+            //
+            // Read-only methods (no auth):
+            //   rope_governanceInfo   — full registry + recent log entries
+            //   rope_listMasterNodes  — just the master node list
+            //   rope_nodeIdentity     — deployer attestation for a node_id
+            //                           (defaults to self when no arg given)
+            //
+            // Mutating methods (require Ed25519 signature, see governance.rs):
+            //   rope_suspendNode  — master OR founder
+            //   rope_isolateNode  — founder only
+            //   rope_eraseNode    — founder only
+            //
+            // Per .cursor/rules/master-node-governance.mdc.
+            "rope_governanceInfo" => {
+                let gov = match &self.governance {
+                    Some(g) => g,
+                    None => return serde_json::json!({
+                        "jsonrpc":"2.0",
+                        "error":{"code":-32603,"message":"Governance not initialized"},
+                        "id":id
+                    }).to_string(),
+                };
+                let registry = gov.registry_snapshot();
+                let recent_log = gov.recent_log(20);
+                serde_json::json!({
+                    "schema_version": registry.schema_version,
+                    "chain_id": registry.chain_id,
+                    "authority": registry.authority,
+                    "last_updated": registry.last_updated,
+                    "master_nodes": registry.master_nodes,
+                    "member_nodes": registry.member_nodes,
+                    "founder": {
+                        "name": registry.founder.name,
+                        "organization": registry.founder.organization,
+                        "canonical_email": registry.founder.canonical_email,
+                        "domains": registry.founder.domains,
+                        "founder_keys_count": registry.founder.founder_keys.len(),
+                        "founder_dids": registry.founder.founder_dids,
+                    },
+                    "replay_window_secs": registry.replay.window_secs,
+                    "enforce": gov.enforce(),
+                    "recent_log": recent_log,
+                })
+            }
+
+            "rope_listMasterNodes" => {
+                let gov = match &self.governance {
+                    Some(g) => g,
+                    None => return serde_json::json!({
+                        "jsonrpc":"2.0",
+                        "error":{"code":-32603,"message":"Governance not initialized"},
+                        "id":id
+                    }).to_string(),
+                };
+                serde_json::json!({"master_nodes": gov.registry_snapshot().master_nodes})
+            }
+
+            "rope_nodeIdentity" => {
+                // Optional first param: target node_id (hex). When omitted,
+                // returns this node's own attestation.
+                let target_node_id = params
+                    .and_then(|p| p.get(0))
+                    .and_then(|v| {
+                        v.as_str()
+                            .map(|s| s.to_string())
+                            .or_else(|| v.get("node_id").and_then(|s| s.as_str()).map(|s| s.to_string()))
+                    });
+                let target = target_node_id.unwrap_or_else(|| self.self_node_id.clone());
+
+                if target == self.self_node_id || self.self_node_id.is_empty() {
+                    let dep = self.deployer.clone().unwrap_or_default();
+                    serde_json::json!({
+                        "node_id": self.self_node_id,
+                        "wallet_address": dep.wallet_address,
+                        "did": dep.did,
+                        "onchainid": dep.onchainid,
+                        "name": dep.name,
+                        "organization": dep.organization,
+                        "incorporation": dep.incorporation,
+                        "address": dep.address,
+                        "email": dep.email,
+                        "country": dep.country,
+                        "self_signature": dep.self_signature,
+                        "verifiable": !dep.self_signature.is_empty(),
+                    })
+                } else {
+                    // Look up via the governance registry. Until ONCHAINID
+                    // resolution lands we just report which slot the target
+                    // is in and the registry-recorded role/provider.
+                    let registry = self
+                        .governance
+                        .as_ref()
+                        .map(|g| g.registry_snapshot())
+                        .unwrap_or_default();
+                    let entry = registry
+                        .master_nodes
+                        .iter()
+                        .chain(registry.member_nodes.iter())
+                        .find(|n| n.node_id == target);
+                    match entry {
+                        Some(e) => serde_json::json!({
+                            "node_id": e.node_id,
+                            "slot": e.slot,
+                            "hostname": e.hostname,
+                            "provider": e.provider,
+                            "region": e.region,
+                            "ip": e.ip,
+                            "role": e.role,
+                            "deployer": "Datachain Foundation (registered as master/member)",
+                            "verifiable": false,
+                            "note": "On-chain DID resolution not yet wired; see master-node-governance.mdc"
+                        }),
+                        None => serde_json::json!({
+                            "node_id": target,
+                            "deployer": "unknown",
+                            "verifiable": false,
+                            "note": "node_id is not present in master-nodes.toml"
+                        }),
+                    }
+                }
+            }
+
+            method @ ("rope_suspendNode" | "rope_isolateNode" | "rope_eraseNode") => {
+                let gov = match &self.governance {
+                    Some(g) => g,
+                    None => return serde_json::json!({
+                        "jsonrpc":"2.0",
+                        "error":{"code":-32603,"message":"Governance not initialized"},
+                        "id":id
+                    }).to_string(),
+                };
+                let p = match params.and_then(|p| p.get(0)).and_then(|v| v.as_object()) {
+                    Some(p) => p,
+                    None => return serde_json::json!({
+                        "jsonrpc":"2.0",
+                        "error":{"code":-32602,"message":"Expected single object parameter"},
+                        "id":id
+                    }).to_string(),
+                };
+                let node_id = p.get("node_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let reason = p.get("reason").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let issued_at = p
+                    .get("issued_at")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let nonce = p
+                    .get("nonce")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let signature = p
+                    .get("signature")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let pubkey = p
+                    .get("pubkey")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                if node_id.is_empty()
+                    || issued_at.is_empty()
+                    || nonce.is_empty()
+                    || signature.is_empty()
+                    || pubkey.is_empty()
+                {
+                    return serde_json::json!({
+                        "jsonrpc":"2.0",
+                        "error":{"code":-32602,"message":"Required: node_id, issued_at, nonce, signature, pubkey"},
+                        "id":id
+                    }).to_string();
+                }
+                let action = match method {
+                    "rope_suspendNode" => GovernanceAction::Suspend {
+                        node_id: node_id.clone(),
+                        reason: reason.clone(),
+                        ttl_secs: p
+                            .get("ttl_secs")
+                            .and_then(|v| v.as_u64())
+                            .unwrap_or(3600),
+                        issued_at: issued_at.clone(),
+                        nonce: nonce.clone(),
+                    },
+                    "rope_isolateNode" => GovernanceAction::Isolate {
+                        node_id: node_id.clone(),
+                        reason: reason.clone(),
+                        issued_at: issued_at.clone(),
+                        nonce: nonce.clone(),
+                    },
+                    "rope_eraseNode" => GovernanceAction::Erase {
+                        node_id: node_id.clone(),
+                        reason: reason.clone(),
+                        issued_at: issued_at.clone(),
+                        nonce: nonce.clone(),
+                    },
+                    _ => unreachable!(),
+                };
+                let auth = gov.verify_action_signature(&action, &signature, &pubkey);
+                let authorized_as = match &auth {
+                    Authorized::Founder => "founder".to_string(),
+                    Authorized::MasterNode { slot } => format!("master:{slot}"),
+                    Authorized::Denied(reason) => {
+                        return serde_json::json!({
+                            "jsonrpc":"2.0",
+                            "error":{"code":-32401,"message":format!("Forbidden: {}", reason)},
+                            "id":id
+                        }).to_string();
+                    }
+                };
+                gov.record_action(&action, &authorized_as, &pubkey, &signature);
+                tracing::warn!(
+                    "GOVERNANCE: {} {} on {} reason='{}' (authorized_as={})",
+                    method,
+                    node_id,
+                    self.self_node_id,
+                    reason,
+                    authorized_as
+                );
+                serde_json::json!({
+                    "method": method,
+                    "node_id": node_id,
+                    "authorized_as": authorized_as,
+                    "applied_at": chrono::Utc::now().to_rfc3339(),
+                    "note": "Action recorded in governance log. Network propagation \
+                             relies on consensus orchestrator dispatch (Phase C)."
+                })
             }
 
             _ => match self.delegate_to_evm(&request).await {
