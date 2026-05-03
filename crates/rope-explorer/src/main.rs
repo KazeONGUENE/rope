@@ -126,10 +126,21 @@ pub struct BlockNumberCacheEntry {
 }
 
 /// Incrementally scanned exact transaction count across the entire chain.
+/// Also tracks cumulative DCR-20 transfer volume (the *conveyed* value)
+/// since genesis, computed by aggregating Transfer logs on known token
+/// contracts in the same incremental scan window.
 #[derive(Clone, Default)]
 pub struct TxCountCache {
     pub total_transactions: u64,
     pub last_scanned_block: u64,
+    /// Cumulative USD volume of DCR-20 transfers across all known tokens
+    /// (WFAT, USDC, USDT, EUROD; LP tokens excluded — they have no $ price).
+    pub total_volume_usd: f64,
+    /// Cumulative WFAT-equivalent volume (sum of WFAT transfer amounts).
+    /// Useful as a chain-native unit when stablecoin pricing is unavailable.
+    pub total_volume_fat: f64,
+    /// How many DCR-20 Transfer events have been observed since genesis.
+    pub total_transfer_events: u64,
 }
 
 /// Cached Tanastok tokenized asset data.
@@ -965,37 +976,83 @@ struct TokenInfo {
 }
 
 fn known_token(addr: &str) -> Option<TokenInfo> {
+    // Addresses are matched lowercase. We list both the live 2026-02-26
+    // DCSwap redeployment set (currently trading on chain) and the
+    // post-Reth-migration set (per handover-canonical-fat-price-2026-03-14.mdc)
+    // so the explorer keeps decoding correctly across redeployments.
     match addr.to_lowercase().as_str() {
-        "0xddBF887982a2A1c03CB8705fEF9E09c46122fFF6"
-        | "0xddbf887982a2a1c03cb8705fef9e09c46122fff6" => Some(TokenInfo {
+        // ── WFAT ────────────────────────────────────────────────────────────
+        "0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4"  // 2026-02-26 (live)
+        | "0xddbf887982a2a1c03cb8705fef9e09c46122fff6" // post-Reth (planned)
+        | "0x90e2e170b0fc133343f0d7fde128c1fb716aab25" => Some(TokenInfo {
             symbol: "WFAT",
             decimals: 18,
             usd_price: 0.01,
         }),
-        "0x90e2e170b0fc133343f0d7fde128c1fb716aab25" => Some(TokenInfo {
-            symbol: "WFAT",
-            decimals: 18,
-            usd_price: 0.01,
-        }),
-        "0x3109c838e9a08a42fba000a48310845919759a02" => Some(TokenInfo {
+        // ── USDC ────────────────────────────────────────────────────────────
+        "0xb93bd8db94f1baff474aa9cba0739daaad01641f"  // 2026-02-26 (live)
+        | "0x3109c838e9a08a42fba000a48310845919759a02" // post-Reth (planned)
+        | "0x9f700dd3bb1764ab568263d3e19a1fc5cdf3f9a5" => Some(TokenInfo {
             symbol: "USDC",
             decimals: 6,
             usd_price: 1.0,
         }),
-        "0x9f700dd3bb1764ab568263d3e19a1fc5cdf3f9a5" => Some(TokenInfo {
-            symbol: "USDC",
-            decimals: 6,
-            usd_price: 1.0,
-        }),
-        "0x73e3cc285b962c4c6b6b1503d8fd8ac745f6b1ef" => Some(TokenInfo {
+        // ── USDT ────────────────────────────────────────────────────────────
+        "0x79a26132f48394421382c13b54ae77fa3af73289"  // 2026-02-26 (live)
+        | "0x73e3cc285b962c4c6b6b1503d8fd8ac745f6b1ef" => Some(TokenInfo {
             symbol: "USDT",
             decimals: 6,
             usd_price: 1.0,
         }),
-        "0xc784ea07aae35b22630df7e3f3ae9e2ccc64f1aa" => Some(TokenInfo {
+        // ── EUROD ───────────────────────────────────────────────────────────
+        "0x24d6137807fa8a592888726d87ac748d018c6d4a"  // 2026-02-26 (live)
+        | "0xc784ea07aae35b22630df7e3f3ae9e2ccc64f1aa" => Some(TokenInfo {
             symbol: "EUROD",
             decimals: 6,
             usd_price: 1.08,
+        }),
+        // ── LP TOKENS (DCSwap pools — also DCR-20, decimals 18) ────────────
+        // 2026-02-26 redeployment pools:
+        "0xd9ebc3da001618a3ae90481d33ae7ef85e130317" => Some(TokenInfo {
+            symbol: "FAT-USDC LP",
+            decimals: 18,
+            usd_price: 0.0,
+        }),
+        "0x644da44bcd5f453c593781dbe22dfd733e8d1441" => Some(TokenInfo {
+            symbol: "FAT-USDT LP",
+            decimals: 18,
+            usd_price: 0.0,
+        }),
+        "0x1e9c2ccf67320459bc4999a9f8be4a063d4021e4" => Some(TokenInfo {
+            symbol: "FAT-EUROD LP",
+            decimals: 18,
+            usd_price: 0.0,
+        }),
+        "0xb86bdcecad93573d6ca21313aa7eac52800513c8" => Some(TokenInfo {
+            symbol: "USDC-USDT LP",
+            decimals: 18,
+            usd_price: 0.0,
+        }),
+        // Post-Reth pools:
+        "0x94e779cdc322d096d8f30b41ff50cad2d8206b70" => Some(TokenInfo {
+            symbol: "FAT-USDC LP",
+            decimals: 18,
+            usd_price: 0.0,
+        }),
+        "0xe579ed174a391c6771f3b04eb59bc1629b1ced2a" => Some(TokenInfo {
+            symbol: "FAT-USDT LP",
+            decimals: 18,
+            usd_price: 0.0,
+        }),
+        "0xf31958221926b30db3e0254acd86efa85b684201" => Some(TokenInfo {
+            symbol: "FAT-EUROD LP",
+            decimals: 18,
+            usd_price: 0.0,
+        }),
+        "0x1956539b4b90548e31387b74f628728535559eec" => Some(TokenInfo {
+            symbol: "USDC-USDT LP",
+            decimals: 18,
+            usd_price: 0.0,
         }),
         _ => None,
     }
@@ -1058,9 +1115,23 @@ fn decode_token_transfers(logs: &[serde_json::Value]) -> (Vec<serde_json::Value>
             format!("{:.4}", amount)
         };
 
-        if symbol != "UNKNOWN" {
-            summary_parts.push(format!("{} {}", amount_str, symbol));
-        }
+        // Always surface the conveyed value. For unknown DCR-20 tokens we
+        // tag the amount with a short contract suffix so the user sees that
+        // SOMETHING moved (better than dropping it and showing "0 FAT").
+        let display_symbol = if symbol == "UNKNOWN" {
+            // e.g. "0x644d…1441" — last 4 chars of address as a short tag
+            let short = if token_addr.len() >= 8 {
+                let prefix = &token_addr[..6];
+                let suffix = &token_addr[token_addr.len() - 4..];
+                format!("token({}…{})", prefix, suffix)
+            } else {
+                "token".to_string()
+            };
+            short
+        } else {
+            symbol.clone()
+        };
+        summary_parts.push(format!("{} {}", amount_str, display_symbol));
 
         transfers.push(serde_json::json!({
             "token": token_addr,
@@ -1074,6 +1145,9 @@ fn decode_token_transfers(logs: &[serde_json::Value]) -> (Vec<serde_json::Value>
         }));
     }
 
+    // Pretty summary. We dedupe the swap-route view so a Router call that
+    // moves WFAT → pool → USDT shows "X WFAT → Y USDT" rather than the full
+    // four-leg log path that's hard to read.
     let summary = if transfers.is_empty() {
         String::new()
     } else if total_usd > 0.0 {
@@ -1444,6 +1518,14 @@ async fn stats(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
         // `totalKnots`. Kept here for one release.
         "totalBlocksLegacy": head,
         "totalTransactions": total_tx_cumulative,
+        // Cumulative DCR-20 transfer volume since genesis (the *conveyed*
+        // value across all known DCR-20 contracts: WFAT, USDC, USDT, EUROD).
+        // Updated by the same incremental scan as totalTransactions.
+        "totalVolumeUsd": format!("${:.2}", tx_cache.total_volume_usd),
+        "totalVolumeUsdRaw": tx_cache.total_volume_usd,
+        "totalVolumeFat": format!("{:.4} FAT", tx_cache.total_volume_fat),
+        "totalVolumeFatRaw": tx_cache.total_volume_fat,
+        "totalTransferEvents": tx_cache.total_transfer_events,
         "transactions24h": txs_24h,
         "pendingTransactions": pending_count,
         "avgTxnFee24h": format!("{:.6} FAT", avg_fee),
@@ -5725,9 +5807,16 @@ async fn get_votes_for_target(
 // Tanastok tokenized assets cache + endpoints
 // ============================================================================
 
-/// Incrementally scans blocks to maintain an exact total transaction count.
-/// First run: scans from block 0. Subsequent runs: only scans new blocks.
-/// Processes up to 5,000 blocks per tick to avoid blocking for too long.
+/// Incrementally scans blocks to maintain an exact total transaction count
+/// AND a cumulative DCR-20 transfer volume since genesis. First run: from
+/// block 0. Subsequent runs: only new blocks. Processes up to 5,000 blocks
+/// per tick to avoid blocking for too long.
+///
+/// Volume aggregation strategy: a single `eth_getLogs` call per tick filtered
+/// on the canonical Transfer topic across the batch window. We then iterate
+/// the returned logs once, look up each token via `known_token()`, and add
+/// to running totals. This keeps the per-tick RPC cost at ~1 (logs) + N
+/// (block tx counts), regardless of transfer volume in the window.
 async fn refresh_tx_count_cache(state: &AppState) {
     let head = match rpc_block_number(state).await {
         Ok(h) => h,
@@ -5767,20 +5856,71 @@ async fn refresh_tx_count_cache(state: &AppState) {
         }
     }
 
+    // Aggregate DCR-20 Transfer volume in the same scan window.
+    // Single eth_getLogs call filtered on the Transfer topic; we enrich
+    // each log with `known_token()` to pick up the right symbol/decimals/$.
+    let mut delta_volume_usd = 0.0f64;
+    let mut delta_volume_fat = 0.0f64;
+    let mut delta_events = 0u64;
+    if let Ok(logs) = rpc_call(
+        state,
+        "eth_getLogs",
+        vec![serde_json::json!({
+            "fromBlock": format!("0x{:x}", start),
+            "toBlock":   format!("0x{:x}", end),
+            "topics":    [TRANSFER_TOPIC],
+        })],
+    )
+    .await
+    {
+        if let Some(arr) = logs.as_array() {
+            for log in arr {
+                let topics = match log.get("topics").and_then(|v| v.as_array()) {
+                    Some(t) if t.len() >= 3 => t,
+                    _ => continue,
+                };
+                let topic0 = topics[0].as_str().unwrap_or("");
+                if topic0 != TRANSFER_TOPIC {
+                    continue;
+                }
+                let token_addr = log.get("address").and_then(|v| v.as_str()).unwrap_or("");
+                let data = log.get("data").and_then(|v| v.as_str()).unwrap_or("0x0");
+                let raw_amount = decode_hex_u256(data);
+                delta_events += 1;
+                if let Some(info) = known_token(token_addr) {
+                    let amount = raw_amount as f64 / 10f64.powi(info.decimals as i32);
+                    delta_volume_usd += amount * info.usd_price;
+                    if info.symbol == "WFAT" {
+                        delta_volume_fat += amount;
+                    }
+                }
+            }
+        }
+    }
+
     let scanned_this_tick = end - start + 1;
     let remaining = if head > end { head - end } else { 0 };
+    let new_total_volume_usd = cache.total_volume_usd + delta_volume_usd;
+    let new_total_volume_fat = cache.total_volume_fat + delta_volume_fat;
+    let new_total_events = cache.total_transfer_events + delta_events;
     tracing::info!(
-        "Tx count cache: scanned blocks {}..{} ({} blocks), total_txs={}, remaining={}",
+        "Tx+volume scan: blocks {}..{} ({} blocks), txs={}, +events={}, +vol=${:.2}, total_vol=${:.0}, remaining={}",
         start,
         end,
         scanned_this_tick,
         cumulative,
+        delta_events,
+        delta_volume_usd,
+        new_total_volume_usd,
         remaining
     );
 
     let mut w = state.tx_count_cache.write().await;
     w.total_transactions = cumulative;
     w.last_scanned_block = end;
+    w.total_volume_usd = new_total_volume_usd;
+    w.total_volume_fat = new_total_volume_fat;
+    w.total_transfer_events = new_total_events;
 }
 
 const TANASTOK_API: &str = "https://tanastok.io/api/v1/tokenized-assets";
