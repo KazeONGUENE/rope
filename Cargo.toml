@@ -21,6 +21,7 @@ members = [
     "crates/compliance-agent",
     "crates/rope-iot-gateway",
     "crates/rope-ai-framework",
+    "crates/rope-deployer",
 ]
 resolver = "2"
 

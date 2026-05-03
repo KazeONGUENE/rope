@@ -1559,75 +1559,73 @@ Hashgraph      // Hedera consensus (coming soon)</code></pre>
             
             <!-- CLI Interface Section -->
             <section id="cli" class="content-section">
-                <h2>CLI Interface</h2>
-                <p>The Datachain Rope CLI allows you to interact directly with the network from your terminal. Experience the original 2018 design through a modern command-line interface.</p>
-                
+                <h2>CLI Interface — <code>rope</code></h2>
+                <p>The <code>rope</code> CLI is the canonical operator tool for Datachain Rope. It runs nodes, queries chain state, manages deployer identity, exercises master-node governance, and (Phase D) deploys new nodes onto supported cloud providers via the Datachain Foundation's hosted provisioning service.</p>
+
+                <p><strong>Binary name:</strong> <code>rope</code> (not <code>rope-cli</code>) &nbsp;·&nbsp; <strong>Source:</strong> <code>crates/rope-cli/</code> &nbsp;·&nbsp; <strong>Default endpoint:</strong> <code>https://erpc.datachain.network</code></p>
+
                 <!-- Interactive CLI -->
                 <div class="cli-container">
                     <div class="cli-header">
                         <span class="cli-dot red"></span>
                         <span class="cli-dot yellow"></span>
                         <span class="cli-dot green"></span>
-                        <span class="cli-title">rope-cli — datachain.network</span>
+                        <span class="cli-title">rope — datachain.network</span>
                     </div>
                     <div class="cli-body">
                         <div class="cli-output" id="cli-output">
-<span class="comment"># Datachain Rope CLI v1.0.0</span>
-<span class="comment"># Connected to: erpc.datachain.network</span>
-<span class="comment"># Chain ID: 271828 | Genesis: 10B FAT</span>
+<span class="comment"># Datachain Rope CLI — chainId 271828</span>
+<span class="comment"># RPC: https://erpc.datachain.network  ·  Explorer: https://dcscan.io</span>
 
-<span class="prompt">rope&gt;</span> help
+<span class="prompt">rope&gt;</span> rope --help
 
-<span class="highlight">Available Commands:</span>
-  status              Show network status
-  federation create   Create a new federation
-  community create    Create a new community  
-  wallet create       Generate a new data wallet
-  string submit       Submit a string to the lattice
-  testimony request   Request AI testimony validation
-  validators list     List active validators
-  protocols list      List available protocol invocations
-  
-<span class="highlight">Generation Commands:</span>
-  generate federation [type] [name]
-  generate community [industry] [scope]
-  generate wallets [count]
-  generate chains [count]
+<span class="highlight">Commands</span>
+  node           Start a Rope node (validator | relay | seeder)
+  keygen         Generate cryptographic keypairs for node identity
+  info           Display local node information and configuration
+  genesis        Initialize a new genesis federation configuration
+  query          Query network state (string | status | peers | validators)
+  token          FAT token operations (balance | transfer)
+  peer-id        Extract libp2p Peer ID from a node key file
+  identity       Manage deployer identity (DID + ONCHAINID attestation)
+  governance     Master-node governance (list-masters | suspend | isolate | erase)
+  deploy         Deploy a new Rope node on a cloud provider (Phase D)
+  version        Display version + build information
 
-<span class="prompt">rope&gt;</span> status
+<span class="prompt">rope&gt;</span> rope governance list-masters
 
-<span class="success">✓ Network Status: HEALTHY</span>
-  Finality Time:    <span class="highlight">4.2s</span>
-  Active Validators: <span class="highlight">127</span>
-  AI Agents:         <span class="highlight">5</span>
-  Total Strings:     <span class="highlight">1,847,293</span>
-  Total Testimonies: <span class="highlight">892,451</span>
-  Latest Round:      <span class="highlight">847,291</span>
+<span class="success">{</span>
+<span class="success">  "master_nodes": [</span>
+    { "slot": "blue",  "hostname": "dcrope",          "ip": "92.243.26.189",  "provider": "Gandi",        "role": "primary-rpc" },
+    { "slot": "green", "hostname": "dcrope-node2",    "ip": "92.243.25.119",  "provider": "Gandi",        "role": "secondary-rpc" },
+    { "slot": "rpc-1", "hostname": "datachain-rpc-1", "ip": "157.230.18.45",  "provider": "DigitalOcean", "role": "tertiary-rpc" },
+    { "slot": "rpc-2", "hostname": "datachain-rpc-2", "ip": "167.172.106.174","provider": "DigitalOcean", "role": "quaternary-rpc" }
+<span class="success">  ]</span>
+<span class="success">}</span>
 
-<span class="prompt">rope&gt;</span> generate federation structured "City of Paris"
+<span class="prompt">rope&gt;</span> rope identity show
 
-<span class="warning">⚡ Generating Federation...</span>
-  Type: Structured
-  Name: City of Paris
-  Consensus: DkP
-  
-<span class="success">✓ Federation Created Successfully</span>
-  Federation ID: <span class="highlight">0x7a8b9c...</span>
-  Data Wallets:  <span class="highlight">3,500,000</span>
-  Individual Chains: <span class="highlight">3,500,000</span>
-  
-<span class="prompt">rope&gt;</span> protocols list
+<span class="highlight">{</span>
+  "node_id": "6dc3d5422e6a9b51…",
+  "wallet_address": "0x60FB32ef3A2381c2Ed71613F34fd56D56fCF4195",
+  "did": "did:datachain:0x60FB32ef3A2381c2Ed71613F34fd56D56fCF4195",
+  "onchainid": "0x6A74c57C3A1EE72D9d2cA29462fbD6fc8fE86bd2",
+  "name": "Onguene, Kazé Alphonse",
+  "organization": "Datachain Foundation",
+  "email": "kaze.onguene@datachain.one",
+  "country": "FR",
+  "verifiable": <span class="success">true</span>
+<span class="highlight">}</span>
 
-<span class="highlight">Available Protocol Invocations:</span>
-  ☑ Datachain Rope - Native protocol (required)
-  ☑ Hyperledger    - Enterprise blockchain  
-  ☑ XDC Network    - XinFin hybrid chain
-  ☑ Solana         - High-performance chain
-  ☑ Polkadot       - Cross-chain protocol
-  ☑ Bitcoin        - Store of value layer
-  ☑ Ethereum       - Smart contracts
-  ☐ Tangle         - IOTA DAG (coming soon)
-  ☐ Hashgraph      - Hedera consensus (coming soon)
+<span class="prompt">rope&gt;</span> rope deploy exoscale community-node --region ch-gva-2 --size medium
+
+<span class="warning">⚡ Deploying via Datachain Foundation Exoscale account…</span>
+  provider: exoscale  ·  kind: community-node  ·  region: ch-gva-2  ·  size: medium
+  identity: from local Datawallet+ DID
+  → Calls https://deployer.datachain.network/v1/provision (Phase D MVP)
+  → Provisioned VM joins the libp2p mesh with bootstrap = blue@92.243.26.189
+  → Node attestation recorded under your DID via rope identity sign-deployer
+<span class="success">✓ Node ready (status pending until first anchor)</span>
 
 <span class="prompt">rope&gt;</span> _
                         </div>
@@ -1637,34 +1635,81 @@ Hashgraph      // Hedera consensus (coming soon)</code></pre>
                         </div>
                     </div>
                 </div>
-                
+
                 <h3>Installation</h3>
-                <pre><code># Install via Cargo
-cargo install rope-cli
-
-# Or build from source
+                <pre><code># Build from source (recommended — there is no published cargo crate yet)
 git clone https://github.com/KazeONGUENE/rope.git
-cd rope/crates/rope-cli
-cargo build --release
+cd rope
+cargo build --release -p rope-cli
 
-# Run the CLI
-./target/release/rope-cli --rpc https://erpc.datachain.network</code></pre>
-                
-                <h3>Configuration</h3>
-                <pre><code># ~/.rope/config.toml
+# Run
+./target/release/rope --help</code></pre>
 
-[network]
-rpc_url = "https://erpc.datachain.network"
-ws_url = "wss://ws.datachain.network"
-chain_id = 271828
+                <h3>Operator basics</h3>
+                <pre><code>rope node --network mainnet --mode relay              # start a relay node
+rope keygen --output ~/.rope/keys                     # generate Ed25519 keys
+rope keygen --quantum                                 # post-quantum (Dilithium3)
+rope info  --data-dir ~/.rope                         # show local node info
+rope query status                                     # network health
+rope query validators                                 # active validator set
+rope token balance 0xabc…                             # check FAT balance
+rope peer-id --key ~/.rope/keys/node.key --ip 1.2.3.4 # libp2p multiaddr</code></pre>
 
-[wallet]
-keystore_path = "~/.rope/keystore"
-default_account = "0x..."
+                <h3>Deployer identity</h3>
+                <p>Every Datachain Rope node carries a signed deployer attestation. The attestation binds the node's chain-of-trust public key to a real person or organization, and is exposed via the <code>rope_nodeIdentity</code> JSON-RPC method.</p>
+                <pre><code># Generate a founder-level Ed25519 key (run on a secure machine)
+rope identity init-founder --output ~/.rope/founder.key
 
-[crypto]
-enable_pq_crypto = true    # CRYSTALS-Dilithium3 + Kyber768
-oes_generation = 1         # OES evolution epoch</code></pre>
+# Sign your node's [deployer] block
+rope identity sign-deployer \
+    --config /home/ubuntu/datachain-rope/deploy/config/rope-production.toml \
+    --key ~/.rope/founder.key
+
+# Show local or remote attestation
+rope identity show --config rope-production.toml          # local
+rope identity show --node-id 6dc3d5422e6a9b51…            # remote via RPC
+
+# Verify the signature against the master-nodes.toml registry
+rope identity verify --config rope-production.toml</code></pre>
+
+                <h3>Master-node governance</h3>
+                <p>Datachain Rope mainnet has 4 <strong>master nodes</strong> (BLUE, GREEN, rpc-1, rpc-2) plus 2 <strong>knot witnesses</strong> (val-1, val-2). The Datachain founder identity (Kazé Alphonse Onguene; whitelisted domains <code>datachain.one</code>, <code>epigraam.com</code>, <code>onguene.com</code>, <code>braincities.co</code>) holds L0 authority. Mutating actions are signed Ed25519 payloads:</p>
+                <ul>
+                    <li><code>rope_suspendNode</code> — master node OR founder signature</li>
+                    <li><code>rope_isolateNode</code> — founder signature only</li>
+                    <li><code>rope_eraseNode</code> — founder signature only</li>
+                </ul>
+                <pre><code>rope governance list-masters                          # public, no auth
+rope governance info                                  # registry + recent log
+
+rope governance suspend \
+    --node-id <hex> --reason "..." --ttl 3600 \
+    --key ~/.rope/founder.key
+
+rope governance isolate \
+    --node-id <hex> --reason "..." \
+    --key ~/.rope/founder.key
+
+rope governance erase \
+    --node-id <hex> --reason "..." \
+    --key ~/.rope/founder.key</code></pre>
+
+                <h3>Cloud deployment (Phase D — MVP)</h3>
+                <p>The CLI can provision new Datachain Rope nodes on supported cloud providers via the Datachain Foundation's hosted <code>rope-deployer</code> service. The Foundation maintains a sub-tenant on each provider so that third parties can spin up community nodes, federations, or witnesses without managing their own cloud account.</p>
+                <table style="border-collapse: collapse; margin: 1em 0;">
+                    <thead><tr><th style="text-align:left;padding:0.4em 0.8em;">Provider</th><th style="text-align:left;padding:0.4em 0.8em;">Status</th><th style="text-align:left;padding:0.4em 0.8em;">Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td style="padding:0.4em 0.8em;"><code>local</code></td><td style="padding:0.4em 0.8em;"><span class="success">ready</span></td><td style="padding:0.4em 0.8em;">Docker compose: reth-rope + datachain-rope + dc-explorer</td></tr>
+                        <tr><td style="padding:0.4em 0.8em;"><code>exoscale</code></td><td style="padding:0.4em 0.8em;"><span class="warning">Phase D MVP</span></td><td style="padding:0.4em 0.8em;">Foundation account in <code>ch-gva-2</code>, private network with per-tenant isolation</td></tr>
+                        <tr><td style="padding:0.4em 0.8em;"><code>digitalocean</code></td><td style="padding:0.4em 0.8em;"><span class="warning">Phase E</span></td><td style="padding:0.4em 0.8em;">Parity with Exoscale, same provider trait</td></tr>
+                        <tr><td style="padding:0.4em 0.8em;"><code>databox</code></td><td style="padding:0.4em 0.8em;"><span class="comment">future</span></td><td style="padding:0.4em 0.8em;">Self-hosted Datachain Databox hardware</td></tr>
+                    </tbody>
+                </table>
+                <pre><code>rope deploy exoscale     witness        --region ch-gva-2 --size medium
+rope deploy exoscale     community-node --region ch-gva-2 --size large
+rope deploy digitalocean rpc-slot       --region fra1     --size s-2vcpu-4gb
+rope deploy local        community-node --dry-run</code></pre>
+                <p>See <code>deploy/EXOSCALE_AS_A_SERVICE.md</code> for the full architecture (IAM, private networks, billing isolation, instance baking).</p>
             </section>
             
             <!-- RPC API Section -->

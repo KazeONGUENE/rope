@@ -1573,9 +1573,49 @@
                     <div class="form-section" id="step4">
                         <div class="deploy-header">
                             <h4 class="section-title"><i class="fa-solid fa-rocket"></i> Deploy Your Instance</h4>
-                            <p class="deploy-subtitle">Use the CLI below to create and configure your Federation or Community. Once configured, submit for community vote.</p>
+                            <p class="deploy-subtitle">Choose where your node runs, then configure size and (optional) CLI tasks. Cloud provisioning happens through the Datachain Foundation's hosted <code>rope-deployer</code> service — you don't need your own cloud account.</p>
                         </div>
-                        
+
+                        <!-- Cloud provider selection (Phase D MVP, 2026-05-03) -->
+                        <div class="instance-size-selector" style="margin-bottom: 1.5em;">
+                            <h5>Select Cloud Provider</h5>
+                            <div class="size-options">
+                                <div class="size-option" data-provider="exoscale" onclick="selectProvider('exoscale')">
+                                    <div class="size-icon"><i class="fa-solid fa-cloud" style="color:#1a73e8;"></i></div>
+                                    <div class="size-name">Exoscale <span style="font-size:0.7em;color:#16a34a;">MVP</span></div>
+                                    <div class="size-specs">
+                                        <span>EU sovereign cloud (CH)</span>
+                                        <span>Foundation account, private network isolation</span>
+                                        <span>ch-gva-2 region by default</span>
+                                        <span>GDPR &amp; FINMA compliant</span>
+                                    </div>
+                                    <div class="size-price">Foundation-hosted &middot; pay in FAT</div>
+                                </div>
+                                <div class="size-option" data-provider="digitalocean" onclick="selectProvider('digitalocean')">
+                                    <div class="size-icon"><i class="fa-brands fa-digital-ocean" style="color:#0080ff;"></i></div>
+                                    <div class="size-name">DigitalOcean <span style="font-size:0.7em;color:#f59e0b;">soon</span></div>
+                                    <div class="size-specs">
+                                        <span>Global droplet network</span>
+                                        <span>Foundation account, project-level isolation</span>
+                                        <span>fra1 region by default</span>
+                                        <span>Phase E rollout</span>
+                                    </div>
+                                    <div class="size-price">Foundation-hosted &middot; pay in FAT</div>
+                                </div>
+                                <div class="size-option" data-provider="local" onclick="selectProvider('local')">
+                                    <div class="size-icon"><i class="fa-solid fa-server"></i></div>
+                                    <div class="size-name">Local / self-host</div>
+                                    <div class="size-specs">
+                                        <span>Run on your own hardware</span>
+                                        <span>Docker-compose: reth + rope-node + dc-explorer</span>
+                                        <span>Ideal for Datachain Databox owners</span>
+                                        <span>Includes onboarding script</span>
+                                    </div>
+                                    <div class="size-price">Free &middot; you bring the metal</div>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Instance Size Selection -->
                         <div class="instance-size-selector">
                             <h5>Select Instance Size</h5>
@@ -2413,17 +2453,52 @@
         // =====================================================
         
         let selectedInstanceSize = null;
+        let selectedProvider = null;
         let modalWizardState = { active: false, type: null, step: 0, config: {} };
         let instanceConfigured = false;
-        
+
+        // Cloud provider selection (Phase D MVP, 2026-05-03)
+        function selectProvider(provider) {
+            // Only highlight options that have data-provider (not data-size)
+            document
+                .querySelectorAll('.size-option[data-provider]')
+                .forEach(opt => opt.classList.remove('selected'));
+            const el = document.querySelector(`.size-option[data-provider="${provider}"]`);
+            if (el) el.classList.add('selected');
+            selectedProvider = provider;
+            window.instanceConfig = window.instanceConfig || {};
+            window.instanceConfig.provider = provider;
+
+            const output = document.getElementById('modal-cli-output');
+            const labels = {
+                exoscale: 'Exoscale (Foundation account, ch-gva-2 by default)',
+                digitalocean: 'DigitalOcean (Foundation account, fra1 by default — Phase E)',
+                local: 'Local / self-host (Docker compose)'
+            };
+            output.innerHTML += `\n<span class="success">✓ Provider selected: ${labels[provider] || provider}</span>\n`;
+            if (provider === 'digitalocean') {
+                output.innerHTML += `<span class="warning">  ⚠ DigitalOcean integration is on the Phase E roadmap; falls back to Exoscale at this time.</span>\n`;
+            }
+            output.innerHTML += `<span class="info">Now choose an instance size below, then run 'federation create' or 'community create'.</span>\n`;
+            output.innerHTML += `<span class="prompt">rope></span> _`;
+            scrollCliToBottom();
+        }
+
         // Instance size selection
         function selectInstanceSize(size) {
-            document.querySelectorAll('.size-option').forEach(opt => opt.classList.remove('selected'));
+            document
+                .querySelectorAll('.size-option[data-size]')
+                .forEach(opt => opt.classList.remove('selected'));
             document.querySelector(`.size-option[data-size="${size}"]`).classList.add('selected');
             selectedInstanceSize = size;
-            
+
             const output = document.getElementById('modal-cli-output');
             output.innerHTML += `\n<span class="success">✓ Instance size selected: ${size.toUpperCase()}</span>\n`;
+            if (!selectedProvider) {
+                output.innerHTML += `<span class="warning">  ⚠ No cloud provider selected yet — defaulting to Exoscale.</span>\n`;
+                selectProvider('exoscale');
+                return;
+            }
             output.innerHTML += `<span class="info">Now type 'federation create' or 'community create' to configure your instance.</span>\n`;
             output.innerHTML += `<span class="prompt">rope></span> _`;
             scrollCliToBottom();
@@ -2908,7 +2983,9 @@ ${infraSection}
             window.instanceConfig.type = isFederation ? 'federation' : 'community';
             window.instanceConfig.consensus = consensus;
             window.instanceConfig.specs = specs;
-            
+            // Phase D MVP: include cloud-provider selection (defaults to exoscale).
+            window.instanceConfig.provider = selectedProvider || 'exoscale';
+
             scrollCliToBottom();
         }
         
