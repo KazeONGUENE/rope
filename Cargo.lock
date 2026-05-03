@@ -4637,14 +4637,18 @@ name = "rope-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "clap",
  "config",
  "dirs",
+ "ed25519-dalek",
  "hex",
  "libp2p",
+ "rand 0.8.5",
  "reqwest",
  "rope-core",
  "rope-crypto",
+ "rope-deployer",
  "rope-node",
  "rustc_version_runtime",
  "serde",
@@ -4653,6 +4657,7 @@ dependencies = [
  "toml 0.8.23",
  "tracing",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
@@ -4733,6 +4738,28 @@ dependencies = [
  "tracing",
  "x25519-dalek",
  "zeroize",
+]
+
+[[package]]
+name = "rope-deployer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "clap",
+ "ed25519-dalek",
+ "hex",
+ "parking_lot 0.12.5",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+ "toml 0.8.23",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
@@ -4893,6 +4920,7 @@ dependencies = [
  "blake3",
  "chrono",
  "config",
+ "ed25519-dalek",
  "futures",
  "hashbrown 0.14.5",
  "hex",

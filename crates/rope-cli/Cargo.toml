@@ -14,6 +14,7 @@ path = "src/main.rs"
 rope-node = { path = "../rope-node" }
 rope-core = { path = "../rope-core" }
 rope-crypto = { path = "../rope-crypto" }
+rope-deployer = { path = "../rope-deployer" }
 
 tokio = { workspace = true }
 clap = { workspace = true }
@@ -29,3 +30,9 @@ libp2p = { workspace = true }
 reqwest = { version = "0.11", features = ["json"] }
 dirs = "5.0"
 rustc_version_runtime = "0.3"
+
+# Identity + governance signing (added 2026-05-03)
+ed25519-dalek = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+rand = { workspace = true }
