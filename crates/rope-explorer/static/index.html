@@ -1214,7 +1214,7 @@
                         </div>
                     </div>
                     <div class="stat-value" id="hero-total-strings">—</div>
-                    <div class="stat-label">Total Strings</div>
+                    <div class="stat-label" title="Anchor knots tied on the federation cord — one every ~3 s. Each anchor knot bundles all the transactions of that interval. See Quipu Canon v1.2.">Cord Anchor Knots</div>
                 </div>
                 
                 <div class="stat-card">
@@ -1224,7 +1224,7 @@
                         </div>
                     </div>
                     <div class="stat-value" id="hero-total-transactions">—</div>
-                    <div class="stat-label">Total Transactions</div>
+                    <div class="stat-label" title="Transactions are one type of knot — the EVM-shaped knot inside cord anchors. Each transaction may emit multiple events (Transfer, Approval, Mint, …). See Quipu Canon v1.2.">Transactions (knot type)</div>
                 </div>
                 
                 <div class="stat-card">
@@ -1417,8 +1417,15 @@
                 var txsEl = document.getElementById('hero-total-transactions');
                 var agentsEl = document.getElementById('hero-ai-agents');
                 var validatorsEl = document.getElementById('hero-active-validators');
-                if (stringsEl) stringsEl.textContent = formatNumber(stats.totalStrings != null ? stats.totalStrings : stats.latestBlock);
-                if (txsEl) txsEl.textContent = formatNumber(stats.totalTransactions);
+                // Quipu Canon v1.2: hero cards now show distinct knot layers.
+                // - cordAnchors  → "Cord Anchor Knots" (== EVM block height)
+                // - transactions → "Transactions (knot type)" (one knot kind)
+                // Fallbacks keep older API responses working during rollout.
+                var cordAnchors = stats.cordAnchors != null ? stats.cordAnchors :
+                                  (stats.totalKnots != null ? stats.totalKnots : stats.latestBlock);
+                var txCount = stats.transactions != null ? stats.transactions : stats.totalTransactions;
+                if (stringsEl) stringsEl.textContent = formatNumber(cordAnchors);
+                if (txsEl) txsEl.textContent = formatNumber(txCount);
                 if (agentsEl) agentsEl.textContent = formatNumber(stats.aiAgents != null ? stats.aiAgents : 5);
                 var vCount = (validatorsData && (validatorsData.activeCount != null ? validatorsData.activeCount : (validatorsData.validators && validatorsData.validators.length))) || stats.validators;
                 if (validatorsEl) validatorsEl.textContent = formatNumber(vCount);
