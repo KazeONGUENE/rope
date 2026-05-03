@@ -22,7 +22,7 @@ use parking_lot::RwLock;
 use rope_core::clock::{ClockManager, LamportClock};
 use rope_core::lattice::StringLattice;
 use rope_core::personal_ledger::{
-    build_append_string, build_genesis_string, InteractionRecord, LedgerRegistry,
+    build_append_string, build_genesis_string, InteractionRecord, StringKind, StringRegistry,
 };
 use rope_core::string::PublicKey;
 use rope_core::types::{NodeId, StringId};
@@ -50,7 +50,7 @@ fn oes_proof_to_core(proof: rope_crypto::oes::OESProof) -> rope_core::string::OE
 
 /// Node-level ledger manager holding all subsystem references
 pub struct LedgerManager {
-    registry: Arc<LedgerRegistry>,
+    registry: Arc<StringRegistry>,
     lattice: Arc<StringLattice>,
     store: Arc<LedgerStore>,
     lifecycle: Arc<LedgerLifecycleManager>,
@@ -68,6 +68,26 @@ pub struct CreateLedgerResponse {
     pub wallet_address: String,
     pub oes_generation: u64,
     pub replication_factor: u32,
+}
+
+/// Quipu Canon v1.2 — per-kind counts inside [`GlobalStringStats`].
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct KindCount {
+    pub strings: usize,
+    pub knots: u64,
+}
+
+/// Quipu Canon v1.2 — global registry totals served by `rope_globalStats`.
+///
+/// Invariant: `total_knots >= total_strings` (every string starts with a
+/// genesis knot). The `invariant_holds` field is included so external
+/// callers and DCScan can assert it client-side.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct GlobalStringStats {
+    pub total_strings: usize,
+    pub total_knots: u64,
+    pub by_kind: std::collections::BTreeMap<String, KindCount>,
+    pub invariant_holds: bool,
 }
 
 /// Response for ledger append
@@ -156,7 +176,7 @@ impl LedgerManager {
     ) -> Self {
         let config = LifecycleConfig::default();
         Self {
-            registry: Arc::new(LedgerRegistry::new()),
+            registry: Arc::new(StringRegistry::new()),
             lattice,
             store,
             lifecycle: Arc::new(LedgerLifecycleManager::new(config.clone())),
@@ -412,6 +432,88 @@ impl LedgerManager {
         );
 
         Ok(resp)
+    }
+
+    // ------------------------------------------------------------------
+    // Quipu Canon v1.2 — generic-string API. Wallets are still the
+    // common case; smart contracts, tokenized assets, DIDs, and the
+    // global cord land here too. The wallet-specific methods above
+    // remain intact for backward compat.
+    // ------------------------------------------------------------------
+
+    /// List all strings of a given kind (or all kinds when `kind` is
+    /// `None`), paginated. Returns `(total_strings, slice)` so the
+    /// caller can render pagination without a second round-trip.
+    pub fn list_strings(
+        &self,
+        kind: Option<StringKind>,
+        offset: usize,
+        limit: usize,
+    ) -> (usize, Vec<rope_core::personal_ledger::LedgerDescriptor>) {
+        let mut all: Vec<_> = match kind {
+            Some(k) => self.registry.descriptors_by_kind(k),
+            None => {
+                let mut acc = Vec::new();
+                for k in [
+                    StringKind::Cord,
+                    StringKind::Wallet,
+                    StringKind::Contract,
+                    StringKind::Asset,
+                    StringKind::Did,
+                ] {
+                    acc.extend(self.registry.descriptors_by_kind(k));
+                }
+                acc
+            }
+        };
+        // Stable order: most-recently-anchored first.
+        all.sort_by(|a, b| b.last_appended_at.cmp(&a.last_appended_at));
+        let total = all.len();
+        let slice: Vec<_> = all.into_iter().skip(offset).take(limit).collect();
+        (total, slice)
+    }
+
+    /// Look up one string by `(kind, hex_id)`. Hex id may be `0x`-prefixed
+    /// or bare; falls back to a wallet lookup when `kind` is `None`.
+    pub fn get_string(
+        &self,
+        kind: Option<StringKind>,
+        hex_id: &str,
+    ) -> Option<rope_core::personal_ledger::LedgerDescriptor> {
+        let stripped = hex_id.trim_start_matches("0x");
+        let bytes = hex::decode(stripped).ok()?;
+        match kind {
+            Some(k) => self.registry.get_string(k, &bytes),
+            None => self.registry.get_string(StringKind::Wallet, &bytes),
+        }
+    }
+
+    /// Quipu Canon v1.2 invariant snapshot: total strings across all
+    /// kinds and total knots summed across all strings. By construction,
+    /// `total_knots >= total_strings` (every string starts with a
+    /// genesis knot).
+    pub fn global_stats(&self) -> GlobalStringStats {
+        let counts = self.registry.counts_by_kind();
+        let mut by_kind = std::collections::BTreeMap::new();
+        let mut total_strings = 0usize;
+        let mut total_knots = 0u64;
+        for (kind, (s, k)) in counts {
+            by_kind.insert(
+                kind.as_str().to_string(),
+                KindCount {
+                    strings: s,
+                    knots: k,
+                },
+            );
+            total_strings += s;
+            total_knots += k;
+        }
+        GlobalStringStats {
+            total_strings,
+            total_knots,
+            by_kind,
+            invariant_holds: total_knots >= total_strings as u64,
+        }
     }
 
     /// Get the status of a wallet's ledger
@@ -718,7 +820,7 @@ impl LedgerManager {
         })
     }
 
-    pub fn registry(&self) -> &LedgerRegistry {
+    pub fn registry(&self) -> &StringRegistry {
         &self.registry
     }
 

@@ -338,6 +338,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/v1/strings", get(list_strings))
         .route("/api/v1/strings/latest", get(latest_strings))
         .route("/api/v1/strings/:id", get(get_string))
+        // Quipu Canon v1.2 — string registry (per-entity, NOT per-anchor)
+        .route("/api/v1/registry/strings", get(registry_list_strings))
+        .route("/api/v1/registry/stats", get(registry_global_stats))
         // Transactions
         .route("/api/v1/transactions", get(list_transactions))
         .route("/api/v1/transactions/latest", get(latest_transactions))
@@ -1302,8 +1305,32 @@ async fn stats(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
         Err(_) => 0,
     };
 
+    // Quipu Canon v1.2: ask the consensus node for the canonical
+    // string-vs-knot split. Falls back gracefully when the RPC method
+    // is unavailable on older nodes (e.g. mid-rolling-deploy).
+    let (total_strings_real, by_kind_breakdown) =
+        match rpc_call(&state, "rope_globalStats", vec![]).await {
+            Ok(v) => {
+                let s = v.get("total_strings").and_then(|x| x.as_u64()).unwrap_or(0);
+                let bk = v.get("by_kind").cloned().unwrap_or(serde_json::Value::Null);
+                (s, bk)
+            }
+            Err(_) => (0u64, serde_json::Value::Null),
+        };
+
     Json(serde_json::json!({
-        "totalStrings": head,
+        // Quipu Canon v1.2 — anchor knot count (== EVM block height).
+        "totalKnots": head,
+        // Quipu Canon v1.2 — real distinct entity strings (wallets,
+        // contracts, assets, DIDs, the cord). Always satisfies
+        // `totalStrings <= totalKnots` (each string has at least its
+        // genesis knot).
+        "totalStrings": total_strings_real,
+        "stringsByKind": by_kind_breakdown,
+        // v1.0/1.1 alias: the old field `totalStrings` actually
+        // returned the knot/block count. Frontends should migrate to
+        // `totalKnots`. Kept here for one release.
+        "totalBlocksLegacy": head,
         "totalTransactions": total_tx_cumulative,
         "transactions24h": txs_24h,
         "pendingTransactions": pending_count,
@@ -1405,6 +1432,64 @@ struct PaginationParams {
     page: Option<u32>,
     limit: Option<u32>,
     filter: Option<String>,
+}
+
+/// Quipu Canon v1.2 — `/api/v1/registry/strings`.
+///
+/// Per-entity string registry. Thin proxy to `rope_listStrings` on the
+/// consensus node. Falls back to an empty page when the RPC is
+/// unavailable (older nodes mid-rolling-deploy).
+///
+/// Query params:
+///   - `kind`   one of `wallet|contract|asset|did|cord` (optional)
+///   - `offset` (default 0)
+///   - `limit`  (default 50, max 500)
+#[derive(Deserialize)]
+struct RegistryQuery {
+    kind: Option<String>,
+    offset: Option<u64>,
+    limit: Option<u64>,
+}
+
+async fn registry_list_strings(
+    State(state): State<Arc<AppState>>,
+    Query(q): Query<RegistryQuery>,
+) -> Json<serde_json::Value> {
+    let mut params_obj = serde_json::Map::new();
+    if let Some(kind) = q.kind.as_ref() {
+        params_obj.insert("kind".to_string(), serde_json::Value::String(kind.clone()));
+    }
+    if let Some(off) = q.offset {
+        params_obj.insert("offset".to_string(), serde_json::json!(off));
+    }
+    if let Some(lim) = q.limit {
+        params_obj.insert("limit".to_string(), serde_json::json!(lim));
+    }
+    let params = vec![serde_json::Value::Object(params_obj)];
+    match rpc_call(&state, "rope_listStrings", params).await {
+        Ok(v) => Json(v),
+        Err(_) => Json(serde_json::json!({
+            "total": 0,
+            "offset": q.offset.unwrap_or(0),
+            "limit": q.limit.unwrap_or(50),
+            "kind_filter": q.kind,
+            "strings": [],
+            "error": "rope_listStrings unavailable on this node (Quipu Canon v1.2 RPC required)"
+        })),
+    }
+}
+
+async fn registry_global_stats(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    match rpc_call(&state, "rope_globalStats", vec![]).await {
+        Ok(v) => Json(v),
+        Err(_) => Json(serde_json::json!({
+            "total_strings": 0,
+            "total_knots": 0,
+            "by_kind": {},
+            "invariant_holds": true,
+            "error": "rope_globalStats unavailable on this node (Quipu Canon v1.2 RPC required)"
+        })),
+    }
 }
 
 async fn list_strings(
