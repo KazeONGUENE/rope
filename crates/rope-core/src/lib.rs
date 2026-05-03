@@ -53,8 +53,11 @@ pub mod prelude {
     pub use crate::nucleotide::Nucleotide;
     pub use crate::personal_ledger::{
         EntryPieceMap, InteractionRecord, InteractionType, LedgerChain, LedgerDescriptor,
-        LedgerRegistry,
+        StringKind, StringRegistry,
     };
+    // Backward-compat alias for v1.0/1.1 callers.
+    #[allow(deprecated)]
+    pub use crate::personal_ledger::LedgerRegistry;
     pub use crate::string::RopeString;
     pub use crate::types::*;
 }

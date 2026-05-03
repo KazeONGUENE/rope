@@ -28,10 +28,73 @@ use hashbrown::HashMap;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 
-/// Metadata describing a personal ledger's current state.
-/// Stored in the ledger registry — does NOT contain the actual data.
+/// What kind of entity does a string represent? Quipu Canon v1.2 model.
+///
+/// Each string is a logical, append-only chain of knots tied to exactly
+/// one ecosystem entity. The registry indexes strings by `(kind, id)`
+/// so two entities that share the same byte-string (e.g. an EVM wallet
+/// address and a contract address that happen to collide) remain
+/// distinct strings.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum StringKind {
+    /// EOA / hot wallet (default — keeps the v1.0/1.1 schema valid).
+    #[default]
+    Wallet,
+    /// Smart contract deployed on Datachain Rope (DCSwap, T-REX, ONCHAINID,
+    /// NaturaProof, Tanastok TREXFactory, etc.).
+    Contract,
+    /// Tokenized real-world asset (Tanastok DCNFT, Careaway plan, …).
+    /// `id_bytes` is typically `keccak256("dcnft://<contract>/<token>")`.
+    Asset,
+    /// ONCHAINID / Datawallet+ identity. `id_bytes` is the ONCHAINID address.
+    Did,
+    /// The single global federation cord — anchor knots are appended here
+    /// every ~3s. Exactly ONE cord exists per network.
+    Cord,
+}
+
+impl StringKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            StringKind::Wallet => "wallet",
+            StringKind::Contract => "contract",
+            StringKind::Asset => "asset",
+            StringKind::Did => "did",
+            StringKind::Cord => "cord",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s.to_ascii_lowercase().as_str() {
+            "wallet" => Some(StringKind::Wallet),
+            "contract" => Some(StringKind::Contract),
+            "asset" => Some(StringKind::Asset),
+            "did" => Some(StringKind::Did),
+            "cord" => Some(StringKind::Cord),
+            _ => None,
+        }
+    }
+}
+
+/// Metadata describing a string's current state — Quipu Canon v1.2.
+///
+/// Stored in the [`StringRegistry`] and does NOT contain the actual knot
+/// payloads. Field names preserve the v1.0/1.1 schema (`wallet_address`,
+/// `genesis_string_id`, `head_string_id`, `entry_count`) for wire
+/// compatibility — see helper accessors below for the canonical Quipu
+/// Canon v1.2 names (`id_bytes`, `genesis_knot_id`, `head_knot_id`,
+/// `knot_count`).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LedgerDescriptor {
+    /// Kind of entity this string represents. Defaults to `Wallet` when
+    /// deserialising legacy v1.0/1.1 descriptors.
+    #[serde(default)]
+    pub kind: StringKind,
+    /// Raw byte-string identifying the entity within its kind.
+    /// For wallets/contracts: the 20-byte EVM address.
+    /// For assets/DIDs: an arbitrary identifier blob.
+    /// For the cord: 32 zero bytes.
     pub wallet_address: Vec<u8>,
     pub genesis_string_id: StringId,
     pub head_string_id: StringId,
@@ -48,8 +111,40 @@ pub struct LedgerDescriptor {
 }
 
 impl LedgerDescriptor {
-    pub fn wallet_hex(&self) -> String {
+    /// Quipu Canon v1.2 accessor: the raw entity-id bytes.
+    pub fn id_bytes(&self) -> &[u8] {
+        &self.wallet_address
+    }
+
+    /// Hex rendering of the entity id, prefixed with `0x`. Stable across
+    /// kinds (wallet/contract/asset/did/cord all share the same encoding).
+    pub fn string_id_hex(&self) -> String {
         format!("0x{}", hex::encode(&self.wallet_address))
+    }
+
+    /// Backward-compat alias for `string_id_hex()`.
+    pub fn wallet_hex(&self) -> String {
+        self.string_id_hex()
+    }
+
+    pub fn string_id_kind(&self) -> StringKind {
+        self.kind
+    }
+
+    /// Quipu Canon v1.2 name for `genesis_string_id` (which is actually
+    /// a knot ID — see quipu-canon-v1.2-string-registry.mdc).
+    pub fn genesis_knot_id(&self) -> StringId {
+        self.genesis_string_id
+    }
+
+    /// Quipu Canon v1.2 name for `head_string_id`.
+    pub fn head_knot_id(&self) -> StringId {
+        self.head_string_id
+    }
+
+    /// Quipu Canon v1.2 name for `entry_count`.
+    pub fn knot_count(&self) -> u64 {
+        self.entry_count
     }
 }
 
@@ -197,44 +292,62 @@ impl LedgerChain {
     }
 }
 
-/// Registry mapping wallet addresses to their ledger descriptors.
+/// Registry of strings indexed by `(StringKind, id_bytes)`.
+///
+/// Quipu Canon v1.2: every ecosystem entity that records knots — a
+/// wallet, a smart contract, a tokenized asset, a DID, or the global
+/// federation cord — owns exactly one string here. The previous name
+/// `LedgerRegistry` is preserved as a deprecated type alias.
+///
 /// Thread-safe for concurrent node operation.
-pub struct LedgerRegistry {
-    ledgers: RwLock<HashMap<Vec<u8>, LedgerDescriptor>>,
-    wallet_to_genesis: RwLock<HashMap<Vec<u8>, StringId>>,
-    wallet_to_head: RwLock<HashMap<Vec<u8>, StringId>>,
-    string_to_wallet: RwLock<HashMap<StringId, Vec<u8>>>,
+pub struct StringRegistry {
+    /// Composite key = (kind, id_bytes). Keeps two distinct entities
+    /// that share the same byte-id (e.g. wallet 0xABC vs contract 0xABC)
+    /// from colliding.
+    ledgers: RwLock<HashMap<(StringKind, Vec<u8>), LedgerDescriptor>>,
+    genesis_index: RwLock<HashMap<(StringKind, Vec<u8>), StringId>>,
+    head_index: RwLock<HashMap<(StringKind, Vec<u8>), StringId>>,
+    /// Reverse lookup: which (kind, id) does a given knot belong to?
+    knot_to_owner: RwLock<HashMap<StringId, (StringKind, Vec<u8>)>>,
 }
 
-impl LedgerRegistry {
+impl StringRegistry {
     pub fn new() -> Self {
         Self {
             ledgers: RwLock::new(HashMap::new()),
-            wallet_to_genesis: RwLock::new(HashMap::new()),
-            wallet_to_head: RwLock::new(HashMap::new()),
-            string_to_wallet: RwLock::new(HashMap::new()),
+            genesis_index: RwLock::new(HashMap::new()),
+            head_index: RwLock::new(HashMap::new()),
+            knot_to_owner: RwLock::new(HashMap::new()),
         }
     }
 
-    /// Register a new personal ledger for a wallet.
-    /// Returns the genesis StringId.
-    pub fn create_ledger(
+    // ---------------------------------------------------------------
+    // Quipu Canon v1.2 — generic string API
+    // ---------------------------------------------------------------
+
+    /// Register a new string for any ecosystem entity.
+    pub fn create_string(
         &self,
-        wallet_address: &[u8],
+        kind: StringKind,
+        id_bytes: &[u8],
         genesis_id: StringId,
         oes_generation: u64,
         replication_factor: u32,
     ) -> Result<LedgerDescriptor, LedgerRegistryError> {
+        let key = (kind, id_bytes.to_vec());
         let mut ledgers = self.ledgers.write();
-        if ledgers.contains_key(wallet_address) {
-            return Err(LedgerRegistryError::AlreadyExists(hex::encode(
-                wallet_address,
+        if ledgers.contains_key(&key) {
+            return Err(LedgerRegistryError::AlreadyExists(format!(
+                "{}:{}",
+                kind.as_str(),
+                hex::encode(id_bytes)
             )));
         }
 
         let now = chrono::Utc::now().timestamp();
         let descriptor = LedgerDescriptor {
-            wallet_address: wallet_address.to_vec(),
+            kind,
+            wallet_address: id_bytes.to_vec(),
             genesis_string_id: genesis_id,
             head_string_id: genesis_id,
             entry_count: 1,
@@ -249,21 +362,132 @@ impl LedgerRegistry {
             replication_factor,
         };
 
-        ledgers.insert(wallet_address.to_vec(), descriptor.clone());
-        self.wallet_to_genesis
-            .write()
-            .insert(wallet_address.to_vec(), genesis_id);
-        self.wallet_to_head
-            .write()
-            .insert(wallet_address.to_vec(), genesis_id);
-        self.string_to_wallet
-            .write()
-            .insert(genesis_id, wallet_address.to_vec());
+        ledgers.insert(key.clone(), descriptor.clone());
+        self.genesis_index.write().insert(key.clone(), genesis_id);
+        self.head_index.write().insert(key.clone(), genesis_id);
+        self.knot_to_owner.write().insert(genesis_id, key);
 
         Ok(descriptor)
     }
 
-    /// Record a new entry appended to a wallet's ledger
+    /// Record a new knot appended to a string.
+    pub fn record_knot(
+        &self,
+        kind: StringKind,
+        id_bytes: &[u8],
+        new_knot_id: StringId,
+        content_size: u64,
+        oes_generation: u64,
+    ) -> Result<(), LedgerRegistryError> {
+        let key = (kind, id_bytes.to_vec());
+        let mut ledgers = self.ledgers.write();
+        let desc = ledgers.get_mut(&key).ok_or_else(|| {
+            LedgerRegistryError::NotFound(format!("{}:{}", kind.as_str(), hex::encode(id_bytes)))
+        })?;
+
+        if desc.is_deleted {
+            return Err(LedgerRegistryError::Deleted(format!(
+                "{}:{}",
+                kind.as_str(),
+                hex::encode(id_bytes)
+            )));
+        }
+
+        desc.head_string_id = new_knot_id;
+        desc.entry_count += 1;
+        desc.total_size_bytes += content_size;
+        desc.current_oes_generation = oes_generation;
+        desc.last_appended_at = chrono::Utc::now().timestamp();
+
+        self.head_index.write().insert(key.clone(), new_knot_id);
+        self.knot_to_owner.write().insert(new_knot_id, key);
+
+        Ok(())
+    }
+
+    /// Look up the descriptor for any (kind, id).
+    pub fn get_string(&self, kind: StringKind, id_bytes: &[u8]) -> Option<LedgerDescriptor> {
+        self.ledgers.read().get(&(kind, id_bytes.to_vec())).cloned()
+    }
+
+    /// Mark a string as deleted (OES key destroyed). Generic over kind.
+    pub fn mark_string_deleted(
+        &self,
+        kind: StringKind,
+        id_bytes: &[u8],
+    ) -> Result<(), LedgerRegistryError> {
+        let key = (kind, id_bytes.to_vec());
+        let mut ledgers = self.ledgers.write();
+        let desc = ledgers.get_mut(&key).ok_or_else(|| {
+            LedgerRegistryError::NotFound(format!("{}:{}", kind.as_str(), hex::encode(id_bytes)))
+        })?;
+        desc.is_deleted = true;
+        desc.deleted_at = Some(chrono::Utc::now().timestamp());
+        Ok(())
+    }
+
+    /// All descriptors of a given kind.
+    pub fn descriptors_by_kind(&self, kind: StringKind) -> Vec<LedgerDescriptor> {
+        self.ledgers
+            .read()
+            .iter()
+            .filter(|((k, _), _)| *k == kind)
+            .map(|(_, d)| d.clone())
+            .collect()
+    }
+
+    /// Quipu Canon v1.2 — total registered strings (across all kinds).
+    pub fn strings_count(&self) -> usize {
+        self.ledgers.read().len()
+    }
+
+    /// Quipu Canon v1.2 — total knots, summed across all strings.
+    /// Invariant: `knots_count() >= strings_count()` (each string has at
+    /// least its genesis knot).
+    pub fn knots_count(&self) -> u64 {
+        self.ledgers.read().values().map(|d| d.entry_count).sum()
+    }
+
+    /// Per-kind counts. Useful for the `rope_globalStats` RPC method.
+    pub fn counts_by_kind(&self) -> HashMap<StringKind, (usize, u64)> {
+        let mut out = HashMap::new();
+        for ((k, _), d) in self.ledgers.read().iter() {
+            let entry = out.entry(*k).or_insert((0usize, 0u64));
+            entry.0 += 1;
+            entry.1 += d.entry_count;
+        }
+        out
+    }
+
+    /// Look up which (kind, id) owns a knot.
+    pub fn owner_of_knot(&self, knot_id: &StringId) -> Option<(StringKind, Vec<u8>)> {
+        self.knot_to_owner.read().get(knot_id).cloned()
+    }
+
+    // ---------------------------------------------------------------
+    // Backward-compat wallet-only API (delegates to the generic methods
+    // above with `kind = Wallet`). All existing callers keep working
+    // unchanged.
+    // ---------------------------------------------------------------
+
+    /// Backward-compat: register a new personal ledger for a wallet.
+    pub fn create_ledger(
+        &self,
+        wallet_address: &[u8],
+        genesis_id: StringId,
+        oes_generation: u64,
+        replication_factor: u32,
+    ) -> Result<LedgerDescriptor, LedgerRegistryError> {
+        self.create_string(
+            StringKind::Wallet,
+            wallet_address,
+            genesis_id,
+            oes_generation,
+            replication_factor,
+        )
+    }
+
+    /// Backward-compat alias for [`record_knot`] keyed to the Wallet kind.
     pub fn record_append(
         &self,
         wallet_address: &[u8],
@@ -271,89 +495,93 @@ impl LedgerRegistry {
         content_size: u64,
         oes_generation: u64,
     ) -> Result<(), LedgerRegistryError> {
-        let mut ledgers = self.ledgers.write();
-        let desc = ledgers
-            .get_mut(wallet_address)
-            .ok_or_else(|| LedgerRegistryError::NotFound(hex::encode(wallet_address)))?;
-
-        if desc.is_deleted {
-            return Err(LedgerRegistryError::Deleted(hex::encode(wallet_address)));
-        }
-
-        desc.head_string_id = new_string_id;
-        desc.entry_count += 1;
-        desc.total_size_bytes += content_size;
-        desc.current_oes_generation = oes_generation;
-        desc.last_appended_at = chrono::Utc::now().timestamp();
-
-        self.wallet_to_head
-            .write()
-            .insert(wallet_address.to_vec(), new_string_id);
-        self.string_to_wallet
-            .write()
-            .insert(new_string_id, wallet_address.to_vec());
-
-        Ok(())
+        self.record_knot(
+            StringKind::Wallet,
+            wallet_address,
+            new_string_id,
+            content_size,
+            oes_generation,
+        )
     }
 
-    /// Mark a ledger as deleted (OES key destroyed)
+    /// Backward-compat: mark a wallet's ledger as deleted.
     pub fn mark_deleted(&self, wallet_address: &[u8]) -> Result<(), LedgerRegistryError> {
-        let mut ledgers = self.ledgers.write();
-        let desc = ledgers
-            .get_mut(wallet_address)
-            .ok_or_else(|| LedgerRegistryError::NotFound(hex::encode(wallet_address)))?;
-
-        desc.is_deleted = true;
-        desc.deleted_at = Some(chrono::Utc::now().timestamp());
-
-        Ok(())
+        self.mark_string_deleted(StringKind::Wallet, wallet_address)
     }
 
-    /// Look up the ledger descriptor for a wallet
+    /// Backward-compat: look up the descriptor for a wallet.
     pub fn get_descriptor(&self, wallet_address: &[u8]) -> Option<LedgerDescriptor> {
-        self.ledgers.read().get(wallet_address).cloned()
+        self.get_string(StringKind::Wallet, wallet_address)
     }
 
-    /// Look up which wallet owns a given string
+    /// Backward-compat: look up which wallet owns a given knot.
+    /// Returns `None` if the owning string is not of `Wallet` kind.
     pub fn wallet_for_string(&self, string_id: &StringId) -> Option<Vec<u8>> {
-        self.string_to_wallet.read().get(string_id).cloned()
+        self.knot_to_owner.read().get(string_id).and_then(|(k, b)| {
+            if *k == StringKind::Wallet {
+                Some(b.clone())
+            } else {
+                None
+            }
+        })
     }
 
-    /// Get the head (latest) StringId for a wallet
     pub fn head_for_wallet(&self, wallet_address: &[u8]) -> Option<StringId> {
-        self.wallet_to_head.read().get(wallet_address).copied()
+        self.head_index
+            .read()
+            .get(&(StringKind::Wallet, wallet_address.to_vec()))
+            .copied()
     }
 
-    /// Get the genesis StringId for a wallet
     pub fn genesis_for_wallet(&self, wallet_address: &[u8]) -> Option<StringId> {
-        self.wallet_to_genesis.read().get(wallet_address).copied()
+        self.genesis_index
+            .read()
+            .get(&(StringKind::Wallet, wallet_address.to_vec()))
+            .copied()
     }
 
-    /// List all registered wallets
     pub fn all_wallets(&self) -> Vec<Vec<u8>> {
-        self.ledgers.read().keys().cloned().collect()
+        self.ledgers
+            .read()
+            .iter()
+            .filter(|((k, _), _)| *k == StringKind::Wallet)
+            .map(|((_, b), _)| b.clone())
+            .collect()
     }
 
-    /// Count of active (non-deleted) ledgers
+    /// Count of active (non-deleted) wallet ledgers.
     pub fn active_count(&self) -> usize {
         self.ledgers
             .read()
-            .values()
-            .filter(|d| !d.is_deleted)
+            .iter()
+            .filter(|((k, _), d)| *k == StringKind::Wallet && !d.is_deleted)
             .count()
     }
 
-    /// Count of total ledgers
+    /// Count of all wallet ledgers.
     pub fn total_count(&self) -> usize {
-        self.ledgers.read().len()
+        self.ledgers
+            .read()
+            .iter()
+            .filter(|((k, _), _)| *k == StringKind::Wallet)
+            .count()
     }
 }
 
-impl Default for LedgerRegistry {
+impl Default for StringRegistry {
     fn default() -> Self {
         Self::new()
     }
 }
+
+/// Deprecated alias retained for v1.0/1.1 callers. Use [`StringRegistry`].
+#[deprecated(
+    since = "0.2.0",
+    note = "Use `StringRegistry` (Quipu Canon v1.2). The old name conflated \
+            the per-entity logical chain (string) with its individual \
+            event entries (knots)."
+)]
+pub type LedgerRegistry = StringRegistry;
 
 /// Helper: build the genesis RopeString for a new wallet ledger
 pub fn build_genesis_string(
@@ -427,6 +655,7 @@ pub enum LedgerRegistryError {
 // ============================================================================
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use super::*;
 
@@ -542,6 +771,95 @@ mod tests {
     }
 
     #[test]
+    fn test_string_registry_invariant_holds_with_mixed_kinds() {
+        // Quipu Canon v1.2 — count(strings) <= count(knots)
+        let registry = StringRegistry::new();
+
+        // Two wallet strings, each with one extra knot beyond genesis.
+        let wallet_a = vec![0xA1; 20];
+        let wallet_b = vec![0xB2; 20];
+        let g_a = StringId::from_content(b"wa-genesis");
+        let g_b = StringId::from_content(b"wb-genesis");
+        registry
+            .create_string(StringKind::Wallet, &wallet_a, g_a, 0, 1)
+            .unwrap();
+        registry
+            .create_string(StringKind::Wallet, &wallet_b, g_b, 0, 1)
+            .unwrap();
+        registry
+            .record_knot(
+                StringKind::Wallet,
+                &wallet_a,
+                StringId::from_content(b"wa-1"),
+                32,
+                0,
+            )
+            .unwrap();
+
+        // One contract string with just its genesis.
+        let contract = vec![0xC3; 20];
+        let g_c = StringId::from_content(b"contract-genesis");
+        registry
+            .create_string(StringKind::Contract, &contract, g_c, 0, 1)
+            .unwrap();
+
+        // One asset string keyed by a 32-byte derived id.
+        let asset_id = vec![0xDD; 32];
+        let g_d = StringId::from_content(b"asset-genesis");
+        registry
+            .create_string(StringKind::Asset, &asset_id, g_d, 0, 1)
+            .unwrap();
+
+        // 4 strings; knots = 2 wallet genesis + 1 wallet append + 1 contract
+        // genesis + 1 asset genesis = 5.
+        assert_eq!(registry.strings_count(), 4);
+        assert_eq!(registry.knots_count(), 5);
+        assert!(registry.knots_count() >= registry.strings_count() as u64);
+
+        // Wallet 0xA1 and contract 0xA1 must NOT collide (different kinds).
+        let collide = vec![0xA1; 20];
+        registry
+            .create_string(
+                StringKind::Contract,
+                &collide,
+                StringId::from_content(b"c-a1"),
+                0,
+                1,
+            )
+            .unwrap();
+        assert_eq!(registry.strings_count(), 5);
+    }
+
+    #[test]
+    fn test_string_kind_parse_roundtrip() {
+        for k in [
+            StringKind::Wallet,
+            StringKind::Contract,
+            StringKind::Asset,
+            StringKind::Did,
+            StringKind::Cord,
+        ] {
+            assert_eq!(StringKind::parse(k.as_str()), Some(k));
+        }
+        assert_eq!(StringKind::parse("WALLET"), Some(StringKind::Wallet));
+        assert_eq!(StringKind::parse("nope"), None);
+    }
+
+    #[test]
+    fn test_descriptor_v12_accessors() {
+        let registry = StringRegistry::new();
+        let wallet = test_wallet();
+        let genesis = StringId::from_content(b"genesis");
+        let desc = registry.create_ledger(&wallet, genesis, 0, 5).unwrap();
+        assert_eq!(desc.string_id_kind(), StringKind::Wallet);
+        assert_eq!(desc.id_bytes(), wallet.as_slice());
+        assert_eq!(desc.genesis_knot_id(), genesis);
+        assert_eq!(desc.head_knot_id(), genesis);
+        assert_eq!(desc.knot_count(), 1);
+        assert!(desc.string_id_hex().starts_with("0x"));
+    }
+
+    #[test]
     fn test_piece_map() {
         let id = StringId::from_content(b"test");
         let mut map = EntryPieceMap::new(id);
@@ -560,6 +878,7 @@ mod tests {
         let wallet = test_wallet();
         let genesis_id = StringId::from_content(b"genesis");
         let desc = LedgerDescriptor {
+            kind: StringKind::Wallet,
             wallet_address: wallet.clone(),
             genesis_string_id: genesis_id,
             head_string_id: genesis_id,

@@ -2087,6 +2087,136 @@ impl RpcHandlers {
                 }
             }
 
+            "rope_globalStats" => {
+                // Quipu Canon v1.2 — returns the total number of strings
+                // and total number of knots, with the per-kind breakdown.
+                // Invariant: total_knots >= total_strings.
+                let ledger = match &self.ledger {
+                    Some(l) => l,
+                    None => return serde_json::json!({
+                        "jsonrpc":"2.0",
+                        "error":{"code":-32603,"message":"personal ledger subsystem not initialized"},
+                        "id":id
+                    }).to_string(),
+                };
+                let stats = ledger.global_stats();
+                serde_json::to_value(&stats).unwrap_or(serde_json::json!({}))
+            }
+
+            "rope_listStrings" => {
+                // Quipu Canon v1.2 — paginated list of strings.
+                // Param shape: { kind?: "wallet|contract|asset|did|cord",
+                //                offset?: u64, limit?: u32 }
+                let ledger = match &self.ledger {
+                    Some(l) => l,
+                    None => return serde_json::json!({
+                        "jsonrpc":"2.0",
+                        "error":{"code":-32603,"message":"personal ledger subsystem not initialized"},
+                        "id":id
+                    }).to_string(),
+                };
+                let p = params.and_then(|p| p.get(0));
+                let kind = p
+                    .and_then(|v| v.get("kind"))
+                    .and_then(|v| v.as_str())
+                    .and_then(rope_core::personal_ledger::StringKind::parse);
+                let offset = p
+                    .and_then(|v| v.get("offset"))
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0) as usize;
+                let limit = p
+                    .and_then(|v| v.get("limit"))
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(50)
+                    .clamp(1, 500) as usize;
+                let (total, slice) = ledger.list_strings(kind, offset, limit);
+                let strings: Vec<_> = slice
+                    .into_iter()
+                    .map(|d| {
+                        serde_json::json!({
+                            "kind": d.string_id_kind().as_str(),
+                            "string_id": d.string_id_hex(),
+                            "genesis_knot_id": d.genesis_knot_id().to_hex(),
+                            "head_knot_id": d.head_knot_id().to_hex(),
+                            "knot_count": d.knot_count(),
+                            "total_size_bytes": d.total_size_bytes,
+                            "is_deleted": d.is_deleted,
+                            "created_at": d.created_at,
+                            "last_anchored_at": d.last_appended_at,
+                            // v1.0/1.1 deprecated aliases — drop in v1.3.
+                            "wallet_address": d.string_id_hex(),
+                            "genesis_string_id": d.genesis_string_id.to_hex(),
+                            "head_string_id": d.head_string_id.to_hex(),
+                        })
+                    })
+                    .collect();
+                serde_json::json!({
+                    "total": total,
+                    "offset": offset,
+                    "limit": limit,
+                    "kind_filter": kind.map(|k| k.as_str()),
+                    "strings": strings,
+                })
+            }
+
+            "rope_getString" => {
+                // Quipu Canon v1.2 — single string by (kind, string_id).
+                // Param shape: { kind?: "...", string_id: "0x..." }
+                // When `kind` is omitted we default to "wallet".
+                let ledger = match &self.ledger {
+                    Some(l) => l,
+                    None => return serde_json::json!({
+                        "jsonrpc":"2.0",
+                        "error":{"code":-32603,"message":"personal ledger subsystem not initialized"},
+                        "id":id
+                    }).to_string(),
+                };
+                let p = params.and_then(|p| p.get(0));
+                let kind = p
+                    .and_then(|v| v.get("kind"))
+                    .and_then(|v| v.as_str())
+                    .and_then(rope_core::personal_ledger::StringKind::parse);
+                let string_id = p
+                    .and_then(|v| v.get("string_id"))
+                    .and_then(|v| v.as_str())
+                    .or_else(|| {
+                        // Allow positional string_id as a string param too.
+                        params.and_then(|p| p.get(0)).and_then(|v| v.as_str())
+                    })
+                    .unwrap_or("");
+                if string_id.is_empty() {
+                    return serde_json::json!({
+                        "jsonrpc":"2.0",
+                        "error":{"code":-32602,"message":"string_id is required"},
+                        "id":id
+                    })
+                    .to_string();
+                }
+                match ledger.get_string(kind, string_id) {
+                    Some(d) => serde_json::json!({
+                        "kind": d.string_id_kind().as_str(),
+                        "string_id": d.string_id_hex(),
+                        "genesis_knot_id": d.genesis_knot_id().to_hex(),
+                        "head_knot_id": d.head_knot_id().to_hex(),
+                        "knot_count": d.knot_count(),
+                        "total_size_bytes": d.total_size_bytes,
+                        "oes_generation": d.current_oes_generation,
+                        "is_deleted": d.is_deleted,
+                        "created_at": d.created_at,
+                        "last_anchored_at": d.last_appended_at,
+                        // v1.0/1.1 deprecated aliases — drop in v1.3.
+                        "wallet_address": d.string_id_hex(),
+                        "genesis_string_id": d.genesis_string_id.to_hex(),
+                        "head_string_id": d.head_string_id.to_hex(),
+                    }),
+                    None => return serde_json::json!({
+                        "jsonrpc":"2.0",
+                        "error":{"code":-32004,"message":format!("no string for {}:{}", kind.map(|k| k.as_str()).unwrap_or("wallet"), string_id)},
+                        "id":id
+                    }).to_string(),
+                }
+            }
+
             "rope_anchorDeployerAttestation" => {
                 // Anchor THIS node's signed [deployer] attestation onto the
                 // deployer's personal ledger (== global Rope lattice). Useful
@@ -2145,15 +2275,21 @@ impl RpcHandlers {
                     self.chain_id,
                 ) {
                     Ok(resp) => serde_json::json!({
-                        "string_id": resp.string_id,
-                        "parent_id": resp.parent_id,
-                        "wallet_address": dep.wallet_address,
+                        // Quipu Canon v1.2 — canonical names.
+                        "kind": "wallet",
+                        "string_id": dep.wallet_address,
+                        "knot_id": resp.string_id,
+                        "parent_knot_id": resp.parent_id,
                         "attesting_node_id": self.self_node_id,
                         "chain_id": self.chain_id,
                         "self_signature": dep.self_signature,
                         "encrypted_size": resp.encrypted_size,
                         "oes_generation": resp.oes_generation,
                         "anchored_at": chrono::Utc::now().to_rfc3339(),
+                        // v1.0/1.1 deprecated aliases — drop in v1.3.
+                        "wallet_address": dep.wallet_address,
+                        "string_id_legacy": resp.string_id,
+                        "parent_id": resp.parent_id,
                     }),
                     Err(e) => {
                         return serde_json::json!({
@@ -2198,18 +2334,28 @@ impl RpcHandlers {
                 };
                 match ledger.get_ledger_status(&wallet) {
                     Ok(status) => serde_json::json!({
-                        "wallet_address": status.wallet_address,
-                        "genesis_string_id": status.genesis_string_id,
-                        "head_string_id": status.head_string_id,
-                        "attestation_count": status.entry_count,
+                        // Quipu Canon v1.2 — canonical names.
+                        "kind": "wallet",
+                        "string_id": status.wallet_address,
+                        "genesis_knot_id": status.genesis_string_id,
+                        "head_knot_id": status.head_string_id,
+                        "knot_count": status.entry_count,
                         "total_size_bytes": status.total_size_bytes,
                         "oes_generation": status.oes_generation,
                         "is_deleted": status.is_deleted,
                         "created_at": status.created_at,
                         "last_anchored_at": status.last_appended_at,
-                        "note": "attestation_count includes ALL personal-ledger entries for this wallet, not only deployer attestations. Use rope_repatriateLedger + filter on metadata.attestation_kind=deployer_v1 for an exact count."
+                        // v1.0/1.1 deprecated aliases — kept for one release. Drop in v1.3.
+                        "wallet_address": status.wallet_address,
+                        "genesis_string_id": status.genesis_string_id,
+                        "head_string_id": status.head_string_id,
+                        "attestation_count": status.entry_count,
+                        "note": "knot_count includes ALL personal-ledger knots for this wallet's string, not only deployer attestations. Use rope_repatriateLedger + filter on metadata.attestation_kind=deployer_v1 for an exact count."
                     }),
                     Err(e) => serde_json::json!({
+                        "kind": "wallet",
+                        "string_id": wallet,
+                        "knot_count": 0,
                         "wallet_address": wallet,
                         "attestation_count": 0,
                         "note": format!("no personal ledger for this wallet ({e}); call rope_anchorDeployerAttestation first")
