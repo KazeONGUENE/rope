@@ -103,6 +103,11 @@ pub struct AppState {
     /// only when a new string is created or a knot appended, so a
     /// short TTL is enough to absorb burst load on `/api/v1/stats`.
     pub global_stats_cache: RwLock<Option<GlobalStatsCacheEntry>>,
+    /// `eth_blockNumber` (== Quipu Canon v1.2 cord head / `totalKnots`)
+    /// cache. Same rationale as `global_stats_cache`: rope-node's RPC
+    /// forwarder to Reth occasionally drops calls under burst load
+    /// and the handler would otherwise emit `totalKnots: 0`.
+    pub block_number_cache: RwLock<Option<BlockNumberCacheEntry>>,
 }
 
 /// One snapshot of `rope_globalStats`. TTL enforced at read time.
@@ -111,6 +116,13 @@ pub struct GlobalStatsCacheEntry {
     pub fetched_at: i64,
     pub total_strings: u64,
     pub by_kind: serde_json::Value,
+}
+
+/// One snapshot of `eth_blockNumber` (cord head / `totalKnots`).
+#[derive(Clone, Copy)]
+pub struct BlockNumberCacheEntry {
+    pub fetched_at: i64,
+    pub head: u64,
 }
 
 /// Incrementally scanned exact transaction count across the entire chain.
@@ -281,6 +293,7 @@ async fn main() -> anyhow::Result<()> {
         tanastok_cache: RwLock::new(None),
         tx_count_cache: RwLock::new(TxCountCache::default()),
         global_stats_cache: RwLock::new(None),
+        block_number_cache: RwLock::new(None),
     });
 
     // Start background testimony cache refresh task (every 60s)
@@ -1212,6 +1225,44 @@ fn classify_knot_event_type(tx: &serde_json::Value) -> &'static str {
 /// the handler would emit a degenerate `totalStrings: 0`).
 const GLOBAL_STATS_CACHE_TTL_SECS: i64 = 5;
 
+/// TTL on the cached `eth_blockNumber` (cord head / `totalKnots`).
+/// 2 s is short enough that the displayed knot count is never more
+/// than one anchor (~3 s knot interval) behind, and long enough to
+/// absorb the same kind of burst-load drops that hit
+/// `rope_globalStats`. Pre-existing rope-node→Reth forwarder issue,
+/// not v1.2-specific.
+const BLOCK_NUMBER_CACHE_TTL_SECS: i64 = 2;
+
+/// Get the current cord head (== `eth_blockNumber`) with a short TTL
+/// cache. Falls back to the last known good value if the live RPC
+/// call fails — this protects `/api/v1/stats` from transient drops
+/// that would otherwise paint `totalKnots: 0` on the dashboard.
+async fn fetch_block_number_cached(state: &AppState) -> u64 {
+    let now = chrono::Utc::now().timestamp();
+    {
+        let cache = state.block_number_cache.read().await;
+        if let Some(entry) = cache.as_ref() {
+            if now - entry.fetched_at < BLOCK_NUMBER_CACHE_TTL_SECS {
+                return entry.head;
+            }
+        }
+    }
+    match rpc_block_number(state).await {
+        Ok(head) => {
+            *state.block_number_cache.write().await = Some(BlockNumberCacheEntry {
+                fetched_at: now,
+                head,
+            });
+            head
+        }
+        Err(_) => {
+            // RPC failed — last known good beats zero.
+            let cache = state.block_number_cache.read().await;
+            cache.as_ref().map(|e| e.head).unwrap_or(0)
+        }
+    }
+}
+
 /// Get `rope_globalStats` from the local cache when fresh, otherwise
 /// fetch & store. Returns `(total_strings, by_kind_value)` — falls
 /// back to the previous cached value (regardless of age) if the live
@@ -1265,7 +1316,10 @@ async fn stats(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let (total_strings_real, by_kind_breakdown) =
         fetch_global_stats_cached(&state).await;
 
-    let head = rpc_block_number(&state).await.unwrap_or(0);
+    // Same TTL-cache strategy for the cord head — rope-node's Reth
+    // forwarder occasionally drops `eth_blockNumber` under burst load,
+    // which would otherwise paint `totalKnots: 0` on the dashboard.
+    let head = fetch_block_number_cached(&state).await;
     let gas_price_wei = rpc_gas_price(&state).await.unwrap_or(1_000_000_000u64);
     let gas_price_gwei = format!("{} gwei", gas_price_wei / 1_000_000_000);
 
