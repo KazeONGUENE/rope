@@ -1,0 +1,144 @@
+# Datachain Rope — Master Nodes & Founder Authority Registry
+#
+# This file is the canonical source of truth for the Datachain Rope mainnet
+# (chainId 271828) master-node ACL. It is consumed by `rope-node` at startup
+# via `[governance]` in `rope-production.toml` (and `rope-witness.toml`).
+#
+# Authoritative copy lives in this repo and is rsync'd to every production
+# node at /home/ubuntu/datachain-rope/deploy/config/master-nodes.toml.
+#
+# === Authorization model (v1, 2026-05-03) ===
+#
+# 1. The 4 RPC slots (BLUE, GREEN, rpc-1, rpc-2) are MASTER NODES.
+# 2. The 2 witness nodes (val-1, val-2) are member nodes (not master).
+# 3. The Datachain founder identity (Kazé Alphonse Onguene, Datachain
+#    Foundation) holds the highest authority. A request signed by any key
+#    listed in `founder_keys` OR originating from an email under
+#    `founder_domains` (when verified via Datawallet+ ONCHAINID claims) is
+#    authorized to perform any governance action.
+# 4. A master node's key can perform suspend/isolate but NOT erase. Erase
+#    requires a founder signature.
+# 5. Governance actions:
+#      - rope_suspendNode  : master OR founder
+#      - rope_isolateNode  : founder only
+#      - rope_eraseNode    : founder only
+#
+# === Master nodes (chainId 271828) ===
+
+schema_version = "1.0"
+chain_id = 271828
+last_updated = "2026-05-03T09:30:00Z"
+authority = "Datachain Foundation"
+
+[[master_nodes]]
+slot = "blue"
+hostname = "dcrope"
+provider = "Gandi"
+region = "Paris-SD6"
+ip = "92.243.26.189"
+role = "primary-rpc"
+node_id = "6dc3d5422e6a9b516f2c797d2e0cab5734868b5a6382b5c9dd40169f0e842385"
+pubkey_ed25519 = "5b5c68377301f1fc18eabc9b5782bad2498f525dd54e8482df49fc647f1cf658"
+
+[[master_nodes]]
+slot = "green"
+hostname = "dcrope-node2"
+provider = "Gandi"
+region = "Paris-SD6"
+ip = "92.243.25.119"
+role = "secondary-rpc"
+node_id = "d573f8a5a6cf217f00e1632bf0227ef3219abf42a477e4b8a26ae909c276293f"
+pubkey_ed25519 = "c618cfeef232e6cbb2984e88a9668dbe516ecd67f87179fe2db5bc128597a8ff"
+
+[[master_nodes]]
+slot = "rpc-1"
+hostname = "datachain-rpc-1"
+provider = "DigitalOcean"
+region = "fra1"
+ip = "157.230.18.45"
+role = "tertiary-rpc"
+node_id = "c5a6ab2d80bec80a53f53fb42f3a9e1e3e74e5be8eb93c772d8cb2ca500924f8"
+pubkey_ed25519 = "d898fee0a9c2e95a867cbfdc77dc38a703053b0d7a3b052ce55723e1254fa2cb"
+
+[[master_nodes]]
+slot = "rpc-2"
+hostname = "datachain-rpc-2"
+provider = "DigitalOcean"
+region = "fra1"
+ip = "167.172.106.174"
+role = "quaternary-rpc"
+node_id = "96d0b048b56f380ff8ac3c9242f73e83f703ab26b3449f79659a10333b90b7ef"
+pubkey_ed25519 = "0ecf89ad4c0501efe7b20f5a8b6fc80418fb1922c8a0a1d6cb1c3b27e15a38d0"
+
+# === Member nodes (Quipu Canon witnesses, not master but recognized) ===
+
+[[member_nodes]]
+slot = "val-1"
+hostname = "datachain-validator-1"
+provider = "DigitalOcean"
+region = "fra1"
+ip = "159.89.3.160"
+role = "knot-witness"
+node_id = "30a1d5b6889191495b1f7a032f6a2fabb09409eaa8ac2c37863852e839b3be9c"
+pubkey_ed25519 = "4bc7a4973f66bc0799a60a07396d26432f7ac898665d5c5b793ff9201dffc2a0"
+
+[[member_nodes]]
+slot = "val-2"
+hostname = "datachain-validator-2"
+provider = "DigitalOcean"
+region = "fra1"
+ip = "159.65.119.231"
+role = "knot-witness"
+node_id = "f34d1b1cd38a1f0ef44a1557c7e8dc4fed7b1108e36d5b98ed1da5046bdd7bff"
+pubkey_ed25519 = "1f6c5ddf45e533d1b21e4d364fcf355763b87e1a73d50cf5ef3763eb7cd584dc"
+
+# === Founder authority ===
+#
+# Whitelisted email/identity domains. A request whose Datawallet+
+# ONCHAINID claim resolves to an email under one of these domains is
+# treated as a founder-level action.
+#
+# When the CLI submits a governance action, the user's `rope identity`
+# CLI either:
+#   (a) uses a locally generated founder key present in `founder_keys`, OR
+#   (b) presents an ONCHAINID claim signed by a trusted issuer for
+#       an email under `founder_domains`.
+
+[founder]
+name = "Kazé Alphonse Onguene"
+organization = "Datachain Foundation"
+canonical_email = "kaze.onguene@datachain.one"
+local_part_aliases = ["kaze.onguene", "kaze", "k"]
+domains = [
+    "datachain.one",
+    "epigraam.com",
+    "onguene.com",
+    "braincities.co",
+]
+
+# Ed25519 public keys (32 bytes hex, no 0x prefix) recognized as founder
+# authority. Populate via:
+#     rope identity init-founder --output ~/.rope/founder.key
+#     # then add the printed pubkey here and rsync the file to all nodes.
+# Multiple keys are allowed (laptop + airgapped backup + cold key, etc.).
+founder_keys = [
+    # Founder laptop (Kazé's Mac, 2026-05-03). Private key at ~/.rope/founder.key
+    # NEVER committed to repo. To rotate: revoke + remove this entry, generate
+    # a new one with `rope identity init-founder`, commit, rsync.
+    "eed9f8f6fa68d6272fb81229ca311bd0836e38a188d433253adb2d503564a2e3",
+]
+
+# Additional Datawallet+ DID/ONCHAINID identifiers recognized as founder
+# (resolved via Datawallet+ claim issuer if/when integration lands).
+founder_dids = [
+    "did:datachain:0x6A74c57C3A1EE72D9d2cA29462fbD6fc8fE86bd2",  # DeployerONCHAINID (per handover)
+]
+
+# === Replay protection ===
+#
+# Governance action signatures must include a UTC timestamp within
+# `replay_window_secs` of now, plus a unique nonce that the node tracks
+# in its rope_governance_log to prevent replay.
+
+[replay]
+window_secs = 300  # ±5 minutes

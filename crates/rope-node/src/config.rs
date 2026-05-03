@@ -31,6 +31,77 @@ pub struct NodeConfig {
     /// AI Agent Framework settings
     #[serde(default)]
     pub ai_framework: AIFrameworkSettings,
+    /// Master-node governance + ACL (added 2026-05-03)
+    #[serde(default)]
+    pub governance: GovernanceSettings,
+    /// Deployer identity attestation (added 2026-05-03)
+    #[serde(default)]
+    pub deployer: DeployerSettings,
+}
+
+/// Master-node governance configuration. Loads the master-nodes.toml
+/// registry and enforces ACL on `rope_suspendNode` / `rope_isolateNode`
+/// / `rope_eraseNode` RPC methods.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct GovernanceSettings {
+    /// Path to the master-nodes.toml registry file
+    pub master_nodes_file: String,
+    /// Enforce ACL (set to false only for local testing)
+    pub enforce: bool,
+    /// Where to append signed governance actions
+    pub log_path: String,
+}
+
+impl Default for GovernanceSettings {
+    fn default() -> Self {
+        Self {
+            master_nodes_file:
+                "/home/ubuntu/datachain-rope/deploy/config/master-nodes.toml".to_string(),
+            enforce: true,
+            log_path: "~/.rope/governance.log".to_string(),
+        }
+    }
+}
+
+/// Deployer identity attestation. Bound to the node's keypair via the
+/// `self_signature` field, which is computed by `rope identity sign-deployer`.
+/// Exposed via `rope_nodeIdentity` RPC. Empty fields mean "not declared"; an
+/// unsigned (empty `self_signature`) attestation is treated as "claim only,
+/// not yet verifiable" and reported as such.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct DeployerSettings {
+    /// Deployer's hot wallet (EVM address, 0x-prefixed)
+    #[serde(default)]
+    pub wallet_address: String,
+    /// Datawallet+ DID (`did:datachain:...`)
+    #[serde(default)]
+    pub did: String,
+    /// ONCHAINID contract address
+    #[serde(default)]
+    pub onchainid: String,
+    /// Family name + given names (natural person) or legal name (org)
+    #[serde(default)]
+    pub name: String,
+    /// Organization name (only for legal-person deployers)
+    #[serde(default)]
+    pub organization: String,
+    /// Incorporation number (only for legal-person deployers)
+    #[serde(default)]
+    pub incorporation: String,
+    /// Postal address
+    #[serde(default)]
+    pub address: String,
+    /// Email — must resolve via DID claim to be trusted
+    #[serde(default)]
+    pub email: String,
+    /// ISO-3166 alpha-2 country code
+    #[serde(default)]
+    pub country: String,
+    /// Hex Ed25519 signature over canonical JSON of the attestation, by
+    /// this node's own keypair. Empty until `rope identity sign-deployer`
+    /// has been run on the node.
+    #[serde(default)]
+    pub self_signature: String,
 }
 
 /// EVM backend settings — configures the local EVM execution layer.
@@ -291,6 +362,8 @@ impl NodeConfig {
             evm_backend: EvmBackendSettings::default(),
             iot_gateway: IoTGatewaySettings::default(),
             ai_framework: AIFrameworkSettings::default(),
+            governance: GovernanceSettings::default(),
+            deployer: DeployerSettings::default(),
         }
     }
 

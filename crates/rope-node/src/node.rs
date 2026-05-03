@@ -286,7 +286,9 @@ impl RopeNode {
             None
         };
 
-        // Start RPC server with EVM backend, consensus orchestrator, and ledger manager
+        // Start RPC server with EVM backend, consensus orchestrator, ledger
+        // manager, AND master-node governance + deployer identity (added 2026-05-03,
+        // see master-node-governance.mdc).
         let rpc_handle = if self.config.rpc.enabled {
             let current_round = self.current_round.clone();
             let chain_id = self.config.node.chain_id;
@@ -295,7 +297,42 @@ impl RopeNode {
             let ledger = self.ledger_manager.clone();
             let iot = self.iot_gateway.clone();
             let ai = self.ai_framework.clone();
-            let rpc_server = RpcServer::new_full(
+
+            // Load master-nodes.toml registry (best effort; node still boots
+            // if the registry file is missing — but governance RPC methods
+            // will refuse all actions in that case).
+            let governance = match crate::governance::GovernanceManager::from_file(
+                &self.config.governance.master_nodes_file,
+                &self.config.governance.log_path,
+                self.config.governance.enforce,
+            ) {
+                Ok(g) => {
+                    let r = g.registry_snapshot();
+                    tracing::info!(
+                        "Governance loaded: {} master node(s), {} member node(s), {} founder key(s), enforce={}",
+                        r.master_nodes.len(),
+                        r.member_nodes.len(),
+                        r.founder.founder_keys.len(),
+                        self.config.governance.enforce
+                    );
+                    Some(g)
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Governance disabled (could not load {}): {e}",
+                        self.config.governance.master_nodes_file
+                    );
+                    None
+                }
+            };
+            let deployer = Some(self.config.deployer.clone());
+            let self_node_id = self
+                .node_id
+                .as_ref()
+                .map(|n| n.to_hex())
+                .unwrap_or_default();
+
+            let rpc_server = RpcServer::new_full_v2(
                 &self.config.rpc,
                 chain_id,
                 current_round,
@@ -304,6 +341,9 @@ impl RopeNode {
                 ledger,
                 iot,
                 ai,
+                governance,
+                deployer,
+                self_node_id,
             )
             .await?;
             Some(tokio::spawn(async move {

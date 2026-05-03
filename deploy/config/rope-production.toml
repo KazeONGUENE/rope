@@ -50,3 +50,27 @@ enabled = true
 url = "http://127.0.0.1:8595"
 health_interval_secs = 30
 max_failures = 5
+
+# === Master-node governance (added 2026-05-03) ===
+# Loads master-nodes.toml and enforces ACL on rope_suspendNode /
+# rope_isolateNode / rope_eraseNode. See master-node-governance.mdc.
+[governance]
+master_nodes_file = "/home/ubuntu/datachain-rope/deploy/config/master-nodes.toml"
+enforce           = true
+log_path          = "~/.rope/governance.log"
+
+# === Deployer identity attestation (added 2026-05-03) ===
+# All foundation-deployed nodes carry this attestation. Third-party
+# deployers receive a per-node attestation from the CLI deploy flow.
+# `self_signature` is filled in by `rope identity sign-deployer`.
+[deployer]
+wallet_address  = "0x60FB32ef3A2381c2Ed71613F34fd56D56fCF4195"
+did             = "did:datachain:0x60FB32ef3A2381c2Ed71613F34fd56D56fCF4195"
+onchainid       = "0x6A74c57C3A1EE72D9d2cA29462fbD6fc8fE86bd2"
+name            = "Onguene, Kazé Alphonse"
+organization    = "Datachain Foundation"
+incorporation   = ""
+address         = ""
+email           = "kaze.onguene@datachain.one"
+country         = "FR"
+self_signature  = "60fe86517cd39eb04d84f8f7d6fe868873ba1d14f428a33e2d6563a3ae42daea61b187cf5846d9345495c520fd589867716695e7e3edab290a94e131832b9e01"

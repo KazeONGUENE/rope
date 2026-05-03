@@ -15,6 +15,7 @@ pub mod config;
 pub mod consensus_orchestrator;
 pub mod evm_backend;
 pub mod genesis;
+pub mod governance;
 pub mod ledger_manager;
 pub mod metrics;
 pub mod node;
