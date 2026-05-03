@@ -1197,6 +1197,20 @@ async fn stats(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let fat_price = format!("${:.6}", price_data.price);
     let market_cap = format!("${:.0}", price_data.price * 10_000_000_000.0);
 
+    // Quipu Canon v1.2: call rope_globalStats EARLY, before the
+    // 50-block sample loop below. If we waited until after that loop
+    // the cumulative request time can exceed the reqwest 10s budget
+    // and we'd drop this call, returning a degenerate `totalStrings: 0`.
+    let (total_strings_real, by_kind_breakdown) =
+        match rpc_call(&state, "rope_globalStats", vec![]).await {
+            Ok(v) => {
+                let s = v.get("total_strings").and_then(|x| x.as_u64()).unwrap_or(0);
+                let bk = v.get("by_kind").cloned().unwrap_or(serde_json::Value::Null);
+                (s, bk)
+            }
+            Err(_) => (0u64, serde_json::Value::Null),
+        };
+
     let head = rpc_block_number(&state).await.unwrap_or(0);
     let gas_price_wei = rpc_gas_price(&state).await.unwrap_or(1_000_000_000u64);
     let gas_price_gwei = format!("{} gwei", gas_price_wei / 1_000_000_000);
@@ -1305,18 +1319,8 @@ async fn stats(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
         Err(_) => 0,
     };
 
-    // Quipu Canon v1.2: ask the consensus node for the canonical
-    // string-vs-knot split. Falls back gracefully when the RPC method
-    // is unavailable on older nodes (e.g. mid-rolling-deploy).
-    let (total_strings_real, by_kind_breakdown) =
-        match rpc_call(&state, "rope_globalStats", vec![]).await {
-            Ok(v) => {
-                let s = v.get("total_strings").and_then(|x| x.as_u64()).unwrap_or(0);
-                let bk = v.get("by_kind").cloned().unwrap_or(serde_json::Value::Null);
-                (s, bk)
-            }
-            Err(_) => (0u64, serde_json::Value::Null),
-        };
+    // (`total_strings_real` and `by_kind_breakdown` were computed at
+    // the top of this handler — see the Quipu Canon v1.2 note above.)
 
     Json(serde_json::json!({
         // Quipu Canon v1.2 — anchor knot count (== EVM block height).
