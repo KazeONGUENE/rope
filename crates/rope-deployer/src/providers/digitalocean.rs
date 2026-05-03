@@ -13,7 +13,7 @@ use async_trait::async_trait;
 use parking_lot::RwLock;
 
 use super::{CloudProvider, ProviderError};
-use crate::types::{InstanceInfo, ProvisionRequest, ProvisionResponse, Provider};
+use crate::types::{InstanceInfo, Provider, ProvisionRequest, ProvisionResponse};
 
 pub struct DigitalOceanProvider {
     api_token: Option<String>,
@@ -51,20 +51,12 @@ impl CloudProvider for DigitalOceanProvider {
         false
     }
 
-    async fn provision(
-        &self,
-        req: &ProvisionRequest,
-    ) -> Result<ProvisionResponse, ProviderError> {
+    async fn provision(&self, req: &ProvisionRequest) -> Result<ProvisionResponse, ProviderError> {
         let region = self.resolve_region(&req.zone);
         let id = uuid::Uuid::new_v4().to_string();
         let info = InstanceInfo {
             id: id.clone(),
-            hostname: format!(
-                "rope-{}-{}-{}",
-                req.node_kind.as_str(),
-                &id[..8],
-                region
-            ),
+            hostname: format!("rope-{}-{}-{}", req.node_kind.as_str(), &id[..8], region),
             provider: Provider::Digitalocean,
             zone: region,
             ipv4: None,
@@ -98,11 +90,7 @@ impl CloudProvider for DigitalOceanProvider {
             .collect())
     }
 
-    async fn stop(
-        &self,
-        _tenant_did: &str,
-        instance_id: &str,
-    ) -> Result<(), ProviderError> {
+    async fn stop(&self, _tenant_did: &str, instance_id: &str) -> Result<(), ProviderError> {
         let mut g = self.state.write();
         if let Some(info) = g.get_mut(instance_id) {
             info.status = "stopped".to_string();
@@ -114,11 +102,7 @@ impl CloudProvider for DigitalOceanProvider {
         }
     }
 
-    async fn destroy(
-        &self,
-        _tenant_did: &str,
-        instance_id: &str,
-    ) -> Result<(), ProviderError> {
+    async fn destroy(&self, _tenant_did: &str, instance_id: &str) -> Result<(), ProviderError> {
         if self.state.write().remove(instance_id).is_some() {
             Ok(())
         } else {

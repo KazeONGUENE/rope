@@ -11,7 +11,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use parking_lot::RwLock;
 
-use crate::types::{InstanceInfo, ProvisionRequest, ProvisionResponse, Provider};
+use crate::types::{InstanceInfo, Provider, ProvisionRequest, ProvisionResponse};
 
 pub mod digitalocean;
 pub mod exoscale;
@@ -37,20 +37,13 @@ pub trait CloudProvider: Send + Sync {
     /// Whether the adapter has credentials and may issue real API calls.
     fn is_live(&self) -> bool;
 
-    async fn provision(
-        &self,
-        req: &ProvisionRequest,
-    ) -> Result<ProvisionResponse, ProviderError>;
+    async fn provision(&self, req: &ProvisionRequest) -> Result<ProvisionResponse, ProviderError>;
 
     async fn list(&self, tenant_did: &str) -> Result<Vec<InstanceInfo>, ProviderError>;
 
     async fn stop(&self, tenant_did: &str, instance_id: &str) -> Result<(), ProviderError>;
 
-    async fn destroy(
-        &self,
-        tenant_did: &str,
-        instance_id: &str,
-    ) -> Result<(), ProviderError>;
+    async fn destroy(&self, tenant_did: &str, instance_id: &str) -> Result<(), ProviderError>;
 }
 
 /// Registry of all configured providers.

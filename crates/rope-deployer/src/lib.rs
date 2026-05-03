@@ -19,4 +19,4 @@ pub mod types;
 
 pub use api::AppState;
 pub use providers::{CloudProvider, ProviderRegistry};
-pub use types::{InstanceInfo, NodeKind, ProvisionRequest, ProvisionResponse, Provider};
+pub use types::{InstanceInfo, NodeKind, Provider, ProvisionRequest, ProvisionResponse};

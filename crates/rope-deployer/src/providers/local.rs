@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use parking_lot::RwLock;
 
 use super::{CloudProvider, ProviderError};
-use crate::types::{InstanceInfo, ProvisionRequest, ProvisionResponse, Provider};
+use crate::types::{InstanceInfo, Provider, ProvisionRequest, ProvisionResponse};
 
 #[derive(Default)]
 pub struct LocalProvider {
@@ -30,10 +30,7 @@ impl CloudProvider for LocalProvider {
         true
     }
 
-    async fn provision(
-        &self,
-        req: &ProvisionRequest,
-    ) -> Result<ProvisionResponse, ProviderError> {
+    async fn provision(&self, req: &ProvisionRequest) -> Result<ProvisionResponse, ProviderError> {
         let id = uuid::Uuid::new_v4().to_string();
         let info = InstanceInfo {
             id: id.clone(),
@@ -64,11 +61,7 @@ impl CloudProvider for LocalProvider {
             .collect())
     }
 
-    async fn stop(
-        &self,
-        _tenant_did: &str,
-        instance_id: &str,
-    ) -> Result<(), ProviderError> {
+    async fn stop(&self, _tenant_did: &str, instance_id: &str) -> Result<(), ProviderError> {
         let mut g = self.state.write();
         if let Some(info) = g.get_mut(instance_id) {
             info.status = "stopped".to_string();
@@ -80,11 +73,7 @@ impl CloudProvider for LocalProvider {
         }
     }
 
-    async fn destroy(
-        &self,
-        _tenant_did: &str,
-        instance_id: &str,
-    ) -> Result<(), ProviderError> {
+    async fn destroy(&self, _tenant_did: &str, instance_id: &str) -> Result<(), ProviderError> {
         if self.state.write().remove(instance_id).is_some() {
             Ok(())
         } else {

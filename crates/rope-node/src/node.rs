@@ -180,6 +180,14 @@ impl RopeNode {
         self.ledger_manager = Some(ledger.clone());
         tracing::info!("Personal ledger subsystem initialized (rope_* RPC methods active)");
 
+        // Auto-anchor the signed deployer attestation onto the deployer's
+        // personal ledger (Quipu Canon: this lives on the global lattice ==
+        // main Rope ledger). Idempotent across restarts via a marker file.
+        // See `master-node-governance.mdc` for the authority model.
+        if let Err(e) = self.try_anchor_deployer_attestation(&ledger).await {
+            tracing::warn!("Deployer attestation auto-anchor skipped: {}", e);
+        }
+
         // Initialize IoT Gateway — bridges MQTT/CoAP/HTTP to personal Strings
         if self.config.iot_gateway.enabled {
             let iot_config = IoTGatewayConfig {
@@ -406,6 +414,72 @@ impl RopeNode {
 
         *self.state.write() = NodeState::Stopped;
         tracing::info!("Node stopped");
+
+        Ok(())
+    }
+
+    /// Anchor the signed `[deployer]` attestation onto the deployer's
+    /// personal ledger (which lives on the global Datachain Rope lattice
+    /// — i.e. the main Rope ledger).
+    ///
+    /// Skipped when:
+    ///   - `[deployer].self_signature` is empty (claim only, not signed)
+    ///   - `[deployer].wallet_address` is empty or invalid
+    ///   - The deployer already has a populated personal ledger on this
+    ///     node (`entry_count > 0`). This makes the call idempotent across
+    ///     restarts once the ledger storage backend is persistent. With
+    ///     today's in-memory `LedgerStore`, every restart re-anchors —
+    ///     that's intentional, it keeps the rebuilt in-memory chain
+    ///     populated. Once the RocksDB column family lands the check
+    ///     will short-circuit on a healthy node and no extra knot is
+    ///     created.
+    ///
+    /// Use the RPC method `rope_anchorDeployerAttestation` to anchor on
+    /// demand (e.g. after re-signing with a fresh founder key).
+    async fn try_anchor_deployer_attestation(
+        &self,
+        ledger: &std::sync::Arc<crate::ledger_manager::LedgerManager>,
+    ) -> Result<(), String> {
+        let dep = &self.config.deployer;
+        if dep.self_signature.trim().is_empty() {
+            return Err("self_signature is empty (run `rope identity sign-deployer`)".into());
+        }
+        if dep.wallet_address.trim().is_empty() {
+            return Err("[deployer].wallet_address is empty".into());
+        }
+
+        // Ledger-driven idempotency. We can't use a marker file because
+        // today's LedgerStore is in-memory — a marker would survive across
+        // restarts even though the chain it claims to record is gone.
+        if let Ok(status) = ledger.get_ledger_status(&dep.wallet_address) {
+            if status.entry_count > 0 {
+                tracing::debug!(
+                    "Deployer attestation already on this node \
+                     (wallet={} entries={}); skipping.",
+                    dep.wallet_address,
+                    status.entry_count
+                );
+                return Ok(());
+            }
+        }
+
+        let canonical = deployer_canonical_json_bytes(dep)?;
+        let node_id_hex = self
+            .node_id
+            .as_ref()
+            .map(|n| n.to_hex())
+            .unwrap_or_default();
+        let chain_id = self.config.node.chain_id;
+
+        let _resp = ledger
+            .anchor_deployer_attestation(
+                &dep.wallet_address,
+                &canonical,
+                &dep.self_signature,
+                &node_id_hex,
+                chain_id,
+            )
+            .map_err(|e| e.to_string())?;
 
         Ok(())
     }
@@ -1023,6 +1097,72 @@ impl Drop for RopeNode {
             let _ = tx.blocking_send(());
         }
     }
+}
+
+/// Canonical JSON encoding of a `[deployer]` attestation, sorted keys at
+/// every level, with `self_signature` excluded — must produce the same
+/// bytes as `rope identity sign-deployer` so the on-chain record can be
+/// re-verified after the fact.
+pub(crate) fn deployer_canonical_json_bytes(
+    dep: &crate::config::DeployerSettings,
+) -> Result<Vec<u8>, String> {
+    let mut clone = dep.clone();
+    clone.self_signature = String::new();
+    let v = serde_json::to_value(&clone).map_err(|e| e.to_string())?;
+    Ok(canonical_json_bytes(&v))
+}
+
+fn canonical_json_bytes(v: &serde_json::Value) -> Vec<u8> {
+    use serde_json::Value;
+    fn write(v: &Value, out: &mut String) {
+        match v {
+            Value::Null => out.push_str("null"),
+            Value::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
+            Value::Number(n) => out.push_str(&n.to_string()),
+            Value::String(s) => {
+                out.push('"');
+                for c in s.chars() {
+                    match c {
+                        '"' => out.push_str("\\\""),
+                        '\\' => out.push_str("\\\\"),
+                        '\n' => out.push_str("\\n"),
+                        '\r' => out.push_str("\\r"),
+                        '\t' => out.push_str("\\t"),
+                        c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+                        c => out.push(c),
+                    }
+                }
+                out.push('"');
+            }
+            Value::Array(a) => {
+                out.push('[');
+                for (i, x) in a.iter().enumerate() {
+                    if i > 0 {
+                        out.push(',');
+                    }
+                    write(x, out);
+                }
+                out.push(']');
+            }
+            Value::Object(o) => {
+                let mut keys: Vec<&String> = o.keys().collect();
+                keys.sort();
+                out.push('{');
+                for (i, k) in keys.iter().enumerate() {
+                    if i > 0 {
+                        out.push(',');
+                    }
+                    write(&Value::String((*k).clone()), out);
+                    out.push(':');
+                    write(&o[*k], out);
+                }
+                out.push('}');
+            }
+        }
+    }
+    let mut out = String::new();
+    write(v, &mut out);
+    out.into_bytes()
 }
 
 #[cfg(test)]

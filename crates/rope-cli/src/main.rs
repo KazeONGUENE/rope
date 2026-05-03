@@ -448,6 +448,34 @@ enum GovernanceCommands {
         #[arg(long, default_value = DEFAULT_RPC_ENDPOINT)]
         rpc: String,
     },
+
+    /// Anchor THIS node's signed [deployer] attestation onto the deployer's
+    /// personal ledger (which lives on the global Datachain Rope lattice ==
+    /// main Rope ledger). Useful after re-signing or for an audit refresh.
+    ///
+    /// No external auth — the receiving node already holds the founder-signed
+    /// `self_signature` in its own config; the RPC call only forwards what's
+    /// already on disk.
+    AnchorDeployer {
+        /// Force re-anchor even if a marker already exists locally
+        #[arg(long)]
+        force: bool,
+
+        #[arg(long, default_value = DEFAULT_RPC_ENDPOINT)]
+        rpc: String,
+    },
+
+    /// Show how many deployer attestations have been anchored on a wallet's
+    /// personal ledger. When `--wallet` is omitted the call returns the
+    /// remote node's own [deployer].wallet_address.
+    ListDeployerAttestations {
+        /// Wallet address (0x...) — defaults to the remote node's own
+        #[arg(long)]
+        wallet: Option<String>,
+
+        #[arg(long, default_value = DEFAULT_RPC_ENDPOINT)]
+        rpc: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -980,7 +1008,10 @@ mod identity {
         println!("=== Deployer attestation signed ===");
         println!();
         println!("config:    {:?}", cfg_path);
-        println!("signer:    {}", hex::encode(signing.verifying_key().to_bytes()));
+        println!(
+            "signer:    {}",
+            hex::encode(signing.verifying_key().to_bytes())
+        );
         println!("signature: {}", sig_hex);
         Ok(())
     }
@@ -1097,10 +1128,7 @@ mod identity {
                 sig_arr.copy_from_slice(&sig_bytes);
                 let sig = ed25519_dalek::Signature::from_bytes(&sig_arr);
                 let mut keys: Vec<(String, String)> = Vec::new();
-                if let Some(arr) = mn_top
-                    .get("master_nodes")
-                    .and_then(|v| v.as_array())
-                {
+                if let Some(arr) = mn_top.get("master_nodes").and_then(|v| v.as_array()) {
                     for entry in arr {
                         if let (Some(slot), Some(pk)) = (
                             entry.get("slot").and_then(|v| v.as_str()),
@@ -1158,9 +1186,7 @@ mod identity {
                             '\n' => out.push_str("\\n"),
                             '\r' => out.push_str("\\r"),
                             '\t' => out.push_str("\\t"),
-                            c if (c as u32) < 0x20 => {
-                                out.push_str(&format!("\\u{:04x}", c as u32))
-                            }
+                            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
                             c => out.push(c),
                         }
                     }
@@ -1274,6 +1300,23 @@ mod governance {
                 )
                 .await?
             }
+            GovernanceCommands::AnchorDeployer { force, rpc } => {
+                let client = RpcClient::new(&rpc);
+                let params = vec![serde_json::json!({ "force": force })];
+                let res = client
+                    .call("rope_anchorDeployerAttestation", params)
+                    .await?;
+                println!("{}", serde_json::to_string_pretty(&res)?);
+            }
+            GovernanceCommands::ListDeployerAttestations { wallet, rpc } => {
+                let client = RpcClient::new(&rpc);
+                let params = match wallet {
+                    Some(w) => vec![serde_json::json!({ "wallet": w })],
+                    None => vec![],
+                };
+                let res = client.call("rope_listDeployerAttestations", params).await?;
+                println!("{}", serde_json::to_string_pretty(&res)?);
+            }
         }
         Ok(())
     }
@@ -1287,8 +1330,14 @@ mod governance {
         let now = Utc::now().to_rfc3339();
         let nonce = Uuid::new_v4().to_string();
         if let Some(obj) = action.as_object_mut() {
-            obj.insert("issued_at".to_string(), serde_json::Value::String(now.clone()));
-            obj.insert("nonce".to_string(), serde_json::Value::String(nonce.clone()));
+            obj.insert(
+                "issued_at".to_string(),
+                serde_json::Value::String(now.clone()),
+            );
+            obj.insert(
+                "nonce".to_string(),
+                serde_json::Value::String(nonce.clone()),
+            );
         }
         let canonical = canonical_json(&action);
         let key_bytes = std::fs::read(expand_path(&key))?;
@@ -1304,8 +1353,14 @@ mod governance {
         // Build the RPC params: same fields, plus signature + pubkey
         let mut params_obj = action.as_object().cloned().unwrap_or_default();
         params_obj.remove("method"); // method goes outside
-        params_obj.insert("signature".to_string(), serde_json::Value::String(sig_hex.clone()));
-        params_obj.insert("pubkey".to_string(), serde_json::Value::String(pubkey_hex.clone()));
+        params_obj.insert(
+            "signature".to_string(),
+            serde_json::Value::String(sig_hex.clone()),
+        );
+        params_obj.insert(
+            "pubkey".to_string(),
+            serde_json::Value::String(pubkey_hex.clone()),
+        );
 
         let client = RpcClient::new(rpc);
         let res = client
@@ -1361,9 +1416,7 @@ mod deploy {
     /// claim toml/json) or fall back to `~/.rope/identity.toml`.
     /// For the MVP we accept a TOML file with two top-level keys:
     /// `did = "did:dwp:..."` and `onchainid = "0x..."`.
-    fn load_identity(
-        identity: Option<&PathBuf>,
-    ) -> anyhow::Result<(String, String, String)> {
+    fn load_identity(identity: Option<&PathBuf>) -> anyhow::Result<(String, String, String)> {
         let path = match identity {
             Some(p) => p.clone(),
             None => {
@@ -1411,7 +1464,10 @@ mod deploy {
         println!();
         println!("  provider:   {}", provider.as_str());
         println!("  kind:       {}", kind.as_str());
-        println!("  region:     {}", args.region.as_deref().unwrap_or("<provider default>"));
+        println!(
+            "  region:     {}",
+            args.region.as_deref().unwrap_or("<provider default>")
+        );
         println!("  size:       {}", args.size);
         println!("  tenant_did: {}", did);
         println!("  onchainid:  {}", onchainid);

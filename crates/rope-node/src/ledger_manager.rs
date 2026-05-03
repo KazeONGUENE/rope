@@ -346,6 +346,74 @@ impl LedgerManager {
         })
     }
 
+    /// Anchor a signed deployer attestation onto the deployer's personal
+    /// ledger (which lives on the global Datachain Rope lattice — i.e. the
+    /// "main Rope ledger" in Quipu Canon parlance).
+    ///
+    /// The attestation is recorded as an `InteractionType::IdentityClaim`
+    /// knot whose payload is the canonical JSON of the attested
+    /// `[deployer]` table, plus contextual metadata (node_id, chain_id,
+    /// attestation_kind = "deployer_v1"). The deployer's personal ledger
+    /// is auto-created if it does not yet exist.
+    ///
+    /// Idempotency is the caller's responsibility — the manager itself
+    /// will append every time. Use the marker-file pattern in `node.rs` or
+    /// the `force` flag on the RPC method to control re-anchoring.
+    pub fn anchor_deployer_attestation(
+        &self,
+        wallet_hex: &str,
+        attestation_canonical: &[u8],
+        self_signature_hex: &str,
+        attesting_node_id_hex: &str,
+        chain_id: u64,
+    ) -> Result<AppendLedgerResponse, String> {
+        use rope_core::personal_ledger::{InteractionRecord, InteractionType};
+
+        // Auto-create the ledger if this wallet has never anchored before.
+        if self
+            .registry
+            .get_descriptor(
+                &WalletAddress::from_hex(wallet_hex)
+                    .map_err(|e| e.to_string())?
+                    .as_bytes()
+                    .to_vec(),
+            )
+            .is_none()
+        {
+            let _ = self.create_ledger(wallet_hex)?;
+        }
+
+        let mut metadata = hashbrown::HashMap::new();
+        metadata.insert("attestation_kind".to_string(), "deployer_v1".to_string());
+        metadata.insert("self_signature".to_string(), self_signature_hex.to_string());
+        metadata.insert(
+            "attesting_node_id".to_string(),
+            attesting_node_id_hex.to_string(),
+        );
+        metadata.insert("chain_id".to_string(), chain_id.to_string());
+
+        let record = InteractionRecord {
+            interaction_type: InteractionType::IdentityClaim,
+            counterparty: None,
+            data: attestation_canonical.to_vec(),
+            timestamp: chrono::Utc::now().timestamp(),
+            metadata,
+        };
+
+        let resp = self.append_to_ledger(wallet_hex, record)?;
+
+        tracing::info!(
+            "Anchored deployer attestation: wallet={} string_id={} \
+             attesting_node={} sig={}…",
+            wallet_hex,
+            resp.string_id,
+            attesting_node_id_hex,
+            &self_signature_hex.chars().take(16).collect::<String>()
+        );
+
+        Ok(resp)
+    }
+
     /// Get the status of a wallet's ledger
     pub fn get_ledger_status(&self, wallet_hex: &str) -> Result<LedgerStatusResponse, String> {
         let wallet = WalletAddress::from_hex(wallet_hex).map_err(|e| e.to_string())?;

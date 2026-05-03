@@ -45,6 +45,23 @@ Added in `crates/rope-node/src/rpc_server.rs` (Phase A, 2026-05-03):
 | `rope_suspendNode` | master OR founder sig | Soft-block: refuse new connections from `node_id` for `ttl_secs`; broadcast suspension to peers |
 | `rope_isolateNode` | founder sig only | Sustained block: drop existing connections + ignore future ones |
 | `rope_eraseNode` | founder sig only | Mark as erased in governance log; the node's testimonies are no longer counted toward quorum |
+| `rope_anchorDeployerAttestation` | none (uses local config) | Anchor THIS node's signed `[deployer]` attestation onto the deployer's personal ledger (== global Rope lattice). Auto-runs on startup; idempotent via `~/.rope/anchors/<wallet>-<sigprefix>.marker`. Pass `{ "force": true }` to bypass the marker. |
+| `rope_listDeployerAttestations` | none | Show how many attestation knots have been anchored on a wallet's personal ledger. Defaults to the remote node's own `[deployer].wallet_address`. |
+
+### On-chain anchor semantics
+
+Each rope-node, on startup, anchors its `[deployer]` attestation as an
+`InteractionType::IdentityClaim` knot on the deployer's personal ledger.
+The personal-ledger chain lives on the **global Datachain Rope lattice**
+— this IS the main Rope ledger in Quipu Canon parlance. The knot's
+encrypted payload contains the canonical-JSON attestation; the
+unencrypted metadata records `attestation_kind=deployer_v1`,
+`self_signature`, `attesting_node_id`, and `chain_id` so any node can
+later verify who attested what without decrypting.
+
+Idempotency is enforced locally with `~/.rope/anchors/<wallet>-<sigprefix>.marker`.
+After re-signing with a fresh founder key, run `rope governance anchor-deployer --force`
+to re-anchor.
 
 ### Signed-payload format
 
