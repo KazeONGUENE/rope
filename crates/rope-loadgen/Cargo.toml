@@ -9,6 +9,9 @@ description = "Quipu Canon v2.0 in-process load generator for LedgerStore / Ledg
 [dependencies]
 # In-process targets we benchmark
 rope-storage = { path = "../rope-storage" }
+rope-core = { path = "../rope-core" }
+rope-crypto = { path = "../rope-crypto" }
+rope-node = { path = "../rope-node" }
 
 # CLI + serialization
 clap = { workspace = true }
@@ -25,6 +28,10 @@ rand_chacha = { workspace = true }
 tempfile = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# For building synthetic InteractionRecord values for manager-write
+chrono = { workspace = true }
+hashbrown = { workspace = true }
 
 [[bin]]
 name = "rope-loadgen"

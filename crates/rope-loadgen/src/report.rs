@@ -16,14 +16,11 @@ use std::time::Duration;
 /// so CI scripts can `jq -r '.scenario_kind'` regardless of subcommand.
 #[derive(Serialize, Debug)]
 #[serde(tag = "scenario_kind", rename_all = "kebab-case")]
-// All three variants currently start with `Store` because every Phase 1
-// scenario targets the LedgerStore. As soon as `manager-write` lands
-// (which targets LedgerManager), this prefix will diverge naturally.
-#[allow(clippy::enum_variant_names)]
 pub enum Report {
     StoreWrite(StoreWriteReport),
     StoreRecover(StoreRecoverReport),
     StoreMixed(StoreMixedReport),
+    ManagerWrite(ManagerWriteReport),
 }
 
 impl Report {
@@ -32,6 +29,7 @@ impl Report {
             Report::StoreWrite(r) => r.human_summary(),
             Report::StoreRecover(r) => r.human_summary(),
             Report::StoreMixed(r) => r.human_summary(),
+            Report::ManagerWrite(r) => r.human_summary(),
         }
     }
 }
@@ -167,6 +165,69 @@ impl StoreMixedReport {
             wait = self.durability_wait_ms,
             tput = self.throughput_ops_per_sec,
             tput_d = self.throughput_inc_durability_ops_per_sec,
+            p50 = self.latency.p50_us,
+            p95 = self.latency.p95_us,
+            p99 = self.latency.p99_us,
+            p999 = self.latency.p999_us,
+            pmax = self.latency.max_us,
+        )
+    }
+}
+
+#[derive(Serialize, Debug)]
+pub struct ManagerWriteReport {
+    pub mode: String,
+    pub scenario: String,
+    pub threads: usize,
+    pub ops_total: usize,
+    pub wallets: usize,
+    pub payload_bytes: usize,
+    /// Time spent in the untimed prelude (one `create_ledger` per wallet)
+    /// — useful for understanding cold-start cost vs steady-state append
+    /// throughput.
+    pub create_ledger_total_ms: f64,
+    pub create_ledger_throughput_per_sec: f64,
+    /// Errors during create_ledger (e.g. address parse failure). Should
+    /// be 0 on a healthy run.
+    pub create_ledger_errors: usize,
+    pub elapsed_ms: f64,
+    pub durability_wait_ms: f64,
+    pub throughput_ops_per_sec: f64,
+    pub throughput_inc_durability_ops_per_sec: f64,
+    pub latency: LatencyStats,
+    /// Errors during the timed phase. Reported but do NOT affect the
+    /// throughput numerator — they ARE counted as ops attempted.
+    pub append_errors: usize,
+    pub seed: u64,
+}
+
+impl ManagerWriteReport {
+    pub fn human_summary(&self) -> String {
+        format!(
+            "manager-write summary\n\
+             =====================\n  mode               : {mode}\n  scenario           : {scenario}\n  \
+             threads            : {threads}\n  wallets            : {wallets}\n  payload bytes      : {bytes}\n  \
+             ops total          : {ops}\n  create_ledger      : {clt:>10.2} ms total ({cthroughput:>10.0}/s)\n  \
+             create errors      : {cerr}\n  elapsed (append)   : {elapsed:>10.2} ms\n  \
+             durability wait    : {wait:>10.2} ms\n  throughput (work)  : {tput:>14.0} ops/s\n  \
+             throughput (+wait) : {tput_d:>14.0} ops/s\n  append errors      : {aerr}\n  \
+             latency p50        : {p50:>10.2} µs\n  latency p95        : {p95:>10.2} µs\n  \
+             latency p99        : {p99:>10.2} µs\n  latency p99.9      : {p999:>10.2} µs\n  \
+             latency max        : {pmax:>10.2} µs",
+            mode = self.mode,
+            scenario = self.scenario,
+            threads = self.threads,
+            wallets = self.wallets,
+            bytes = self.payload_bytes,
+            ops = self.ops_total,
+            clt = self.create_ledger_total_ms,
+            cthroughput = self.create_ledger_throughput_per_sec,
+            cerr = self.create_ledger_errors,
+            elapsed = self.elapsed_ms,
+            wait = self.durability_wait_ms,
+            tput = self.throughput_ops_per_sec,
+            tput_d = self.throughput_inc_durability_ops_per_sec,
+            aerr = self.append_errors,
             p50 = self.latency.p50_us,
             p95 = self.latency.p95_us,
             p99 = self.latency.p99_us,

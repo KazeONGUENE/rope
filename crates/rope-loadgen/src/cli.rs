@@ -35,6 +35,12 @@ pub enum Command {
     /// Interleave put_descriptor / append / mark_deleted / get_chain
     /// against `LedgerStore` to model real-world mixed load.
     StoreMixed(StoreMixedArgs),
+
+    /// Drive `LedgerManager::append_to_ledger` end-to-end. Exercises
+    /// every Phase 1 piece together: P1.1 sharded lattice, P1.2 head
+    /// lock, P1.3 per-shard HLC, P1.4 OES key cache, P1.5 LedgerStore
+    /// mirror.
+    ManagerWrite(ManagerWriteArgs),
 }
 
 /// How to choose the wallet for each op — drives the contention shape.
@@ -128,6 +134,29 @@ pub struct StoreRecoverArgs {
     /// store and reopens) for a more stable timing.
     #[arg(short = 'n', long, default_value_t = 3)]
     pub iterations: usize,
+}
+
+/// Args for the `manager-write` subcommand.
+///
+/// `manager-write` always pre-creates one ledger per wallet (untimed),
+/// then drives `LedgerManager::append_to_ledger` against each. The
+/// timed phase therefore only measures appends — the create_ledger cost
+/// is captured but reported separately.
+#[derive(Args, Debug, Clone)]
+pub struct ManagerWriteArgs {
+    #[command(flatten)]
+    pub common: CommonWorkloadArgs,
+
+    /// Bytes per `InteractionRecord.data` payload. Bigger payloads
+    /// stress the encryption + slicing path harder.
+    #[arg(long, default_value_t = 256)]
+    pub payload_bytes: usize,
+
+    /// If > 1, rotate the OES generation every N appends to measure
+    /// P1.4 cache miss cost. `1` means hit cache on every append; `0`
+    /// disables rotation entirely (always hit). Default: never rotate.
+    #[arg(long, default_value_t = 0)]
+    pub oes_rotate_every: u64,
 }
 
 #[derive(Args, Debug)]

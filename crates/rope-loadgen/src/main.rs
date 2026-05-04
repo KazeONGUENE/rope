@@ -54,6 +54,7 @@ fn main() -> std::process::ExitCode {
         Command::StoreWrite(args) => scenarios::store_write::run(args),
         Command::StoreRecover(args) => scenarios::store_recover::run(args),
         Command::StoreMixed(args) => scenarios::store_mixed::run(args),
+        Command::ManagerWrite(args) => scenarios::manager_write::run(args),
     };
 
     match result {
