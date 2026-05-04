@@ -1,0 +1,45 @@
+[package]
+name = "insurance-agent"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Datachain Rope canonical AI agent — issues parametric-insurance attestations against tokenized RWAs (Tanastok DCNFT + ERC-3643 pairs, NaturaProof biodiversity proofs) and anchors them as testimony knots via rope_appendToLedger."
+
+[dependencies]
+# Async runtime + HTTP
+tokio = { workspace = true }
+async-trait = { workspace = true }
+reqwest = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Errors / logging
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# CLI + config
+clap = { workspace = true }
+
+# Time
+chrono = { workspace = true }
+
+# Hashing / hex (deterministic attestation digest)
+blake3 = { workspace = true }
+hex = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+serde_json = { workspace = true }
+
+[[bin]]
+name = "insurance-agent"
+path = "src/main.rs"
+
+[lib]
+name = "insurance_agent"
+path = "src/lib.rs"

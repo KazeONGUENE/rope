@@ -23,6 +23,8 @@ members = [
     "crates/rope-iot-gateway",
     "crates/rope-ai-framework",
     "crates/rope-deployer",
+    "crates/insurance-agent",
+    "crates/validation-agent",
 ]
 resolver = "2"
 
