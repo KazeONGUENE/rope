@@ -41,6 +41,13 @@ pub enum Command {
     /// lock, P1.3 per-shard HLC, P1.4 OES key cache, P1.5 LedgerStore
     /// mirror.
     ManagerWrite(ManagerWriteArgs),
+
+    /// Quipu Canon v2.0 Phase 2.C — measure the speedup of
+    /// `HybridVerifier::verify_batch` over a serial loop of
+    /// `HybridVerifier::verify`. Drives an N-item synthetic batch of
+    /// hybrid-signed knots (Ed25519 + Dilithium3) and reports ops/s
+    /// plus mean-per-item µs for each path.
+    VerifyBatch(VerifyBatchArgs),
 }
 
 /// How to choose the wallet for each op — drives the contention shape.
@@ -157,6 +164,39 @@ pub struct ManagerWriteArgs {
     /// disables rotation entirely (always hit). Default: never rotate.
     #[arg(long, default_value_t = 0)]
     pub oes_rotate_every: u64,
+}
+
+/// Args for the `verify-batch` subcommand (Quipu Canon v2.0 Phase 2.C).
+#[derive(Args, Debug, Clone)]
+pub struct VerifyBatchArgs {
+    /// Total number of items to generate and verify on each path.
+    #[arg(short = 'n', long, default_value_t = 256)]
+    pub items: usize,
+
+    /// Number of distinct keypairs to use across the batch. With
+    /// `--keys 1`, every item shares the same public key — best case
+    /// for the parsed-PK cache. Default: one key per item (worst case
+    /// for the cache, fairest comparison).
+    #[arg(short = 'k', long, default_value_t = 0)]
+    pub keys: usize,
+
+    /// Bytes per signed message.
+    #[arg(short = 'p', long, default_value_t = 256)]
+    pub payload_bytes: usize,
+
+    /// How many measurement iterations to take (each iteration runs
+    /// both the serial and the batch path; results are averaged).
+    #[arg(short = 'i', long, default_value_t = 5)]
+    pub iterations: usize,
+
+    /// Reset the parsed-PK cache before each iteration. Default:
+    /// keep the cache warm (matches steady-state node operation).
+    #[arg(long)]
+    pub cold_cache: bool,
+
+    /// RNG seed for reproducible runs.
+    #[arg(long, default_value_t = 0xDA7A_C4A1_2718_28A1u64)]
+    pub seed: u64,
 }
 
 #[derive(Args, Debug)]

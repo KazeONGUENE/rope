@@ -24,6 +24,7 @@
 
 use std::time::Instant;
 
+use rope_crypto::batch::{BatchVerifyItem, BatchVerifyOutcome};
 use rope_crypto::hybrid::HybridVerifier;
 use serde::{Deserialize, Serialize};
 
@@ -236,6 +237,147 @@ impl KnotVerifier {
             }
         }
     }
+
+    /// Quipu Canon v2.0 Phase 2.C — batched knot verification.
+    ///
+    /// Same per-knot semantics as [`Self::verify`]: skipped /
+    /// valid / invalid, with the same `sig_algo` classification per
+    /// knot. Differences vs a loop of `verify`:
+    ///
+    /// 1. Knots with no signature material short-circuit before the
+    ///    crypto path (same as the single-item path) and never enter
+    ///    the parallel pool — they cost effectively zero.
+    /// 2. All knots with signature material are verified via
+    ///    [`HybridVerifier::verify_batch`], which dispatches to a
+    ///    rayon worker pool and re-uses the process-wide parsed
+    ///    Dilithium PK cache.
+    /// 3. `validation_time_us` is the BATCH wall-clock divided by the
+    ///    number of crypto-bearing knots — useful as an
+    ///    amortised-per-knot CPU figure, but per-knot timing
+    ///    information is intentionally collapsed (nothing in the
+    ///    parallel batch path observes individual op start/end times).
+    ///
+    /// The returned `Vec<VerificationResult>` is parallel to the
+    /// input slice (same length, same order).
+    pub fn verify_batch(&self, knots: &[Knot]) -> Vec<VerificationResult> {
+        let validated_at = chrono::Utc::now().timestamp();
+
+        if knots.is_empty() {
+            return Vec::new();
+        }
+
+        // Pre-allocate the output. We will overwrite each slot in
+        // place, so initialise with a placeholder.
+        let mut out: Vec<Option<VerificationResult>> = (0..knots.len()).map(|_| None).collect();
+
+        // Index map: for every knot that has crypto material, record
+        // where its result must land in `out`. The slice handed to
+        // `verify_batch` is parallel to this index map.
+        let mut crypto_indices: Vec<usize> = Vec::with_capacity(knots.len());
+        let mut items: Vec<BatchVerifyItem<'_>> = Vec::with_capacity(knots.len());
+        let mut sig_algos: Vec<SigAlgo> = Vec::with_capacity(knots.len());
+
+        for (idx, knot) in knots.iter().enumerate() {
+            match (&knot.creator, &knot.signature) {
+                (Some(creator), Some(sig)) if !sig.is_empty() => {
+                    let algo = if creator.has_pq_keys() {
+                        SigAlgo::Mldsa65Hybrid
+                    } else {
+                        SigAlgo::Ed25519Only
+                    };
+                    crypto_indices.push(idx);
+                    items.push(BatchVerifyItem::new(creator, &knot.signing_message, sig));
+                    sig_algos.push(algo);
+                }
+                _ => {
+                    // No signature material → skipped.
+                    out[idx] = Some(VerificationResult {
+                        knot_id: knot.knot_id.clone(),
+                        sig_valid: false,
+                        outcome: VerificationOutcome::Skipped,
+                        sig_algo: SigAlgo::None,
+                        validation_time_us: 0,
+                        validated_at,
+                        note: Some("no signature material on knot".to_string()),
+                    });
+                }
+            }
+        }
+
+        // Run the parallel verifier on the crypto-bearing slice.
+        let batch_started = Instant::now();
+        let outcome: BatchVerifyOutcome = match HybridVerifier::verify_batch(&items) {
+            Ok(o) => o,
+            Err(e) => {
+                // Whole-batch failure (e.g., thread-pool init error).
+                // Mark every crypto knot as Invalid with the error in
+                // the note, leaving skipped knots intact.
+                let note = format!("rope_crypto batch verify error: {e}");
+                for (slot_idx, &out_idx) in crypto_indices.iter().enumerate() {
+                    out[out_idx] = Some(VerificationResult {
+                        knot_id: knots[out_idx].knot_id.clone(),
+                        sig_valid: false,
+                        outcome: VerificationOutcome::Invalid,
+                        sig_algo: sig_algos[slot_idx],
+                        validation_time_us: 0,
+                        validated_at,
+                        note: Some(note.clone()),
+                    });
+                }
+                return out.into_iter().map(|o| o.expect("slot populated")).collect();
+            }
+        };
+        let elapsed_us = batch_started.elapsed().as_micros();
+        let per_knot_us = if outcome.batch_size > 0 {
+            elapsed_us / outcome.batch_size as u128
+        } else {
+            0
+        };
+
+        // Stitch per-item booleans back into the corresponding output
+        // slots, preserving the per-knot sig_algo we classified above.
+        for (i, &idx) in crypto_indices.iter().enumerate() {
+            let ok = outcome.results[i];
+            let algo = sig_algos[i];
+            let knot_id = knots[idx].knot_id.clone();
+            out[idx] = Some(if ok {
+                tracing::debug!(
+                    target: "validation_agent::verify",
+                    knot_id = %knot_id,
+                    algo = algo.as_str(),
+                    elapsed_us_per_item = per_knot_us,
+                    "knot signature verified (batch)",
+                );
+                VerificationResult {
+                    knot_id,
+                    sig_valid: true,
+                    outcome: VerificationOutcome::Valid,
+                    sig_algo: algo,
+                    validation_time_us: per_knot_us,
+                    validated_at,
+                    note: None,
+                }
+            } else {
+                tracing::warn!(
+                    target: "validation_agent::verify",
+                    knot_id = %knot_id,
+                    algo = algo.as_str(),
+                    "knot signature did NOT verify (batch, Invalid)",
+                );
+                VerificationResult {
+                    knot_id,
+                    sig_valid: false,
+                    outcome: VerificationOutcome::Invalid,
+                    sig_algo: algo,
+                    validation_time_us: per_knot_us,
+                    validated_at,
+                    note: Some("cryptographic verification failed".to_string()),
+                }
+            });
+        }
+
+        out.into_iter().map(|o| o.expect("slot populated")).collect()
+    }
 }
 
 #[cfg(test)]
@@ -390,5 +532,98 @@ mod tests {
         assert_eq!(SigAlgo::Mldsa65Hybrid.as_str(), "mldsa65+ed25519");
         assert_eq!(SigAlgo::Ed25519Only.as_str(), "ed25519");
         assert_eq!(SigAlgo::None.as_str(), "none");
+    }
+
+    // ----------------------------------------------------------------
+    // Quipu Canon v2.0 Phase 2.C — KnotVerifier::verify_batch tests
+    // ----------------------------------------------------------------
+
+    #[test]
+    fn batch_empty_input_returns_empty_output() {
+        let v = KnotVerifier::new();
+        let out = v.verify_batch(&[]);
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn batch_matches_per_item_on_all_valid() {
+        let v = KnotVerifier::new();
+        let knots: Vec<Knot> = (0..8)
+            .map(|i| {
+                let payload = format!("batched-valid-{i}").into_bytes();
+                make_signed_knot(&payload, true).0
+            })
+            .collect();
+
+        let serial: Vec<VerificationResult> = knots.iter().map(|k| v.verify(k)).collect();
+        let batched: Vec<VerificationResult> = v.verify_batch(&knots);
+
+        assert_eq!(serial.len(), batched.len());
+        for (s, b) in serial.iter().zip(batched.iter()) {
+            assert_eq!(s.outcome, b.outcome);
+            assert_eq!(s.sig_valid, b.sig_valid);
+            assert_eq!(s.sig_algo, b.sig_algo);
+            assert_eq!(s.knot_id, b.knot_id);
+        }
+    }
+
+    #[test]
+    fn batch_isolates_invalid_knot() {
+        let v = KnotVerifier::new();
+        let mut knots: Vec<Knot> = (0..6)
+            .map(|i| {
+                let payload = format!("batched-mixed-{i}").into_bytes();
+                make_signed_knot(&payload, true).0
+            })
+            .collect();
+        // Tamper the message of knot 3 — Ed25519 + Dilithium will both
+        // fail on it, but knots 0..3 and 4..6 must still verify.
+        knots[3].signing_message = b"tampered".to_vec();
+
+        let out = v.verify_batch(&knots);
+        for (i, r) in out.iter().enumerate() {
+            if i == 3 {
+                assert!(!r.sig_valid, "knot 3 (tampered) must NOT verify");
+                assert_eq!(r.outcome, VerificationOutcome::Invalid);
+            } else {
+                assert!(r.sig_valid, "knot {i} must verify");
+                assert_eq!(r.outcome, VerificationOutcome::Valid);
+            }
+        }
+    }
+
+    #[test]
+    fn batch_handles_mixed_signed_and_unsigned_knots() {
+        let v = KnotVerifier::new();
+        let (signed, _, _) = make_signed_knot(b"i am signed", true);
+        let unsigned = Knot::new(
+            "0xunsigned-batch",
+            99,
+            KnotSource::CordAnchor,
+            b"i am not signed".to_vec(),
+        );
+        let out = v.verify_batch(&[signed.clone(), unsigned, signed]);
+        assert_eq!(out.len(), 3);
+        assert_eq!(out[0].outcome, VerificationOutcome::Valid);
+        assert_eq!(out[1].outcome, VerificationOutcome::Skipped);
+        assert_eq!(out[1].sig_algo, SigAlgo::None);
+        assert_eq!(out[2].outcome, VerificationOutcome::Valid);
+    }
+
+    #[test]
+    fn batch_preserves_input_order() {
+        let v = KnotVerifier::new();
+        let mut knots: Vec<Knot> = Vec::new();
+        let mut expected_ids: Vec<String> = Vec::new();
+        for i in 0..5 {
+            let payload = format!("ordered-{i}").into_bytes();
+            let (mut k, _, _) = make_signed_knot(&payload, true);
+            k.knot_id = format!("0xorder-{i}");
+            expected_ids.push(k.knot_id.clone());
+            knots.push(k);
+        }
+        let out = v.verify_batch(&knots);
+        let got_ids: Vec<String> = out.iter().map(|r| r.knot_id.clone()).collect();
+        assert_eq!(got_ids, expected_ids, "output must mirror input order");
     }
 }

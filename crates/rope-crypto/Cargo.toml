@@ -32,6 +32,8 @@ anyhow = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
 parking_lot = { workspace = true }
+once_cell = { workspace = true }
+rayon = { workspace = true }
 tracing = { workspace = true }
 zeroize = { version = "1.7", features = ["derive"] }
 hex = { workspace = true }

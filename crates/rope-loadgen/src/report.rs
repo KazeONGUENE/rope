@@ -21,6 +21,7 @@ pub enum Report {
     StoreRecover(StoreRecoverReport),
     StoreMixed(StoreMixedReport),
     ManagerWrite(ManagerWriteReport),
+    VerifyBatch(VerifyBatchReport),
 }
 
 impl Report {
@@ -30,6 +31,7 @@ impl Report {
             Report::StoreRecover(r) => r.human_summary(),
             Report::StoreMixed(r) => r.human_summary(),
             Report::ManagerWrite(r) => r.human_summary(),
+            Report::VerifyBatch(r) => r.human_summary(),
         }
     }
 }
@@ -251,6 +253,64 @@ pub struct OpCounts {
     pub put_descriptor: usize,
     pub mark_deleted: usize,
     pub get_chain: usize,
+}
+
+// ============================================================================
+// Quipu Canon v2.0 Phase 2.C — verify-batch report
+// ============================================================================
+
+#[derive(Serialize, Debug)]
+pub struct VerifyBatchReport {
+    pub items: usize,
+    pub keys: usize,
+    pub payload_bytes: usize,
+    pub iterations: usize,
+    pub cold_cache: bool,
+    pub seed: u64,
+    /// Detected logical CPUs at run time (drives parallel speedup).
+    pub logical_cpus: usize,
+    /// Mean wall-clock of one full serial (verify-loop) pass.
+    pub serial_elapsed_ms: f64,
+    /// Mean wall-clock of one full batch (verify_batch) pass.
+    pub batch_elapsed_ms: f64,
+    /// Verifications per second on the serial path.
+    pub serial_throughput_ops_per_sec: f64,
+    /// Verifications per second on the batch path.
+    pub batch_throughput_ops_per_sec: f64,
+    /// Speedup factor batch/serial; > 1 means batch is faster.
+    pub batch_speedup_x: f64,
+    /// Mean per-item µs on the serial path.
+    pub serial_per_item_us: f64,
+    /// Mean per-item µs on the batch path.
+    pub batch_per_item_us: f64,
+}
+
+impl VerifyBatchReport {
+    pub fn human_summary(&self) -> String {
+        format!(
+            "verify-batch summary (Quipu Canon v2.0 Phase 2.C)\n\
+             ==================================================\n  \
+             items              : {items}\n  keys               : {keys}\n  payload bytes      : {payload}\n  \
+             iterations         : {iters}\n  cold cache         : {cold}\n  logical cpus       : {cpus}\n  \
+             serial elapsed     : {serial:>10.2} ms\n  batch  elapsed     : {batch:>10.2} ms\n  \
+             serial per-item    : {sp_item:>10.2} µs\n  batch  per-item    : {bp_item:>10.2} µs\n  \
+             serial throughput  : {sp_tput:>14.0} verify/s\n  batch  throughput  : {bp_tput:>14.0} verify/s\n  \
+             speedup            : {speedup:>14.2}x\n",
+            items = self.items,
+            keys = self.keys,
+            payload = self.payload_bytes,
+            iters = self.iterations,
+            cold = self.cold_cache,
+            cpus = self.logical_cpus,
+            serial = self.serial_elapsed_ms,
+            batch = self.batch_elapsed_ms,
+            sp_item = self.serial_per_item_us,
+            bp_item = self.batch_per_item_us,
+            sp_tput = self.serial_throughput_ops_per_sec,
+            bp_tput = self.batch_throughput_ops_per_sec,
+            speedup = self.batch_speedup_x,
+        )
+    }
 }
 
 /// Latency percentiles in microseconds.

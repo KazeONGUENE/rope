@@ -17,6 +17,7 @@
 //! | Hashing | BLAKE3 | 256-bit |
 //! | Key Exchange | X25519 + Kyber768 | 256-bit + NIST PQ-3 |
 
+pub mod batch;
 pub mod error;
 pub mod hash;
 pub mod hybrid;
@@ -24,6 +25,7 @@ pub mod keys;
 pub mod ledger_encryption;
 pub mod oes;
 
+pub use batch::*;
 pub use error::*;
 pub use hash::*;
 pub use hybrid::*;
@@ -33,6 +35,7 @@ pub use oes::*;
 
 /// Cryptographic prelude
 pub mod prelude {
+    pub use crate::batch::{BatchVerifyItem, BatchVerifyOutcome};
     pub use crate::error::{CryptoError, Result};
     pub use crate::hash::{hash_blake3, hash_keyed};
     pub use crate::hybrid::{HybridKEM, HybridSigner, HybridVerifier};
