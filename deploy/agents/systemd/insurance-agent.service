@@ -1,0 +1,59 @@
+# /etc/systemd/system/insurance-agent.service
+# Datachain Rope InsuranceAgent — parametric attestations against
+# tokenized RWAs. Refreshes Tanastok asset list hourly, computes
+# a parametric RiskProfile per asset class + jurisdiction, anchors
+# signed ParametricInsuranceAttestation knots via rope_appendToLedger.
+#
+# Wallet: 0x000000000000000000000000000000000000C003
+# Source: crates/insurance-agent/
+
+[Unit]
+Description=Datachain Rope InsuranceAgent — parametric attestations against tokenized RWAs
+Documentation=https://datachain.network/docs#testimony
+Documentation=https://tanastok.io/api/v1/tokenized-assets
+Documentation=https://dcscan.io/agents
+After=network-online.target datachain-rope.service
+Wants=network-online.target datachain-rope.service
+StartLimitIntervalSec=600
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/datachain-rope
+Environment="PATH=/home/ubuntu/.cargo/bin:/usr/local/bin:/usr/bin:/bin"
+
+Environment="INSURANCE_RPC_URL=http://127.0.0.1:8545"
+Environment="INSURANCE_TANASTOK_URL=https://tanastok.io/api/v1/tokenized-assets?limit=500"
+Environment="INSURANCE_AGENT_WALLET=0x000000000000000000000000000000000000C003"
+Environment="INSURANCE_INTERVAL_SECS=3600"
+Environment="INSURANCE_REATTEST_AFTER_SECS=86400"
+Environment="INSURANCE_LOG=info,insurance_agent=info"
+
+EnvironmentFile=-/etc/datachain-agents/shared.env
+EnvironmentFile=-/etc/insurance-agent/config.env
+
+ExecStart=/home/ubuntu/datachain-rope/target/release/insurance-agent serve
+
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=insurance-agent
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+ReadWritePaths=/var/lib/insurance-agent /etc/insurance-agent
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+
+[Install]
+WantedBy=multi-user.target
