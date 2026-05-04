@@ -4860,6 +4860,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "rope-loadgen"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "hdrhistogram",
+ "parking_lot 0.12.5",
+ "rand 0.8.5",
+ "rand_chacha 0.3.1",
+ "rope-storage",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "rope-loadtest"
 version = "0.1.0"
 dependencies = [
