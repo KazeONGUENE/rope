@@ -1154,6 +1154,46 @@ cargo install rope-cli
                         <td>Network initialization or federation creation</td>
                     </tr>
                 </table>
+
+                <h3>Quipu Canon v1.2 — Knots &amp; Strings</h3>
+                <p>Datachain Rope's protocol-native unit of state change is the <strong>knot</strong>, not the block. The Quipu Canon (v1.2) defines the vocabulary used everywhere in the chain, the explorer, and the SDKs:</p>
+                <table>
+                    <tr>
+                        <th>Term</th>
+                        <th>Meaning</th>
+                    </tr>
+                    <tr>
+                        <td><strong>Knot</strong></td>
+                        <td>The protocol-native, individually addressable, individually erasable unit of state change. Each knot is a <code>RopeString</code> with its own <code>StringId</code>, signature, and OES proof.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>String</strong></td>
+                        <td>A logical chain of knots associated with a single entity (a wallet, an AI agent, an IoT device, a federation). A string's head is the most recent knot; its history is the chain of parent links.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Cord Anchor Knot</strong></td>
+                        <td>The periodic protocol-level knot that pins the lattice's progress; one cord anchor knot per ~4.2 seconds. The EVM-compatible block height corresponds to the cord anchor count.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Tombstone Knot</strong></td>
+                        <td>The record of an untied knot. Preserves the string's hash continuity while removing the original payload — the GDPR Article 17 primitive at the protocol level.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Untying</strong></td>
+                        <td>The act of removing a single knot from a string while preserving the string's integrity. Invoked via <code>rope_untieKnot</code>; the ComplianceAgent orchestrates this for GDPR Article 17 erasure requests.</td>
+                    </tr>
+                </table>
+
+                <h3>Quipu Canon v2.0 — Phase 1 hardening</h3>
+                <p>The current production node ships five Phase 1 architectural pieces that remove the in-process bottlenecks for throughput at scale:</p>
+                <ul style="margin: 1rem 0 1rem 1.5rem; color: var(--gray-700);">
+                    <li><strong>Sharded StringLattice</strong> – the lattice is sharded across 256 partitions; concurrent <code>add_string</code> calls scale linearly in the common case</li>
+                    <li><strong>Per-wallet head-string lock</strong> – 256 sharded <code>EntityHeadLocks</code> serialise concurrent appends to the same wallet without contending on cross-wallet writes</li>
+                    <li><strong>Per-shard Hybrid Logical Clock</strong> – 256 per-shard HLCs replace the global Lamport mutex on the per-knot append path</li>
+                    <li><strong>OES key cache</strong> – memoises the iterative BLAKE3 OES key derivation per <code>(wallet, generation)</code>; first call pays the ~30–50 µs cost, subsequent appends pay an Arc clone</li>
+                    <li><strong>RocksDB persistence with WriteBatch + watermark</strong> – the <code>LedgerStore</code> mirrors writes to a multi-column-family RocksDB store via a background WriteBatch flusher with a durability watermark API</li>
+                </ul>
+                <p>Measured on a single laptop (release build), the integration of all five reaches <strong>~1.30M ops/s in-memory</strong> and <strong>~1.04M ops/s through RocksDB</strong> for the partitioned scenario, with p50 latency under 5 µs and p99 under 160 µs. Same-wallet contention through the head lock retains 87 % of partitioned throughput at 16 threads, validating that distinct wallets do not contend.</p>
             </section>
             
             <!-- Core Concepts: AI Testimony -->
@@ -1188,6 +1228,42 @@ cargo install rope-cli
                     <li>Testimonies collected (minimum 2/3 supermajority required)</li>
                     <li>Transaction finalized or rejected based on aggregate verdict</li>
                 </ol>
+
+                <h3>Canonical AI Testimony Agents</h3>
+                <p>Datachain Rope ships with five always-on AI testimony agents, each anchoring its outputs as testimony knots on the Rope chain. Live status, source code, smart contracts, RPC methods, and external data feeds for each agent are visible at <a href="https://dcscan.io/agents">dcscan.io/agents</a>.</p>
+                <table>
+                    <tr>
+                        <th>Agent</th>
+                        <th>Role</th>
+                        <th>What it does on-chain</th>
+                    </tr>
+                    <tr>
+                        <td><strong>SemanticAgent</strong></td>
+                        <td>Intent Analysis</td>
+                        <td>Indexes new knots, extracts <code>event_type</code> tags, exposes semantic search, and anchors a merkle-rooted <code>IndexCheckpointTestimony</code> every 10 minutes so the index state is on-chain auditable.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>OracleAgent</strong></td>
+                        <td>External Data</td>
+                        <td>Pulls the canonical DC FAT price from <code>dcswap.net/v1/prices</code> every 60 seconds, builds a signed <code>OraclePriceTestimony</code> with VWAP source breakdown, and anchors it via <code>rope_appendToLedger</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>InsuranceAgent</strong></td>
+                        <td>Risk Assessment</td>
+                        <td>Refreshes Tanastok tokenized RWAs hourly, computes a parametric <code>RiskProfile</code> per asset class, and anchors signed <code>ParametricInsuranceAttestation</code> testimonies covering premium, coverage and trigger conditions.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>ValidationAgent</strong></td>
+                        <td>Transaction Validator</td>
+                        <td>Polls new cord anchor knots, verifies their post-quantum signatures (ML-DSA-65 / Dilithium3 default; Ed25519 fallback), and emits a signed <code>ValidationTestimony</code> for each valid anchor.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>ComplianceAgent</strong></td>
+                        <td>Regulatory Check</td>
+                        <td>Receives GDPR Article 17 erasure requests on HTTP, orchestrates <code>rope_untieKnot</code> calls per affected knot, captures tombstone audit hashes, and emits <code>ComplianceTestimony</code> knots covering MiFID II / DORA reporting digests on a 15-minute ticker.</td>
+                    </tr>
+                </table>
+                <p style="margin-top: 1rem;">Each agent has its own crate at <code>crates/&lt;name&gt;-agent/</code> in the <a href="https://github.com/KazeONGUENE/rope">rope</a> repo, exposes a Prometheus <code>/metrics</code> endpoint, and signs its testimonies with its own keypair tied to a public wallet (visible on DCScan as <code>0x000000000000000000000000000000000000C001</code> through <code>...C005</code>).</p>
             </section>
             
             <!-- Core Concepts: OES Cryptography -->
@@ -1768,6 +1844,85 @@ rope deploy local        community-node --dry-run</code></pre>
   },
   "id": 1
 }</code></pre>
+
+                <h3>rope_appendToLedger</h3>
+                <p>Append a new knot to the caller's personal ledger string. Used by every canonical AI testimony agent (Oracle, Validation, Insurance, Compliance, Semantic) to anchor a signed payload as a testimony knot. Wallet-scoped writes are serialised by the per-wallet head lock; cross-wallet writes scale linearly across 256 lattice shards.</p>
+                <pre><code>// Request
+{
+  "jsonrpc": "2.0",
+  "method": "rope_appendToLedger",
+  "params": [{
+    "wallet": "0x000000000000000000000000000000000000C002",
+    "payload": "0x...",                     // signed testimony bytes
+    "event_type": "oracle.price.dcswap",
+    "signature": "0x..."
+  }],
+  "id": 1
+}
+
+// Response
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "knot_id": "0x9a8b7c...",
+    "string_id": 1847294,
+    "anchor_round": 847293
+  },
+  "id": 1
+}</code></pre>
+
+                <h3>rope_untieKnot</h3>
+                <p>The Quipu Canon v1.2 GDPR Article 17 primitive — removes a single knot from a string while preserving the string's hash continuity. Replaces the knot's payload with a tombstone knot and returns the audit hash of the erasure event. Authorised callers only (the ComplianceAgent orchestrates this for verified erasure requests).</p>
+                <pre><code>// Request
+{
+  "jsonrpc": "2.0",
+  "method": "rope_untieKnot",
+  "params": [{
+    "knot_id": "0x9a8b7c...",
+    "justification": "gdpr.article.17",
+    "requestor_proof": "0x..."
+  }],
+  "id": 1
+}
+
+// Response
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "tombstone_knot_id": "0xfeed00...",
+    "audit_hash": "0xdead00...",
+    "erasure_round": 847294
+  },
+  "id": 1
+}</code></pre>
+
+                <h3>rope_globalStats</h3>
+                <p>Returns aggregated network statistics. The dc-explorer (DCScan) calls this every few seconds; downstream agents use the cord anchor count to know how far to walk.</p>
+                <pre><code>// Response shape (truncated)
+{
+  "totalKnots": 81231847,
+  "anchorRound": 847294,
+  "activeStrings": 184329,
+  "totalStaked": "8500000000000000000000000000",
+  "fatPriceUsd": 0.007408,
+  "validators": { "active": 6, "uptimeAvg": "99.3%" },
+  "agents": { "registered": 5, "active": 5 }
+}</code></pre>
+
+                <h3>rope_walkLedgerChain</h3>
+                <p>Walks a personal ledger string from a given <code>StringId</code> backward (or forward via <code>direction</code>) returning the chain of knots. Used by the SemanticAgent for indexing and the ValidationAgent for signature verification.</p>
+                <pre><code>// Request
+{
+  "jsonrpc": "2.0",
+  "method": "rope_walkLedgerChain",
+  "params": [{
+    "wallet": "0x000000000000000000000000000000000000C002",
+    "from_string_id": 1847294,
+    "direction": "backward",
+    "limit": 100
+  }],
+  "id": 1
+}</code></pre>
             </section>
             
             <!-- Architecture Section -->
@@ -2022,6 +2177,17 @@ dw.on('accountsChanged', (accounts) => { /* account switched */ });</code></pre>
                     <li>ERC-3643 transfers are compliance-gated: buyer must be verified in <code>IdentityRegistry</code> (KYC/AML claims on ONCHAINID)</li>
                 </ul>
                 
+                <h4>DCR-20 — Datachain Rope native fungible token standard</h4>
+                <p>DCR-20 (also written DCR20) is Datachain Rope's native fungible token standard. Every fungible token deployed on chain 271828 implements the <code>IDCR20</code> interface. DCR-20 is wire-compatible with ERC-20 tooling (MetaMask, ethers.js, etc.) so it integrates seamlessly with existing Web3 stacks, but the standard name and the Solidity interface are Datachain-native.</p>
+                <table>
+                    <tr><th>Context</th><th>Correct</th><th>Wrong</th></tr>
+                    <tr><td>Standard name</td><td><code>DCR-20</code> / <code>DCR20</code></td><td><s><code>ERC-20</code></s></td></tr>
+                    <tr><td>Solidity interface</td><td><code>IDCR20</code></td><td><s><code>IERC20</code></s></td></tr>
+                    <tr><td>Contract base name</td><td><code>DCSwapDCR20</code></td><td><s><code>DCSwapERC20</code></s></td></tr>
+                    <tr><td>ABI variable</td><td><code>DCR20_ABI</code></td><td><s><code>ERC20_ABI</code></s></td></tr>
+                </table>
+                <p>The standards <strong>not</strong> renamed are protocol-distinct ones that keep their original Ethereum specification names: ERC-721 (NFT, used by DCNFT), ERC-3643 (T-REX security tokens), ERC-735 / ERC-734 (ONCHAINID claims), ERC-165 (interface detection), EIP-2612 (permit signatures). When describing interoperability with Ethereum tooling it is acceptable to write "DCR-20 (ERC-20 compatible)".</p>
+
                 <h4>Token Tiers (Display Priority)</h4>
                 
                 <table>
