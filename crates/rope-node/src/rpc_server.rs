@@ -2642,6 +2642,9 @@ mod tests {
             ledger: None,
             iot_gateway: None,
             ai_framework: None,
+            governance: None,
+            deployer: None,
+            self_node_id: String::new(),
         };
 
         let request = r#"{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}"#;
@@ -2668,6 +2671,9 @@ mod tests {
             ledger: None,
             iot_gateway: None,
             ai_framework: None,
+            governance: None,
+            deployer: None,
+            self_node_id: String::new(),
         };
         // Invalid JSON — must return -32700 Parse error, not extended chain info object.
         let response = handlers.handle_json_rpc(r#"not valid json"#).await;
@@ -2700,6 +2706,9 @@ mod tests {
             ledger: None,
             iot_gateway: None,
             ai_framework: None,
+            governance: None,
+            deployer: None,
+            self_node_id: String::new(),
         };
 
         let request = r#"{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}"#;
@@ -2719,6 +2728,9 @@ mod tests {
             ledger: None,
             iot_gateway: None,
             ai_framework: None,
+            governance: None,
+            deployer: None,
+            self_node_id: String::new(),
         };
 
         let request = r#"{"jsonrpc":"2.0","method":"eth_getBalance","params":["0x0000000000000000000000000000000000000000","latest"],"id":1}"#;
@@ -2739,6 +2751,9 @@ mod tests {
             ledger: None,
             iot_gateway: None,
             ai_framework: None,
+            governance: None,
+            deployer: None,
+            self_node_id: String::new(),
         };
 
         let request = r#"{"jsonrpc":"2.0","method":"eth_gasPrice","params":[],"id":1}"#;
