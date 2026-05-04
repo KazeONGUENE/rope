@@ -206,7 +206,9 @@ impl LedgerManager {
 
         let generation = self.oes.generation();
         let oes_proof = oes_proof_to_core(self.oes.generate_proof());
-        let clock_snapshot = self.clock.tick();
+        // Quipu Canon v2.0 Phase 1.3 — pick the per-wallet shard so two
+        // genesis writes for distinct wallets do not contend on one mutex.
+        let clock_snapshot = self.clock.tick_for_wallet(&wallet_bytes);
         let replication = self.config.default_replication_factor;
 
         let genesis_string = build_genesis_string(
@@ -314,7 +316,9 @@ impl LedgerManager {
         let encrypted_size = envelope_bytes.len() as u64;
 
         let oes_proof = oes_proof_to_core(self.oes.generate_proof());
-        let clock_snapshot = self.clock.tick();
+        // Quipu Canon v2.0 Phase 1.3 — per-wallet shard tick removes the
+        // global Lamport mutex bottleneck on the per-knot append path.
+        let clock_snapshot = self.clock.tick_for_wallet(&wallet_bytes);
 
         let new_string = build_append_string(
             envelope_bytes.clone(),
