@@ -4647,18 +4647,50 @@ async fn agent_row_to_json(state: &AppState, a: &db::AgentRow) -> serde_json::Va
 
 /// Canonical Datachain Rope AI Testimony Agents.
 ///
-/// These are the five always-on agents listed in the production session
-/// rule (DCScan Frontend-Backend Fixes 2026-03-07). When the explorer's
-/// optional Postgres `DATABASE_URL` is wired up, the live list comes
-/// from the `agents` table and supersedes this fallback. When it isn't
-/// — which is the case on every production node today — this fallback
-/// makes sure `/api/v1/ai-agents` and `/agents` still surface the
-/// canonical agent set instead of returning an empty array.
+/// The five always-on agents that anchor testimony knots on the Rope
+/// chain. Schema is intentionally rich so DCScan's `/agents` page can
+/// render a full audit card per agent without additional RPCs:
+///
+/// - `id` / `name` / `role` / `category`        identity
+/// - `description`                              long-form explainer
+/// - `icon` / `iconClass`                       Font Awesome + CSS class
+///   (icon names match the homepage `/` AI Testimony Agents cards so
+///   the visual identity is consistent across pages)
+/// - `wallet`                                   on-chain identity (also
+///   doubles as the smart-account address for the agent — clickable in
+///   DCScan as `/address/<wallet>`)
+/// - `scaleStatus`                              `production` | `beta` | `concept`
+///   so the public can see at a glance which agents are real running
+///   services vs. spec-only entries
+/// - `capabilities`                             ordered list of what the
+///   agent actually does on-chain (auditable from the source code)
+/// - `sourceCode`                               GitHub URL to the
+///   implementing crate
+/// - `apiEndpoint` / `metricsEndpoint`          where the agent exposes
+///   data + Prometheus metrics (null if agent is anchor-only)
+/// - `rpcMethods`                               list of Rope JSON-RPC
+///   methods the agent calls (so users can see exactly what an agent
+///   does on the chain)
+/// - `dataFeeds`                                external HTTP feeds the
+///   agent consumes (oracle inputs, RWA registries, etc.)
+/// - `smartContract`                            optional EVM contract
+///   address the agent owns/operates (e.g. compliance-agent's ERC-3643
+///   module). null when none.
+/// - `testimoniesCount` / `uptime`              metrics; null until the
+///   `agents` Postgres table is wired up on the production node.
+///
+/// When the explorer's optional Postgres `DATABASE_URL` is configured,
+/// the live list comes from the `agents` table and supersedes this
+/// fallback. Until then this fallback ensures `/api/v1/ai-agents` and
+/// `/agents` always surface the canonical agent set with full audit
+/// metadata.
 fn canonical_ai_agents() -> Vec<serde_json::Value> {
+    const REPO: &str = "https://github.com/KazeONGUENE/rope/tree/main/crates";
     vec![
         serde_json::json!({
             "id": "semantic",
             "name": "SemanticAgent",
+            "role": "Intent Analysis",
             "category": "Semantic Analysis",
             "description": "Indexes Datachain Rope strings, tags event_type fields, and exposes semantic search across knots.",
             "status": "active",
@@ -4666,54 +4698,134 @@ fn canonical_ai_agents() -> Vec<serde_json::Value> {
             "testimoniesCount": null,
             "uptime": "99.5%",
             "icon": "fa-brain",
+            "iconClass": "semantic",
+            "scaleStatus": "beta",
+            "capabilities": [
+                "Polls new knots from the local node every 30s",
+                "Extracts event_type tags from each knot payload",
+                "Indexes into a tantivy full-text index",
+                "Exposes HTTP search at /v1/search?q=&event_type=&from=&to=",
+                "Anchors a merkle-rooted IndexCheckpointTestimony every 10 min so the index state is on-chain auditable"
+            ],
+            "sourceCode": format!("{}/semantic-agent", REPO),
+            "smartContract": null,
+            "apiEndpoint": "https://semantic-agent.datachain.network/v1/search",
+            "metricsEndpoint": "https://semantic-agent.datachain.network/metrics",
+            "rpcMethods": ["rope_globalStats", "rope_walkLedgerChain", "rope_appendToLedger"],
+            "dataFeeds": [],
             "source": "canonical-fallback"
         }),
         serde_json::json!({
             "id": "oracle",
             "name": "OracleAgent",
+            "role": "External Data",
             "category": "Price Oracle",
             "description": "Publishes DC FAT and stablecoin price testimonies sourced from DCSwap reserves and external feeds (XDCScan, GeckoTerminal).",
             "status": "active",
             "wallet": "0x000000000000000000000000000000000000C002",
             "testimoniesCount": null,
             "uptime": "99.8%",
-            "icon": "fa-chart-line",
+            "icon": "fa-satellite-dish",
+            "iconClass": "oracle",
+            "scaleStatus": "beta",
+            "capabilities": [
+                "Pulls canonical DC FAT price from dcswap.net/v1/prices every 60s",
+                "Builds OraclePriceTestimony with VWAP source breakdown (dcswap-reserves + geckoterminal-xdc)",
+                "Signs with agent keypair (Ed25519 default; ML-DSA-65 optional)",
+                "Anchors as testimony knot via rope_appendToLedger",
+                "Exposes consumed prices + last_anchor_at at /v1/prices for downstream consumers"
+            ],
+            "sourceCode": format!("{}/oracle-agent", REPO),
+            "smartContract": null,
+            "apiEndpoint": "https://oracle-agent.datachain.network/v1/prices",
+            "metricsEndpoint": "https://oracle-agent.datachain.network/metrics",
+            "rpcMethods": ["rope_appendToLedger"],
+            "dataFeeds": ["https://dcswap.net/v1/prices"],
             "source": "canonical-fallback"
         }),
         serde_json::json!({
             "id": "insurance",
             "name": "InsuranceAgent",
+            "role": "Risk Assessment",
             "category": "Risk Underwriting",
             "description": "Issues parametric-insurance attestations against tokenized RWAs (Tanastok asset shares, NaturaProof biodiversity proofs).",
             "status": "active",
             "wallet": "0x000000000000000000000000000000000000C003",
             "testimoniesCount": null,
             "uptime": "99.2%",
-            "icon": "fa-shield-halved",
+            "icon": "fa-umbrella",
+            "iconClass": "insurance",
+            "scaleStatus": "beta",
+            "capabilities": [
+                "Refreshes Tanastok asset list from tanastok.io/api/v1/tokenized-assets every hour",
+                "Computes ParametricRiskProfile per asset class (GOLD_MINE, FORESTRY, REAL_ESTATE, etc.) + jurisdiction modifier",
+                "Builds ParametricInsuranceAttestation { premium, coverage, triggers, valid_window }",
+                "Signs and anchors as testimony knot via rope_appendToLedger",
+                "Skips assets with a recent attestation (< 24h) to avoid redundant on-chain writes"
+            ],
+            "sourceCode": format!("{}/insurance-agent", REPO),
+            "smartContract": null,
+            "apiEndpoint": "https://insurance-agent.datachain.network/v1/attestations",
+            "metricsEndpoint": "https://insurance-agent.datachain.network/metrics",
+            "rpcMethods": ["rope_appendToLedger"],
+            "dataFeeds": ["https://tanastok.io/api/v1/tokenized-assets"],
             "source": "canonical-fallback"
         }),
         serde_json::json!({
             "id": "validation",
             "name": "ValidationAgent",
+            "role": "Transaction Validator",
             "category": "Knot Validation",
             "description": "Verifies post-quantum signatures (ML-DSA-65 default) on knots and witnesses the cord anchor knot at federation level.",
             "status": "active",
             "wallet": "0x000000000000000000000000000000000000C004",
             "testimoniesCount": null,
             "uptime": "99.7%",
-            "icon": "fa-circle-check",
+            "icon": "fa-gavel",
+            "iconClass": "validation",
+            "scaleStatus": "beta",
+            "capabilities": [
+                "Polls new cord anchor knots every 5s via rope_globalStats + rope_walkLedgerChain",
+                "Verifies each knot's signature (ML-DSA-65 / Dilithium3 default; Ed25519 fallback)",
+                "Emits ValidationTestimony { knot_id, sig_algo, witness_timestamp } for each valid anchor",
+                "Logs + counts rejected knots without anchoring",
+                "Tracks validated_count, rejected_count, last_validation_at metrics"
+            ],
+            "sourceCode": format!("{}/validation-agent", REPO),
+            "smartContract": null,
+            "apiEndpoint": "https://validation-agent.datachain.network/v1/results",
+            "metricsEndpoint": "https://validation-agent.datachain.network/metrics",
+            "rpcMethods": ["rope_globalStats", "rope_walkLedgerChain", "rope_appendToLedger"],
+            "dataFeeds": [],
             "source": "canonical-fallback"
         }),
         serde_json::json!({
             "id": "compliance",
             "name": "ComplianceAgent",
+            "role": "Regulatory Check",
             "category": "Regulatory Compliance",
             "description": "Flags GDPR Art. 17 erasure requests and orchestrates rope_untieKnot tombstone knots; covers MiFID II / DORA reporting.",
             "status": "active",
             "wallet": "0x000000000000000000000000000000000000C005",
             "testimoniesCount": null,
             "uptime": "99.9%",
-            "icon": "fa-gavel",
+            "icon": "fa-scale-balanced",
+            "iconClass": "compliance",
+            "scaleStatus": "beta",
+            "capabilities": [
+                "Listens on HTTP for GDPR Art. 17 erasure requests with structured payload + signature proof",
+                "Validates the request (signature, justification class, jurisdiction) before any on-chain action",
+                "Orchestrates rope_untieKnot calls per affected knot and captures tombstone audit hashes",
+                "Anchors a ComplianceTestimony.GdprArticle17 knot containing the full audit trail",
+                "Periodic ticker (every 15 min): emits MiFID II batched-trade digest + DORA incident digest as testimony knots",
+                "Houses the ERC-3643 T-REX compliance module wiring (see crates/compliance-agent/src/erc3643_module.rs)"
+            ],
+            "sourceCode": format!("{}/compliance-agent", REPO),
+            "smartContract": "0x0919BAf7e91785Ae65351698a04b07BB13d14bBc",
+            "apiEndpoint": "https://compliance-agent.datachain.network/v1/gdpr",
+            "metricsEndpoint": "https://compliance-agent.datachain.network/metrics",
+            "rpcMethods": ["rope_untieKnot", "rope_appendToLedger"],
+            "dataFeeds": [],
             "source": "canonical-fallback"
         }),
     ]

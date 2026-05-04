@@ -219,16 +219,6 @@
         </div>
 
         <div class="agents-grid" id="agentsGrid"></div>
-
-        <div class="pagination">
-            <button class="page-btn" disabled><i class="fas fa-angle-left"></i></button>
-            <button class="page-btn active">1</button>
-            <button class="page-btn">2</button>
-            <button class="page-btn">3</button>
-            <button class="page-btn">4</button>
-            <button class="page-btn">5</button>
-            <button class="page-btn"><i class="fas fa-angle-right"></i></button>
-        </div>
     </main>
 
     <footer>
@@ -252,43 +242,112 @@
             var walletShort = wallet.slice(0, 6) + '...' + wallet.slice(-4);
             return '<a href="/address/' + encodeURIComponent(wallet) + '" onclick="event.stopPropagation()" style="color: var(--info); font-family: var(--font-mono); font-size: 12px;">' + escapeHtml(walletShort) + '</a>';
         }
+        // Maps the canonical FA icon to the homepage `/` AI Testimony
+        // Agents card icons. The /api/v1/ai-agents response now ships
+        // homepage-matching FA names directly (see canonical_ai_agents
+        // in rope-explorer/src/main.rs). This fallback table keeps the
+        // page working if the explorer is talking to an older API.
+        var HOMEPAGE_ICONS = {
+            semantic: 'fa-brain',
+            oracle: 'fa-satellite-dish',
+            insurance: 'fa-umbrella',
+            validation: 'fa-gavel',
+            compliance: 'fa-scale-balanced'
+        };
+
+        function statusBadge(rawStatus) {
+            var st = (rawStatus || 'standby').toLowerCase();
+            // Treat "active" as the production-ready synonym for "online"
+            // since the canonical fallback ships status:"active".
+            var isOnline = st === 'online' || st === 'active';
+            var cls = isOnline ? 'status-online' : st === 'offline' ? 'status-offline' : 'status-standby';
+            var text = isOnline ? 'Online' : st === 'offline' ? 'Offline' : 'Standby';
+            return '<span class="status-badge ' + cls + '">' + text + '</span>';
+        }
+
+        function scaleBadge(scale) {
+            var s = (scale || 'concept').toLowerCase();
+            var cls = s === 'production' ? 'scale-production' : s === 'beta' ? 'scale-beta' : 'scale-concept';
+            return '<span class="scale-badge ' + cls + '">' + escapeHtml(s) + '</span>';
+        }
+
+        function auditLink(label, value, href) {
+            if (!value) {
+                return '<div class="audit-row"><div class="audit-label">' + escapeHtml(label) + '</div>' +
+                    '<div class="audit-value muted">—</div></div>';
+            }
+            var text = href ? '<a href="' + href + '" target="_blank" rel="noopener">' + escapeHtml(value) + '</a>' : escapeHtml(value);
+            return '<div class="audit-row"><div class="audit-label">' + escapeHtml(label) + '</div>' +
+                '<div class="audit-value">' + text + '</div></div>';
+        }
+
+        function auditList(label, items) {
+            if (!items || !items.length) {
+                return '<div class="audit-row"><div class="audit-label">' + escapeHtml(label) + '</div>' +
+                    '<div class="audit-value muted">none</div></div>';
+            }
+            var html = items.map(function(it) { return '<li>' + escapeHtml(it) + '</li>'; }).join('');
+            return '<div class="audit-row"><div class="audit-label">' + escapeHtml(label) + '</div>' +
+                '<ul class="audit-list">' + html + '</ul></div>';
+        }
+
         function createAgentCard(agent) {
-            var st = (agent.status || 'standby').toLowerCase();
-            var statusClass = st === 'online' ? 'status-online' : 'status-standby';
-            var statusText = st === 'online' ? 'Online' : st === 'offline' ? 'Offline' : 'Standby';
-            var tagsHtml = (agent.tags || []).map(function(t) {
-                return '<span class="tag ' + (t === 'featured' ? 'featured' : t === 'verified' ? 'verified' : '') + '">' + escapeHtml(t) + '</span>';
-            }).join('');
-            var servicesHtml = (agent.services || []).map(function(s) {
-                return '<span class="tag">' + escapeHtml(s) + '</span>';
-            }).join('');
-            var testimonies = agent.testimonies != null ? Number(agent.testimonies).toLocaleString() : '0';
-            var balance = agent.balance || '0 FAT';
-            var rewards = agent.rewardsEarned || '0 FAT';
+            // Icon — accept either the new rich FA name (`fa-brain`) or
+            // the older category-as-class convention. Falls back to the
+            // homepage map by id if neither is set.
+            var faIcon = agent.icon && /^fa-/.test(agent.icon) ? agent.icon : (HOMEPAGE_ICONS[agent.id] || 'fa-robot');
+
+            var testimonies = agent.testimoniesCount != null ? Number(agent.testimoniesCount).toLocaleString()
+                          : agent.testimonies != null ? Number(agent.testimonies).toLocaleString() : '0';
             var uptime = agent.uptime || '—';
-            var txCount = agent.txCount != null ? Number(agent.txCount).toLocaleString() : '0';
+            var role = agent.role || agent.category || '';
 
             var agentUrl = agent.wallet ? '/address/' + agent.wallet : '/agents';
-            return '<div class="agent-card" onclick="location.href=\'' + agentUrl + '\'">' +
+
+            // Audit grid — only show fields that the API actually returned.
+            var auditRows = [
+                auditLink('Wallet / Account', agent.wallet, agent.wallet ? '/address/' + agent.wallet : null),
+                auditLink('Smart Contract', agent.smartContract, agent.smartContract ? '/address/' + agent.smartContract : null),
+                auditLink('Source Code', 'View on GitHub', agent.sourceCode),
+                auditLink('API Endpoint', agent.apiEndpoint, agent.apiEndpoint),
+                auditLink('Metrics', agent.metricsEndpoint, agent.metricsEndpoint),
+                auditList('RPC Methods', agent.rpcMethods),
+                auditList('Data Feeds', agent.dataFeeds)
+            ].join('');
+
+            var capabilities = (agent.capabilities && agent.capabilities.length)
+                ? '<div class="agent-capabilities">' +
+                  '<div class="agent-capabilities-title">What this agent does on-chain</div>' +
+                  '<ul>' + agent.capabilities.map(function(c) { return '<li>' + escapeHtml(c) + '</li>'; }).join('') + '</ul>' +
+                  '</div>'
+                : '';
+
+            var actions = '<div class="agent-actions">' +
+                (agent.wallet ? '<a class="agent-btn primary" href="/address/' + agent.wallet + '"><i class="fas fa-wallet"></i> View on-chain</a>' : '') +
+                (agent.sourceCode ? '<a class="agent-btn" href="' + agent.sourceCode + '" target="_blank" rel="noopener"><i class="fab fa-github"></i> Source</a>' : '') +
+                (agent.apiEndpoint ? '<a class="agent-btn" href="' + agent.apiEndpoint + '" target="_blank" rel="noopener"><i class="fas fa-plug"></i> API</a>' : '') +
+                (agent.metricsEndpoint ? '<a class="agent-btn" href="' + agent.metricsEndpoint + '" target="_blank" rel="noopener"><i class="fas fa-chart-bar"></i> Metrics</a>' : '') +
+                '<a class="agent-btn" href="/api/v1/ai-agents/' + encodeURIComponent(agent.id) + '/testimonies"><i class="fas fa-certificate"></i> Testimonies</a>' +
+                '</div>';
+
+            return '<div class="agent-card" id="agent-' + escapeHtml(agent.id) + '">' +
                 '<div class="agent-header">' +
-                    '<div class="agent-icon ' + (agent.icon || 'validation') + '"><i class="fas ' + (agent.iconClass || 'fa-gavel') + '"></i></div>' +
+                    '<div class="agent-icon"><i class="fa-solid ' + escapeHtml(faIcon) + '"></i></div>' +
                     '<div class="agent-info">' +
                         '<div class="agent-name">' +
                             '<a href="' + agentUrl + '">' + escapeHtml(agent.name) + '</a>' +
-                            '<span class="status-badge ' + statusClass + '">' + statusText + '</span>' +
+                            statusBadge(agent.status) +
+                            scaleBadge(agent.scaleStatus) +
                         '</div>' +
-                        '<div class="agent-org">' + escapeHtml(agent.org || '') + ' &middot; ' + escapeHtml(agent.type || '') + '</div>' +
-                        '<div class="agent-desc">' + escapeHtml(agent.desc || '') + '</div>' +
+                        '<div class="agent-role">' + escapeHtml(role) + '</div>' +
+                        '<div class="agent-desc">' + escapeHtml(agent.description || agent.desc || '') + '</div>' +
                         '<div class="agent-meta">' +
                             '<span class="agent-stat"><i class="fas fa-certificate"></i> ' + testimonies + ' testimonies</span>' +
-                            '<span class="agent-stat"><i class="fas fa-wallet"></i> ' + agentWalletHtml(agent.wallet) + '</span>' +
-                            '<span class="agent-stat"><i class="fas fa-coins"></i> ' + escapeHtml(balance) + '</span>' +
-                            '<span class="agent-stat"><i class="fas fa-gift"></i> ' + escapeHtml(rewards) + ' earned</span>' +
-                            '<span class="agent-stat"><i class="fas fa-exchange-alt"></i> ' + txCount + ' txns</span>' +
-                            '<span class="agent-stat"><i class="fas fa-clock"></i> Uptime: ' + escapeHtml(uptime) + '</span>' +
+                            '<span class="agent-stat"><i class="fas fa-clock"></i> Uptime ' + escapeHtml(uptime) + '</span>' +
                         '</div>' +
-                        '<div class="agent-tags" style="margin-top: 0.5rem;">' + tagsHtml + '</div>' +
-                        (servicesHtml ? '<div class="agent-tags" style="margin-top: 0.25rem; opacity: 0.7;">' + servicesHtml + '</div>' : '') +
+                        capabilities +
+                        '<div class="agent-audit">' + auditRows + '</div>' +
+                        actions +
                     '</div>' +
                 '</div>' +
             '</div>';
@@ -310,17 +369,30 @@
         fetch('/api/v1/stats').then(function(r) { return r.ok ? r.json() : {}; }).then(updateTopBar).catch(function() { updateTopBar(null); });
 
         var allAgents = [];
+        function agentMatchesFilter(a, filter) {
+            if (!filter || filter === 'trending') return true;
+            if (filter === 'verified') {
+                var s = (a.scaleStatus || '').toLowerCase();
+                return s === 'production' || s === 'beta';
+            }
+            if (filter === 'active') {
+                var st = (a.status || '').toLowerCase();
+                return st === 'active' || st === 'online';
+            }
+            // Substring match against id / name / role / category — works
+            // for the chips: validation, security, analytics, semantic.
+            var hay = [a.id, a.name, a.role, a.category]
+                .filter(Boolean)
+                .map(function(s) { return String(s).toLowerCase(); })
+                .join(' ');
+            return hay.indexOf(filter) >= 0;
+        }
         function renderAgents(filter) {
             var grid = document.getElementById('agentsGrid');
-            var filtered = allAgents;
-            if (filter && filter !== 'trending') {
-                filtered = allAgents.filter(function(a) {
-                    if (filter === 'verified') return (a.tags || []).indexOf('verified') >= 0;
-                    if (filter === 'active') return a.status === 'online';
-                    return (a.tags || []).indexOf(filter) >= 0 || (a.type || '').toLowerCase().indexOf(filter) >= 0;
-                });
-            }
-            if (grid) grid.innerHTML = filtered.length ? filtered.map(createAgentCard).join('') : '<p style="color: var(--gray-500); padding: 2rem;">No agents match this filter</p>';
+            var filtered = allAgents.filter(function(a) { return agentMatchesFilter(a, filter); });
+            if (grid) grid.innerHTML = filtered.length
+                ? filtered.map(createAgentCard).join('')
+                : '<p style="color: var(--gray-500); padding: 2rem;">No agents match this filter</p>';
         }
 
         fetch('/api/v1/ai-agents').then(function(r) { return r.ok ? r.json() : Promise.reject(r); }).then(function(data) {
