@@ -7,6 +7,22 @@
 //! - `lattice_db/` - String Lattice persistence
 //! - `complement_db/` - Complement storage (separate for security)
 //! - `state_db/` - OES and federation state
+//!
+//! ## Quipu Canon v2.0 Phase 1.5 — RocksDB-backed `LedgerStore`
+//!
+//! `ledger_db::LedgerStore` is the only store that has been promoted from
+//! the v1.x in-memory `RwLock<HashMap>` placeholder to a real RocksDB
+//! backend. Two constructors exist:
+//!
+//! - [`ledger_db::LedgerStore::new`] — pure in-memory mode (tests + the
+//!   v1.x default). Backwards-compatible with every existing caller.
+//! - [`ledger_db::LedgerStore::open`] — opens a RocksDB database at the
+//!   given path, recovers state, and starts the background flusher.
+//!   In-memory mirror is retained as a write-through cache for the
+//!   read hot path; writes are mirrored to disk via the flusher.
+//!
+//! See [`rocksdb_persistence`] for the on-disk schema, durability
+//! watermark, and recovery details.
 
 pub mod lattice_db {
     //! Lattice persistence layer
@@ -134,15 +150,28 @@ pub mod state_db {
     }
 }
 
+pub mod rocksdb_persistence;
+
 pub mod ledger_db {
     //! Personal ledger storage — wallet→StringId index and piece map persistence.
     //!
     //! Provides the storage backend for the personal ledger model where each
     //! wallet maps to a chain of StringIds. Maintains reverse indexes for
     //! efficient lookups in both directions.
+    //!
+    //! Quipu Canon v2.0 Phase 1.5: optionally backed by RocksDB. Use
+    //! [`LedgerStore::new`] for the in-memory v1.x mode, or
+    //! [`LedgerStore::open`] for disk-persistent operation. The in-memory
+    //! mirror always exists; disk writes go through the WriteBatch
+    //! background flusher in [`crate::rocksdb_persistence`].
 
+    use crate::rocksdb_persistence::{RecoveredState, RocksError, RocksPersistence, WriteOp};
     use parking_lot::RwLock;
     use std::collections::HashMap;
+    use std::path::Path;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::Arc;
+    use std::time::Duration;
 
     /// Ledger descriptor stored per wallet
     #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -171,16 +200,39 @@ pub mod ledger_db {
         pub piece_sizes: Vec<u32>,
     }
 
-    /// Persistent ledger storage (in-memory; RocksDB column family in production)
+    /// Personal ledger storage. In-memory mirror is always present for
+    /// the read hot path; disk persistence is optional and enabled by
+    /// constructing via [`Self::open`].
     pub struct LedgerStore {
         descriptors: RwLock<HashMap<Vec<u8>, StoredLedgerDescriptor>>,
         wallet_to_chain: RwLock<HashMap<Vec<u8>, Vec<[u8; 32]>>>,
         string_to_wallet: RwLock<HashMap<[u8; 32], Vec<u8>>>,
         piece_maps: RwLock<HashMap<[u8; 32], StoredPieceMap>>,
         head_index: RwLock<HashMap<Vec<u8>, [u8; 32]>>,
+
+        /// Per-wallet append counter, used to assign `seq_in_wallet`
+        /// values for the chain CF. Lives in-memory because the
+        /// counter is purely a function of the chain length we already
+        /// hold in `wallet_to_chain`.
+        ///
+        /// Wrapped in `RwLock<HashMap<…, AtomicU64>>` rather than a
+        /// plain `RwLock<HashMap<…, u64>>` so that the per-wallet
+        /// counter bump under [`Self::append_to_chain`] does not need
+        /// the outer write lock once the AtomicU64 is allocated.
+        wallet_append_counter: RwLock<HashMap<Vec<u8>, Arc<AtomicU64>>>,
+
+        /// `Some(persistence)` when disk-backed; `None` for in-memory mode.
+        persistence: Option<Arc<RocksPersistence>>,
+        /// Highest seq number ever returned to a caller; tracked even in
+        /// in-memory mode so callers can use the same `wait_durable` API
+        /// (which is a no-op in in-memory mode).
+        last_enqueued_seq: AtomicU64,
     }
 
     impl LedgerStore {
+        /// Create a new empty in-memory store. No disk persistence.
+        ///
+        /// Backwards-compatible with every v1.x caller.
         pub fn new() -> Self {
             Self {
                 descriptors: RwLock::new(HashMap::new()),
@@ -188,6 +240,126 @@ pub mod ledger_db {
                 string_to_wallet: RwLock::new(HashMap::new()),
                 piece_maps: RwLock::new(HashMap::new()),
                 head_index: RwLock::new(HashMap::new()),
+                wallet_append_counter: RwLock::new(HashMap::new()),
+                persistence: None,
+                last_enqueued_seq: AtomicU64::new(0),
+            }
+        }
+
+        /// Open or create a RocksDB-backed store at `path`. On open the
+        /// store recovers its in-memory mirror from disk and resumes
+        /// the durability watermark.
+        ///
+        /// Quipu Canon v2.0 Phase 1.5.
+        pub fn open(path: impl AsRef<Path>) -> Result<Self, RocksError> {
+            let (persistence, recovered) = RocksPersistence::open(path)?;
+            Ok(Self::from_recovered(persistence, recovered))
+        }
+
+        /// Build a store from an already-opened persistence handle and a
+        /// recovery snapshot. Useful when the caller wants to share one
+        /// `RocksPersistence` across multiple stores or to inspect the
+        /// snapshot before constructing the store.
+        pub fn from_recovered(
+            persistence: Arc<RocksPersistence>,
+            recovered: RecoveredState,
+        ) -> Self {
+            let mut descriptors = HashMap::new();
+            for (w, d) in recovered.descriptors {
+                descriptors.insert(w, d);
+            }
+
+            let mut head_index = HashMap::new();
+            for (w, h) in recovered.heads {
+                head_index.insert(w, h);
+            }
+
+            let mut wallet_to_chain = HashMap::new();
+            let mut wallet_append_counter = HashMap::new();
+            for (w, chain) in recovered.chains {
+                let next_seq = chain.len() as u64;
+                wallet_to_chain.insert(w.clone(), chain);
+                wallet_append_counter.insert(w, Arc::new(AtomicU64::new(next_seq)));
+            }
+
+            let mut string_to_wallet = HashMap::new();
+            for (sid, w) in recovered.reverse {
+                string_to_wallet.insert(sid, w);
+            }
+
+            let mut piece_maps = HashMap::new();
+            for (sid, pm) in recovered.pieces {
+                piece_maps.insert(sid, pm);
+            }
+
+            Self {
+                descriptors: RwLock::new(descriptors),
+                wallet_to_chain: RwLock::new(wallet_to_chain),
+                string_to_wallet: RwLock::new(string_to_wallet),
+                piece_maps: RwLock::new(piece_maps),
+                head_index: RwLock::new(head_index),
+                wallet_append_counter: RwLock::new(wallet_append_counter),
+                persistence: Some(persistence),
+                last_enqueued_seq: AtomicU64::new(recovered.durable_seq),
+            }
+        }
+
+        /// True if this store has a disk backend.
+        pub fn is_persistent(&self) -> bool {
+            self.persistence.is_some()
+        }
+
+        /// Highest sequence number assigned to any write returned by
+        /// this store. In in-memory mode, `0` (no writes are
+        /// sequence-tracked). In persistent mode, increases on every
+        /// mutating call.
+        pub fn last_enqueued_seq(&self) -> u64 {
+            self.last_enqueued_seq.load(Ordering::Acquire)
+        }
+
+        /// Block until every write enqueued so far has been fsync'd.
+        /// Returns `true` immediately in in-memory mode (vacuously
+        /// durable since there is no disk).
+        pub fn await_all_durable(&self, timeout: Duration) -> bool {
+            match &self.persistence {
+                None => true,
+                Some(p) => p.wait_durable(self.last_enqueued_seq(), timeout),
+            }
+        }
+
+        /// Block until the specific seq returned from a previous mutating
+        /// call has been fsync'd. In in-memory mode, returns `true`
+        /// immediately.
+        pub fn wait_durable(&self, seq: u64, timeout: Duration) -> bool {
+            match &self.persistence {
+                None => true,
+                Some(p) => p.wait_durable(seq, timeout),
+            }
+        }
+
+        /// Helper: enqueue a write op (when persistent) and bump the
+        /// store-level `last_enqueued_seq`. In-memory mode is a no-op.
+        fn enqueue(&self, op: WriteOp) -> u64 {
+            match &self.persistence {
+                None => 0,
+                Some(p) => match p.enqueue(op) {
+                    Ok(seq) => {
+                        // Single-thread monotonic store; `fetch_max` is
+                        // overkill but cheap and self-documenting.
+                        self.last_enqueued_seq.fetch_max(seq, Ordering::AcqRel);
+                        seq
+                    }
+                    Err(e) => {
+                        // Persistence stopped (e.g. disk full). Log and
+                        // continue with the in-memory mirror — the node
+                        // will keep operating but will not survive a
+                        // restart. Operators should monitor
+                        // `last_enqueued_seq()` vs `durable_seq()` for
+                        // divergence.
+                        tracing::error!("rope-storage enqueue failed: {e:?}");
+                        0
+                    }
+                },
             }
         }
 
@@ -195,7 +367,13 @@ pub mod ledger_db {
             self.head_index
                 .write()
                 .insert(wallet.to_vec(), desc.head_string_id);
-            self.descriptors.write().insert(wallet.to_vec(), desc);
+            self.descriptors
+                .write()
+                .insert(wallet.to_vec(), desc.clone());
+            self.enqueue(WriteOp::PutDescriptor {
+                wallet: wallet.to_vec(),
+                desc,
+            });
         }
 
         pub fn get_descriptor(&self, wallet: &[u8]) -> Option<StoredLedgerDescriptor> {
@@ -203,6 +381,25 @@ pub mod ledger_db {
         }
 
         pub fn append_to_chain(&self, wallet: &[u8], string_id: [u8; 32]) {
+            // Reserve a per-wallet sequence number BEFORE touching the
+            // mirror, so concurrent appends to the same wallet land at
+            // strictly increasing positions in both the in-memory
+            // chain and the chain CF.
+            let counter = {
+                let read = self.wallet_append_counter.read();
+                if let Some(c) = read.get(wallet) {
+                    c.clone()
+                } else {
+                    drop(read);
+                    let mut write = self.wallet_append_counter.write();
+                    write
+                        .entry(wallet.to_vec())
+                        .or_insert_with(|| Arc::new(AtomicU64::new(0)))
+                        .clone()
+                }
+            };
+            let seq_in_wallet = counter.fetch_add(1, Ordering::AcqRel);
+
             self.wallet_to_chain
                 .write()
                 .entry(wallet.to_vec())
@@ -212,6 +409,11 @@ pub mod ledger_db {
                 .write()
                 .insert(string_id, wallet.to_vec());
             self.head_index.write().insert(wallet.to_vec(), string_id);
+            self.enqueue(WriteOp::AppendChain {
+                wallet: wallet.to_vec(),
+                seq_in_wallet,
+                string_id,
+            });
         }
 
         pub fn get_chain(&self, wallet: &[u8]) -> Vec<[u8; 32]> {
@@ -231,7 +433,11 @@ pub mod ledger_db {
         }
 
         pub fn put_piece_map(&self, string_id: [u8; 32], map: StoredPieceMap) {
-            self.piece_maps.write().insert(string_id, map);
+            self.piece_maps.write().insert(string_id, map.clone());
+            self.enqueue(WriteOp::PutPieceMap {
+                string_id,
+                piece_map: map,
+            });
         }
 
         pub fn get_piece_map(&self, string_id: &[u8; 32]) -> Option<StoredPieceMap> {
@@ -239,13 +445,35 @@ pub mod ledger_db {
         }
 
         pub fn mark_deleted(&self, wallet: &[u8]) -> bool {
-            let mut descs = self.descriptors.write();
-            if let Some(desc) = descs.get_mut(wallet) {
-                desc.is_deleted = true;
-                desc.deleted_at = Some(chrono::Utc::now().timestamp());
-                true
-            } else {
-                false
+            let now = chrono::Utc::now().timestamp();
+            // Capture the updated desc inside the lock, then enqueue a
+            // full `PutDescriptor` with the new state. We avoid the
+            // older `WriteOp::MarkDeleted` read-modify-write path
+            // because, if a fresh `PutDescriptor` for the same wallet
+            // is already earlier in the same `WriteBatch`, the
+            // `db.get_cf` inside the flusher would not see it (writes
+            // in a `WriteBatch` only become visible to reads after
+            // `db.write_opt`). Sending a self-contained
+            // `PutDescriptor` is order-independent and atomic.
+            let updated_desc: Option<StoredLedgerDescriptor> = {
+                let mut descs = self.descriptors.write();
+                if let Some(desc) = descs.get_mut(wallet) {
+                    desc.is_deleted = true;
+                    desc.deleted_at = Some(now);
+                    Some(desc.clone())
+                } else {
+                    None
+                }
+            };
+            match updated_desc {
+                None => false,
+                Some(desc) => {
+                    self.enqueue(WriteOp::PutDescriptor {
+                        wallet: wallet.to_vec(),
+                        desc,
+                    });
+                    true
+                }
             }
         }
 
@@ -293,6 +521,9 @@ pub mod ledger_db {
 pub use complement_db::ComplementStore;
 pub use lattice_db::LatticeStore;
 pub use ledger_db::LedgerStore;
+pub use rocksdb_persistence::{
+    PersistenceStats, RecoveredState, RocksError, RocksPersistence, WriteOp,
+};
 pub use state_db::StateStore;
 
 // ============================================================================
@@ -440,6 +671,237 @@ mod tests {
         fn test_state_store_default() {
             let store: StateStore = Default::default();
             assert!(store.load_oes_state("test").is_none());
+        }
+    }
+
+    /// Quipu Canon v2.0 Phase 1.5 — RocksDB-backed `LedgerStore`.
+    ///
+    /// Verifies the integration between `LedgerStore`'s in-memory mirror
+    /// and the persistence layer: writes against the public store API
+    /// must be readable from a freshly-opened store at the same path.
+    mod ledger_store_persistent_tests {
+        use crate::ledger_db::{LedgerStore, StoredLedgerDescriptor, StoredPieceMap};
+        use std::time::Duration;
+        use tempfile::TempDir;
+
+        fn dummy_descriptor(wallet: &[u8], head: [u8; 32]) -> StoredLedgerDescriptor {
+            StoredLedgerDescriptor {
+                wallet_address: wallet.to_vec(),
+                genesis_string_id: head,
+                head_string_id: head,
+                entry_count: 1,
+                total_size_bytes: 0,
+                oes_generation_at_creation: 0,
+                current_oes_generation: 0,
+                created_at: 1234567890,
+                last_appended_at: 1234567890,
+                is_deleted: false,
+                deleted_at: None,
+                replication_factor: 5,
+            }
+        }
+
+        #[test]
+        fn in_memory_mode_is_not_persistent() {
+            let s = LedgerStore::new();
+            assert!(!s.is_persistent());
+            // wait_durable is a no-op in in-memory mode.
+            assert!(s.await_all_durable(Duration::from_millis(1)));
+        }
+
+        #[test]
+        fn open_creates_empty_persistent_store() {
+            let dir = TempDir::new().unwrap();
+            let s = LedgerStore::open(dir.path()).unwrap();
+            assert!(s.is_persistent());
+            assert_eq!(s.total_count(), 0);
+            assert_eq!(s.active_count(), 0);
+            assert_eq!(s.last_enqueued_seq(), 0);
+        }
+
+        #[test]
+        fn descriptor_roundtrips_through_disk() {
+            let dir = TempDir::new().unwrap();
+            let path = dir.path().to_path_buf();
+            let wallet = vec![0xAAu8; 20];
+            let head = [0xCDu8; 32];
+
+            {
+                let s = LedgerStore::open(&path).unwrap();
+                s.put_descriptor(&wallet, dummy_descriptor(&wallet, head));
+                // Block until the put is fsync'd before dropping the
+                // store. Generously over the 10 ms flush tick.
+                assert!(s.await_all_durable(Duration::from_secs(2)));
+            }
+
+            // Reopen and confirm the descriptor came back.
+            let s2 = LedgerStore::open(&path).unwrap();
+            let d = s2.get_descriptor(&wallet).expect("descriptor recovered");
+            assert_eq!(d.head_string_id, head);
+            assert_eq!(s2.total_count(), 1);
+            assert_eq!(s2.active_count(), 1);
+            assert_eq!(s2.head_for_wallet(&wallet), Some(head));
+        }
+
+        #[test]
+        fn appended_chain_is_recovered_in_order() {
+            let dir = TempDir::new().unwrap();
+            let path = dir.path().to_path_buf();
+            let wallet = vec![0xBBu8; 20];
+            let mut sids = Vec::new();
+            for i in 0u8..16 {
+                let mut sid = [0u8; 32];
+                sid[0] = i;
+                sids.push(sid);
+            }
+
+            {
+                let s = LedgerStore::open(&path).unwrap();
+                s.put_descriptor(&wallet, dummy_descriptor(&wallet, sids[0]));
+                for sid in &sids {
+                    s.append_to_chain(&wallet, *sid);
+                }
+                assert!(s.await_all_durable(Duration::from_secs(2)));
+                let in_mem = s.get_chain(&wallet);
+                assert_eq!(in_mem, sids);
+            }
+
+            let s2 = LedgerStore::open(&path).unwrap();
+            let recovered = s2.get_chain(&wallet);
+            assert_eq!(
+                recovered, sids,
+                "chain order must survive recovery (big-endian seq encoding)"
+            );
+            // Head pointer must point at the LAST appended sid.
+            assert_eq!(s2.head_for_wallet(&wallet), Some(*sids.last().unwrap()));
+            // Reverse index must be intact too.
+            for sid in &sids {
+                assert_eq!(
+                    s2.wallet_for_string(sid).as_deref(),
+                    Some(wallet.as_slice())
+                );
+            }
+        }
+
+        #[test]
+        fn mark_deleted_persists_across_reopen() {
+            let dir = TempDir::new().unwrap();
+            let path = dir.path().to_path_buf();
+            let wallet = vec![0xCCu8; 20];
+            let head = [0xEFu8; 32];
+
+            {
+                let s = LedgerStore::open(&path).unwrap();
+                s.put_descriptor(&wallet, dummy_descriptor(&wallet, head));
+                assert!(s.mark_deleted(&wallet));
+                assert!(s.await_all_durable(Duration::from_secs(2)));
+            }
+
+            let s2 = LedgerStore::open(&path).unwrap();
+            let d = s2.get_descriptor(&wallet).unwrap();
+            assert!(d.is_deleted, "deletion flag must persist");
+            assert!(d.deleted_at.is_some(), "deleted_at must persist");
+            assert_eq!(s2.active_count(), 0);
+            assert_eq!(s2.total_count(), 1);
+        }
+
+        #[test]
+        fn piece_maps_persist_across_reopen() {
+            let dir = TempDir::new().unwrap();
+            let path = dir.path().to_path_buf();
+            let sid = [0x77u8; 32];
+            let pm = StoredPieceMap {
+                string_id: sid,
+                total_pieces: 3,
+                total_size: 96,
+                piece_hashes: vec![[0x01; 32], [0x02; 32], [0x03; 32]],
+                piece_sizes: vec![32, 32, 32],
+            };
+
+            {
+                let s = LedgerStore::open(&path).unwrap();
+                s.put_piece_map(sid, pm.clone());
+                assert!(s.await_all_durable(Duration::from_secs(2)));
+            }
+
+            let s2 = LedgerStore::open(&path).unwrap();
+            let recovered = s2.get_piece_map(&sid).expect("piece map recovered");
+            assert_eq!(recovered.total_pieces, pm.total_pieces);
+            assert_eq!(recovered.piece_hashes, pm.piece_hashes);
+            assert_eq!(recovered.piece_sizes, pm.piece_sizes);
+        }
+
+        #[test]
+        fn concurrent_appends_to_same_wallet_get_distinct_seqs_on_disk() {
+            // Every concurrent append must land at a unique seq_in_wallet
+            // position so the chain CF doesn't lose entries to overwrite.
+            use std::sync::Arc as StdArc;
+            use std::thread;
+
+            let dir = TempDir::new().unwrap();
+            let path = dir.path().to_path_buf();
+            let wallet = vec![0xDDu8; 20];
+
+            const THREADS: usize = 8;
+            const APPENDS_PER_THREAD: usize = 25;
+
+            {
+                let s = StdArc::new(LedgerStore::open(&path).unwrap());
+                s.put_descriptor(&wallet, dummy_descriptor(&wallet, [0u8; 32]));
+
+                let mut handles = Vec::new();
+                for tid in 0..THREADS as u8 {
+                    let s = s.clone();
+                    let wallet = wallet.clone();
+                    handles.push(thread::spawn(move || {
+                        for i in 0..APPENDS_PER_THREAD {
+                            let mut sid = [0u8; 32];
+                            sid[0] = tid;
+                            sid[1] = i as u8;
+                            s.append_to_chain(&wallet, sid);
+                        }
+                    }));
+                }
+                for h in handles {
+                    h.join().unwrap();
+                }
+                assert!(s.await_all_durable(Duration::from_secs(5)));
+                assert_eq!(s.get_chain(&wallet).len(), THREADS * APPENDS_PER_THREAD);
+            }
+
+            let s2 = LedgerStore::open(&path).unwrap();
+            let recovered = s2.get_chain(&wallet);
+            assert_eq!(
+                recovered.len(),
+                THREADS * APPENDS_PER_THREAD,
+                "no concurrent append may collide on disk seq"
+            );
+            // All sids must be unique — i.e. no overwrites happened.
+            let unique: std::collections::HashSet<_> = recovered.iter().collect();
+            assert_eq!(unique.len(), THREADS * APPENDS_PER_THREAD);
+        }
+
+        #[test]
+        fn unawaited_writes_survive_drop_via_final_drain() {
+            // Caller does NOT call wait_durable. The persistence layer's
+            // Drop impl must final-drain the channel before closing the
+            // DB, so a fast-path append followed by an immediate drop
+            // does not lose the write.
+            let dir = TempDir::new().unwrap();
+            let path = dir.path().to_path_buf();
+            let wallet = vec![0xEEu8; 20];
+            let sid = [0xABu8; 32];
+
+            {
+                let s = LedgerStore::open(&path).unwrap();
+                s.put_descriptor(&wallet, dummy_descriptor(&wallet, sid));
+                s.append_to_chain(&wallet, sid);
+                // No await_all_durable — let Drop final-drain.
+            }
+
+            let s2 = LedgerStore::open(&path).unwrap();
+            assert_eq!(s2.head_for_wallet(&wallet), Some(sid));
+            assert_eq!(s2.get_chain(&wallet), vec![sid]);
         }
     }
 }
