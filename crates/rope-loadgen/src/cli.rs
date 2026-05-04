@@ -55,6 +55,13 @@ pub enum Command {
     /// throughput so callers can verify that adding nodes scales
     /// throughput close to linearly.
     ClusterWrite(ClusterWriteArgs),
+
+    /// Quipu Canon v2.0 Phase 2.E — drive concurrent appends to
+    /// per-wallet `KnotDag` instances and compare vs the linear
+    /// chain head-lock baseline. Reports throughput and per-wallet
+    /// tip-set growth so callers can confirm the multi-parent
+    /// canon lifts the per-wallet ceiling.
+    DagWrite(DagWriteArgs),
 }
 
 /// How to choose the wallet for each op — drives the contention shape.
@@ -227,6 +234,34 @@ pub struct ClusterWriteArgs {
     /// and dispatches ops; the per-task workload is `ops / tasks`.
     #[arg(short = 't', long, default_value_t = 8)]
     pub tasks: usize,
+
+    /// RNG seed for reproducible runs.
+    #[arg(long, default_value_t = 0xDA7A_C4A1_2718_28A1u64)]
+    pub seed: u64,
+}
+
+/// Args for the `dag-write` subcommand (Quipu Canon v2.0 Phase 2.E).
+#[derive(Args, Debug, Clone)]
+pub struct DagWriteArgs {
+    /// Number of distinct wallets in the workload.
+    #[arg(short = 'w', long, default_value_t = 256)]
+    pub wallets: usize,
+
+    /// Total ops across the whole workload, split evenly across
+    /// worker threads.
+    #[arg(short = 'o', long, default_value_t = 100_000)]
+    pub ops: usize,
+
+    /// Number of worker threads. Each thread picks a random wallet
+    /// per op and appends a knot referencing the current tip set.
+    #[arg(short = 't', long, default_value_t = 8)]
+    pub threads: usize,
+
+    /// If set, every thread targets a SINGLE wallet (worst case
+    /// for the linear chain, best case for the DAG canon — proves
+    /// per-wallet head-lock contention is gone).
+    #[arg(long)]
+    pub single_wallet: bool,
 
     /// RNG seed for reproducible runs.
     #[arg(long, default_value_t = 0xDA7A_C4A1_2718_28A1u64)]

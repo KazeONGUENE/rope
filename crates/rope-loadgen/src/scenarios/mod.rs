@@ -4,6 +4,7 @@
 //! each scenario individually testable.
 
 pub mod cluster_write;
+pub mod dag_write;
 pub mod manager_write;
 pub mod store_mixed;
 pub mod store_recover;

@@ -29,6 +29,7 @@
 pub mod clock;
 pub mod complement;
 pub mod error;
+pub mod knot_dag;
 pub mod lattice;
 pub mod nucleotide;
 pub mod personal_ledger;
@@ -38,6 +39,7 @@ pub mod types;
 pub use clock::*;
 pub use complement::*;
 pub use error::*;
+pub use knot_dag::{KnotDag, KnotDagError, KnotDagRegistry, KnotDagSnapshot, KNOT_DAG_NUM_SHARDS};
 pub use lattice::*;
 pub use nucleotide::*;
 pub use personal_ledger::*;

@@ -23,6 +23,7 @@ pub enum Report {
     ManagerWrite(ManagerWriteReport),
     VerifyBatch(VerifyBatchReport),
     ClusterWrite(ClusterWriteReport),
+    DagWrite(DagWriteReport),
 }
 
 impl Report {
@@ -34,6 +35,7 @@ impl Report {
             Report::ManagerWrite(r) => r.human_summary(),
             Report::VerifyBatch(r) => r.human_summary(),
             Report::ClusterWrite(r) => r.human_summary(),
+            Report::DagWrite(r) => r.human_summary(),
         }
     }
 }
@@ -365,6 +367,61 @@ impl ClusterWriteReport {
             min = self.min_node_ops,
             max = self.max_node_ops,
             pn = per_node,
+            p50 = self.latency.p50_us,
+            p99 = self.latency.p99_us,
+        )
+    }
+}
+
+// ============================================================================
+// Quipu Canon v2.0 Phase 2.E — dag-write report
+// ============================================================================
+
+#[derive(Serialize, Debug)]
+pub struct DagWriteReport {
+    pub mode: String,
+    pub wallets: usize,
+    pub threads: usize,
+    pub ops_total: usize,
+    pub elapsed_ms: f64,
+    pub throughput_ops_per_sec: f64,
+    pub mean_per_op_us: f64,
+    /// Number of distinct wallets touched (≤ `wallets`).
+    pub distinct_wallets_touched: usize,
+    /// Sum of `KnotDag::len()` across every wallet at end of run
+    /// — must equal `ops_total`.
+    pub sum_dag_size: usize,
+    /// Maximum tip-set size observed across all wallets at end of
+    /// run. Higher = more concurrent appends collided on the same
+    /// tip set (the DAG canon's signature behaviour).
+    pub max_tip_count: usize,
+    /// Mean tip-set size across all wallets.
+    pub mean_tip_count: f64,
+    pub seed: u64,
+    pub latency: LatencyStats,
+}
+
+impl DagWriteReport {
+    pub fn human_summary(&self) -> String {
+        format!(
+            "dag-write summary (Quipu Canon v2.0 Phase 2.E)\n\
+             ===============================================\n  \
+             mode               : {mode}\n  wallets            : {wallets}\n  threads            : {threads}\n  \
+             ops total          : {ops}\n  distinct wallets   : {dw}\n  sum dag size       : {sum}\n  \
+             elapsed            : {elapsed:>10.2} ms\n  throughput         : {tput:>14.0} ops/s\n  \
+             mean per op        : {mean:>10.2} µs\n  max tip count      : {mx}\n  mean tip count     : {mn:.2}\n  \
+             latency p50        : {p50:>10.2} µs\n  latency p99        : {p99:>10.2} µs\n",
+            mode = self.mode,
+            wallets = self.wallets,
+            threads = self.threads,
+            ops = self.ops_total,
+            dw = self.distinct_wallets_touched,
+            sum = self.sum_dag_size,
+            elapsed = self.elapsed_ms,
+            tput = self.throughput_ops_per_sec,
+            mean = self.mean_per_op_us,
+            mx = self.max_tip_count,
+            mn = self.mean_tip_count,
             p50 = self.latency.p50_us,
             p99 = self.latency.p99_us,
         )
