@@ -19,6 +19,7 @@ pub mod governance;
 pub mod ledger_manager;
 pub mod metrics;
 pub mod node;
+pub mod oes_key_cache;
 pub mod rpc_server;
 pub mod string_producer;
 
