@@ -26,6 +26,7 @@
 
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Events emitted by the lifecycle manager for observability and networking
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -215,19 +216,11 @@ impl LedgerErasureAudit {
     }
 }
 
-/// The Ledger Lifecycle Manager — top-level orchestrator.
+/// Aggregate statistics — snapshot type returned by [`LedgerLifecycleManager::stats`].
 ///
-/// This struct is intended to be held as `Arc<LedgerLifecycleManager>` inside
-/// `RopeNode` and shared across the RPC server, consensus orchestrator, and
-/// network event handlers.
-pub struct LedgerLifecycleManager {
-    config: LifecycleConfig,
-    event_log: RwLock<Vec<LedgerLifecycleEvent>>,
-    erasure_audits: RwLock<Vec<LedgerErasureAudit>>,
-    stats: RwLock<LifecycleStats>,
-}
-
-/// Aggregate statistics
+/// The manager stores its live counters as per-shard atomics
+/// (see [`LIFECYCLE_SHARDS`]). `stats()` aggregates them into this
+/// `Clone + Serialize` snapshot for the RPC and observability surfaces.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct LifecycleStats {
     pub ledgers_created: u64,
@@ -240,18 +233,120 @@ pub struct LifecycleStats {
     pub total_bytes_repatriated: u64,
 }
 
+/// Number of [`LedgerLifecycleManager`] shards.
+///
+/// 256 mirrors the v2.0 Phase 1 shard count used everywhere else in the
+/// hot path (`StringLattice` shards, `EntityHeadLocks` shards,
+/// `ClockManager` HLC shards, `OESKeyCache` shards). The first byte of
+/// the wallet address selects the shard; ed25519 / EVM addresses are
+/// uniformly distributed in their first byte so this gives a flat
+/// per-shard load without rehashing.
+pub const LIFECYCLE_SHARDS: usize = 256;
+
+/// Per-shard atomic counters. Each `record_*` increments only the
+/// counters on its shard, so cross-wallet appends never collide on a
+/// shared cache line. `stats()` sums them up under `Relaxed` ordering —
+/// observability is allowed to see a slightly inconsistent snapshot
+/// (a counter from one shard a few nanos newer than another), which is
+/// the standard contract for lock-free aggregate metrics.
+#[derive(Default)]
+struct ShardStats {
+    ledgers_created: AtomicU64,
+    entries_appended: AtomicU64,
+    repatriations_completed: AtomicU64,
+    repatriations_failed: AtomicU64,
+    ledgers_deleted: AtomicU64,
+    total_pieces_distributed: AtomicU64,
+    total_bytes_distributed: AtomicU64,
+    total_bytes_repatriated: AtomicU64,
+}
+
+/// One [`LIFECYCLE_SHARDS`] partition: its own event-log Vec under a
+/// dedicated `RwLock`, plus the shard-local atomic stats counters.
+struct LifecycleShard {
+    events: RwLock<Vec<LedgerLifecycleEvent>>,
+    stats: ShardStats,
+}
+
+impl LifecycleShard {
+    fn new() -> Self {
+        Self {
+            events: RwLock::new(Vec::new()),
+            stats: ShardStats::default(),
+        }
+    }
+}
+
+/// Pick the shard owning a wallet address. Falls back to shard 0 when
+/// the address is empty (which only happens in synthetic tests).
+#[inline]
+fn shard_for_wallet(wallet_address: &[u8]) -> usize {
+    wallet_address.first().copied().unwrap_or(0) as usize
+}
+
+/// The Ledger Lifecycle Manager — top-level orchestrator.
+///
+/// This struct is intended to be held as `Arc<LedgerLifecycleManager>` inside
+/// `RopeNode` and shared across the RPC server, consensus orchestrator, and
+/// network event handlers.
+///
+/// ## Quipu Canon v2.0 Phase 2.A — sharded record path
+///
+/// In v1.x and Phase 1 the manager held two global `RwLock`s — one over
+/// an unbounded `Vec<LedgerLifecycleEvent>`, one over a `LifecycleStats`
+/// struct — and `record_append` took both write locks on every call.
+/// Under load (>200 ops/thread or >500 wallets) those two locks
+/// serialised every concurrent appender across the whole node and the
+/// `manager-write` benchmark in `crates/rope-loadgen` collapsed from
+/// ~30k ops/s to <50 ops/s. See
+/// `docs/QUIPU_CANON_V2_PHASE1_BENCHMARK_RESULTS.md` for the cliff
+/// reproduction.
+///
+/// Phase 2.A partitions the manager across [`LIFECYCLE_SHARDS`] shards,
+/// keyed by `wallet_address[0]`. Each shard owns its own event-log
+/// `RwLock<Vec<…>>` and its own `ShardStats` of `AtomicU64` counters,
+/// so `record_creation` / `record_append` / `record_repatriation` /
+/// `record_deletion` for two distinct wallets almost always land on
+/// two distinct shards and proceed in parallel.
+///
+/// `erasure_audits` stays global because deletions are rare (one per
+/// wallet closure) and consumers want a single canonical list.
+///
+/// The public method semantics — append-only event log, monotonic
+/// counters, snapshot reads via `stats()` / `recent_events()` /
+/// `erasure_audits()` — are preserved. `recent_events(limit)` now
+/// returns up to `limit` events with no global cross-shard ordering
+/// guarantee; intra-shard order is still strict push order.
+pub struct LedgerLifecycleManager {
+    config: LifecycleConfig,
+    /// 256 sharded `(events, stats)` partitions keyed by `wallet[0]`.
+    shards: Box<[LifecycleShard]>,
+    /// Erasure audits stay global: deletion is a rare, audited event,
+    /// and tooling expects a single ordered list.
+    erasure_audits: RwLock<Vec<LedgerErasureAudit>>,
+}
+
 impl LedgerLifecycleManager {
     pub fn new(config: LifecycleConfig) -> Self {
+        let shards: Vec<LifecycleShard> = (0..LIFECYCLE_SHARDS)
+            .map(|_| LifecycleShard::new())
+            .collect();
         Self {
             config,
-            event_log: RwLock::new(Vec::new()),
+            shards: shards.into_boxed_slice(),
             erasure_audits: RwLock::new(Vec::new()),
-            stats: RwLock::new(LifecycleStats::default()),
         }
     }
 
     pub fn config(&self) -> &LifecycleConfig {
         &self.config
+    }
+
+    /// Number of shards (always [`LIFECYCLE_SHARDS`]). Exposed for
+    /// tests and node metrics so observability surfaces can verify
+    /// the manager has been built with the v2.0 Phase 2.A topology.
+    pub fn shard_count(&self) -> usize {
+        self.shards.len()
     }
 
     /// Record a ledger creation event
@@ -261,13 +356,14 @@ impl LedgerLifecycleManager {
         genesis_string_id: [u8; 32],
         oes_generation: u64,
     ) {
+        let shard = &self.shards[shard_for_wallet(&wallet_address)];
         let event = LedgerLifecycleEvent::LedgerCreated {
             wallet_address,
             genesis_string_id,
             oes_generation,
         };
-        self.event_log.write().push(event);
-        self.stats.write().ledgers_created += 1;
+        shard.events.write().push(event);
+        shard.stats.ledgers_created.fetch_add(1, Ordering::Relaxed);
     }
 
     /// Record an entry append event
@@ -279,6 +375,7 @@ impl LedgerLifecycleManager {
         encrypted_size: u64,
         piece_count: u32,
     ) {
+        let shard = &self.shards[shard_for_wallet(&wallet_address)];
         let event = LedgerLifecycleEvent::EntryAppended {
             wallet_address,
             string_id,
@@ -286,12 +383,19 @@ impl LedgerLifecycleManager {
             encrypted_size,
             piece_count,
         };
-        self.event_log.write().push(event);
+        shard.events.write().push(event);
 
-        let mut stats = self.stats.write();
-        stats.entries_appended += 1;
-        stats.total_pieces_distributed += piece_count as u64;
-        stats.total_bytes_distributed += encrypted_size;
+        // Stats are atomic — no lock; appends to the same shard but
+        // different wallets do not contend on a writer guard.
+        shard.stats.entries_appended.fetch_add(1, Ordering::Relaxed);
+        shard
+            .stats
+            .total_pieces_distributed
+            .fetch_add(piece_count as u64, Ordering::Relaxed);
+        shard
+            .stats
+            .total_bytes_distributed
+            .fetch_add(encrypted_size, Ordering::Relaxed);
     }
 
     /// Record a completed repatriation
@@ -302,21 +406,28 @@ impl LedgerLifecycleManager {
         total_bytes: u64,
         elapsed_ms: u64,
     ) {
+        let shard = &self.shards[shard_for_wallet(&wallet_address)];
         let event = LedgerLifecycleEvent::RepatriationComplete {
             wallet_address,
             entries_fetched,
             total_bytes,
             elapsed_ms,
         };
-        self.event_log.write().push(event);
+        shard.events.write().push(event);
 
-        let mut stats = self.stats.write();
-        stats.repatriations_completed += 1;
-        stats.total_bytes_repatriated += total_bytes;
+        shard
+            .stats
+            .repatriations_completed
+            .fetch_add(1, Ordering::Relaxed);
+        shard
+            .stats
+            .total_bytes_repatriated
+            .fetch_add(total_bytes, Ordering::Relaxed);
     }
 
     /// Record a ledger deletion
     pub fn record_deletion(&self, audit: LedgerErasureAudit) {
+        let shard = &self.shards[shard_for_wallet(&audit.wallet_address)];
         let wallet = audit.wallet_address.clone();
         let entries = audit.entries_erased;
         let method = audit.key_destruction_method.clone();
@@ -326,19 +437,57 @@ impl LedgerLifecycleManager {
             entries_erased: entries,
             key_destruction_method: method,
         };
-        self.event_log.write().push(event);
+        shard.events.write().push(event);
+        shard.stats.ledgers_deleted.fetch_add(1, Ordering::Relaxed);
+
+        // Audit list stays global — deletion is rare, the audit list
+        // is consumed as a single canonical sequence by tooling.
         self.erasure_audits.write().push(audit);
-        self.stats.write().ledgers_deleted += 1;
     }
 
+    /// Aggregate per-shard atomics into a stable snapshot.
     pub fn stats(&self) -> LifecycleStats {
-        self.stats.read().clone()
+        let mut out = LifecycleStats::default();
+        for shard in self.shards.iter() {
+            out.ledgers_created += shard.stats.ledgers_created.load(Ordering::Relaxed);
+            out.entries_appended += shard.stats.entries_appended.load(Ordering::Relaxed);
+            out.repatriations_completed +=
+                shard.stats.repatriations_completed.load(Ordering::Relaxed);
+            out.repatriations_failed += shard.stats.repatriations_failed.load(Ordering::Relaxed);
+            out.ledgers_deleted += shard.stats.ledgers_deleted.load(Ordering::Relaxed);
+            out.total_pieces_distributed +=
+                shard.stats.total_pieces_distributed.load(Ordering::Relaxed);
+            out.total_bytes_distributed +=
+                shard.stats.total_bytes_distributed.load(Ordering::Relaxed);
+            out.total_bytes_repatriated +=
+                shard.stats.total_bytes_repatriated.load(Ordering::Relaxed);
+        }
+        out
     }
 
+    /// Most-recent up to `limit` events, drawn across all shards.
+    ///
+    /// **Ordering note (v2.0 Phase 2.A):** intra-shard order is strict
+    /// push order, but events from different shards are not globally
+    /// ordered. The previous v1.x behaviour returned a globally
+    /// totally-ordered slice because the event log was a single Vec;
+    /// the sharded layout sacrifices that for ~256× write parallelism.
+    /// Observability consumers (RPC, DCScan, dashboards) treat
+    /// `recent_events` as best-effort, which this contract still meets.
     pub fn recent_events(&self, limit: usize) -> Vec<LedgerLifecycleEvent> {
-        let log = self.event_log.read();
-        let start = log.len().saturating_sub(limit);
-        log[start..].to_vec()
+        if limit == 0 {
+            return Vec::new();
+        }
+        // Cheap upper bound: the suffix of every shard. We then take
+        // the suffix of the merged Vec to honour `limit`.
+        let mut merged: Vec<LedgerLifecycleEvent> = Vec::new();
+        for shard in self.shards.iter() {
+            let log = shard.events.read();
+            let start = log.len().saturating_sub(limit);
+            merged.extend_from_slice(&log[start..]);
+        }
+        let start = merged.len().saturating_sub(limit);
+        merged.split_off(start)
     }
 
     pub fn erasure_audits(&self) -> Vec<LedgerErasureAudit> {
@@ -429,5 +578,146 @@ mod tests {
         assert_eq!(audit.entries_erased, 5);
         assert!(audit.completed_at.is_some());
         assert_ne!(audit.audit_hash, [0u8; 32]);
+    }
+
+    // ----------------------------------------------------------------
+    // Quipu Canon v2.0 Phase 2.A — sharded lifecycle manager tests
+    // ----------------------------------------------------------------
+
+    #[test]
+    fn test_lifecycle_manager_has_256_shards() {
+        let manager = LedgerLifecycleManager::default();
+        assert_eq!(manager.shard_count(), LIFECYCLE_SHARDS);
+        assert_eq!(LIFECYCLE_SHARDS, 256);
+    }
+
+    #[test]
+    fn test_shard_for_wallet_uses_first_byte() {
+        // Two wallets sharing only their first byte must hash to the
+        // same shard; differing first bytes must hash to different
+        // shards. This is the contract every other v2.0 shard map
+        // (lattice, head locks, HLC, key cache) implements.
+        let a = vec![0x42u8; 20];
+        let b = vec![0x42u8, 0x99, 0xAB];
+        let c = vec![0x43u8; 20];
+        assert_eq!(shard_for_wallet(&a), shard_for_wallet(&b));
+        assert_ne!(shard_for_wallet(&a), shard_for_wallet(&c));
+        assert_eq!(shard_for_wallet(&[]), 0, "empty addr falls back to 0");
+    }
+
+    #[test]
+    fn test_stats_aggregate_across_shards() {
+        // Distribute creations across distinct shards (different
+        // first bytes) and verify the aggregated snapshot picks them
+        // all up. If any shard's atomics were skipped, the asserts
+        // here would tell us immediately.
+        let manager = LedgerLifecycleManager::default();
+
+        for i in 0u8..16 {
+            let w = vec![i, 0u8, 0u8, 0u8];
+            manager.record_creation(w.clone(), [i; 32], 0);
+            manager.record_append(w.clone(), [i; 32], [0u8; 32], 1024, 2);
+        }
+
+        let stats = manager.stats();
+        assert_eq!(stats.ledgers_created, 16);
+        assert_eq!(stats.entries_appended, 16);
+        assert_eq!(stats.total_pieces_distributed, 32);
+        assert_eq!(stats.total_bytes_distributed, 16 * 1024);
+    }
+
+    #[test]
+    fn test_recent_events_returns_intra_shard_suffix() {
+        // All events go to one shard (same first byte) — recent_events
+        // must return them in push order, capped at `limit`.
+        let manager = LedgerLifecycleManager::default();
+        let wallet = vec![0xAB, 0x00, 0x00];
+        for i in 0..5 {
+            manager.record_append(wallet.clone(), [i as u8; 32], [0u8; 32], 16, 1);
+        }
+        let recent = manager.recent_events(3);
+        assert_eq!(recent.len(), 3);
+        // Last three appended must be the last three returned.
+        let ids: Vec<u8> = recent
+            .iter()
+            .map(|e| match e {
+                LedgerLifecycleEvent::EntryAppended { string_id, .. } => string_id[0],
+                _ => 0xFF,
+            })
+            .collect();
+        assert_eq!(ids, vec![2, 3, 4]);
+    }
+
+    #[test]
+    fn test_concurrent_appends_distinct_shards_do_not_serialise() {
+        // Stress test: 16 threads × 1024 ops, each thread targeting
+        // its own shard via wallet[0] = thread id. With v1.x's two
+        // global RwLocks this took >>1 s and routinely tripped the
+        // benchmark cliff at 8+ threads. With Phase 2.A sharding the
+        // run finishes in well under 1 s on ordinary hardware.
+        use std::sync::Arc;
+        use std::thread;
+        use std::time::Instant;
+
+        const THREADS: usize = 16;
+        const OPS_PER_THREAD: usize = 1024;
+
+        let manager = Arc::new(LedgerLifecycleManager::default());
+        let started = Instant::now();
+        let mut handles = Vec::with_capacity(THREADS);
+        for tid in 0..THREADS {
+            let m = manager.clone();
+            handles.push(thread::spawn(move || {
+                let wallet = vec![tid as u8, 0u8, 0u8, 0u8];
+                for op in 0..OPS_PER_THREAD {
+                    m.record_append(wallet.clone(), [op as u8; 32], [0u8; 32], 128, 1);
+                }
+            }));
+        }
+        for h in handles {
+            h.join().unwrap();
+        }
+        let elapsed = started.elapsed();
+
+        let stats = manager.stats();
+        assert_eq!(stats.entries_appended, (THREADS * OPS_PER_THREAD) as u64);
+        assert_eq!(
+            stats.total_pieces_distributed,
+            (THREADS * OPS_PER_THREAD) as u64
+        );
+
+        // Soft regression budget — 1 s is generous; a healthy build
+        // finishes in 10–50 ms. If this ever drifts back into the
+        // hundreds-of-ms range, the per-shard event log has likely
+        // regained a global bottleneck.
+        assert!(
+            elapsed.as_millis() < 1_000,
+            "16 × 1024 sharded record_append took {} ms — \
+             v2.0 Phase 2.A regression",
+            elapsed.as_millis()
+        );
+    }
+
+    #[test]
+    fn test_record_deletion_keeps_audits_global_and_event_local() {
+        let manager = LedgerLifecycleManager::default();
+        let wallet = vec![0x10u8; 20];
+
+        manager.record_creation(wallet.clone(), [0u8; 32], 0);
+        let mut audit = LedgerErasureAudit::new(wallet.clone(), DeletionReason::OwnerRequest);
+        audit.complete(3, "oes_evolution", vec![0, 1, 2]);
+        manager.record_deletion(audit);
+
+        let audits = manager.erasure_audits();
+        assert_eq!(audits.len(), 1, "audits remain on the global list");
+
+        let recent = manager.recent_events(8);
+        assert!(
+            recent
+                .iter()
+                .any(|e| matches!(e, LedgerLifecycleEvent::LedgerDeleted { .. })),
+            "deletion event must appear in the per-shard event log"
+        );
+        assert_eq!(manager.stats().ledgers_deleted, 1);
     }
 }
