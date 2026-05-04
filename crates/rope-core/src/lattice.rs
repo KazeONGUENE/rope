@@ -7,11 +7,55 @@
 //! - ≺ (Precedes): Partial ordering capturing causal dependencies
 //! - ⊗ (Intertwine): Complementary pairing operation (double helix)
 //! - R (Regeneration): Repair relation for damaged strings
+//!
+//! ## Quipu Canon v2.0 Phase 1.1 — 256-Shard Lattice
+//!
+//! In v1.x [`StringLattice`] held a single global `RwLock` for each of its
+//! six core HashMaps and one for the petgraph DAG. Every `add_string` took
+//! four of those write locks at once
+//! (`docs/QUIPU_CANON_V2_SCALE_5M_TPS_ARCHITECTURE.md` §3.1) so concurrent
+//! appends, even to wholly unrelated wallets, serialised on one mutex chain.
+//!
+//! Phase 1.1 partitions the lattice across 256 shards keyed by `StringId[0]`
+//! (the first byte of the BLAKE3 hash that names every string — already
+//! uniformly distributed, so no rehash required). Each shard owns:
+//!
+//! - its own `strings`, `complements`, `erased`, `tombstones`, `pending`
+//!   maps under per-shard RwLocks;
+//! - its own intra-shard DAG (plain `HashMap<StringId, Vec<StringId>>` for
+//!   parents and children — petgraph is overkill once we don't need
+//!   cross-graph topology operations).
+//!
+//! Because `StringId[0]` is uniformly random, two concurrent `add_string`
+//! calls almost always touch two different shards and proceed in parallel.
+//! Genuinely cross-shard edges (parent in shard A, child in shard B) are
+//! handled by writing the parent edge in B's `parents` map and the child
+//! edge in A's `children` map — two writes, two shards, no contention.
+//!
+//! ### What stays global
+//!
+//! Three structures remain global because they are intrinsically aggregate
+//! and write-rate-bounded:
+//!
+//! - `anchors`: one anchor every ~10 s by canon design
+//! - `finalized_strings`: written only when an anchor finalises a batch
+//! - `current_round`: bumped only when a new anchor is produced
+//!
+//! ### What changes for callers
+//!
+//! Nothing. The public API is byte-identical to v1.x:
+//! `add_string`, `get_string`, `mark_erased`, `mark_knot_untied`,
+//! `walk_ledger_chain`, `walk_string_with_tombstones`,
+//! `strings_by_creator`, `erase_creator_strings`, `get_parents`,
+//! `get_children`, `is_finalized`, `contains`, `string_count`,
+//! `pending_count`, `finalized_count`, `erased_count`, `tombstone_count`,
+//! `current_round`, `latest_anchor`, `anchors`, `verify_string`,
+//! `regenerate_string`, `stats`, and `check_finality` all keep their
+//! v1.x signatures and semantics. `ledger_manager.rs` and the test suite
+//! require no changes.
 
 use hashbrown::{HashMap, HashSet};
 use parking_lot::RwLock;
-use petgraph::graph::{DiGraph, NodeIndex};
-use petgraph::Direction;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -19,6 +63,16 @@ use crate::complement::Complement;
 use crate::error::{Result, RopeError};
 use crate::string::RopeString;
 use crate::types::{constants, FinalityStatus, StringId};
+
+/// Number of per-`StringId` shards in the lattice. Chosen to match the
+/// HLC shard count introduced in Phase 1.3 (`crates/rope-core/src/clock.rs`).
+/// Both constants are intentionally separate while the two phase branches
+/// land independently; once both are on `main` they should be reconciled
+/// via a small `shards` module that exports a single canonical value.
+pub const NUM_SHARDS: usize = 256;
+
+/// One per-`creator_pk[0]` shard of the creator index.
+type CreatorShard = RwLock<HashMap<[u8; 32], Vec<StringId>>>;
 
 /// Anchor String - Synchronization point in the lattice
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -98,6 +152,64 @@ impl LedgerEntry {
     }
 }
 
+/// Map a `StringId` to its shard. Trivial since the id is itself a uniformly
+/// distributed BLAKE3 hash — no rehash required.
+#[inline]
+fn shard_for_string_id(id: &StringId) -> usize {
+    id.as_bytes()[0] as usize
+}
+
+/// Map a creator public key to its shard. Ed25519 keys are uniformly
+/// distributed; `pk[0]` is sufficient.
+#[inline]
+fn shard_for_creator(pk: &[u8; 32]) -> usize {
+    pk[0] as usize
+}
+
+/// Per-shard slice of the lattice. One of these per `StringId[0]` byte.
+struct LatticeShard {
+    /// Strings whose `StringId[0]` lands in this shard.
+    strings: RwLock<HashMap<StringId, RopeString>>,
+
+    /// Complements for the strings in this shard.
+    complements: RwLock<HashMap<StringId, Complement>>,
+
+    /// child -> parents map. The CHILD lives in this shard; parents may be
+    /// in any shard. This replaces petgraph's `Direction::Incoming` query
+    /// for nodes whose `StringId[0]` lands in this shard.
+    parents: RwLock<HashMap<StringId, Vec<StringId>>>,
+
+    /// parent -> children map. The PARENT lives in this shard; children may
+    /// be in any shard. Replaces `Direction::Outgoing` for nodes whose
+    /// `StringId[0]` lands in this shard.
+    children: RwLock<HashMap<StringId, Vec<StringId>>>,
+
+    /// Erased strings (whole-string tombstones).
+    erased: RwLock<HashSet<StringId>>,
+
+    /// Untied-knot tombstones with audit metadata (canon v1.1 §4.2).
+    tombstones: RwLock<HashMap<StringId, KnotTombstone>>,
+
+    /// Pending strings awaiting finality, ordered by Lamport time.
+    /// Each shard keeps its own slice; aggregation is via summing across
+    /// shards (low-frequency call, used by `pending_count` and finality).
+    pending: RwLock<BTreeMap<u64, HashSet<StringId>>>,
+}
+
+impl LatticeShard {
+    fn new() -> Self {
+        Self {
+            strings: RwLock::new(HashMap::new()),
+            complements: RwLock::new(HashMap::new()),
+            parents: RwLock::new(HashMap::new()),
+            children: RwLock::new(HashMap::new()),
+            erased: RwLock::new(HashSet::new()),
+            tombstones: RwLock::new(HashMap::new()),
+            pending: RwLock::new(BTreeMap::new()),
+        }
+    }
+}
+
 /// String Lattice - The core data structure of Datachain Rope
 ///
 /// Replaces blockchain's linear chain with a multi-dimensional lattice
@@ -110,210 +222,162 @@ impl LedgerEntry {
 ///   - `mark_knot_untied(id, reason)` — destroys the payload but preserves
 ///     the knot's position via the DAG so `walk_string_with_tombstones` can
 ///     traverse past it. This is the per-knot GDPR primitive.
+///
+/// Quipu Canon v2.0 Phase 1.1: internally sharded over `NUM_SHARDS` (256)
+/// per-shard slices keyed by `StringId[0]`. See module-level docs.
 pub struct StringLattice {
-    /// All strings in the lattice: StringId -> RopeString
-    strings: RwLock<HashMap<StringId, RopeString>>,
+    /// 256 per-string-id shards (the hot path).
+    shards: Box<[LatticeShard]>,
 
-    /// Complements for each string: StringId -> Complement
-    complements: RwLock<HashMap<StringId, Complement>>,
+    /// 256 per-creator-pubkey shards. Distinct sharding axis from
+    /// `shards` because a wallet's strings span many `StringId[0]`
+    /// buckets, but the creator pubkey is constant for one wallet.
+    creator_index: Box<[CreatorShard]>,
 
-    /// DAG structure for ordering (petgraph)
-    ordering: RwLock<LatticeDAG>,
-
-    /// Anchor strings for consensus
+    /// Anchor strings for consensus. Global because anchors are
+    /// produced ~once per 10s by canon design — write rate is far
+    /// below the contention threshold.
     anchors: RwLock<Vec<AnchorString>>,
 
-    /// Pending strings awaiting finality (ordered by Lamport clock)
-    pending_strings: RwLock<BTreeMap<u64, HashSet<StringId>>>,
-
-    /// Finalized strings
+    /// Finalized strings. Global; written only when an anchor finalises
+    /// a batch.
     finalized_strings: RwLock<HashSet<StringId>>,
 
-    /// Erased strings (tombstones)
-    erased_strings: RwLock<HashSet<StringId>>,
-
-    /// Untied-knot tombstones with audit metadata (canon v1.1 §4.2).
-    /// Keyed by the original StringId. Presence in this map AND in
-    /// `erased_strings` indicates the knot was untied with full audit,
-    /// not just garbage-collected.
-    knot_tombstones: RwLock<HashMap<StringId, KnotTombstone>>,
-
-    /// Current round number
+    /// Current consensus round number. Global; bumped only on anchor.
     current_round: RwLock<u64>,
-
-    /// Creator index: Ed25519 public key bytes -> set of StringIds
-    /// Enables efficient lookup of all strings created by a specific wallet
-    creator_index: RwLock<HashMap<[u8; 32], Vec<StringId>>>,
-}
-
-/// DAG structure for string ordering
-struct LatticeDAG {
-    graph: DiGraph<StringId, ()>,
-    id_to_index: HashMap<StringId, NodeIndex>,
-}
-
-impl LatticeDAG {
-    fn new() -> Self {
-        Self {
-            graph: DiGraph::new(),
-            id_to_index: HashMap::new(),
-        }
-    }
-
-    fn add_node(&mut self, id: StringId, parents: &[StringId]) {
-        let node_idx = self.graph.add_node(id);
-        self.id_to_index.insert(id, node_idx);
-
-        // Add edges from parents to this node
-        for parent_id in parents {
-            if let Some(&parent_idx) = self.id_to_index.get(parent_id) {
-                self.graph.add_edge(parent_idx, node_idx, ());
-            }
-        }
-    }
-
-    fn get_parents(&self, id: &StringId) -> Vec<StringId> {
-        if let Some(&idx) = self.id_to_index.get(id) {
-            self.graph
-                .neighbors_directed(idx, Direction::Incoming)
-                .filter_map(|parent_idx| self.graph.node_weight(parent_idx).copied())
-                .collect()
-        } else {
-            Vec::new()
-        }
-    }
-
-    fn get_children(&self, id: &StringId) -> Vec<StringId> {
-        if let Some(&idx) = self.id_to_index.get(id) {
-            self.graph
-                .neighbors_directed(idx, Direction::Outgoing)
-                .filter_map(|child_idx| self.graph.node_weight(child_idx).copied())
-                .collect()
-        } else {
-            Vec::new()
-        }
-    }
-
-    /// Check if a string exists in the DAG
-    #[allow(dead_code)]
-    pub fn contains(&self, id: &StringId) -> bool {
-        self.id_to_index.contains_key(id)
-    }
-
-    /// Get the number of nodes in the DAG
-    #[allow(dead_code)]
-    pub fn node_count(&self) -> usize {
-        self.graph.node_count()
-    }
 }
 
 impl StringLattice {
-    /// Create a new empty string lattice
+    /// Create a new empty string lattice with [`NUM_SHARDS`] shards.
     pub fn new() -> Self {
+        let shards: Vec<LatticeShard> = (0..NUM_SHARDS).map(|_| LatticeShard::new()).collect();
+        let creator_shards: Vec<CreatorShard> = (0..NUM_SHARDS)
+            .map(|_| RwLock::new(HashMap::new()))
+            .collect();
         Self {
-            strings: RwLock::new(HashMap::new()),
-            complements: RwLock::new(HashMap::new()),
-            ordering: RwLock::new(LatticeDAG::new()),
+            shards: shards.into_boxed_slice(),
+            creator_index: creator_shards.into_boxed_slice(),
             anchors: RwLock::new(Vec::new()),
-            pending_strings: RwLock::new(BTreeMap::new()),
             finalized_strings: RwLock::new(HashSet::new()),
-            erased_strings: RwLock::new(HashSet::new()),
-            knot_tombstones: RwLock::new(HashMap::new()),
             current_round: RwLock::new(0),
-            creator_index: RwLock::new(HashMap::new()),
         }
+    }
+
+    /// Number of per-string-id shards (always [`NUM_SHARDS`]). Exposed for
+    /// tests and metrics.
+    pub fn shard_count(&self) -> usize {
+        self.shards.len()
     }
 
     /// Add a string to the lattice
     ///
-    /// This is the primary operation for string creation:
-    /// 1. Verify parentage exists
-    /// 2. Verify OES generation is current
-    /// 3. Verify hybrid signature
-    /// 4. Generate complement
-    /// 5. Add to lattice structures
-    /// 6. Check for anchor creation
+    /// Phase 1.1 sharded write path:
+    ///
+    ///   1. Verify parentage exists (parent's own shard, read lock)
+    ///   2. Verify the string isn't already erased / parents aren't erased
+    ///   3. Generate complement
+    ///   4. Insert into the child's shard (`strings`, `complements`,
+    ///      `parents`, `pending`) — at most 4 write locks but all on the
+    ///      same shard, no contention with concurrent inserts on other
+    ///      shards
+    ///   5. Update each parent's shard `children` index — one write lock per
+    ///      parent shard (typically 1, since most parents differ from child
+    ///      in `StringId[0]`)
+    ///   6. Update creator-index shard (`creator_pk[0]`)
+    ///   7. Check for anchor creation (global, anchor-cadence)
     pub fn add_string(&self, string: RopeString) -> Result<StringId> {
-        let strings = self.strings.read();
-        let erased = self.erased_strings.read();
+        let id = string.id();
+        let parents = string.parentage().to_vec();
 
-        // Step 1: Verify parentage exists
-        for parent in string.parentage() {
-            if !strings.contains_key(parent) && !parent.as_bytes().iter().all(|&b| b == 0) {
+        // Step 1+2: verify parentage. Each parent lives in its own shard
+        // (typically a different one from `id`). Take the parent's shard's
+        // strings + erased read locks for the check.
+        for parent in &parents {
+            if parent.as_bytes().iter().all(|&b| b == 0) {
+                continue; // genesis sentinel
+            }
+            let p_shard = &self.shards[shard_for_string_id(parent)];
+            if !p_shard.strings.read().contains_key(parent) {
                 return Err(RopeError::MissingParent(*parent));
             }
-            if erased.contains(parent) {
+            if p_shard.erased.read().contains(parent) {
                 return Err(RopeError::ParentErased(*parent));
             }
         }
 
-        drop(strings);
-        drop(erased);
-
-        // Step 2: Verify OES generation is within acceptable window
-        // (Placeholder - actual verification would involve OES state)
-        // if !self.verify_oes_generation(string.oes_generation()) {
-        //     return Err(RopeError::InvalidOESGeneration);
-        // }
-
-        // Step 3: Verify hybrid signature
-        // (Placeholder - actual verification would involve crypto module)
-        // if !verify_hybrid_signature(&string) {
-        //     return Err(RopeError::InvalidSignature);
-        // }
-
-        // Step 4: Generate complement
+        // Step 3: complement (pure CPU, no locks)
         let complement = Complement::generate(&string);
 
-        // Step 5: Add to lattice structures
-        let id = string.id();
         let timestamp = string.temporal_marker().time();
-
         let creator_key = string.creator().ed25519;
+        let id_shard_idx = shard_for_string_id(&id);
 
+        // Step 4: insert into the child's shard. Acquire its 4 write locks
+        // together so the slice's internal invariants (string ↔ complement,
+        // string ↔ parents, string ↔ pending) hold atomically for any
+        // concurrent reader.
         {
-            let mut strings = self.strings.write();
-            let mut complements = self.complements.write();
-            let mut ordering = self.ordering.write();
-            let mut pending = self.pending_strings.write();
+            let shard = &self.shards[id_shard_idx];
+            let mut strings = shard.strings.write();
+            let mut complements = shard.complements.write();
+            let mut parents_map = shard.parents.write();
+            let mut pending = shard.pending.write();
 
             strings.insert(id, string.clone());
             complements.insert(id, complement);
-            ordering.add_node(id, string.parentage());
-
+            parents_map.insert(id, parents.clone());
             pending.entry(timestamp).or_default().insert(id);
         }
 
-        // Populate creator index
-        self.creator_index
+        // Step 5: update each parent's shard's `children` index. Skip the
+        // genesis sentinel; group parents by shard so each shard's lock is
+        // taken at most once.
+        let mut parent_buckets: HashMap<usize, Vec<StringId>> = HashMap::new();
+        for parent in &parents {
+            if parent.as_bytes().iter().all(|&b| b == 0) {
+                continue;
+            }
+            parent_buckets
+                .entry(shard_for_string_id(parent))
+                .or_default()
+                .push(*parent);
+        }
+        for (s_idx, parents_in_shard) in parent_buckets {
+            let mut children_map = self.shards[s_idx].children.write();
+            for parent in parents_in_shard {
+                children_map.entry(parent).or_default().push(id);
+            }
+        }
+
+        // Step 6: creator index, on its own sharding axis.
+        self.creator_index[shard_for_creator(&creator_key)]
             .write()
             .entry(creator_key)
             .or_default()
             .push(id);
 
-        // Step 6: Check if this creates new anchor
+        // Step 7: anchor check (global, low rate)
         self.check_anchor_creation(&string)?;
 
         Ok(id)
     }
 
-    /// Get a string by ID
+    /// Get a string by ID.
     pub fn get_string(&self, id: &StringId) -> Option<RopeString> {
-        // Check if erased
-        if self.erased_strings.read().contains(id) {
+        let shard = &self.shards[shard_for_string_id(id)];
+        if shard.erased.read().contains(id) {
             return None;
         }
-
-        self.strings.read().get(id).cloned()
+        shard.strings.read().get(id).cloned()
     }
 
-    /// Get a complement by string ID
+    /// Get a complement by string ID.
     pub fn get_complement(&self, id: &StringId) -> Option<Complement> {
-        if self.erased_strings.read().contains(id) {
+        let shard = &self.shards[shard_for_string_id(id)];
+        if shard.erased.read().contains(id) {
             return None;
         }
-
-        self.complements.read().get(id).cloned()
+        shard.complements.read().get(id).cloned()
     }
 
     /// Check finality status of a string
@@ -337,17 +401,28 @@ impl StringLattice {
 
     /// Check if a string exists in the lattice
     pub fn contains(&self, id: &StringId) -> bool {
-        !self.erased_strings.read().contains(id) && self.strings.read().contains_key(id)
+        let shard = &self.shards[shard_for_string_id(id)];
+        !shard.erased.read().contains(id) && shard.strings.read().contains_key(id)
     }
 
-    /// Get the number of strings in the lattice
+    /// Get the total number of strings in the lattice. Aggregates across
+    /// shards under each shard's read lock.
     pub fn string_count(&self) -> usize {
-        self.strings.read().len()
+        self.shards.iter().map(|s| s.strings.read().len()).sum()
     }
 
-    /// Get the number of pending strings
+    /// Get the total number of pending strings across all shards.
     pub fn pending_count(&self) -> usize {
-        self.pending_strings.read().values().map(|s| s.len()).sum()
+        self.shards
+            .iter()
+            .map(|s| {
+                s.pending
+                    .read()
+                    .values()
+                    .map(|set| set.len())
+                    .sum::<usize>()
+            })
+            .sum()
     }
 
     /// Get the number of finalized strings
@@ -355,9 +430,9 @@ impl StringLattice {
         self.finalized_strings.read().len()
     }
 
-    /// Get the number of erased strings
+    /// Get the total number of erased strings across all shards.
     pub fn erased_count(&self) -> usize {
-        self.erased_strings.read().len()
+        self.shards.iter().map(|s| s.erased.read().len()).sum()
     }
 
     /// Get current round number
@@ -375,21 +450,31 @@ impl StringLattice {
         self.anchors.read().clone()
     }
 
-    /// Get parents of a string
+    /// Get parents of a string. Looks up only one shard (the child's).
     pub fn get_parents(&self, id: &StringId) -> Vec<StringId> {
-        self.ordering.read().get_parents(id)
+        self.shards[shard_for_string_id(id)]
+            .parents
+            .read()
+            .get(id)
+            .cloned()
+            .unwrap_or_default()
     }
 
-    /// Get children of a string
+    /// Get children of a string. Looks up only one shard (the parent's).
     pub fn get_children(&self, id: &StringId) -> Vec<StringId> {
-        self.ordering.read().get_children(id)
+        self.shards[shard_for_string_id(id)]
+            .children
+            .read()
+            .get(id)
+            .cloned()
+            .unwrap_or_default()
     }
 
     // === Personal Ledger Queries ===
 
     /// Get all StringIds created by a specific public key (wallet)
     pub fn strings_by_creator(&self, ed25519_pubkey: &[u8; 32]) -> Vec<StringId> {
-        self.creator_index
+        self.creator_index[shard_for_creator(ed25519_pubkey)]
             .read()
             .get(ed25519_pubkey)
             .cloned()
@@ -399,8 +484,12 @@ impl StringLattice {
     /// Walk the ledger chain for a creator: starting from `head`, follow
     /// parentage links backwards to build the ordered chain. Returns entries
     /// from genesis to head (oldest first).
+    ///
+    /// Each step looks up one shard (the current id's). Bouncing across
+    /// shards is cheap because each lookup is a per-shard read lock — they
+    /// don't contend with each other or with concurrent writers on other
+    /// shards.
     pub fn walk_ledger_chain(&self, head: &StringId) -> Vec<StringId> {
-        let strings = self.strings.read();
         let mut chain = Vec::new();
         let mut current = *head;
 
@@ -408,20 +497,24 @@ impl StringLattice {
             if current == StringId::ZERO {
                 break;
             }
-            if self.erased_strings.read().contains(&current) {
+            let shard = &self.shards[shard_for_string_id(&current)];
+            if shard.erased.read().contains(&current) {
                 break;
             }
-            chain.push(current);
-            match strings.get(&current) {
-                Some(s) => {
-                    if let Some(parent) = s.parentage().first() {
-                        current = *parent;
-                    } else {
-                        break;
+            let next = {
+                let strings = shard.strings.read();
+                match strings.get(&current) {
+                    Some(s) => {
+                        chain.push(current);
+                        s.parentage().first().copied().unwrap_or(StringId::ZERO)
                     }
+                    None => break,
                 }
-                None => break,
+            };
+            if next == current {
+                break; // defensive against self-loops
             }
+            current = next;
         }
 
         chain.reverse();
@@ -440,16 +533,19 @@ impl StringLattice {
             }
         }
 
-        self.creator_index.write().remove(ed25519_pubkey);
+        self.creator_index[shard_for_creator(ed25519_pubkey)]
+            .write()
+            .remove(ed25519_pubkey);
 
         Ok(erased_count)
     }
 
-    /// Mark a string as erased
+    /// Mark a string as erased. Touches one shard (the id's own).
     pub fn mark_erased(&self, id: StringId) -> Result<()> {
-        let mut erased = self.erased_strings.write();
-        let mut strings = self.strings.write();
-        let mut complements = self.complements.write();
+        let shard = &self.shards[shard_for_string_id(&id)];
+        let mut erased = shard.erased.write();
+        let mut strings = shard.strings.write();
+        let mut complements = shard.complements.write();
 
         if !strings.contains_key(&id) {
             return Err(RopeError::StringNotFound(id));
@@ -498,16 +594,16 @@ impl StringLattice {
             reason: reason.to_string(),
         };
 
-        // Snapshot parents from the DAG before mark_erased clears the
-        // RopeString. The DAG keeps its edges so future walks can hop past.
-        let _parents = self.ordering.read().get_parents(&id);
-
         // Destroy the payload (this also drops the parentage stored in the
-        // RopeString itself; the DAG retains parent edges separately).
+        // RopeString itself; the per-shard `parents` map retains parent
+        // edges separately so `walk_string_with_tombstones` can hop past).
         self.mark_erased(id)?;
 
-        // Record the canonical tombstone metadata for audit/UI.
-        self.knot_tombstones.write().insert(id, tombstone.clone());
+        // Record the canonical tombstone metadata in the id's shard.
+        self.shards[shard_for_string_id(&id)]
+            .tombstones
+            .write()
+            .insert(id, tombstone.clone());
 
         Ok(tombstone)
     }
@@ -515,31 +611,36 @@ impl StringLattice {
     /// Look up a knot's tombstone metadata, if any. Returns None if the knot
     /// was never untied (or was whole-string erased without tombstone metadata).
     pub fn get_tombstone(&self, id: &StringId) -> Option<KnotTombstone> {
-        self.knot_tombstones.read().get(id).cloned()
+        self.shards[shard_for_string_id(id)]
+            .tombstones
+            .read()
+            .get(id)
+            .cloned()
     }
 
     /// Check whether a knot has been untied via the canonical canon v1.1 path.
     pub fn is_knot_untied(&self, id: &StringId) -> bool {
-        self.knot_tombstones.read().contains_key(id)
+        self.shards[shard_for_string_id(id)]
+            .tombstones
+            .read()
+            .contains_key(id)
     }
 
-    /// Total count of untied knots (transparency metric for the canon §6(5) UI).
+    /// Total count of untied knots across all shards (transparency metric
+    /// for the canon §6(5) UI).
     pub fn tombstone_count(&self) -> usize {
-        self.knot_tombstones.read().len()
+        self.shards.iter().map(|s| s.tombstones.read().len()).sum()
     }
 
     /// Walk a wallet's string from `head` back to genesis, but DO NOT stop
     /// at tombstones. Returns one `LedgerEntry` per knot position — either
     /// `Active(StringId)` or `Tombstone(StringId, KnotTombstone)`.
     ///
-    /// Walks via DAG parent edges (which survive `mark_knot_untied`) when
-    /// the live RopeString is gone, and via the RopeString's own parentage
-    /// when it's present. Returned vector is genesis-first (oldest first).
+    /// Walks via per-shard `parents` edges (which survive `mark_knot_untied`)
+    /// when the live RopeString is gone, and via the RopeString's own
+    /// parentage when it's present. Returned vector is genesis-first
+    /// (oldest first).
     pub fn walk_string_with_tombstones(&self, head: &StringId) -> Vec<LedgerEntry> {
-        let strings = self.strings.read();
-        let tombstones = self.knot_tombstones.read();
-        let dag = self.ordering.read();
-
         let mut chain: Vec<LedgerEntry> = Vec::new();
         let mut current = *head;
         let mut hops = 0usize;
@@ -557,21 +658,33 @@ impl StringLattice {
                 break;
             }
 
+            let shard = &self.shards[shard_for_string_id(&current)];
+
             // Resolve parent: prefer the live RopeString's own parentage,
-            // fall back to the DAG (which survives untying).
-            let next = if let Some(s) = strings.get(&current) {
-                chain.push(LedgerEntry::Active(current));
-                s.parentage().first().copied().unwrap_or(StringId::ZERO)
-            } else if let Some(ts) = tombstones.get(&current) {
-                chain.push(LedgerEntry::Tombstone(current, ts.clone()));
-                // Use DAG to hop past the tombstone.
-                dag.get_parents(&current)
-                    .into_iter()
-                    .next()
-                    .unwrap_or(StringId::ZERO)
-            } else {
-                // Unknown id — neither live nor tombstoned. Stop walking.
-                break;
+            // fall back to the per-shard parents map (which survives untying).
+            let next = {
+                let strings = shard.strings.read();
+                if let Some(s) = strings.get(&current) {
+                    chain.push(LedgerEntry::Active(current));
+                    s.parentage().first().copied().unwrap_or(StringId::ZERO)
+                } else {
+                    drop(strings);
+                    let tombstones = shard.tombstones.read();
+                    if let Some(ts) = tombstones.get(&current) {
+                        chain.push(LedgerEntry::Tombstone(current, ts.clone()));
+                        drop(tombstones);
+                        // Hop past via the per-shard parents map.
+                        shard
+                            .parents
+                            .read()
+                            .get(&current)
+                            .and_then(|p| p.first().copied())
+                            .unwrap_or(StringId::ZERO)
+                    } else {
+                        // Unknown id — neither live nor tombstoned. Stop.
+                        break;
+                    }
+                }
             };
 
             if next == current {
@@ -622,27 +735,23 @@ impl StringLattice {
         Err(RopeError::RegenerationFailed(*id))
     }
 
-    /// Count how many anchor strings reference a given string
+    /// Count how many anchor strings reference a given string. Walks the
+    /// per-shard parents maps via [`is_ancestor_of`].
     fn count_anchor_references(&self, id: &StringId) -> u32 {
         let anchors = self.anchors.read();
-        let ordering = self.ordering.read();
-
         anchors
             .iter()
-            .filter(|anchor| {
-                // Check if anchor references this string (directly or transitively)
-                self.is_ancestor_of(id, &anchor.id(), &ordering)
-            })
+            .filter(|anchor| self.is_ancestor_of(id, &anchor.id()))
             .count() as u32
     }
 
-    /// Check if `ancestor` is an ancestor of `descendant` in the DAG
-    fn is_ancestor_of(&self, ancestor: &StringId, descendant: &StringId, dag: &LatticeDAG) -> bool {
+    /// Check if `ancestor` is an ancestor of `descendant` in the lattice DAG.
+    /// BFS via [`get_parents`], which already shards correctly.
+    fn is_ancestor_of(&self, ancestor: &StringId, descendant: &StringId) -> bool {
         if ancestor == descendant {
             return true;
         }
 
-        // BFS to find path
         let mut visited = HashSet::new();
         let mut queue = vec![*descendant];
 
@@ -650,9 +759,8 @@ impl StringLattice {
             if current == *ancestor {
                 return true;
             }
-
             if visited.insert(current) {
-                queue.extend(dag.get_parents(&current));
+                queue.extend(self.get_parents(&current));
             }
         }
 
@@ -681,6 +789,8 @@ impl StringLattice {
                 *round += 1;
                 let new_anchor = AnchorString::new(string.clone(), *round);
                 anchors.push(new_anchor);
+                drop(anchors);
+                drop(round);
 
                 // Mark strings as finalized
                 self.update_finality();
@@ -697,44 +807,45 @@ impl StringLattice {
         Ok(())
     }
 
-    /// Update finality status based on anchor strings
+    /// Update finality status based on anchor strings. Sweeps each shard's
+    /// `pending` slice in turn.
     fn update_finality(&self) {
-        let anchors = self.anchors.read();
-        let pending = self.pending_strings.read();
-
-        if anchors.len() < constants::FINALITY_ANCHORS as usize {
+        let anchor_count = self.anchors.read().len();
+        if anchor_count < constants::FINALITY_ANCHORS as usize {
             return;
         }
 
-        // Get strings that have enough anchor confirmations
         let mut newly_finalized = Vec::new();
-
-        for (_, string_ids) in pending.iter() {
-            for id in string_ids {
-                let refs = self.count_anchor_references(id);
-                if refs >= constants::FINALITY_ANCHORS {
-                    newly_finalized.push(*id);
+        for shard in self.shards.iter() {
+            let pending = shard.pending.read();
+            for string_ids in pending.values() {
+                for id in string_ids {
+                    let refs = self.count_anchor_references(id);
+                    if refs >= constants::FINALITY_ANCHORS {
+                        newly_finalized.push(*id);
+                    }
                 }
             }
         }
 
-        drop(anchors);
-        drop(pending);
-
-        // Mark as finalized
-        let mut finalized = self.finalized_strings.write();
-        let mut pending = self.pending_strings.write();
-
-        for id in newly_finalized {
-            finalized.insert(id);
-            // Remove from pending (find and remove)
-            for string_ids in pending.values_mut() {
-                string_ids.remove(&id);
+        // Mark as finalized in the global set, then prune from each
+        // shard's pending in turn.
+        {
+            let mut finalized = self.finalized_strings.write();
+            for id in &newly_finalized {
+                finalized.insert(*id);
             }
         }
 
-        // Clean up empty pending entries
-        pending.retain(|_, ids| !ids.is_empty());
+        for shard in self.shards.iter() {
+            let mut pending = shard.pending.write();
+            for id in &newly_finalized {
+                for string_ids in pending.values_mut() {
+                    string_ids.remove(id);
+                }
+            }
+            pending.retain(|_, ids| !ids.is_empty());
+        }
     }
 
     /// Get lattice statistics
@@ -786,6 +897,8 @@ mod tests {
 
         builder.build().unwrap()
     }
+
+    // ----- v1.x compat tests, preserved verbatim -----
 
     #[test]
     fn test_lattice_creation() {
@@ -867,7 +980,8 @@ mod tests {
     }
 
     // ====================================================================
-    // Quipu Primitive Canon v1.1 — per-knot untying tests
+    // Quipu Primitive Canon v1.1 — per-knot untying tests, preserved
+    // verbatim from v1.x.
     // ====================================================================
 
     #[test]
@@ -933,5 +1047,144 @@ mod tests {
         let ts2 = lattice.get_tombstone(&id).unwrap();
         assert_eq!(ts1.audit_hash, ts2.audit_hash);
         assert_eq!(ts1.untied_at, ts2.untied_at);
+    }
+
+    // ====================================================================
+    // Quipu Canon v2.0 Phase 1.1 — sharding-specific tests
+    // ====================================================================
+
+    #[test]
+    fn shard_count_matches_constant() {
+        let lattice = StringLattice::new();
+        assert_eq!(lattice.shard_count(), NUM_SHARDS);
+    }
+
+    #[test]
+    fn shards_independently_count() {
+        // Insert N strings, verify the shard population is at least
+        // diverse (not all in one shard) and that the global count
+        // matches the sum of inserts.
+        let lattice = StringLattice::new();
+        let n = 64usize;
+        for i in 0..n {
+            let mut content = b"shard-test-".to_vec();
+            content.extend_from_slice(&i.to_le_bytes());
+            let s = make_test_string(&content, vec![]);
+            lattice.add_string(s).unwrap();
+        }
+        assert_eq!(lattice.string_count(), n);
+
+        let nonempty = lattice
+            .shards
+            .iter()
+            .filter(|sh| !sh.strings.read().is_empty())
+            .count();
+        assert!(
+            nonempty > 1,
+            "with 64 random strings we should hit multiple shards (got {})",
+            nonempty
+        );
+    }
+
+    #[test]
+    fn cross_shard_parent_child_edges_round_trip() {
+        // Create two strings whose ids almost certainly land in different
+        // shards (different content). Verify get_parents on the child
+        // (in its own shard) and get_children on the parent (in ITS own
+        // shard) both report the correct edge.
+        let lattice = StringLattice::new();
+        let parent = make_test_string(b"P-cross-shard", vec![]);
+        let parent_id = lattice.add_string(parent).unwrap();
+
+        let child = make_test_string(b"C-cross-shard", vec![parent_id]);
+        let child_id = lattice.add_string(child).unwrap();
+
+        let parent_shard = shard_for_string_id(&parent_id);
+        let child_shard = shard_for_string_id(&child_id);
+
+        // It's possible (1/256) they collide. If so this test is just
+        // weaker but still valid.
+        if parent_shard != child_shard {
+            assert!(
+                !lattice.shards[parent_shard]
+                    .parents
+                    .read()
+                    .contains_key(&child_id),
+                "child's parents map must NOT live in the parent's shard"
+            );
+            assert!(
+                !lattice.shards[child_shard]
+                    .children
+                    .read()
+                    .contains_key(&parent_id),
+                "parent's children map must NOT live in the child's shard"
+            );
+        }
+
+        assert_eq!(lattice.get_parents(&child_id), vec![parent_id]);
+        assert_eq!(lattice.get_children(&parent_id), vec![child_id]);
+    }
+
+    #[test]
+    fn parallel_inserts_to_distinct_shards_complete_without_loss() {
+        use std::sync::Arc;
+        use std::thread;
+
+        let lattice = Arc::new(StringLattice::new());
+        let mut handles = Vec::new();
+        for tid in 0..16u8 {
+            let lattice = lattice.clone();
+            handles.push(thread::spawn(move || {
+                for i in 0..50u32 {
+                    let mut content = b"parallel-".to_vec();
+                    content.push(tid);
+                    content.extend_from_slice(&i.to_le_bytes());
+                    let s = make_test_string(&content, vec![]);
+                    let _ = lattice.add_string(s).unwrap();
+                }
+            }));
+        }
+        for h in handles {
+            h.join().unwrap();
+        }
+        assert_eq!(lattice.string_count(), 16 * 50);
+    }
+
+    #[test]
+    fn creator_index_shards_independently() {
+        let lattice = StringLattice::new();
+        let s = make_test_string(b"creator-test", vec![]);
+        let id = lattice.add_string(s).unwrap();
+        let pk = [0u8; 32];
+        assert_eq!(lattice.strings_by_creator(&pk), vec![id]);
+        // Erase via the creator path, then verify the creator index slot
+        // is empty for that pk.
+        let n = lattice.erase_creator_strings(&pk).unwrap();
+        assert_eq!(n, 1);
+        assert!(lattice.strings_by_creator(&pk).is_empty());
+    }
+
+    #[test]
+    fn walk_ledger_chain_traverses_cross_shard() {
+        // Build a 5-knot chain where each knot's id may live in any shard.
+        let lattice = StringLattice::new();
+        let mut prev = StringId::ZERO;
+        let mut ids = Vec::new();
+        for i in 0u32..5 {
+            let mut content = b"chain-".to_vec();
+            content.extend_from_slice(&i.to_le_bytes());
+            let parents = if prev == StringId::ZERO {
+                vec![]
+            } else {
+                vec![prev]
+            };
+            let s = make_test_string(&content, parents);
+            let id = lattice.add_string(s).unwrap();
+            ids.push(id);
+            prev = id;
+        }
+
+        let chain = lattice.walk_ledger_chain(&prev);
+        assert_eq!(chain, ids, "walk must reconstruct original chain order");
     }
 }
