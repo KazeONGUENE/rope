@@ -25,6 +25,8 @@ members = [
     "crates/rope-deployer",
     "crates/insurance-agent",
     "crates/validation-agent",
+    "crates/oracle-agent",
+    "crates/semantic-agent",
 ]
 resolver = "2"
 

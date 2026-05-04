@@ -6,12 +6,6 @@ authors = ["Kazé A. ONGUENE <contact@datachain.one>"]
 license = "Apache-2.0"
 description = "Datachain Rope SemanticAgent — canonical AI testimony agent that indexes knots, exposes semantic search, and anchors merkle-rooted IndexCheckpointTestimony knots on-chain"
 
-# Opt out of the parent workspace so this crate can be developed and tested
-# independently. The proposed root `Cargo.toml` diff (adding
-# `"crates/semantic-agent"` to `[workspace].members`) is shipped in the
-# session report rather than applied here, per the task safety rails.
-[workspace]
-
 [[bin]]
 name = "semantic-agent"
 path = "src/main.rs"
