@@ -200,6 +200,13 @@ impl LedgerManager {
         let wallet = WalletAddress::from_hex(wallet_hex).map_err(|e| e.to_string())?;
         let wallet_bytes = wallet.as_bytes().to_vec();
 
+        // Quipu Canon v2.0 Phase 1.2: serialise the create ↔ append race.
+        // Without this, a concurrent append could observe a partially-
+        // initialised registry state. The lock is interned per-wallet so
+        // distinct wallets still create in parallel.
+        let head_lock = self.registry.wallet_head_lock(&wallet_bytes);
+        let _head_guard = head_lock.lock();
+
         if self.registry.get_descriptor(&wallet_bytes).is_some() {
             return Err(format!("Ledger already exists for wallet {}", wallet_hex));
         }
@@ -281,6 +288,23 @@ impl LedgerManager {
     ) -> Result<AppendLedgerResponse, String> {
         let wallet = WalletAddress::from_hex(wallet_hex).map_err(|e| e.to_string())?;
         let wallet_bytes = wallet.as_bytes().to_vec();
+
+        // Quipu Canon v2.0 Phase 1.2: per-wallet head lock.
+        //
+        // The read-build-insert-update sequence below is non-atomic: we
+        // read `desc.head_string_id`, build a new RopeString whose parent
+        // is that head, insert it into the lattice, and then write the
+        // new head back via `record_append`. Two concurrent appends to
+        // the SAME wallet without this lock would both read head=X, both
+        // build with parent=X, and both insert — forking the wallet's
+        // chain in the lattice. The losing knot would be permanently
+        // orphaned (still in the lattice, invisible to walk_ledger_chain).
+        //
+        // The lock is interned per-wallet by `StringRegistry`, so
+        // appends to DIFFERENT wallets do not contend. See
+        // `EntityHeadLocks` in `rope-core::personal_ledger`.
+        let head_lock = self.registry.wallet_head_lock(&wallet_bytes);
+        let _head_guard = head_lock.lock();
 
         let desc = self
             .registry
@@ -555,6 +579,14 @@ impl LedgerManager {
         let wallet = WalletAddress::from_hex(wallet_hex).map_err(|e| e.to_string())?;
         let wallet_bytes = wallet.as_bytes().to_vec();
 
+        // Quipu Canon v2.0 Phase 1.2: hold the per-wallet head lock
+        // across the full erase sequence. Without it a concurrent append
+        // could land a new knot on the chain AFTER `walk_ledger_chain`
+        // has snapshotted the entry list, leaving a dangling unrecorded
+        // knot. The lock is released only when this function returns.
+        let head_lock = self.registry.wallet_head_lock(&wallet_bytes);
+        let _head_guard = head_lock.lock();
+
         let desc = self
             .registry
             .get_descriptor(&wallet_bytes)
@@ -635,6 +667,15 @@ impl LedgerManager {
     ) -> Result<UntieKnotResponse, String> {
         let wallet = WalletAddress::from_hex(wallet_hex).map_err(|e| e.to_string())?;
         let wallet_bytes = wallet.as_bytes().to_vec();
+
+        // Quipu Canon v2.0 Phase 1.2: per-wallet head lock so untie does
+        // not race with concurrent appends or erases on the same wallet.
+        // Read-only paths (`repatriate_ledger`,
+        // `walk_string_with_tombstones`) intentionally skip this lock —
+        // a slightly stale snapshot is acceptable for audit views and
+        // keeps read scalability high.
+        let head_lock = self.registry.wallet_head_lock(&wallet_bytes);
+        let _head_guard = head_lock.lock();
 
         let desc = self
             .registry
@@ -830,5 +871,223 @@ impl LedgerManager {
 
     pub fn store(&self) -> &LedgerStore {
         &self.store
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rope_core::personal_ledger::InteractionType;
+
+    fn make_test_manager() -> LedgerManager {
+        let lattice = Arc::new(StringLattice::new());
+        let store = Arc::new(LedgerStore::new());
+        let oes = Arc::new(OESManager::genesis(&[0u8; 32]));
+        let node_id = NodeId::new([1u8; 32]);
+        let creator_key = PublicKey::from_ed25519([2u8; 32]);
+        let clock = Arc::new(ClockManager::new(node_id));
+        LedgerManager::new(lattice, store, oes, node_id, creator_key, clock)
+    }
+
+    /// Smoke test: sequential create + 2 appends finish in well under a second.
+    /// If this hangs, the head-lock wiring is broken at the single-thread
+    /// level. If only the multi-threaded tests below hang, the issue is
+    /// concurrency-specific.
+    #[test]
+    fn sequential_create_and_append_smoke_test() {
+        let manager = make_test_manager();
+        let wallet_hex = "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+        manager.create_ledger(wallet_hex).unwrap();
+        manager
+            .append_to_ledger(wallet_hex, make_test_interaction(1))
+            .unwrap();
+        manager
+            .append_to_ledger(wallet_hex, make_test_interaction(2))
+            .unwrap();
+        let wallet_bytes = WalletAddress::from_hex(wallet_hex)
+            .unwrap()
+            .as_bytes()
+            .to_vec();
+        let desc = manager.registry.get_descriptor(&wallet_bytes).unwrap();
+        assert_eq!(desc.entry_count, 3, "1 genesis + 2 appends");
+    }
+
+    fn make_test_interaction(seq: u32) -> InteractionRecord {
+        let mut metadata = hashbrown::HashMap::new();
+        metadata.insert("seq".to_string(), seq.to_string());
+        InteractionRecord {
+            interaction_type: InteractionType::IdentityClaim,
+            counterparty: None,
+            data: format!("interaction-{seq}").into_bytes(),
+            timestamp: chrono::Utc::now().timestamp(),
+            metadata,
+        }
+    }
+
+    /// Quipu Canon v2.0 Phase 1.2 — chain-fork race fix.
+    ///
+    /// Spawns N threads that all call `append_to_ledger` against the same
+    /// wallet. With v1.x the read-build-insert-update sequence was not
+    /// atomic, so concurrent appends would fork the chain in the lattice
+    /// and silently lose all but the winner. With per-wallet locking the
+    /// final state must satisfy:
+    ///
+    ///   - registry.entry_count == 1 (genesis) + N (appended)
+    ///   - lattice.walk_ledger_chain(head).len() == 1 + N
+    ///   - every appended StringId appears exactly once in the chain
+    #[test]
+    fn concurrent_appends_to_same_wallet_do_not_fork_the_chain() {
+        use std::sync::Arc;
+        use std::thread;
+
+        let manager = Arc::new(make_test_manager());
+        let wallet_hex = "0x1111111111111111111111111111111111111111";
+
+        manager.create_ledger(wallet_hex).unwrap();
+
+        // 4 threads × 2 appends gives a strong signal that the lock
+        // serialises a meaningful interleave window without making the
+        // test slow. Each append still does the full encrypt + slice +
+        // sign + lattice insert (and on this branch — without the OES
+        // key cache from P1.4 — that's all uncached), so the per-append
+        // cost dominates. Eight or more appends per wallet make the
+        // suite needlessly slow.
+        const NUM_THREADS: usize = 4;
+        const APPENDS_PER_THREAD: u32 = 2;
+        const TOTAL_APPENDS: u64 = (NUM_THREADS as u64) * (APPENDS_PER_THREAD as u64);
+
+        let mut handles = Vec::new();
+        for tid in 0..NUM_THREADS {
+            let manager = manager.clone();
+            handles.push(thread::spawn(move || {
+                let mut appended_ids = Vec::new();
+                for i in 0..APPENDS_PER_THREAD {
+                    let seq = (tid as u32) * 1000 + i;
+                    let resp = manager
+                        .append_to_ledger(wallet_hex, make_test_interaction(seq))
+                        .expect("append must succeed under per-wallet lock");
+                    appended_ids.push(resp.string_id);
+                }
+                appended_ids
+            }));
+        }
+
+        let mut all_ids = Vec::new();
+        for h in handles {
+            all_ids.extend(h.join().unwrap());
+        }
+        assert_eq!(all_ids.len(), TOTAL_APPENDS as usize);
+
+        // Registry-level invariant: entry_count == 1 (genesis) + N (appends)
+        let wallet_bytes = WalletAddress::from_hex(wallet_hex)
+            .unwrap()
+            .as_bytes()
+            .to_vec();
+        let desc = manager
+            .registry
+            .get_descriptor(&wallet_bytes)
+            .expect("descriptor must exist");
+        assert_eq!(
+            desc.entry_count,
+            1 + TOTAL_APPENDS,
+            "registry.entry_count must equal 1 genesis + {TOTAL_APPENDS} appends — \
+             a mismatch here means the registry update was preempted by a racing \
+             append. With per-wallet locking this MUST hold."
+        );
+
+        // Lattice-level invariant: walking the chain from head returns
+        // exactly 1 + N knots, none orphaned. Without the head lock the
+        // chain would fork and the walk would short-circuit at the first
+        // surviving branch.
+        let chain = manager.lattice.walk_ledger_chain(&desc.head_string_id);
+        assert_eq!(
+            chain.len() as u64,
+            1 + TOTAL_APPENDS,
+            "walk_ledger_chain must return exactly 1 + {TOTAL_APPENDS} knots; \
+             a shorter chain proves a knot was orphaned by a concurrent fork."
+        );
+
+        // Every appended id appears exactly once in the chain.
+        use std::collections::HashSet;
+        let chain_hex: HashSet<String> = chain.iter().map(|id| id.to_hex()).collect();
+        for id in &all_ids {
+            assert!(
+                chain_hex.contains(id),
+                "appended knot {} missing from final chain — it was orphaned",
+                id
+            );
+        }
+    }
+
+    /// Sanity check: appends to DIFFERENT wallets do NOT serialise on each
+    /// other's head locks. This is the whole point of per-entity locking
+    /// over a global lock — without it Phase 1.2 would just be a global
+    /// mutex with extra steps.
+    ///
+    /// **Scope note:** Each thread does exactly ONE append. Multiple
+    /// concurrent appends across distinct wallets in this test would
+    /// trigger a pre-existing latent deadlock in `StringLattice` on
+    /// `main`: `update_finality` holds `anchors.read()` while invoking
+    /// `count_anchor_references`, which itself takes `anchors.read()`,
+    /// and parking_lot's `RwLock::read()` is not safe to call recursively
+    /// when a third thread has a pending writer. The Quipu Canon v2.0
+    /// Phase 1.1 sharded lattice (`feat/v2-phase1-sharded-lattice`)
+    /// rewrites `update_finality` so the outer read is dropped before
+    /// the inner counts run, eliminating that latent bug. Once both P1.1
+    /// and P1.2 merge to `main`, this test can be ramped up to multiple
+    /// appends per wallet to additionally stress the lattice path.
+    #[test]
+    fn concurrent_appends_to_distinct_wallets_each_succeed_independently() {
+        use std::sync::Arc;
+        use std::thread;
+
+        let manager = Arc::new(make_test_manager());
+
+        const NUM_WALLETS: usize = 4;
+        const APPENDS_PER_WALLET: u32 = 1;
+
+        // Pre-create all wallets sequentially.
+        let wallets: Vec<String> = (0..NUM_WALLETS)
+            .map(|i| format!("0x{:040x}", 0xA0_u64 + i as u64))
+            .collect();
+        for w in &wallets {
+            manager.create_ledger(w).unwrap();
+        }
+
+        // Hammer each wallet from its own thread.
+        let mut handles = Vec::new();
+        for w in wallets.clone() {
+            let manager = manager.clone();
+            handles.push(thread::spawn(move || {
+                for i in 0..APPENDS_PER_WALLET {
+                    manager
+                        .append_to_ledger(&w, make_test_interaction(i))
+                        .unwrap();
+                }
+            }));
+        }
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        // Verify each wallet's chain has exactly 1 + APPENDS_PER_WALLET knots.
+        for w in &wallets {
+            let wallet_bytes = WalletAddress::from_hex(w).unwrap().as_bytes().to_vec();
+            let desc = manager.registry.get_descriptor(&wallet_bytes).unwrap();
+            assert_eq!(
+                desc.entry_count,
+                1 + APPENDS_PER_WALLET as u64,
+                "wallet {} must have exactly 1 + {} entries",
+                w,
+                APPENDS_PER_WALLET
+            );
+        }
+
+        // Lock pool should now hold exactly NUM_WALLETS interned locks.
+        assert_eq!(
+            manager.registry.head_lock_count(),
+            NUM_WALLETS,
+            "head-lock pool must hold exactly one Arc per wallet"
+        );
     }
 }
