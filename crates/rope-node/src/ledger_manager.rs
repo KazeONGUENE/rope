@@ -18,8 +18,8 @@
 //! | `rope_eraseLedger` | `{ wallet, reason }` | `{ audit_hash, entries_erased }` |
 //! | `rope_getLedgerStatus` | `{ wallet }` | `{ descriptor }` |
 
-use parking_lot::RwLock;
-use rope_core::clock::{ClockManager, LamportClock};
+use crate::oes_key_cache::OESKeyCache;
+use rope_core::clock::ClockManager;
 use rope_core::lattice::StringLattice;
 use rope_core::personal_ledger::{
     build_append_string, build_genesis_string, InteractionRecord, StringKind, StringRegistry,
@@ -27,8 +27,7 @@ use rope_core::personal_ledger::{
 use rope_core::string::PublicKey;
 use rope_core::types::{NodeId, StringId};
 use rope_crypto::ledger_encryption::{
-    decrypt_ledger_content, derive_ledger_key, encrypt_ledger_content, LedgerEnvelope,
-    WalletAddress,
+    decrypt_ledger_content, encrypt_ledger_content, LedgerEnvelope, WalletAddress,
 };
 use rope_crypto::oes::OESManager;
 use rope_protocols::ledger_lifecycle::{
@@ -59,6 +58,11 @@ pub struct LedgerManager {
     creator_key: PublicKey,
     clock: Arc<ClockManager>,
     config: LifecycleConfig,
+    /// Quipu Canon v2.0 Phase 1.4 — memoises OES ledger-key derivation
+    /// per `(wallet, generation)`. See
+    /// `docs/QUIPU_CANON_V2_SCALE_5M_TPS_ARCHITECTURE.md` §3.4 and
+    /// `crate::oes_key_cache`.
+    key_cache: Arc<OESKeyCache>,
 }
 
 /// Response for ledger creation
@@ -185,7 +189,15 @@ impl LedgerManager {
             creator_key,
             clock,
             config,
+            key_cache: Arc::new(OESKeyCache::default()),
         }
+    }
+
+    /// Read-only handle to the OES key cache. Exposed for metrics and
+    /// for tests; production callers should use `append_to_ledger` and
+    /// `repatriate_ledger`, both of which transparently consult the cache.
+    pub fn key_cache(&self) -> &OESKeyCache {
+        &self.key_cache
     }
 
     /// Create a new personal ledger for a wallet.
@@ -298,12 +310,13 @@ impl LedgerManager {
         let plaintext =
             serde_json::to_vec(&interaction).map_err(|e| format!("Serialization: {}", e))?;
 
-        let oes_state = self.oes.clone();
-        let key = derive_ledger_key(
-            &|len, purpose| oes_state.derive_key(len, purpose),
-            &wallet,
-            generation,
-        );
+        // Quipu Canon v2.0 Phase 1.4 — OES key derivation is memoised
+        // per `(wallet, generation)`. First call per generation pays the
+        // ~30–50µs OES BLAKE3-iterated work; subsequent appends within
+        // the same generation pay an Arc clone.
+        let key = self
+            .key_cache
+            .get_or_derive_for_oes(&wallet, generation, &self.oes);
 
         let encrypted =
             encrypt_ledger_content(&key, &plaintext, &wallet, generation, sequence_number)
@@ -586,6 +599,19 @@ impl LedgerManager {
             .map_err(|e| e.to_string())?;
         self.store.mark_deleted(&wallet_bytes);
 
+        // Quipu Canon v2.0 Phase 1.4 — drop every cached OES key for
+        // this wallet. The Arc<LedgerKey> values zeroize on drop, so
+        // erasure removes the keys from process memory as well as
+        // marking the ledger deleted in the registry.
+        let cached_keys_dropped = self.key_cache.invalidate_wallet(&wallet);
+        if cached_keys_dropped > 0 {
+            tracing::debug!(
+                "Erased {} cached OES key(s) for wallet {}",
+                cached_keys_dropped,
+                wallet_hex
+            );
+        }
+
         let key_method = "oes_evolution";
         let mut audit = LedgerErasureAudit::new(wallet_bytes.clone(), reason);
         audit.complete(erased_count, key_method, oes_generations.clone());
@@ -783,11 +809,14 @@ impl LedgerManager {
                         rope_crypto::ledger_encryption::LedgerEnvelopePayload::EncryptedV1(
                             encrypted,
                         ) => {
-                            let oes_state = self.oes.clone();
-                            let key = derive_ledger_key(
-                                &|len, purpose| oes_state.derive_key(len, purpose),
+                            // Read path also consults the OES key cache —
+                            // repatriating a long ledger reuses the same
+                            // key for every entry within an OES generation
+                            // (Quipu Canon v2.0 Phase 1.4).
+                            let key = self.key_cache.get_or_derive_for_oes(
                                 &wallet,
                                 encrypted.oes_generation,
+                                &self.oes,
                             );
                             decrypt_ledger_content(&key, encrypted).ok()
                         }
