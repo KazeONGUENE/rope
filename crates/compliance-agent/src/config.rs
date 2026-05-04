@@ -30,8 +30,7 @@ use serde::{Deserialize, Serialize};
 /// knots. The value mirrors the `wallet` field of the canonical agent
 /// entry returned by `rope-explorer::canonical_ai_agents()` (id =
 /// `compliance`, wallet = `0x000000000000000000000000000000000000C005`).
-pub const CANONICAL_COMPLIANCE_AGENT_WALLET: &str =
-    "0x000000000000000000000000000000000000C005";
+pub const CANONICAL_COMPLIANCE_AGENT_WALLET: &str = "0x000000000000000000000000000000000000C005";
 
 /// Default RPC endpoint for the local Datachain Rope node.
 ///

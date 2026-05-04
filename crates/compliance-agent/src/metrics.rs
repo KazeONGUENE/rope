@@ -35,7 +35,11 @@ pub struct ComplianceMetrics {
 impl ComplianceMetrics {
     pub fn new() -> Self {
         let registry = Registry::new();
-        let gdpr_requests_total = mk(&registry, "gdpr_requests_total", "Total Art. 17 requests received");
+        let gdpr_requests_total = mk(
+            &registry,
+            "gdpr_requests_total",
+            "Total Art. 17 requests received",
+        );
         let gdpr_requests_approved = mk(
             &registry,
             "gdpr_requests_approved",

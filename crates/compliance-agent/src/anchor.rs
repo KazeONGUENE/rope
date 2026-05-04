@@ -163,11 +163,20 @@ mod tests {
         assert_eq!(arr[0].as_str().unwrap(), "0xC005");
         let interaction = &arr[1];
         assert_eq!(
-            interaction.get("interaction_type").unwrap().as_str().unwrap(),
+            interaction
+                .get("interaction_type")
+                .unwrap()
+                .as_str()
+                .unwrap(),
             "TestimonySubmission"
         );
         let metadata = interaction.get("metadata").unwrap();
-        assert!(metadata.get("envelope").unwrap().as_str().unwrap().len() > 0);
+        assert!(!metadata
+            .get("envelope")
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .is_empty());
         assert_eq!(
             metadata.get("agent_id").unwrap().as_str().unwrap(),
             "compliance"

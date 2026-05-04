@@ -194,9 +194,7 @@ impl MiFidIIDigest {
         let mut total_notional: u128 = 0;
         let mut sample_trade_ids = Vec::new();
         for ev in events {
-            let bucket = by_instrument
-                .entry(ev.instrument.clone())
-                .or_default();
+            let bucket = by_instrument.entry(ev.instrument.clone()).or_default();
             bucket.trade_count += 1;
             bucket.total_notional = bucket.total_notional.saturating_add(ev.notional);
             if !bucket.venues.contains(&ev.venue) {

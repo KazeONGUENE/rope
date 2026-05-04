@@ -29,9 +29,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::anchor::AnchorClient;
-use crate::gdpr::{
-    Article17Request, Article17Validator, Article17Verdict, RejectionReason,
-};
+use crate::gdpr::{Article17Request, Article17Validator, Article17Verdict, RejectionReason};
 use crate::metrics::ComplianceMetrics;
 use crate::orchestrator::UntieOrchestrator;
 use crate::reporting::{PeriodicReporter, ReporterStats};
@@ -282,8 +280,9 @@ mod tests {
 
     fn build_state(mock: Arc<MockRopeRpcClient>) -> ServerState {
         let validator = Arc::new(Article17Validator::new(approving_policy()));
-        let orchestrator =
-            Arc::new(UntieOrchestrator::new(mock.clone() as Arc<dyn RopeRpcClient>));
+        let orchestrator = Arc::new(UntieOrchestrator::new(
+            mock.clone() as Arc<dyn RopeRpcClient>
+        ));
         let anchor = AnchorClient::new(mock as Arc<dyn RopeRpcClient>, "0xC005");
         let reporter = PeriodicReporter::new(anchor.clone(), Duration::from_secs(60), 1024);
         ServerState {
@@ -336,7 +335,10 @@ mod tests {
         let bytes = to_bytes(resp.into_body(), 1 << 20).await.unwrap();
         let v: Value = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(
-            v.get("orchestration").unwrap().get("success_count").unwrap(),
+            v.get("orchestration")
+                .unwrap()
+                .get("success_count")
+                .unwrap(),
             &json!(1)
         );
         assert_eq!(
@@ -378,11 +380,21 @@ mod tests {
         let bytes = to_bytes(resp.into_body(), 1 << 20).await.unwrap();
         let v: Value = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(
-            v.get("verdict").unwrap().get("decision").unwrap().as_str().unwrap(),
+            v.get("verdict")
+                .unwrap()
+                .get("decision")
+                .unwrap()
+                .as_str()
+                .unwrap(),
             "rejected"
         );
         assert_eq!(
-            v.get("anchor_receipt").unwrap().get("knot_string_id").unwrap().as_str().unwrap(),
+            v.get("anchor_receipt")
+                .unwrap()
+                .get("knot_string_id")
+                .unwrap()
+                .as_str()
+                .unwrap(),
             "0xrejknot"
         );
     }

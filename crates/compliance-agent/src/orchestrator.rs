@@ -219,8 +219,7 @@ fn build_outcome(
                     tombstones_total: None,
                     error_code: None,
                     error_message: Some(
-                        "rope-node returned null result without tombstone audit hash"
-                            .to_string(),
+                        "rope-node returned null result without tombstone audit hash".to_string(),
                     ),
                 }
             }

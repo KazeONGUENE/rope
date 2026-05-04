@@ -116,10 +116,7 @@ impl RopeRpcClient for HttpRopeRpcClient {
                 .to_string();
             return Err(RpcClientError::RpcError { code, message });
         }
-        Ok(envelope
-            .get("result")
-            .cloned()
-            .unwrap_or(Value::Null))
+        Ok(envelope.get("result").cloned().unwrap_or(Value::Null))
     }
 }
 
@@ -153,7 +150,8 @@ pub(crate) mod testing {
     #[derive(Default)]
     pub struct MockRopeRpcClient {
         calls: Mutex<Vec<RecordedCall>>,
-        responses: Mutex<std::collections::HashMap<String, std::collections::VecDeque<MockResponse>>>,
+        responses:
+            Mutex<std::collections::HashMap<String, std::collections::VecDeque<MockResponse>>>,
     }
 
     impl MockRopeRpcClient {
@@ -234,7 +232,10 @@ mod tests {
         mock.enqueue_ok("rope_untieKnot", json!({"tombstone_audit_hash": "0xab"}));
 
         let v = mock
-            .call("rope_untieKnot", json!(["0xWALLET", "0xKNOT", "GdprArticle17"]))
+            .call(
+                "rope_untieKnot",
+                json!(["0xWALLET", "0xKNOT", "GdprArticle17"]),
+            )
             .await
             .expect("ok");
         assert_eq!(v.get("tombstone_audit_hash").unwrap(), "0xab");

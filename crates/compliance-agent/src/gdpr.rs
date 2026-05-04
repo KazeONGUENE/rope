@@ -247,7 +247,10 @@ impl Article17Validator {
 
         // ---- jurisdiction ----
         if !self.policy.allowed_jurisdictions.is_empty()
-            && !self.policy.allowed_jurisdictions.contains(&req.jurisdiction)
+            && !self
+                .policy
+                .allowed_jurisdictions
+                .contains(&req.jurisdiction)
         {
             return self.reject(
                 req,

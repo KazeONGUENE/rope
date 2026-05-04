@@ -97,16 +97,16 @@ struct ServeArgs {
 
     /// Comma-separated ISO-3166 numeric country codes the agent will
     /// process. Empty = accept any jurisdiction.
-    #[arg(long, default_value = "", env = "COMPLIANCE_AGENT_ALLOWED_JURISDICTIONS")]
+    #[arg(
+        long,
+        default_value = "",
+        env = "COMPLIANCE_AGENT_ALLOWED_JURISDICTIONS"
+    )]
     allowed_jurisdictions: String,
 
     /// Whether to require a non-empty `requestor_proof` on every Art. 17
     /// request.
-    #[arg(
-        long,
-        default_value_t = true,
-        env = "COMPLIANCE_AGENT_REQUIRE_PROOF"
-    )]
+    #[arg(long, default_value_t = true, env = "COMPLIANCE_AGENT_REQUIRE_PROOF")]
     require_requestor_proof: bool,
 }
 

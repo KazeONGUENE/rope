@@ -372,7 +372,10 @@ mod tests {
         let metadata = calls[0].params.as_array().unwrap()[1]
             .get("metadata")
             .unwrap();
-        assert_eq!(metadata.get("agent_id").unwrap().as_str().unwrap(), "compliance");
+        assert_eq!(
+            metadata.get("agent_id").unwrap().as_str().unwrap(),
+            "compliance"
+        );
         assert_eq!(
             metadata.get("testimony_label").unwrap().as_str().unwrap(),
             "mifid_ii_digest"
@@ -382,10 +385,7 @@ mod tests {
     #[tokio::test]
     async fn buffer_drains_after_tick() {
         let mock = Arc::new(MockRopeRpcClient::new());
-        mock.enqueue_ok(
-            "rope_appendToLedger",
-            json!({"index": 1, "hash": "0xknot"}),
-        );
+        mock.enqueue_ok("rope_appendToLedger", json!({"index": 1, "hash": "0xknot"}));
         let anchor = AnchorClient::new(mock as Arc<dyn RopeRpcClient>, "0xC005");
         let r = PeriodicReporter::new(anchor, Duration::from_secs(1), 1024);
         r.record_mifid_event(ev("t1"));
