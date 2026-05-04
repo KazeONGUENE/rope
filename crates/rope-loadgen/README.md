@@ -78,6 +78,57 @@ This is the cost the operator sees as "node startup time" after a
 restart. Important to track because P1.5 trades a small per-write
 overhead for a recovery cost that scales linearly with disk state size.
 
+### `manager-write` — full `LedgerManager` end-to-end
+
+Drives `LedgerManager::append_to_ledger`, exercising every Phase 1
+piece together: P1.1 sharded lattice, P1.2 head lock, P1.3 per-shard
+HLC, P1.4 OES key cache, P1.5 LedgerStore mirror.
+
+```bash
+# 1 thread, 100 ops, 50 wallets, 256-byte payloads
+cargo run --release -p rope-loadgen -- manager-write \
+  -t 1 -o 100 -w 50 -s partitioned -m memory --payload-bytes 256
+
+# 2 threads, 200 ops — same shape, linear scaling
+cargo run --release -p rope-loadgen -- manager-write \
+  -t 2 -o 200 -w 50 -s partitioned -m memory --payload-bytes 256
+```
+
+Flags:
+
+| Flag                  | Default | Meaning                                                                   |
+| --------------------- | :-----: | ------------------------------------------------------------------------- |
+| (all of `CommonWorkloadArgs`) | (see above) | threads, ops, wallets, scenario, mode, db-path, await-durable, seed |
+| `--payload-bytes`     | 256     | Bytes per `InteractionRecord.data`                                        |
+| `--oes-rotate-every`  | 0       | Rotate OES generation every N appends (0 = never; non-zero exercises P1.4 cache miss cost) |
+
+Output adds `create_ledger_total_ms` + `create_ledger_throughput_per_sec`
++ `create_ledger_errors` + `append_errors` to the standard report shape.
+
+#### Known performance cliff at scale
+
+`manager-write` reliably produces clean numbers at small scale
+(≤ 200 ops, ≤ 200 wallets, ≤ 2 threads):
+
+| Run | Setup                                | Throughput | p50    | p99      |
+| --- | ------------------------------------ | :--------: | :----: | :------: |
+| N1  | 1t × 100 ops × 50 wallets × 256 B    | 32 533 ops/s | 33.7 µs | 117.6 µs |
+| N2  | 2t × 200 ops × 50 wallets × 256 B    | 73 881 ops/s | 20.0 µs | 71.7 µs  |
+| N3  | 1t × 200 ops × 1 wallet × 64 B (same)| 5 062 ops/s  | 11.5 µs | 2 644 µs |
+
+Beyond ~200 ops/thread or ~500 wallets, `manager-write` exhibits a
+performance cliff (per-op latency rises to tens of milliseconds and
+the run effectively hangs). Investigation shows the bottleneck lives
+**outside the Phase 1 hardened path** — `LedgerLifecycleManager` and
+some non-sharded data structures further up the call stack from
+`LedgerStore` are the suspects. Phase 1 hardens the lattice / lock /
+HLC / cache / store but does not yet touch lifecycle.
+
+This is exactly what a benchmark harness is for: validating the
+hardened pieces work, and surfacing the next bottleneck. The cliff is
+documented as a Phase 2 follow-up. Use small wallet pools (≤ 200) and
+modest op counts (≤ 200/thread) for `manager-write` until it lands.
+
 ### `store-mixed` — interleaved real-world load
 
 ```bash
