@@ -4664,8 +4664,27 @@ dependencies = [
 name = "rope-compliance-agent"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "async-trait",
+ "axum 0.7.9",
+ "blake3",
+ "chrono",
+ "clap",
+ "futures",
+ "hex",
+ "parking_lot 0.12.5",
+ "prometheus",
+ "reqwest",
  "serde",
  "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "tower 0.4.13",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
