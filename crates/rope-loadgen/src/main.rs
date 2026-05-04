@@ -56,6 +56,7 @@ fn main() -> std::process::ExitCode {
         Command::StoreMixed(args) => scenarios::store_mixed::run(args),
         Command::ManagerWrite(args) => scenarios::manager_write::run(args),
         Command::VerifyBatch(args) => scenarios::verify_batch::run(args),
+        Command::ClusterWrite(args) => scenarios::cluster_write::run(args),
     };
 
     match result {

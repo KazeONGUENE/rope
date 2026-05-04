@@ -12,6 +12,9 @@ rope-storage = { path = "../rope-storage" }
 rope-core = { path = "../rope-core" }
 rope-crypto = { path = "../rope-crypto" }
 rope-node = { path = "../rope-node" }
+rope-cluster = { path = "../rope-cluster" }
+bincode = { workspace = true }
+tokio = { workspace = true }
 
 # CLI + serialization
 clap = { workspace = true }

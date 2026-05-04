@@ -48,6 +48,13 @@ pub enum Command {
     /// hybrid-signed knots (Ed25519 + Dilithium3) and reports ops/s
     /// plus mean-per-item µs for each path.
     VerifyBatch(VerifyBatchArgs),
+
+    /// Quipu Canon v2.0 Phase 2.D — drive synthetic appends through
+    /// a multi-node `rope-cluster` topology of in-process nodes
+    /// backed by `LedgerStore`. Reports per-node and aggregate
+    /// throughput so callers can verify that adding nodes scales
+    /// throughput close to linearly.
+    ClusterWrite(ClusterWriteArgs),
 }
 
 /// How to choose the wallet for each op — drives the contention shape.
@@ -193,6 +200,33 @@ pub struct VerifyBatchArgs {
     /// keep the cache warm (matches steady-state node operation).
     #[arg(long)]
     pub cold_cache: bool,
+
+    /// RNG seed for reproducible runs.
+    #[arg(long, default_value_t = 0xDA7A_C4A1_2718_28A1u64)]
+    pub seed: u64,
+}
+
+/// Args for the `cluster-write` subcommand (Quipu Canon v2.0 Phase 2.D).
+#[derive(Args, Debug, Clone)]
+pub struct ClusterWriteArgs {
+    /// Number of in-process nodes in the simulated cluster. Each
+    /// node owns ~`256 / nodes` shards of the wallet keyspace.
+    #[arg(short = 'n', long, default_value_t = 2)]
+    pub nodes: usize,
+
+    /// Total ops across the whole cluster (split evenly across
+    /// worker tasks).
+    #[arg(short = 'o', long, default_value_t = 100_000)]
+    pub ops: usize,
+
+    /// Distinct wallets in the workload.
+    #[arg(short = 'w', long, default_value_t = 1_000)]
+    pub wallets: usize,
+
+    /// Worker tasks. Each task spins on the same `ClusterClient`
+    /// and dispatches ops; the per-task workload is `ops / tasks`.
+    #[arg(short = 't', long, default_value_t = 8)]
+    pub tasks: usize,
 
     /// RNG seed for reproducible runs.
     #[arg(long, default_value_t = 0xDA7A_C4A1_2718_28A1u64)]

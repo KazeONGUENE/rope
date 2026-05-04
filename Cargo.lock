@@ -4868,6 +4868,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "rope-cluster"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bincode",
+ "blake3",
+ "hex",
+ "once_cell",
+ "parking_lot 0.12.5",
+ "proptest",
+ "rope-core",
+ "rope-storage",
+ "serde",
+ "serde_bytes",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "rope-compliance-agent"
 version = "0.1.0"
 dependencies = [
@@ -5091,6 +5112,7 @@ dependencies = [
 name = "rope-loadgen"
 version = "0.1.0"
 dependencies = [
+ "bincode",
  "chrono",
  "clap",
  "hashbrown 0.14.5",
@@ -5098,6 +5120,7 @@ dependencies = [
  "parking_lot 0.12.5",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
+ "rope-cluster",
  "rope-core",
  "rope-crypto",
  "rope-node",
@@ -5105,6 +5128,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "tokio",
  "tracing",
  "tracing-subscriber",
 ]

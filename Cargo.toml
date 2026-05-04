@@ -27,6 +27,7 @@ members = [
     "crates/validation-agent",
     "crates/oracle-agent",
     "crates/semantic-agent",
+    "crates/rope-cluster",
 ]
 resolver = "2"
 

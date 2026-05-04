@@ -22,6 +22,7 @@ pub enum Report {
     StoreMixed(StoreMixedReport),
     ManagerWrite(ManagerWriteReport),
     VerifyBatch(VerifyBatchReport),
+    ClusterWrite(ClusterWriteReport),
 }
 
 impl Report {
@@ -32,6 +33,7 @@ impl Report {
             Report::StoreMixed(r) => r.human_summary(),
             Report::ManagerWrite(r) => r.human_summary(),
             Report::VerifyBatch(r) => r.human_summary(),
+            Report::ClusterWrite(r) => r.human_summary(),
         }
     }
 }
@@ -309,6 +311,62 @@ impl VerifyBatchReport {
             sp_tput = self.serial_throughput_ops_per_sec,
             bp_tput = self.batch_throughput_ops_per_sec,
             speedup = self.batch_speedup_x,
+        )
+    }
+}
+
+// ============================================================================
+// Quipu Canon v2.0 Phase 2.D — cluster-write report
+// ============================================================================
+
+#[derive(Serialize, Debug)]
+pub struct ClusterWriteReport {
+    pub nodes: usize,
+    pub tasks: usize,
+    pub ops_total: usize,
+    pub wallets: usize,
+    pub elapsed_ms: f64,
+    pub throughput_ops_per_sec: f64,
+    /// Mean per-op µs across the entire cluster.
+    pub mean_per_op_us: f64,
+    /// Per-node op counts so callers can confirm balanced load.
+    pub per_node_ops: Vec<u64>,
+    /// Min/max per-node op counts; the spread shows imbalance.
+    pub min_node_ops: u64,
+    pub max_node_ops: u64,
+    pub seed: u64,
+    pub latency: LatencyStats,
+}
+
+impl ClusterWriteReport {
+    pub fn human_summary(&self) -> String {
+        let per_node: String = self
+            .per_node_ops
+            .iter()
+            .enumerate()
+            .map(|(i, c)| format!("    node[{i}] = {c}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        format!(
+            "cluster-write summary (Quipu Canon v2.0 Phase 2.D)\n\
+             ===================================================\n  \
+             nodes              : {nodes}\n  tasks              : {tasks}\n  wallets            : {wallets}\n  \
+             ops total          : {ops}\n  elapsed            : {elapsed:>10.2} ms\n  \
+             throughput         : {tput:>14.0} ops/s\n  mean per op        : {mean:>10.2} µs\n  \
+             load spread        : min={min} max={max}  (closer = better balance)\n  per-node ops:\n{pn}\n  \
+             latency p50        : {p50:>10.2} µs\n  latency p99        : {p99:>10.2} µs\n",
+            nodes = self.nodes,
+            tasks = self.tasks,
+            wallets = self.wallets,
+            ops = self.ops_total,
+            elapsed = self.elapsed_ms,
+            tput = self.throughput_ops_per_sec,
+            mean = self.mean_per_op_us,
+            min = self.min_node_ops,
+            max = self.max_node_ops,
+            pn = per_node,
+            p50 = self.latency.p50_us,
+            p99 = self.latency.p99_us,
         )
     }
 }
