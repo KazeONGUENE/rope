@@ -1,0 +1,61 @@
+# /etc/systemd/system/oracle-agent.service
+# Datachain Rope OracleAgent — DC FAT price testimony anchoring.
+# Pulls the canonical price from dcswap.net/v1/prices, builds a signed
+# OraclePriceTestimony, anchors it as a testimony knot via
+# rope_appendToLedger on the local node.
+#
+# Wallet: 0x000000000000000000000000000000000000C002
+# Source: crates/oracle-agent/
+
+[Unit]
+Description=Datachain Rope OracleAgent — DC FAT price testimony anchoring
+Documentation=https://datachain.network/docs#testimony
+Documentation=https://dcscan.io/agents
+After=network-online.target datachain-rope.service
+Wants=network-online.target datachain-rope.service
+StartLimitIntervalSec=600
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/datachain-rope
+Environment="PATH=/home/ubuntu/.cargo/bin:/usr/local/bin:/usr/bin:/bin"
+
+# Defaults — overridden by the env files below if present.
+Environment="ORACLE_FEED_URL=https://dcswap.net/v1/prices"
+Environment="ORACLE_RPC_URL=http://127.0.0.1:8545"
+Environment="ORACLE_WALLET_HEX=0x000000000000000000000000000000000000C002"
+Environment="ORACLE_INTERVAL_SECS=60"
+Environment="ORACLE_KEY_PATH=/etc/oracle-agent/oracle.seed"
+Environment="ORACLE_SIGNING_MODE=hybrid"
+Environment="ORACLE_LOG=info,oracle_agent=info"
+
+EnvironmentFile=-/etc/datachain-agents/shared.env
+EnvironmentFile=-/etc/oracle-agent/config.env
+
+ExecStart=/home/ubuntu/datachain-rope/target/release/oracle-agent
+
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=oracle-agent
+
+# Hardening — agent only needs outbound HTTPS + loopback RPC.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+ReadWritePaths=/var/lib/oracle-agent /etc/oracle-agent
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+
+[Install]
+WantedBy=multi-user.target

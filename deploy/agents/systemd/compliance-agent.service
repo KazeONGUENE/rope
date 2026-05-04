@@ -1,0 +1,63 @@
+# /etc/systemd/system/compliance-agent.service
+# Datachain Rope ComplianceAgent — GDPR Art. 17 erasure orchestration
+# and MiFID II / DORA reporting. Listens on HTTP for Article 17 requests,
+# validates them, orchestrates rope_untieKnot calls, captures tombstone
+# audit hashes, anchors ComplianceTestimony knots. Periodic 15-min ticker
+# emits MiFID II batched-trade and DORA incident digests as testimony knots.
+# Houses the ERC-3643 T-REX compliance module wiring.
+#
+# Wallet: 0x000000000000000000000000000000000000C005
+# Smart contract (T-REX module): 0x0919BAf7e91785Ae65351698a04b07BB13d14bBc
+# Listens on: 127.0.0.1:9091 (proxied at compliance-agent.datachain.network)
+# Source: crates/compliance-agent/
+
+[Unit]
+Description=Datachain Rope ComplianceAgent — GDPR Art. 17 + MiFID II / DORA reporting
+Documentation=https://datachain.network/docs#testimony
+Documentation=https://compliance-agent.datachain.network/v1/gdpr
+Documentation=https://dcscan.io/agents
+After=network-online.target datachain-rope.service
+Wants=network-online.target datachain-rope.service
+StartLimitIntervalSec=600
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/datachain-rope
+Environment="PATH=/home/ubuntu/.cargo/bin:/usr/local/bin:/usr/bin:/bin"
+
+Environment="COMPLIANCE_LISTEN=127.0.0.1:9091"
+Environment="COMPLIANCE_RPC_URL=http://127.0.0.1:8545"
+Environment="COMPLIANCE_AGENT_WALLET=0x000000000000000000000000000000000000C005"
+Environment="COMPLIANCE_KEY_PATH=/etc/compliance-agent/compliance.seed"
+Environment="COMPLIANCE_REPORT_INTERVAL_SECS=900"
+Environment="COMPLIANCE_LOG=info,compliance_agent=info"
+
+EnvironmentFile=-/etc/datachain-agents/shared.env
+EnvironmentFile=-/etc/compliance-agent/config.env
+
+ExecStart=/home/ubuntu/datachain-rope/target/release/compliance-agent serve
+
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=compliance-agent
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+ReadWritePaths=/var/lib/compliance-agent /etc/compliance-agent
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+
+[Install]
+WantedBy=multi-user.target

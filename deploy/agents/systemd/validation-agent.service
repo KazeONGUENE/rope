@@ -1,0 +1,57 @@
+# /etc/systemd/system/validation-agent.service
+# Datachain Rope ValidationAgent — post-quantum knot signature validation
+# and cord anchor witnessing. Polls new cord anchor knots, verifies their
+# signatures (ML-DSA-65 / Dilithium3 default; Ed25519 fallback), emits
+# a signed ValidationTestimony for each valid anchor.
+#
+# Wallet: 0x000000000000000000000000000000000000C004
+# Source: crates/validation-agent/
+
+[Unit]
+Description=Datachain Rope ValidationAgent — post-quantum knot signature validation
+Documentation=https://datachain.network/docs#testimony
+Documentation=https://dcscan.io/agents
+After=network-online.target datachain-rope.service
+Wants=network-online.target datachain-rope.service
+StartLimitIntervalSec=600
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/datachain-rope
+Environment="PATH=/home/ubuntu/.cargo/bin:/usr/local/bin:/usr/bin:/bin"
+
+Environment="VALIDATION_RPC_URL=http://127.0.0.1:8545"
+Environment="VALIDATION_WALLET_HEX=0x000000000000000000000000000000000000C004"
+Environment="VALIDATION_POLL_INTERVAL_SECS=5"
+Environment="VALIDATION_KEY_PATH=/etc/validation-agent/validation.seed"
+Environment="VALIDATION_LOG=info,validation_agent=info"
+
+EnvironmentFile=-/etc/datachain-agents/shared.env
+EnvironmentFile=-/etc/validation-agent/config.env
+
+ExecStart=/home/ubuntu/datachain-rope/target/release/validation-agent
+
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=validation-agent
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+ReadWritePaths=/var/lib/validation-agent /etc/validation-agent
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+
+[Install]
+WantedBy=multi-user.target
