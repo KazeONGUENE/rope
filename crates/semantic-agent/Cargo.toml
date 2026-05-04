@@ -1,0 +1,76 @@
+[package]
+name = "semantic-agent"
+version = "0.1.0"
+edition = "2021"
+authors = ["Kazé A. ONGUENE <contact@datachain.one>"]
+license = "Apache-2.0"
+description = "Datachain Rope SemanticAgent — canonical AI testimony agent that indexes knots, exposes semantic search, and anchors merkle-rooted IndexCheckpointTestimony knots on-chain"
+
+# Opt out of the parent workspace so this crate can be developed and tested
+# independently. The proposed root `Cargo.toml` diff (adding
+# `"crates/semantic-agent"` to `[workspace].members`) is shipped in the
+# session report rather than applied here, per the task safety rails.
+[workspace]
+
+[[bin]]
+name = "semantic-agent"
+path = "src/main.rs"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.35", features = ["full"] }
+async-trait = "0.1"
+futures = "0.3"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Search engine — Quipu Canon v1.2 knot indexer.
+# Pinned to the latest crates.io stable (0.22.1) which has MSRV 1.63 and
+# is API-compatible with the workspace's Rust toolchain (1.92). The
+# `mmap` feature is enabled so on-disk indexes survive process restarts.
+tantivy = { version = "0.22", default-features = false, features = ["mmap", "stopwords", "lz4-compression"] }
+
+# HTTP server (search API)
+axum = { version = "0.7", features = ["macros", "tokio"] }
+tower = { version = "0.4", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+
+# JSON-RPC client (talks to rope-node)
+reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false }
+
+# Hashing — checkpoint merkle root + knot id digests
+blake3 = "1.5"
+hex = "0.4"
+
+# Errors
+anyhow = "1.0"
+thiserror = "1.0"
+
+# CLI / config
+clap = { version = "4.4", features = ["derive", "env"] }
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Concurrency
+parking_lot = "0.12"
+
+# Observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+[dev-dependencies]
+tempfile = "3.9"
+tokio = { version = "1.35", features = ["full", "test-util"] }
+# In-process axum router smoke tests
+tower = { version = "0.4", features = ["util"] }
+# Mock HTTP server (used to stub the rope-node JSON-RPC surface)
+wiremock = "0.6"
+
+[lints.rust]
+unused_variables = "warn"
+
+[lints.clippy]
+upper_case_acronyms = "allow"
