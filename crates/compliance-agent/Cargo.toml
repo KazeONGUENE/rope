@@ -2,12 +2,59 @@
 name = "rope-compliance-agent"
 version = "0.1.0"
 edition = "2021"
-description = "ERC-3643 Compliance Module for the Datachain Rope ComplianceAgent AI Testimony system"
+description = "Datachain Rope ComplianceAgent — canonical AI testimony agent for GDPR Art. 17 orchestration and MiFID II / DORA reporting"
 authors = ["Kazé A. ONGUENE <contact@datachain.one>"]
 license = "Apache-2.0"
+autobins = false
+
+[lib]
+name = "rope_compliance_agent"
+path = "src/lib.rs"
+
+[[bin]]
+name = "compliance-agent"
+path = "src/main.rs"
 
 [dependencies]
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Async runtime
+tokio = { workspace = true, features = ["full"] }
+async-trait = { workspace = true }
+futures = { workspace = true }
+
+# HTTP server
+axum = { version = "0.7", features = ["macros", "tokio"] }
+tower = { version = "0.4", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+
+# JSON-RPC client
+reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false }
+
+# Crypto / hashing
+blake3 = { workspace = true }
+hex = { workspace = true }
+
+# Errors
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# Time + ids
+chrono = { workspace = true }
+uuid = { version = "1.6", features = ["v4", "serde"] }
+
+# Config / CLI
+clap = { workspace = true }
+
+# Sync primitives
+parking_lot = { workspace = true }
+
+# Observability
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+prometheus = { workspace = true }
 
 [dev-dependencies]
+tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
+tempfile = { workspace = true }

@@ -1,0 +1,53 @@
+[package]
+name = "validation-agent"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Datachain Rope ValidationAgent — canonical AI testimony agent that verifies post-quantum knot signatures (ML-DSA-65 default) and witnesses cord anchor knots at federation level."
+
+[lib]
+name = "validation_agent"
+path = "src/lib.rs"
+
+[[bin]]
+name = "validation-agent"
+path = "src/main.rs"
+
+[dependencies]
+# Internal crates
+rope-crypto = { path = "../rope-crypto" }
+
+# Async runtime
+tokio = { workspace = true, features = ["full", "macros", "rt-multi-thread", "sync", "time"] }
+async-trait = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# HTTP client (JSON-RPC over HTTP to rope-node)
+reqwest = { workspace = true }
+
+# CLI
+clap = { workspace = true }
+
+# Hashing / encoding
+blake3 = { workspace = true }
+hex = { workspace = true }
+
+# Time
+chrono = { workspace = true }
+
+# Errors / logging
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Concurrency
+parking_lot = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread", "sync", "time"] }
+serde_json = { workspace = true }
