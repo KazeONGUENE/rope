@@ -25,8 +25,9 @@ use crate::clock::LamportClock;
 use crate::string::{HybridSignature, OESProof, PublicKey, RopeString};
 use crate::types::{MutabilityClass, NodeId, StringId};
 use hashbrown::HashMap;
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 /// What kind of entity does a string represent? Quipu Canon v1.2 model.
 ///
@@ -292,12 +293,131 @@ impl LedgerChain {
     }
 }
 
+/// One head-lock shard in [`EntityHeadLocks`].
+type HeadLockShard = RwLock<HashMap<(StringKind, Vec<u8>), Arc<Mutex<()>>>>;
+
+/// Number of [`EntityHeadLocks`] shards.
+///
+/// 256 matches the lattice and HLC shard counts introduced in
+/// Phase 1.1 (`StringLattice`) and 1.3 (`ClockManager`). The first
+/// byte of `id_bytes` selects the shard, mirroring the rest of v2.0.
+pub const HEAD_LOCK_SHARDS: usize = 256;
+
+/// Per-entity head-string lock pool.
+///
+/// ## Why this exists (Quipu Canon v2.0 Phase 1.2)
+///
+/// `LedgerManager::append_to_ledger` does, in order:
+///
+/// 1. read the current head from the registry (`desc.head_string_id`),
+/// 2. build a new `RopeString` whose parent = that head,
+/// 3. insert it into the lattice,
+/// 4. write the new head back into the registry.
+///
+/// Steps 1–4 are NOT atomic. Two concurrent appends to the same wallet
+/// would both read `head = X`, both build with `parent = X`, and both
+/// insert — forking the wallet's chain. The registry update serialises
+/// at the registry's own lock, but the losing knot's parent was already
+/// burned into the lattice; it is permanently orphaned (still present
+/// in the lattice, but invisible to `walk_ledger_chain`).
+///
+/// `EntityHeadLocks` solves this by handing out one `Arc<Mutex<()>>` per
+/// `(kind, id_bytes)`. Callers acquire it before step 1 and drop it
+/// after step 4. Concurrent appends to the SAME entity serialise.
+/// Concurrent appends to DIFFERENT entities run in parallel.
+///
+/// ## Sharding
+///
+/// The lock map itself is sharded over [`HEAD_LOCK_SHARDS`] shards, keyed
+/// by `id_bytes[0]`, so even the act of looking up the per-entity lock
+/// scales to many cores. Once the lock is interned, the fast path is one
+/// `RwLock::read()` + one `Arc::clone`.
+///
+/// ## Generality
+///
+/// Keyed by `(StringKind, Vec<u8>)`, so the same primitive serves
+/// wallets today and contracts/assets/DIDs/the federation cord later.
+/// `LedgerManager` only uses the `Wallet` kind in v2.0; future contract
+/// indexers should reuse this type rather than rolling their own.
+///
+/// ## Memory
+///
+/// One `Arc<Mutex<()>>` per active entity (~24 bytes plus the HashMap
+/// entry). At a million wallets that is ~24 MB — well within node
+/// memory budgets. Eviction of unused locks is left for a later phase
+/// if that ever matters.
+pub struct EntityHeadLocks {
+    shards: Box<[HeadLockShard]>,
+}
+
+impl EntityHeadLocks {
+    /// Create a new empty pool with [`HEAD_LOCK_SHARDS`] shards.
+    pub fn new() -> Self {
+        let shards: Vec<HeadLockShard> = (0..HEAD_LOCK_SHARDS)
+            .map(|_| RwLock::new(HashMap::new()))
+            .collect();
+        Self {
+            shards: shards.into_boxed_slice(),
+        }
+    }
+
+    /// Get the per-entity lock for `(kind, id_bytes)`. Subsequent calls
+    /// for the same key return the SAME `Arc<Mutex<()>>`.
+    ///
+    /// Hot path: read lock + Arc clone (no allocation).
+    /// Cold path (first time for this key): write lock + insert.
+    pub fn acquire(&self, kind: StringKind, id_bytes: &[u8]) -> Arc<Mutex<()>> {
+        let shard_idx = id_bytes.first().copied().unwrap_or(0) as usize;
+        let key = (kind, id_bytes.to_vec());
+
+        // Hot path: lock already interned.
+        {
+            let read = self.shards[shard_idx].read();
+            if let Some(lock) = read.get(&key) {
+                return lock.clone();
+            }
+        }
+
+        // Cold path: take the shard write lock, double-check, insert if
+        // still missing. The double-check avoids creating two distinct
+        // Mutexes for the same key when two threads race the cold path.
+        let mut write = self.shards[shard_idx].write();
+        write
+            .entry(key)
+            .or_insert_with(|| Arc::new(Mutex::new(())))
+            .clone()
+    }
+
+    /// Total number of interned per-entity locks. O(shards) under the
+    /// shard read locks.
+    pub fn lock_count(&self) -> usize {
+        self.shards.iter().map(|s| s.read().len()).sum()
+    }
+
+    /// Number of shards (always [`HEAD_LOCK_SHARDS`]). Exposed for tests
+    /// and metrics.
+    pub fn shard_count(&self) -> usize {
+        self.shards.len()
+    }
+}
+
+impl Default for EntityHeadLocks {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Registry of strings indexed by `(StringKind, id_bytes)`.
 ///
 /// Quipu Canon v1.2: every ecosystem entity that records knots — a
 /// wallet, a smart contract, a tokenized asset, a DID, or the global
 /// federation cord — owns exactly one string here. The previous name
 /// `LedgerRegistry` is preserved as a deprecated type alias.
+///
+/// Quipu Canon v2.0 Phase 1.2: also owns the per-entity head-string
+/// lock pool used by `LedgerManager::append_to_ledger` to prevent
+/// concurrent appends to the same entity from forking its chain.
+/// See [`EntityHeadLocks`] for the lock semantics.
 ///
 /// Thread-safe for concurrent node operation.
 pub struct StringRegistry {
@@ -309,6 +429,8 @@ pub struct StringRegistry {
     head_index: RwLock<HashMap<(StringKind, Vec<u8>), StringId>>,
     /// Reverse lookup: which (kind, id) does a given knot belong to?
     knot_to_owner: RwLock<HashMap<StringId, (StringKind, Vec<u8>)>>,
+    /// Per-entity head-string locks (Quipu Canon v2.0 Phase 1.2).
+    head_locks: EntityHeadLocks,
 }
 
 impl StringRegistry {
@@ -318,6 +440,7 @@ impl StringRegistry {
             genesis_index: RwLock::new(HashMap::new()),
             head_index: RwLock::new(HashMap::new()),
             knot_to_owner: RwLock::new(HashMap::new()),
+            head_locks: EntityHeadLocks::new(),
         }
     }
 
@@ -462,6 +585,34 @@ impl StringRegistry {
     /// Look up which (kind, id) owns a knot.
     pub fn owner_of_knot(&self, knot_id: &StringId) -> Option<(StringKind, Vec<u8>)> {
         self.knot_to_owner.read().get(knot_id).cloned()
+    }
+
+    // ---------------------------------------------------------------
+    // Quipu Canon v2.0 Phase 1.2 — per-entity head-string locks
+    // ---------------------------------------------------------------
+
+    /// Acquire the per-entity head-string lock for `(kind, id_bytes)`.
+    /// Callers MUST hold the returned `Arc<Mutex<()>>`'s guard across
+    /// the read-head → build-knot → insert-into-lattice → record-append
+    /// sequence to prevent the chain-fork race described on
+    /// [`EntityHeadLocks`].
+    ///
+    /// Subsequent calls for the same key return the same `Arc<Mutex>`,
+    /// so distinct call sites all serialise on the same per-entity lock.
+    pub fn head_lock(&self, kind: StringKind, id_bytes: &[u8]) -> Arc<Mutex<()>> {
+        self.head_locks.acquire(kind, id_bytes)
+    }
+
+    /// Convenience wrapper for the wallet kind. Equivalent to
+    /// `head_lock(StringKind::Wallet, wallet_address)`.
+    pub fn wallet_head_lock(&self, wallet_address: &[u8]) -> Arc<Mutex<()>> {
+        self.head_locks.acquire(StringKind::Wallet, wallet_address)
+    }
+
+    /// Number of currently interned per-entity head locks. Used as a
+    /// node-metrics signal — grows in lockstep with active entities.
+    pub fn head_lock_count(&self) -> usize {
+        self.head_locks.lock_count()
     }
 
     // ---------------------------------------------------------------
@@ -903,5 +1054,159 @@ mod tests {
         assert_eq!(chain.len(), 2);
         assert_eq!(chain.head(), entry_1);
         assert_eq!(chain.genesis(), genesis_id);
+    }
+
+    // ====================================================================
+    // Quipu Canon v2.0 Phase 1.2 — EntityHeadLocks tests
+    // ====================================================================
+
+    #[test]
+    fn head_lock_pool_starts_empty_and_has_correct_shard_count() {
+        let pool = EntityHeadLocks::new();
+        assert_eq!(pool.lock_count(), 0);
+        assert_eq!(pool.shard_count(), HEAD_LOCK_SHARDS);
+    }
+
+    #[test]
+    fn head_lock_returns_same_arc_for_same_key() {
+        // Lock interning: subsequent acquires for the same (kind, id)
+        // must return the SAME Arc<Mutex<()>>, otherwise concurrent
+        // appends would lock independent mutexes and the chain-fork
+        // race would survive.
+        let pool = EntityHeadLocks::new();
+        let wallet = vec![0x42u8; 20];
+        let lock_a = pool.acquire(StringKind::Wallet, &wallet);
+        let lock_b = pool.acquire(StringKind::Wallet, &wallet);
+        assert!(
+            Arc::ptr_eq(&lock_a, &lock_b),
+            "same (kind, id) must intern to one Arc<Mutex<()>>"
+        );
+        assert_eq!(pool.lock_count(), 1);
+    }
+
+    #[test]
+    fn head_lock_distinct_keys_get_distinct_arcs() {
+        let pool = EntityHeadLocks::new();
+        let wallet_a = vec![0xAAu8; 20];
+        let wallet_b = vec![0xBBu8; 20];
+        let lock_a = pool.acquire(StringKind::Wallet, &wallet_a);
+        let lock_b = pool.acquire(StringKind::Wallet, &wallet_b);
+        assert!(
+            !Arc::ptr_eq(&lock_a, &lock_b),
+            "distinct entities must NOT share a lock"
+        );
+        assert_eq!(pool.lock_count(), 2);
+    }
+
+    #[test]
+    fn head_lock_distinct_kinds_with_same_bytes_get_distinct_arcs() {
+        // A wallet at 0xABC… and a contract at 0xABC… are distinct
+        // entities sharing the same byte-id. They must NOT share a lock,
+        // otherwise contract appends would block wallet appends.
+        let pool = EntityHeadLocks::new();
+        let id = vec![0xABu8; 20];
+        let lock_w = pool.acquire(StringKind::Wallet, &id);
+        let lock_c = pool.acquire(StringKind::Contract, &id);
+        assert!(!Arc::ptr_eq(&lock_w, &lock_c));
+        assert_eq!(pool.lock_count(), 2);
+    }
+
+    #[test]
+    fn head_lock_serialises_concurrent_holders_for_same_key() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::thread;
+        use std::time::Duration;
+
+        let pool = Arc::new(EntityHeadLocks::new());
+        let wallet = vec![0xC0u8; 20];
+        let in_critical = Arc::new(AtomicUsize::new(0));
+        let max_seen = Arc::new(AtomicUsize::new(0));
+
+        let mut handles = Vec::new();
+        for _ in 0..16 {
+            let pool = pool.clone();
+            let wallet = wallet.clone();
+            let in_critical = in_critical.clone();
+            let max_seen = max_seen.clone();
+            handles.push(thread::spawn(move || {
+                let lock = pool.acquire(StringKind::Wallet, &wallet);
+                let _g = lock.lock();
+                let n = in_critical.fetch_add(1, Ordering::SeqCst) + 1;
+                max_seen.fetch_max(n, Ordering::SeqCst);
+                // Hold for a tiny bit so a racing thread would have a
+                // chance to land in_critical > 1 if the lock weren't
+                // working.
+                thread::sleep(Duration::from_millis(2));
+                in_critical.fetch_sub(1, Ordering::SeqCst);
+            }));
+        }
+        for h in handles {
+            h.join().unwrap();
+        }
+        assert_eq!(
+            max_seen.load(Ordering::SeqCst),
+            1,
+            "per-wallet head lock failed to serialise — max in critical = {}",
+            max_seen.load(Ordering::SeqCst)
+        );
+    }
+
+    #[test]
+    fn head_lock_distinct_keys_run_in_parallel() {
+        // 16 distinct wallets must be able to hold their locks
+        // simultaneously — that's the entire point of per-entity (vs
+        // global) locking. We assert max-concurrency >= 4 to be
+        // robust to thread scheduling on small CPUs.
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Barrier;
+        use std::thread;
+        use std::time::Duration;
+
+        let pool = Arc::new(EntityHeadLocks::new());
+        let in_critical = Arc::new(AtomicUsize::new(0));
+        let max_seen = Arc::new(AtomicUsize::new(0));
+        let barrier = Arc::new(Barrier::new(16));
+
+        let mut handles = Vec::new();
+        for i in 0u8..16 {
+            let pool = pool.clone();
+            let in_critical = in_critical.clone();
+            let max_seen = max_seen.clone();
+            let barrier = barrier.clone();
+            handles.push(thread::spawn(move || {
+                // Each thread targets a distinct wallet whose first byte
+                // is unique (so it lands in a distinct shard too).
+                let wallet = vec![i; 20];
+                let lock = pool.acquire(StringKind::Wallet, &wallet);
+                barrier.wait();
+                let _g = lock.lock();
+                let n = in_critical.fetch_add(1, Ordering::SeqCst) + 1;
+                max_seen.fetch_max(n, Ordering::SeqCst);
+                thread::sleep(Duration::from_millis(20));
+                in_critical.fetch_sub(1, Ordering::SeqCst);
+            }));
+        }
+        for h in handles {
+            h.join().unwrap();
+        }
+        let max = max_seen.load(Ordering::SeqCst);
+        assert!(
+            max >= 4,
+            "expected meaningful parallelism across distinct wallets, got max in_critical = {}",
+            max
+        );
+    }
+
+    #[test]
+    fn registry_wallet_head_lock_intermediates_through_pool() {
+        let registry = StringRegistry::new();
+        let wallet = test_wallet();
+        let lock_a = registry.wallet_head_lock(&wallet);
+        let lock_b = registry.head_lock(StringKind::Wallet, &wallet);
+        assert!(
+            Arc::ptr_eq(&lock_a, &lock_b),
+            "wallet_head_lock and head_lock(Wallet) must return the same lock"
+        );
+        assert_eq!(registry.head_lock_count(), 1);
     }
 }
