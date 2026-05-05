@@ -103,148 +103,57 @@ impl QueryAnalyzer {
 
         // Greeting detection (from AlterOS)
         let greeting_patterns = [
-            "hi",
-            "hello",
-            "hey",
-            "yo",
-            "sup",
-            "bonjour",
-            "salut",
-            "ciao",
-            "hola",
-            "good morning",
-            "good afternoon",
-            "good evening",
-            "good night",
-            "what's up",
-            "how are you",
+            "hi", "hello", "hey", "yo", "sup", "bonjour", "salut", "ciao", "hola",
+            "good morning", "good afternoon", "good evening", "good night",
+            "what's up", "how are you",
         ];
-        let is_greeting =
-            greeting_patterns.iter().any(|p| msg_lower.starts_with(p)) && word_count < 10;
+        let is_greeting = greeting_patterns.iter().any(|p| msg_lower.starts_with(p)) && word_count < 10;
 
         // Code request detection
         let code_indicators = [
-            "python",
-            "javascript",
-            "typescript",
-            "java",
-            "c++",
-            "c#",
-            "rust",
-            "go",
-            "solidity",
-            "write code",
-            "write a function",
-            "write a script",
-            "write a program",
-            "create a function",
-            "implement",
-            "algorithm",
-            "code example",
-            "fibonacci",
-            "sorting",
-            "binary search",
-            "recursive",
-            "refactor",
-            "debug",
-            "fix this code",
-            "optimize this",
-            "code review",
-            "smart contract",
-            "contract code",
+            "python", "javascript", "typescript", "java", "c++", "c#", "rust", "go",
+            "solidity", "write code", "write a function", "write a script", "write a program",
+            "create a function", "implement", "algorithm", "code example",
+            "fibonacci", "sorting", "binary search", "recursive", "refactor",
+            "debug", "fix this code", "optimize this", "code review",
+            "smart contract", "contract code",
         ];
         let is_code = code_indicators.iter().any(|ind| msg_lower.contains(ind));
 
         // Long-form request detection
         let longform_indicators = [
-            "write an essay",
-            "write a report",
-            "detailed analysis",
-            "comprehensive",
-            "explain in detail",
-            "thorough explanation",
-            "step by step guide",
-            "whitepaper",
-            "research paper",
-            "documentation",
-            "tutorial",
-            "write a story",
-            "write an article",
-            "blog post",
-            "full guide",
+            "write an essay", "write a report", "detailed analysis", "comprehensive",
+            "explain in detail", "thorough explanation", "step by step guide",
+            "whitepaper", "research paper", "documentation", "tutorial",
+            "write a story", "write an article", "blog post", "full guide",
         ];
-        let is_longform = longform_indicators
-            .iter()
-            .any(|ind| msg_lower.contains(ind));
+        let is_longform = longform_indicators.iter().any(|ind| msg_lower.contains(ind));
 
         // Security-sensitive detection (Datachain-specific)
         let security_indicators = [
-            "private key",
-            "seed phrase",
-            "password",
-            "secret",
-            "credential",
-            "authentication",
-            "authorization",
-            "permission",
-            "access control",
-            "vulnerability",
-            "exploit",
-            "audit",
-            "cerber",
-            "security scan",
+            "private key", "seed phrase", "password", "secret", "credential",
+            "authentication", "authorization", "permission", "access control",
+            "vulnerability", "exploit", "audit", "cerber", "security scan",
         ];
-        let is_security = security_indicators
-            .iter()
-            .any(|ind| msg_lower.contains(ind));
+        let is_security = security_indicators.iter().any(|ind| msg_lower.contains(ind));
 
         // Blockchain/crypto detection (Datachain-specific)
         let blockchain_indicators = [
-            "blockchain",
-            "transaction",
-            "block",
-            "consensus",
-            "validator",
-            "stake",
-            "token",
-            "dcfat",
-            "dc token",
-            "wallet",
-            "transfer",
-            "smart contract",
-            "defi",
-            "dao",
-            "governance",
-            "treasury",
-            "string",
-            "lattice",
-            "testimony",
-            "federation",
-            "community",
+            "blockchain", "transaction", "block", "consensus", "validator",
+            "stake", "token", "dcfat", "dc token", "wallet", "transfer",
+            "smart contract", "defi", "dao", "governance", "treasury",
+            "string", "lattice", "testimony", "federation", "community",
         ];
-        let is_blockchain = blockchain_indicators
-            .iter()
-            .any(|ind| msg_lower.contains(ind));
+        let is_blockchain = blockchain_indicators.iter().any(|ind| msg_lower.contains(ind));
 
         // Detailed response indicators
         let detailed_indicators = [
-            "who are you",
-            "what are you",
-            "tell me about yourself",
-            "describe yourself",
-            "introduce yourself",
-            "what makes you different",
-            "explain how",
-            "explain why",
-            "explain what",
-            "how does",
-            "what can you do",
-            "what are your capabilities",
-            "compare",
+            "who are you", "what are you", "tell me about yourself",
+            "describe yourself", "introduce yourself", "what makes you different",
+            "explain how", "explain why", "explain what", "how does",
+            "what can you do", "what are your capabilities", "compare",
         ];
-        let needs_detail = detailed_indicators
-            .iter()
-            .any(|ind| msg_lower.contains(ind));
+        let needs_detail = detailed_indicators.iter().any(|ind| msg_lower.contains(ind));
 
         // Determine complexity
         let complexity = if is_greeting {
@@ -462,10 +371,7 @@ impl AlterOSOrchestrator {
 
         let anthropic = anthropic_api_key.map(|key| {
             let model = anthropic_model.unwrap_or("claude-3-haiku-20240307");
-            info!(
-                "AlterOS: Initializing Anthropic provider with model {}",
-                model
-            );
+            info!("AlterOS: Initializing Anthropic provider with model {}", model);
             AnthropicProvider::new(key, model)
         });
 
@@ -512,26 +418,23 @@ impl AlterOSOrchestrator {
         let health = self.health.read().await.clone();
 
         let mut stats = HashMap::new();
-        stats.insert("total_requests".to_string(), serde_json::json!(total));
+        stats.insert(
+            "total_requests".to_string(),
+            serde_json::json!(total),
+        );
         stats.insert(
             "requests_by_provider".to_string(),
             serde_json::json!(by_provider),
         );
         stats.insert(
             "provider_health".to_string(),
-            serde_json::json!(health
-                .iter()
-                .map(|(k, v)| {
-                    (
-                        k.clone(),
-                        serde_json::json!({
-                            "available": v.available,
-                            "failures": v.consecutive_failures,
-                            "avg_latency_ms": v.avg_latency_ms,
-                        }),
-                    )
-                })
-                .collect::<HashMap<_, _>>()),
+            serde_json::json!(health.iter().map(|(k, v)| {
+                (k.clone(), serde_json::json!({
+                    "available": v.available,
+                    "failures": v.consecutive_failures,
+                    "avg_latency_ms": v.avg_latency_ms,
+                }))
+            }).collect::<HashMap<_, _>>()),
         );
         stats
     }
@@ -640,11 +543,7 @@ impl AlterOSOrchestrator {
         }
 
         // Analyze the query
-        let last_message = request
-            .messages
-            .last()
-            .map(|m| m.content.as_str())
-            .unwrap_or("");
+        let last_message = request.messages.last().map(|m| m.content.as_str()).unwrap_or("");
         let context = QueryAnalyzer::analyze(last_message, Some(&request.messages));
 
         // Adjust request based on complexity
@@ -667,9 +566,27 @@ impl AlterOSOrchestrator {
         // Execute with selected provider
         let start = Instant::now();
         let result = match provider_name {
-            "ollama" => self.ollama.as_ref().unwrap().complete(request).await,
-            "openai" => self.openai.as_ref().unwrap().complete(request).await,
-            "anthropic" => self.anthropic.as_ref().unwrap().complete(request).await,
+            "ollama" => {
+                self.ollama
+                    .as_ref()
+                    .unwrap()
+                    .complete(request)
+                    .await
+            }
+            "openai" => {
+                self.openai
+                    .as_ref()
+                    .unwrap()
+                    .complete(request)
+                    .await
+            }
+            "anthropic" => {
+                self.anthropic
+                    .as_ref()
+                    .unwrap()
+                    .complete(request)
+                    .await
+            }
             _ => Err(RuntimeError::ExecutionError("Unknown provider".to_string())),
         };
         let latency = start.elapsed().as_millis() as u64;
@@ -689,10 +606,8 @@ impl AlterOSOrchestrator {
                         h.consecutive_failures += 1;
                         if h.consecutive_failures >= 3 {
                             h.available = false;
-                            warn!(
-                                "AlterOS: Provider {} marked unavailable after {} failures",
-                                provider_name, h.consecutive_failures
-                            );
+                            warn!("AlterOS: Provider {} marked unavailable after {} failures",
+                                  provider_name, h.consecutive_failures);
                         }
                     }
                 }
@@ -870,8 +785,7 @@ mod tests {
 
     #[test]
     fn test_query_analyzer_longform() {
-        let ctx =
-            QueryAnalyzer::analyze("Write a comprehensive report on blockchain consensus", None);
+        let ctx = QueryAnalyzer::analyze("Write a comprehensive report on blockchain consensus", None);
         assert!(ctx.is_longform);
         assert_eq!(ctx.complexity, ResponseComplexity::Comprehensive);
     }

@@ -6,10 +6,10 @@
 //! Instead, it accepts an `IoTSink` callback that the node wires to the
 //! actual LedgerManager at startup.
 
-use crate::device::{DeviceInfo, DeviceLocation, DeviceRegistry, DeviceStatus, DeviceType};
+use crate::device::{DeviceInfo, DeviceRegistry, DeviceStatus, DeviceType, DeviceLocation};
 use crate::protocol::{
-    parse_mqtt_topic, DeviceEvent, MqttMessageType, SourceProtocol, TelemetryPayload,
-    TelemetryValue,
+    parse_mqtt_topic, DeviceEvent, MqttMessageType, SourceProtocol,
+    TelemetryPayload, TelemetryValue,
 };
 use hashbrown::HashMap;
 use parking_lot::RwLock;
@@ -20,7 +20,9 @@ use tokio::sync::mpsc;
 /// Callback signature: the node provides a closure that writes to the ledger.
 /// Parameters: (wallet_address, interaction_type, description, metadata)
 pub type IoTSink = Arc<
-    dyn Fn(String, String, String, HashMap<String, String>) -> Result<(), String> + Send + Sync,
+    dyn Fn(String, String, String, HashMap<String, String>) -> Result<(), String>
+        + Send
+        + Sync,
 >;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -117,10 +119,7 @@ impl IoTGateway {
         metadata: HashMap<String, String>,
     ) -> Result<DeviceInfo, String> {
         if self.registry.device_count() >= self.config.max_devices {
-            return Err(format!(
-                "Device limit reached ({})",
-                self.config.max_devices
-            ));
+            return Err(format!("Device limit reached ({})", self.config.max_devices));
         }
 
         let info = DeviceInfo {
@@ -157,11 +156,7 @@ impl IoTGateway {
             );
         }
 
-        tracing::info!(
-            "IoT device registered: {} ({})",
-            info.name,
-            info.device_type.as_str()
-        );
+        tracing::info!("IoT device registered: {} ({})", info.name, info.device_type.as_str());
         Ok(info)
     }
 
@@ -172,10 +167,7 @@ impl IoTGateway {
         self.registry.record_telemetry(&payload.device_wallet);
 
         let mut meta = hashbrown::HashMap::new();
-        meta.insert(
-            "source_protocol".into(),
-            payload.source_protocol.as_str().into(),
-        );
+        meta.insert("source_protocol".into(), payload.source_protocol.as_str().into());
         meta.insert("reading_count".into(), payload.readings.len().to_string());
         if let Some(seq) = payload.sequence_number {
             meta.insert("sequence".into(), seq.to_string());
@@ -209,13 +201,8 @@ impl IoTGateway {
         meta.insert("event_type".into(), event.event_type.as_str().into());
         meta.insert("severity".into(), format!("{:?}", event.severity));
 
-        sink(
-            event.device_wallet,
-            "Custom".into(),
-            event.description,
-            meta,
-        )
-        .map_err(|e| format!("Ledger write failed: {}", e))?;
+        sink(event.device_wallet, "Custom".into(), event.description, meta)
+            .map_err(|e| format!("Ledger write failed: {}", e))?;
 
         self.stats.write().events_received += 1;
         self.stats.write().fragments_written += 1;
@@ -224,13 +211,14 @@ impl IoTGateway {
 
     /// Process an MQTT message (called by the MQTT listener).
     pub fn handle_mqtt_message(&self, topic: &str, payload: &[u8]) -> Result<(), String> {
-        let (wallet, msg_type) =
-            parse_mqtt_topic(topic).ok_or_else(|| format!("Invalid MQTT topic: {}", topic))?;
+        let (wallet, msg_type) = parse_mqtt_topic(topic)
+            .ok_or_else(|| format!("Invalid MQTT topic: {}", topic))?;
 
         match msg_type {
             MqttMessageType::Telemetry => {
-                let readings: HashMap<String, TelemetryValue> = serde_json::from_slice(payload)
-                    .map_err(|e| format!("Invalid telemetry JSON: {}", e))?;
+                let readings: HashMap<String, TelemetryValue> =
+                    serde_json::from_slice(payload)
+                        .map_err(|e| format!("Invalid telemetry JSON: {}", e))?;
 
                 let telem = TelemetryPayload {
                     device_wallet: wallet,
@@ -251,23 +239,11 @@ impl IoTGateway {
                 let reg: serde_json::Value = serde_json::from_slice(payload)
                     .map_err(|e| format!("Invalid register JSON: {}", e))?;
 
-                let device_id = reg
-                    .get("device_id")
-                    .and_then(|v| v.as_str())
+                let device_id = reg.get("device_id").and_then(|v| v.as_str())
                     .ok_or("Missing device_id")?;
-                let name = reg
-                    .get("name")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or(device_id);
-                let dtype = reg
-                    .get("device_type")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("sensor");
-                let owner = reg
-                    .get("owner_wallet")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or(&wallet)
-                    .to_string();
+                let name = reg.get("name").and_then(|v| v.as_str()).unwrap_or(device_id);
+                let dtype = reg.get("device_type").and_then(|v| v.as_str()).unwrap_or("sensor");
+                let owner = reg.get("owner_wallet").and_then(|v| v.as_str()).unwrap_or(&wallet).to_string();
 
                 self.register_device(
                     device_id.to_string(),
@@ -301,7 +277,9 @@ impl IoTGateway {
         let timeout = self.config.stale_device_timeout_secs as i64;
         let stats = self.stats.clone();
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(60));
+            let mut interval = tokio::time::interval(
+                tokio::time::Duration::from_secs(60),
+            );
             loop {
                 interval.tick().await;
                 let now = chrono::Utc::now().timestamp();

@@ -302,16 +302,17 @@ impl GovernanceManager {
             return Authorized::Founder;
         }
         if action.requires_founder() {
-            return Authorized::Denied(format!("{} requires a founder signature", action.name()));
+            return Authorized::Denied(format!(
+                "{} requires a founder signature",
+                action.name()
+            ));
         }
         if let Some(node) = registry
             .master_nodes
             .iter()
             .find(|n| n.pubkey_ed25519.trim_start_matches("0x").to_lowercase() == pk_hex_lc)
         {
-            return Authorized::MasterNode {
-                slot: node.slot.clone(),
-            };
+            return Authorized::MasterNode { slot: node.slot.clone() };
         }
         Authorized::Denied("signer is neither a founder key nor a master-node key".into())
     }
@@ -374,7 +375,9 @@ fn canonical_json_bytes(v: &serde_json::Value) -> Vec<u8> {
                         '\n' => out.push_str("\\n"),
                         '\r' => out.push_str("\\r"),
                         '\t' => out.push_str("\\t"),
-                        c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+                        c if (c as u32) < 0x20 => {
+                            out.push_str(&format!("\\u{:04x}", c as u32))
+                        }
                         c => out.push(c),
                     }
                 }

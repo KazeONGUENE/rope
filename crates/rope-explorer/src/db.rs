@@ -63,16 +63,10 @@ pub async fn get_agent(pool: &PgPool, id: &str) -> Result<Option<AgentRow>, sqlx
     Ok(row.map(parse_agent_row))
 }
 
-pub async fn get_agent_by_wallet(
-    pool: &PgPool,
-    wallet: &str,
-) -> Result<Option<AgentRow>, sqlx::Error> {
-    let row = sqlx::query(&format!(
-        "{} WHERE LOWER(wallet_address) = LOWER($1)",
-        AGENT_QUERY
-    ))
-    .bind(wallet)
-    .fetch_optional(pool)
-    .await?;
+pub async fn get_agent_by_wallet(pool: &PgPool, wallet: &str) -> Result<Option<AgentRow>, sqlx::Error> {
+    let row = sqlx::query(&format!("{} WHERE LOWER(wallet_address) = LOWER($1)", AGENT_QUERY))
+        .bind(wallet)
+        .fetch_optional(pool)
+        .await?;
     Ok(row.map(parse_agent_row))
 }

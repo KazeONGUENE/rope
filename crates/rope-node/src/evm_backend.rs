@@ -198,7 +198,10 @@ impl EvmBackend {
             anyhow::bail!("EVM backend RPC error {}: {}", code, message);
         }
 
-        Ok(body.get("result").cloned().unwrap_or(Value::Null))
+        Ok(body
+            .get("result")
+            .cloned()
+            .unwrap_or(Value::Null))
     }
 
     /// Forward a complete JSON-RPC request object to the EVM backend
@@ -246,13 +249,19 @@ impl EvmBackend {
     }
 
     pub async fn get_balance(&self, address: &str, block: &str) -> anyhow::Result<Value> {
-        self.json_rpc("eth_getBalance", serde_json::json!([address, block]))
-            .await
+        self.json_rpc(
+            "eth_getBalance",
+            serde_json::json!([address, block]),
+        )
+        .await
     }
 
     pub async fn get_code(&self, address: &str, block: &str) -> anyhow::Result<Value> {
-        self.json_rpc("eth_getCode", serde_json::json!([address, block]))
-            .await
+        self.json_rpc(
+            "eth_getCode",
+            serde_json::json!([address, block]),
+        )
+        .await
     }
 
     pub async fn eth_call(&self, tx: &Value, block: &str) -> anyhow::Result<Value> {
@@ -261,13 +270,19 @@ impl EvmBackend {
     }
 
     pub async fn send_raw_transaction(&self, raw_tx: &str) -> anyhow::Result<Value> {
-        self.json_rpc("eth_sendRawTransaction", serde_json::json!([raw_tx]))
-            .await
+        self.json_rpc(
+            "eth_sendRawTransaction",
+            serde_json::json!([raw_tx]),
+        )
+        .await
     }
 
     pub async fn get_transaction_receipt(&self, tx_hash: &str) -> anyhow::Result<Value> {
-        self.json_rpc("eth_getTransactionReceipt", serde_json::json!([tx_hash]))
-            .await
+        self.json_rpc(
+            "eth_getTransactionReceipt",
+            serde_json::json!([tx_hash]),
+        )
+        .await
     }
 
     pub async fn get_transaction_count(&self, address: &str, block: &str) -> anyhow::Result<Value> {
@@ -283,14 +298,24 @@ impl EvmBackend {
             .await
     }
 
-    pub async fn get_block_by_number(&self, block: &str, full_txs: bool) -> anyhow::Result<Value> {
-        self.json_rpc("eth_getBlockByNumber", serde_json::json!([block, full_txs]))
-            .await
+    pub async fn get_block_by_number(
+        &self,
+        block: &str,
+        full_txs: bool,
+    ) -> anyhow::Result<Value> {
+        self.json_rpc(
+            "eth_getBlockByNumber",
+            serde_json::json!([block, full_txs]),
+        )
+        .await
     }
 
     pub async fn get_block_by_hash(&self, hash: &str, full_txs: bool) -> anyhow::Result<Value> {
-        self.json_rpc("eth_getBlockByHash", serde_json::json!([hash, full_txs]))
-            .await
+        self.json_rpc(
+            "eth_getBlockByHash",
+            serde_json::json!([hash, full_txs]),
+        )
+        .await
     }
 
     pub async fn get_logs(&self, filter: &Value) -> anyhow::Result<Value> {
@@ -312,8 +337,11 @@ impl EvmBackend {
     }
 
     pub async fn get_transaction_by_hash(&self, tx_hash: &str) -> anyhow::Result<Value> {
-        self.json_rpc("eth_getTransactionByHash", serde_json::json!([tx_hash]))
-            .await
+        self.json_rpc(
+            "eth_getTransactionByHash",
+            serde_json::json!([tx_hash]),
+        )
+        .await
     }
 
     pub async fn get_fee_history(
@@ -338,8 +366,7 @@ impl EvmBackend {
     /// return a JSON-RPC method-not-found error — that is expected and is
     /// not a defect at this layer.
     pub async fn dump_state(&self) -> anyhow::Result<Value> {
-        self.long_running_rpc("anvil_dumpState", Value::Array(vec![]))
-            .await
+        self.long_running_rpc("anvil_dumpState", Value::Array(vec![])).await
     }
 
     /// Load state into the EVM execution layer.
@@ -348,8 +375,7 @@ impl EvmBackend {
     /// only operative against an Anvil execution layer. The Reth code path
     /// uses the IPFS-pinned chain-state tarball restoration flow instead.
     pub async fn load_state(&self, state: &str) -> anyhow::Result<Value> {
-        self.long_running_rpc("anvil_loadState", serde_json::json!([state]))
-            .await
+        self.long_running_rpc("anvil_loadState", serde_json::json!([state])).await
     }
 
     /// Execute a JSON-RPC call with a 30-minute timeout for operations that
@@ -390,10 +416,7 @@ impl EvmBackend {
 
         if let Some(error) = body.get("error") {
             let code = error.get("code").and_then(|c| c.as_i64()).unwrap_or(-1);
-            let message = error
-                .get("message")
-                .and_then(|m| m.as_str())
-                .unwrap_or("Unknown error");
+            let message = error.get("message").and_then(|m| m.as_str()).unwrap_or("Unknown error");
             anyhow::bail!("EVM backend RPC error {}: {}", code, message);
         }
 
@@ -501,10 +524,7 @@ mod tests {
 
     #[test]
     fn test_parse_hex_u64() {
-        assert_eq!(
-            parse_hex_u64(&Value::String("0x425d4".into())).unwrap(),
-            271828
-        );
+        assert_eq!(parse_hex_u64(&Value::String("0x425d4".into())).unwrap(), 271828);
         assert_eq!(parse_hex_u64(&Value::String("0x0".into())).unwrap(), 0);
         assert_eq!(parse_hex_u64(&Value::String("0xff".into())).unwrap(), 255);
     }

@@ -914,8 +914,7 @@ impl ThreatDetector {
 
         // Auto-block critical threats
         if level >= ThreatLevel::Critical {
-            self.blocked_ips
-                .insert(source_ip.to_string(), Instant::now());
+            self.blocked_ips.insert(source_ip.to_string(), Instant::now());
         }
 
         ThreatResult {
@@ -929,10 +928,7 @@ impl ThreatDetector {
 
     /// Record request for rate analysis
     fn record_request(&self, source_ip: &str) {
-        let mut requests = self
-            .request_counts
-            .entry(source_ip.to_string())
-            .or_default();
+        let mut requests = self.request_counts.entry(source_ip.to_string()).or_default();
         requests.push(Instant::now());
 
         // Keep only last 5 minutes
@@ -1046,9 +1042,7 @@ impl Cerber {
         signature: Option<(&str, u64)>, // (signature, timestamp)
     ) -> Result<Option<ApiKeyInfo>, CerberError> {
         // 1. Threat detection
-        let threat = self
-            .threat_detector
-            .analyze(source_ip, endpoint, method, body);
+        let threat = self.threat_detector.analyze(source_ip, endpoint, method, body);
         if threat.level >= ThreatLevel::High {
             return Err(CerberError::ThreatDetected(threat.patterns.join(", ")));
         }
@@ -1219,39 +1213,23 @@ mod tests {
 
         // Chat fields should allow natural language with SQL keywords
         // These are common in conversation with "Alter" (the AI's name)
-        assert!(validator
-            .validate("hello alter what time is it?", "message")
-            .is_ok());
-        assert!(validator
-            .validate("Can you select a restaurant?", "prompt")
-            .is_ok());
-        assert!(validator
-            .validate("When do you drop new updates?", "query")
-            .is_ok());
+        assert!(validator.validate("hello alter what time is it?", "message").is_ok());
+        assert!(validator.validate("Can you select a restaurant?", "prompt").is_ok());
+        assert!(validator.validate("When do you drop new updates?", "query").is_ok());
         assert!(validator.validate("Who created you?", "content").is_ok());
-        assert!(validator
-            .validate("Can you delete old files?", "user_message")
-            .is_ok());
+        assert!(validator.validate("Can you delete old files?", "user_message").is_ok());
 
         // Non-chat fields should still block SQL keywords
-        assert!(validator
-            .validate("SELECT * FROM users", "username")
-            .is_err());
+        assert!(validator.validate("SELECT * FROM users", "username").is_err());
         assert!(validator.validate("DROP TABLE users", "email").is_err());
 
         // Actual attacks should be blocked in ALL contexts (including chat)
         assert!(validator.validate("1 OR 1=1", "message").is_err());
-        assert!(validator
-            .validate("'; DROP TABLE users;--", "prompt")
-            .is_err());
-        assert!(validator
-            .validate("UNION SELECT * FROM passwords", "query")
-            .is_err());
+        assert!(validator.validate("'; DROP TABLE users;--", "prompt").is_err());
+        assert!(validator.validate("UNION SELECT * FROM passwords", "query").is_err());
 
         // XSS should be blocked in all contexts
-        assert!(validator
-            .validate("<script>alert(1)</script>", "message")
-            .is_err());
+        assert!(validator.validate("<script>alert(1)</script>", "message").is_err());
     }
 
     #[test]
@@ -1262,7 +1240,7 @@ mod tests {
         assert!(EnhancedInputValidator::is_chat_field("system_prompt"));
         assert!(EnhancedInputValidator::is_chat_field("query"));
         assert!(EnhancedInputValidator::is_chat_field("content"));
-
+        
         assert!(!EnhancedInputValidator::is_chat_field("username"));
         assert!(!EnhancedInputValidator::is_chat_field("email"));
         assert!(!EnhancedInputValidator::is_chat_field("password"));
@@ -1288,9 +1266,8 @@ mod tests {
     fn test_llm_sanitizer() {
         let sanitizer = LLMOutputSanitizer::new();
 
-        let fake_key = format!("sk_{}_{}", "live", "12345678901234567890123456");
-        let test_input = format!("Here is my API key: api_key={}", fake_key);
-        let (output, redacted) = sanitizer.sanitize(&test_input);
+        let (output, redacted) =
+            sanitizer.sanitize("Here is my API key: api_key=placeholder_token_for_unit_test_xxx");
         assert!(output.contains("[REDACTED]"));
         assert!(!redacted.is_empty());
 

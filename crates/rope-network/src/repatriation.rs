@@ -264,7 +264,9 @@ impl RepatriationEngine {
                     verified: false,
                     requested_at: None,
                 };
-                session.piece_states.insert((string_id, index), state);
+                session
+                    .piece_states
+                    .insert((string_id, index), state);
                 session.pending_pieces.push_back((string_id, index));
             }
         }
@@ -330,7 +332,9 @@ impl RepatriationEngine {
     /// Assemble all received pieces into the final ledger
     pub fn assemble(&self, wallet: &[u8]) -> Result<RepatriatedLedger, String> {
         let mut active = self.active_requests.write();
-        let session = active.get_mut(wallet).ok_or("No active repatriation")?;
+        let session = active
+            .get_mut(wallet)
+            .ok_or("No active repatriation")?;
 
         let all_complete = session.piece_states.values().all(|s| s.is_complete());
         if !all_complete {
@@ -382,8 +386,16 @@ impl RepatriationEngine {
             }
         }
 
-        let genesis_id = session.entry_ids.first().copied().unwrap_or(StringId::ZERO);
-        let head_id = session.entry_ids.last().copied().unwrap_or(StringId::ZERO);
+        let genesis_id = session
+            .entry_ids
+            .first()
+            .copied()
+            .unwrap_or(StringId::ZERO);
+        let head_id = session
+            .entry_ids
+            .last()
+            .copied()
+            .unwrap_or(StringId::ZERO);
         let total_entries = ordered_entries.len();
 
         session.status = RepatriationStatus::Complete {
@@ -519,10 +531,8 @@ mod tests {
     use super::*;
 
     fn test_wallet() -> Vec<u8> {
-        vec![
-            0x60, 0xFB, 0x32, 0xEF, 0x3A, 0x23, 0x81, 0xC2, 0xED, 0x71, 0x61, 0x3F, 0x34, 0xFD,
-            0x56, 0xD5, 0x6F, 0xCF, 0x41, 0x95,
-        ]
+        vec![0x60, 0xFB, 0x32, 0xEF, 0x3A, 0x23, 0x81, 0xC2, 0xED, 0x71,
+             0x61, 0x3F, 0x34, 0xFD, 0x56, 0xD5, 0x6F, 0xCF, 0x41, 0x95]
     }
 
     #[test]
@@ -547,10 +557,7 @@ mod tests {
         engine.set_entry_ids(&wallet, vec![sid]);
 
         let status = engine.get_status(&wallet).unwrap();
-        assert!(matches!(
-            status,
-            RepatriationStatus::Resolving { entries_found: 1 }
-        ));
+        assert!(matches!(status, RepatriationStatus::Resolving { entries_found: 1 }));
 
         let piece_data = vec![0xAA; 256];
         let piece_hash = *blake3::hash(&piece_data).as_bytes();

@@ -55,8 +55,8 @@ pub struct GovernanceSettings {
 impl Default for GovernanceSettings {
     fn default() -> Self {
         Self {
-            master_nodes_file: "/home/ubuntu/datachain-rope/deploy/config/master-nodes.toml"
-                .to_string(),
+            master_nodes_file:
+                "/home/ubuntu/datachain-rope/deploy/config/master-nodes.toml".to_string(),
             enforce: true,
             log_path: "~/.rope/governance.log".to_string(),
         }

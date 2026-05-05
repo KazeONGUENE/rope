@@ -572,7 +572,8 @@ mod tests {
 
     #[test]
     fn test_erasure_audit() {
-        let mut audit = LedgerErasureAudit::new(vec![0x01; 20], DeletionReason::OwnerRequest);
+        let mut audit =
+            LedgerErasureAudit::new(vec![0x01; 20], DeletionReason::OwnerRequest);
         audit.complete(5, "oes_evolution", vec![0, 1, 2, 3, 4]);
 
         assert_eq!(audit.entries_erased, 5);

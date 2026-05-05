@@ -15,7 +15,10 @@
 use crate::agent_runner::AgentRunner;
 use crate::evm_backend::EvmBackend;
 use parking_lot::RwLock;
-use rope_consensus::{FinalityConfig, FinalityEngine, TestimonyCollector, TestimonyConfig};
+use rope_consensus::{
+    FinalityConfig, FinalityEngine,
+    TestimonyCollector, TestimonyConfig,
+};
 use rope_core::clock::LamportClock;
 use rope_core::types::{AttestationType, NodeId, StringId};
 use std::collections::HashMap;
@@ -168,10 +171,7 @@ impl ConsensusOrchestrator {
     }
 
     /// Deprecated alias for [`Self::set_evm_backend`].
-    #[deprecated(
-        since = "0.2.0",
-        note = "Use `set_evm_backend`. Anvil was archived 2026-03-31."
-    )]
+    #[deprecated(since = "0.2.0", note = "Use `set_evm_backend`. Anvil was archived 2026-03-31.")]
     pub fn set_anvil(&mut self, evm_backend: Arc<EvmBackend>) {
         self.set_evm_backend(evm_backend)
     }
@@ -232,16 +232,11 @@ impl ConsensusOrchestrator {
 
         // Dispatch to AI agents if enabled
         if let Some(ref runner) = self.agent_runner {
-            let ai_ok = runner
-                .evaluate_transaction(string_id, tx_hash, raw_tx)
-                .await;
+            let ai_ok = runner.evaluate_transaction(string_id, tx_hash, raw_tx).await;
             if ai_ok {
                 debug!("AI agents approved tx {}", tx_hash);
             } else {
-                warn!(
-                    "AI agents did NOT approve tx {} — proceeding (advisory only)",
-                    tx_hash
-                );
+                warn!("AI agents did NOT approve tx {} — proceeding (advisory only)", tx_hash);
             }
         }
 

@@ -4,6 +4,7 @@ use hashbrown::HashMap;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DeviceType {
     Sensor,
@@ -98,9 +99,7 @@ impl DeviceRegistry {
             return Err(format!("Device {} already registered", device_id));
         }
 
-        self.wallet_to_device
-            .write()
-            .insert(wallet, device_id.clone());
+        self.wallet_to_device.write().insert(wallet, device_id.clone());
         self.devices.write().insert(device_id, info);
         Ok(())
     }
@@ -139,9 +138,7 @@ impl DeviceRegistry {
     }
 
     pub fn online_count(&self) -> usize {
-        self.devices
-            .read()
-            .values()
+        self.devices.read().values()
             .filter(|d| d.status == DeviceStatus::Online)
             .count()
     }

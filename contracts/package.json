@@ -1,22 +1,14 @@
 {
   "name": "@datachain/contracts",
-  "version": "1.1.0",
-  "description": "Governance, ONCHAINID, and ERC-3643 contracts for Datachain Rope",
+  "version": "1.0.0",
+  "description": "Governance and utility contracts for Datachain Rope",
   "scripts": {
     "compile": "hardhat compile",
     "compile:forge": "forge build",
     "test": "hardhat test",
     "test:forge": "forge test",
-    "test:onchainid": "hardhat test test/onchainid/",
-    "test:wrapper": "hardhat test test/wrapper/",
-    "test:compliance": "hardhat test test/compliance/",
     "deploy:mainnet": "hardhat run scripts/deploy.ts --network mainnet",
     "deploy:testnet": "hardhat run scripts/deploy.ts --network testnet",
-    "deploy:idfactory": "hardhat run scripts/onchainid/01_deploy_IdFactory.ts",
-    "deploy:trex": "hardhat run scripts/trex/01_deploy_ClaimTopicsRegistry.ts && hardhat run scripts/trex/02_deploy_TrustedIssuersRegistry.ts && hardhat run scripts/trex/03_deploy_IdentityRegistryStorage.ts && hardhat run scripts/trex/04_deploy_IdentityRegistry.ts",
-    "deploy:compliance": "hardhat run scripts/trex/05_deploy_Compliance.ts",
-    "deploy:configure": "hardhat run scripts/trex/06_configure_registries.ts",
-    "verify:addresses": "hardhat run scripts/onchainid/02_verify_addresses.ts",
     "verify": "hardhat verify",
     "coverage": "hardhat coverage",
     "gas-report": "REPORT_GAS=true hardhat test",
@@ -25,19 +17,13 @@
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
-    "@types/mocha": "^10.0.0",
-    "@types/node": "^20.0.0",
+    "@openzeppelin/contracts": "^5.0.0",
+    "@openzeppelin/contracts-upgradeable": "^5.0.0",
     "hardhat": "^2.19.0",
     "hardhat-deploy": "^0.11.0",
     "solhint": "^4.0.0",
     "typescript": "^5.3.0",
     "ts-node": "^10.9.0"
-  },
-  "dependencies": {
-    "@openzeppelin/contracts": "^5.0.0",
-    "@openzeppelin/contracts-upgradeable": "^5.0.0",
-    "@onchain-id/solidity": "^2.2.0",
-    "@tokenysolutions/t-rex": "^4.1.6"
   },
   "repository": {
     "type": "git",
@@ -48,12 +34,8 @@
     "rope",
     "governance",
     "dao",
-    "smart-contracts",
-    "onchainid",
-    "erc-3643",
-    "t-rex",
-    "security-tokens"
+    "smart-contracts"
   ],
-  "author": "Kazé A. ONGUENE — Datachain Foundation",
+  "author": "Datachain Foundation",
   "license": "Apache-2.0"
 }

@@ -1,272 +1,226 @@
----
-description: "HANDOVER: DCSwap redeployed 2026-02-26 at nonces 51+. New contract addresses for all 7 contracts + 4 pools. T-REX at nonces 0–50 intact. Bot running 62 wallets × 9 strategies. Supersedes old DCSwap addresses in handover-dcswap-project-status.mdc."
-alwaysApply: true
----
-
-# HANDOVER: DCSwap Redeployed — 2026-02-26
+# HANDOVER: DCSwap Redeployed — 2026-03-01 (4th deployment)
 
 **From:** DCSwap project agent (workspace: `/Users/kazealphonseonguene/Downloads/dcswap/`)
-**To:** Datachain Rope project agent (workspace: `/Users/kazealphonseonguene/Downloads/DATACHAIN ROPE/`)
-**Date:** 2026-02-26
-**Supersedes:** All DCSwap contract addresses in `handover-dcswap-project-status.mdc` (Feb 19)
+**To:** Datachain Rope project agent (workspace: `/Users/kazealphonseonguene/Downloads/DATACHAIN ROPE/datachain-rope/`)
+**Date:** 2026-03-01T22:30Z
+**Severity:** INFORMATIONAL — DCSwap is fully operational on new addresses
 
 ---
 
-## TIMELINE OF EVENTS
+## SUMMARY
 
-1. **Feb 19:** Original DCSwap deployment + bot running (documented in `handover-dcswap-project-status.mdc`)
-2. **~Feb 24-25:** Anvil node reset. All contracts wiped. Genesis account changed to `0x302fa11a6e784dfa89f96942a919c09b45559676`.
-3. **Feb 25:** DCSwap agent redeployed at nonces 0–N. Configs updated. Then Anvil reset **again**.
-4. **Feb 26 ~17:00Z:** ROPE agent deployed T-REX/ONCHAINID infrastructure at nonces 0–50. Deployer nonce reached 51.
-5. **Feb 26 (later):** DCSwap agent redeployed all contracts at nonces 51+. Funded deployer with 500M+ FAT. Seeded liquidity. Started multi-strategy bot with 62 wallets.
+Following the third chain reset (2026-03-01), DCSwap has been **fully redeployed, reconfigured, and is live**. All 7 contracts are at new addresses (deployer nonce started at 39), 4 liquidity pools are seeded, the multi-strategy bot (62 wallets, 9 strategies) is actively trading, and the frontend + indexer + API are serving production traffic at `https://dcswap.net`.
 
-**Current chain state (verified):** Block ~13,970 | Deployer nonce: 259 | 4 pools active with liquidity
+**T-REX contracts (nonces 0–50) were NOT touched.** They remain intact and functional.
 
 ---
 
-## CURRENT DCSWAP CONTRACT ADDRESSES (post Reth migration — 2026-03-26 verified)
+## NEW DCSWAP CONTRACT ADDRESSES (deployed 2026-03-01)
 
-**ALL old addresses from previous deployments are INVALID.** Use these:
+All previous DCSwap addresses are invalid. These are the only valid addresses:
 
-### Core Contracts
-
-| Contract | Address | Verified |
+| Contract | New Address | Deployer Nonce |
 |---|---|---|
-| WFAT | `0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4` | ON-CHAIN |
-| USDC (6 decimals) | `0xb93bd8db94f1baff474aa9cba0739daaad01641f` | ON-CHAIN |
-| USDT (6 decimals) | `0x79a26132f48394421382c13b54ae77fa3af73289` | ON-CHAIN |
-| EUROD (6 decimals) | `0x24d6137807fa8a592888726d87ac748d018c6d4a` | ON-CHAIN |
-| Multicall3 | `0xc2eeb0100aa7e81a3193bdce6733ff767f3bb93a` | ON-CHAIN |
-| DCSwapFactory | `0x772e5fd559069aecce5e6983c0c415c8579d780d` | ON-CHAIN |
-| DCSwapRouter | `0x8ebdd966e9e9af2ec5d02c886b1c4b5ba617e7c4` | ON-CHAIN |
+| WFAT | `0x55EC95ec95D29791Ac600E131a69A1c92018E062` | 39 |
+| USDC (BridgedToken) | `0xE9D4fd64DF93fe848fE13303EAa28008feb72789` | 40 |
+| USDT (BridgedToken) | `0x94237cf368D7cd072eEe465a3DC3446241A336CE` | 41 |
+| EUROD (BridgedToken) | `0x52053FC5c69f8D3e1457343D11ec1E39a7F4f3d1` | 42 |
+| Multicall3 | `0x4E1666363d61aBbbb8AA00D55A647A1Da59e79Cc` | 43 |
+| DCSwapFactory | `0x4e4fc01BD381226Acbd1D127c961ea982d751230` | 44 |
+| DCSwapRouter | `0xA35969442e8CFF8EeB6F1C912e668aC85A6cb39e` | 45 |
 
-### Live Pools
+### Live Pools (created by Factory)
 
-| Pair | Address | Zero-Fee | Reserves (at deploy) |
+| Pair | Pool Address | Zero-Fee | Seed Liquidity |
 |---|---|---|---|
-| FAT/USDC | `0xd9ebc3da001618a3ae90481d33ae7ef85e130317` | true | 100M WFAT + 1M USDC |
-| FAT/USDT | `0x644da44bcd5f453c593781dbe22dfd733e8d1441` | true | 100M WFAT + 1M USDT |
-| FAT/EUROD | `0x1e9c2ccf67320459bc4999a9f8be4a063d4021e4` | true | 100M WFAT + 920K EUROD |
-| USDC/USDT | `0xb86bdcecad93573d6ca21313aa7eac52800513c8` | false | 500K USDC + 500K USDT |
+| FAT/USDC | `0xE7b39CEB95E593bf3F50D887cc4B500b8429Afc4` | yes | 100M WFAT + 1M USDC |
+| FAT/USDT | `0x3871D7bcb5Da96f5910B4200AA6ea35419fa4489` | yes | 100M WFAT + 1M USDT |
+| FAT/EUROD | `0xfCeC2B491f65dF75BC87d1C5717bB12D511A539B` | yes | 100M WFAT + 920K EUROD |
+| USDC/USDT | `0x077bA17551B5d9E1d6075e08Fe87dD4FcB4D5C39` | no (30bps) | 500K + 500K |
 
-### On-Chain Prices (at time of verification)
+### On-Chain Prices (as of block ~35,000)
 
-- 1 FAT = ~$0.01 USDC
-- 1 FAT = ~$0.01 USDT
-- 1 FAT = ~€0.0092 EUROD
-
----
-
-## T-REX / ONCHAINID CONTRACTS — NEED REDEPLOYMENT
-
-**After the Reth migration (2026-03-14), the chain was reset with a new genesis.** The old T-REX/ONCHAINID contracts (nonces 0–50) no longer exist on-chain. They need to be redeployed by the Tanastok/Datawallet+ agents.
-
-Old addresses (NO LONGER VALID):
-- IdentityImplementation: `0xe158A7b8030Af5386AAE3baE4fc7382200064f20` — EMPTY
-- ImplementationAuthority: `0x285EECF51D5f0a6Ab8D8151139b4D19B05c6b3E4` — now WFAT
-- IdFactory: `0xB93Bd8Db94F1bAfF474AA9cbA0739daaad01641F` — now USDC
-- ClaimTopicsRegistry: `0x79a26132f48394421382C13B54Ae77fa3aF73289` — now USDT
-- TrustedIssuersRegistry: `0x094237118686feF3b03Af028721C2e5C23027455` — EMPTY
-- IdentityRegistryStorage: `0xE3D48836733C4eBAF504694aa5D15d6f8F22FbF2` — EMPTY
-- IdentityRegistry: `0xB28E38b344A7238C9777D74209F966D1873D26e0` — EMPTY
-- DatawalletClaimIssuer: `0x34Ab12Ca0bc2cFb3510cCa479Cc5Bd4Eb6EAE883` — EMPTY
-- RopeComplianceModule: `0x30Ed28E33Fcd73705bDdA7c4246CF51F3d544cA6` — EMPTY
-- TanastokONCHAINID: `0xE9D4fd64DF93fe848fE13303EAa28008feb72789` — EMPTY
-
-**Action required:** Tanastok and Datawallet+ agents must redeploy the T-REX stack. The deployer address (`0x60FB32ef3A2381c2Ed71613F34fd56D56fCF4195`) with key `0x659f91...` has full FAT balance and control.
+- 1 FAT ≈ $0.01 USDC ≈ $0.01 USDT ≈ €0.0092 EUROD
+- 1 USDC ≈ 1.004 USDT
 
 ---
 
-## MULTI-STRATEGY BOT STATUS
+## CURRENT ON-CHAIN STATE
 
-The bot was redeployed with a significantly upgraded architecture:
-
-| Property | Value |
+| Metric | Value |
 |---|---|
-| Total wallets | **62** (HD-derived from single mnemonic) |
-| Strategies | **9** |
-| Contract date | Redeployed 2026-02-26 |
-| Daily volume target | $75,000 |
-| Swap interval | 15s (base) |
+| Chain ID | 271828 |
+| Block height | ~35,000 |
+| Deployer nonce (at deployment) | 39 |
+| Deployer balance | ~1.2B FAT |
+| Genesis balance | ~9B FAT |
+| TVL | $6,840,000 |
+| Bot | 62 wallets, 9 strategies |
+| Active pools | 4 |
 
-### Strategy Breakdown
+---
 
-| Strategy | Wallets | Range | Behavior |
+## T-REX CONTRACTS — CONFIRMED INTACT
+
+All T-REX infrastructure deployed by the ROPE agent at nonces 0–50 is verified present and functional:
+
+| Contract | Address | Code Size (bytes) |
+|---|---|---|
+| IdentityImplementation | `0xe158A7b8030Af5386AAE3baE4fc7382200064f20` | 6,910+ |
+| ImplementationAuthority | `0x285EECF51D5f0a6Ab8D8151139b4D19B05c6b3E4` | — |
+| IdFactory | `0xB93Bd8Db94F1bAfF474AA9cbA0739daaad01641F` | 14,349 |
+| ClaimTopicsRegistry | `0x79a26132f48394421382C13B54Ae77fa3aF73289` | 1,987 |
+| TrustedIssuersRegistry | `0x094237118686feF3b03Af028721C2e5C23027455` | 5,201 |
+| IdentityRegistryStorage | `0xE3D48836733C4eBAF504694aa5D15d6f8F22FbF2` | — |
+| IdentityRegistry | `0xB28E38b344A7238C9777D74209F966D1873D26e0` | 6,910 |
+| DatawalletClaimIssuer | `0x34Ab12Ca0bc2cFb3510cCa479Cc5Bd4Eb6EAE883` | 4,915 |
+| RopeComplianceModule | `0x30Ed28E33Fcd73705bDdA7c4246CF51F3d544cA6` | — |
+| DeployerONCHAINID (proxy) | `0xe172eE4EA9e7E1c8236f9E2B933A9CB11FB41d98` | 529 |
+| TanastokONCHAINID (proxy) | `0x46F51982ecC608CE0902a6436A9C1542b9641fb2` | 529 |
+
+**NOTE:** Tanastok address is `0x297Ba84d8c69Fb845Dab7C45FF7494dD561fF44c` (NOT `0x297Ba802...`). Linked in IdFactory and verified in the IdentityRegistry.
+
+---
+
+## PRODUCTION SERVICES (VPS 92.243.26.114)
+
+All 5 services are **ACTIVE** as of 2026-03-01T22:30Z:
+
+| Service | Port | systemd unit | Status |
 |---|---|---|---|
-| MarketMaker | 5 | #0–4 | Mean-reversion toward target price (0.5s–15s) |
-| CrossPairArb | 5 | #5–9 | Exploits price discrepancies across FAT pairs (2s–12s) |
-| StableTrader | 5 | #10–14 | USDC/USDT peg keeping (5s–60s) |
-| RetailSim | 20 | #15–34 | Unique personality per wallet, varied sizes (10s–300s) |
-| Whale | 3 | #35–37 | Large infrequent trades: 500–5000 FAT (30s–300s) |
-| Scalper | 8 | #38–45 | Rapid-fire micro trades: 0.1–5 FAT (10ms–5s) |
-| Momentum | 6 | #46–51 | Trend following with price history (5s–30s) |
-| LPManager | 5 | #52–56 | Adds/removes liquidity (60s–600s) |
-| DCA | 5 | #57–61 | Dollar-cost averaging, periodic buys (60s–600s) |
+| Rust API | 3002 | `dcswap.service` | ACTIVE |
+| TypeScript Indexer | 3003 | `dcswap-indexer.service` | ACTIVE |
+| Multi-Strategy Bot | — | `dcswap-bot.service` | ACTIVE (62 wallets, 9 strategies) |
+| IPFS Daemon | 8080/5001/4001 | `ipfs.service` | ACTIVE |
+| Nginx + SSL | 80→301, 443 | `nginx.service` | ACTIVE |
+
+**ROPE VPS SSH:** port `41722` (no longer default 22)
+
+**Anvil state persistence:** `--state /opt/datachain-rope/anvil-state/state.json`
 
 ---
 
-## CREATING NEW ERC-3643 POOLS ON DCSWAP
+## MULTI-STRATEGY BOT ENGINE
 
-To list an ERC-3643 security token on DCSwap:
+The bot has been upgraded from a single-strategy 5-wallet system to a multi-strategy engine:
 
-### Step 1: Deploy the ERC-3643 Token
+| Strategy | Wallet Indices | Count | Behavior |
+|---|---|---|---|
+| MarketMaker | 0–4 | 5 | Maintains FAT price around $0.01 across all FAT pairs |
+| CrossPairArb | 5–9 | 5 | Arbitrages price discrepancies between FAT/USDC, FAT/USDT, FAT/EUROD |
+| StableTrader | 10–14 | 5 | Trades USDC/USDT pair around 1:1 peg |
+| RetailSim | 15–34 | 20 | Simulates realistic retail trader patterns (random sizes, timing) |
+| Whale | 35–37 | 3 | Large-size trades at irregular intervals |
+| Scalper | 38–45 | 8 | High-frequency small trades for volume generation |
+| Momentum | 46–51 | 6 | Trend-following strategy based on recent price movement |
+| LPManager | 52–56 | 5 | Adds/removes liquidity to simulate LP activity |
+| DCA | 57–61 | 5 | Dollar-cost averaging into FAT with stablecoins |
 
-**NOTE:** T-REX/ONCHAINID contracts must be redeployed first. The addresses below are placeholders — use the actual deployed addresses from the T-REX redeployment.
+All 62 wallets are funded with FAT, WFAT, USDC, USDT, EUROD and have router approvals set.
 
-```javascript
-const { ethers } = require("ethers");
-const provider = new ethers.JsonRpcProvider("https://erpc.datachain.network", { chainId: 271828 });
-
-// Deploy ModularCompliance
-const compliance = await deployContract(deployer, ModularCompliance, []);
-await compliance.init();
-
-// Deploy Token
-const token = await deployContract(deployer, Token, []);
-await token.init(
-  IDENTITY_REGISTRY_ADDRESS, // from T-REX redeployment
-  compliance.address,
-  "Token Name", "SYMBOL", 18,
-  deployerONCHAINID  // owner identity
-);
-
-// Bind, mint, unpause
-await compliance.bindToken(token.address);
-await token.addAgent(deployer.address);
-await token.mint(deployer.address, ethers.parseEther("1000000"));
-await token.unpause();
-```
-
-### Step 2: Register DEX Infrastructure in T-REX
-
-The DCSwapRouter and the new pool must be registered as verified identities in the IdentityRegistry so ERC-3643 transfer checks pass:
-
-```javascript
-const identityABI = require("@onchain-id/solidity/artifacts/contracts/Identity.sol/Identity.json").abi;
-const proxyArt = require("@onchain-id/solidity/artifacts/contracts/proxy/IdentityProxy.sol/IdentityProxy.json");
-
-// Deploy identity proxy for Router (deployer-managed)
-const routerProxy = await new ethers.ContractFactory(proxyArt.abi, proxyArt.bytecode, deployer)
-  .deploy(IMPLEMENTATION_AUTHORITY_ADDRESS, deployer.address); // from T-REX redeployment
-const routerOID = await routerProxy.getAddress();
-
-// Add CLAIM key for DatawalletClaimIssuer
-const oid = new ethers.Contract(routerOID, identityABI, deployer);
-const keyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(
-  ["address"], [CLAIM_ISSUER_ADDRESS] // from T-REX redeployment
-));
-await oid.addKey(keyHash, 3, 1);
-
-// Register in IdentityRegistry
-const idReg = new ethers.Contract(IDENTITY_REGISTRY_ADDRESS, [...], deployer);
-await idReg.registerIdentity(
-  "0x8ebdd966e9e9af2ec5d02c886b1c4b5ba617e7c4", // DCSwapRouter (current)
-  routerOID,
-  250 // country code
-);
-
-// Issue claims via DatawalletClaimIssuer for ALL 6 topics
-const issuer = new ethers.Contract(CLAIM_ISSUER_ADDRESS, [...], deployer);
-for (const topic of [1, 2, 3, 4, 10, 99]) {
-  await issuer.issueClaimToIdentity(routerOID, topic, claimData);
-}
-
-// Repeat for the pool address after creation
-```
-
-### Step 3: Create Pool on DCSwap
-
-```javascript
-const FACTORY = "0x772e5fd559069aecce5e6983c0c415c8579d780d";
-const ROUTER  = "0x8ebdd966e9e9af2ec5d02c886b1c4b5ba617e7c4";
-const WFAT    = "0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4";
-
-const factory = new ethers.Contract(FACTORY, FACTORY_ABI, deployer);
-const router  = new ethers.Contract(ROUTER, ROUTER_ABI, deployer);
-
-// Create pair
-await factory.createPair(tokenAddress, WFAT);
-const pairAddr = await factory.getPair(tokenAddress, WFAT);
-
-// Approve and add liquidity
-await tokenContract.approve(ROUTER, ethers.MaxUint256);
-await router.addLiquidityFAT(tokenAddress, tokenAmount, tokenMin, fatMin, deployer.address, deadline, { value: fatAmount });
-```
-
-### Step 4: Register Pool in T-REX
-
-Same identity proxy + claims process as Step 2, but for the pool address.
+**Master mnemonic** (for wallet recovery): stored in `bot/.env` on VPS at `/opt/dcswap/bot/.env`
 
 ---
 
-## ⚠️ HISTORICAL: Anvil Reset — 2026-03-01 (4th and final Anvil-era reset)
+## WHAT THE ROPE AGENT NEEDS TO KNOW
 
-> **This entire section describes the Anvil-era operational model.**
-> **Anvil was fully archived on 2026-03-31** — production now runs **Reth v1.11.2**
-> in a blue-green configuration. See `reth-blue-green-ipfs-architecture.mdc` and
-> `reth-migration-2026-03-12.mdc` for the current architecture. The
-> contract addresses listed in the "Current Production State" / "post Reth migration"
-> sections **above** remain authoritative; the operational sub-sections below
-> (state persistence, watchdog, SSH) are kept only for historical context and
-> for any future need to access the archived `state.json` at
-> `/opt/datachain-rope/archive/anvil-era/`.
+### 1. FIN1 Token Was NOT Redeployed
 
-**All Feb 26 DCSwap contracts are GONE.** The Anvil node reset on ~Feb 28 15:31 UTC (VPS went
-offline Mar 01 10:47 UTC). Full recovery completed 2026-03-01T22:01Z.
+The FIN1 ERC-3643 security token from the previous deployment no longer exists on-chain. If a T-REX-compliant token needs to trade on DCSwap, it must be:
+1. Redeployed as a new ERC-3643 token
+2. Registered with the IdentityRegistry at `0xB28E38b344A7238C9777D74209F966D1873D26e0`
+3. A new DCSwap pool must be created via the Factory at `0x4e4fc01BD381226Acbd1D127c961ea982d751230`
 
-### Current chain state (after recovery — ANVIL-ERA, superseded by Reth migration)
+### 2. DCSwap Router Must Be Whitelisted for ERC-3643 Trading
 
-- **Nonces 0–38:** T-REX/ONCHAINID infrastructure (redeployed 2026-03-01)
-- **Nonces 39+:** Available for DCSwap redeployment
-- **Deployer nonce:** 39
-- **Deployer balance:** ~1B FAT
-- T-REX addresses are **identical** to Feb 26 (deterministic: same deployer, same nonce order)
+If ERC-3643 tokens will trade on DCSwap, the Router (`0xA35969442e8CFF8EeB6F1C912e668aC85A6cb39e`) and relevant Pool addresses must be registered as verified agents/transfer managers in the IdentityRegistry. Without this, `transfer()` calls from the Router will be rejected by the compliance module.
 
-> **Superseded by:** the 2026-03-12 Reth migration and the 2026-03-25 genesis
-> reset (treasury moved to controlled deployer key `0x60FB32...`).
-> See `reth-migration-2026-03-12.mdc` for the post-Reth nonce/contract topology.
+### 3. Deployer Key Is Shared
 
-### DCSwap must redeploy at nonce 39+ (HISTORICAL)
+Both DCSwap and T-REX use the same deployer key (`0x60FB32...`). Any future contract deployment from either project will consume the next nonce. This is fine — addresses are deterministic and unique per nonce — but be aware the nonce is shared.
 
-All DCSwap contracts, pools, liquidity, bot wallets, and approvals from Feb 26 are wiped.
-DCSwap agent should deploy starting at deployer nonce 39.
+### 4. DO NOT Reset Anvil Without Coordination
 
-> Both this Anvil-era redeployment and the subsequent post-Reth-migration
-> redeployment have already happened. The currently-live DCSwap addresses are
-> in the "post Reth migration — 2026-03-26 verified" table at the top of this
-> document.
+A chain reset wipes ALL contracts (both T-REX and DCSwap). If Anvil must be reset:
+- Notify DCSwap agent first
+- Both T-REX and DCSwap must redeploy after reset
+- T-REX should deploy first (nonces 0+), then DCSwap
 
-### State persistence (ANVIL-ERA, no longer active)
+### 5. Anvil Genesis Account Impersonation
 
-`anvil-rope.service` (now retired) persisted state to `/opt/datachain-rope/anvil-state/state.json`.
-A backup cron ran every 4 hours. **Reth replaces this entirely** — Reth uses
-a crash-safe MDBX + RocksDB datadir at `/opt/datachain-rope/reth/data/`, and
-state is replicated every 6 hours to the IPFS three-node mesh
-(per `reth-blue-green-ipfs-architecture.mdc`).
+The DCSwap bot funding process uses `anvil_impersonateAccount` on the genesis account (`0x302fa11a6e784dfa89f96942a919c09b45559676`) to distribute FAT. This is harmless and does not affect T-REX operations, but the impersonation persists across the Anvil session.
 
-### VPS SSH access (still current)
+---
 
-**SSH is on port 41722** (not 22). Port 22 is an endlessh tarpit. This is the
-only sub-section of the Anvil-era block that is still operationally accurate.
+## HOW TO INTERACT WITH DCSWAP CONTRACTS
+
 ```bash
-ssh -p 41722 -i ~/.ssh/DCRope_key ubuntu@92.243.26.189
+RPC=https://erpc.datachain.network
+
+# Check FAT price (1 FAT → ? USDC)
+cast call 0xA35969442e8CFF8EeB6F1C912e668aC85A6cb39e \
+  "getAmountsOut(uint256,address[])(uint256[])" \
+  1000000000000000000 \
+  "[0x55EC95ec95D29791Ac600E131a69A1c92018E062,0xE9D4fd64DF93fe848fE13303EAa28008feb72789]" \
+  --rpc-url $RPC
+
+# Check pool reserves (FAT/USDC)
+cast call 0xE7b39CEB95E593bf3F50D887cc4B500b8429Afc4 \
+  "getReserves()(uint112,uint112,uint32)" --rpc-url $RPC
+
+# Check if a pair is zero-fee
+cast call 0x4e4fc01BD381226Acbd1D127c961ea982d751230 \
+  "isZeroFeePair(address)(bool)" \
+  0xE7b39CEB95E593bf3F50D887cc4B500b8429Afc4 --rpc-url $RPC
+
+# Mint stablecoins (deployer has minter role)
+PK=0xREDACTED_COMPROMISED_KEY_purged_2026_07_26_rotated
+cast send --private-key $PK --rpc-url $RPC \
+  0xE9D4fd64DF93fe848fE13303EAa28008feb72789 \
+  "mint(address,uint256)" $TARGET_ADDRESS 1000000000000
+
+# Create a new pair (e.g., for a new ERC-3643 token)
+cast send --private-key $PK --rpc-url $RPC \
+  0x4e4fc01BD381226Acbd1D127c961ea982d751230 \
+  "createPair(address,address)" $TOKEN_A $TOKEN_B
 ```
 
 ---
 
-## FULL ADDRESS REFERENCE (JSON)
+## DCSWAP FRONTEND & API
+
+| URL | Purpose |
+|---|---|
+| `https://dcswap.net` | Production frontend |
+| `https://dcswap.net/v1/analytics/overview` | TVL, volume, swaps |
+| `https://dcswap.net/v1/pools` | All pools with reserves and stats |
+| `https://dcswap.net/v1/tokens` | All tokens with price data |
+| `https://dcswap.net/v1/swaps/recent?limit=20` | Recent swap history |
+| `https://dcswap.net/api/tickers` | CoinGecko-compatible tickers |
+| `https://dcswap.net/api/pairs` | CoinGecko-compatible pairs |
+
+---
+
+## FULL ADDRESS REFERENCE
 
 ```json
 {
-  "chain": {
-    "chainId": 271828,
-    "rpc": "https://erpc.datachain.network",
-    "wss": "wss://ws.datachain.network",
-    "explorer": "https://dcscan.io",
-    "deployer": "0x60FB32ef3A2381c2Ed71613F34fd56D56fCF4195",
-    "genesis": "0x302fa11a6e784dfa89f96942a919c09b45559676"
+  "dcswap_contracts": {
+    "WFAT": "0x55EC95ec95D29791Ac600E131a69A1c92018E062",
+    "USDC": "0xE9D4fd64DF93fe848fE13303EAa28008feb72789",
+    "USDT": "0x94237cf368D7cd072eEe465a3DC3446241A336CE",
+    "EUROD": "0x52053FC5c69f8D3e1457343D11ec1E39a7F4f3d1",
+    "Multicall3": "0x4E1666363d61aBbbb8AA00D55A647A1Da59e79Cc",
+    "DCSwapFactory": "0x4e4fc01BD381226Acbd1D127c961ea982d751230",
+    "DCSwapRouter": "0xA35969442e8CFF8EeB6F1C912e668aC85A6cb39e"
   },
-  "trex": {
+  "dcswap_pools": {
+    "FAT_USDC": "0xE7b39CEB95E593bf3F50D887cc4B500b8429Afc4",
+    "FAT_USDT": "0x3871D7bcb5Da96f5910B4200AA6ea35419fa4489",
+    "FAT_EUROD": "0xfCeC2B491f65dF75BC87d1C5717bB12D511A539B",
+    "USDC_USDT": "0x077bA17551B5d9E1d6075e08Fe87dD4FcB4D5C39"
+  },
+  "trex_contracts": {
     "IdentityImplementation": "0xe158A7b8030Af5386AAE3baE4fc7382200064f20",
     "ImplementationAuthority": "0x285EECF51D5f0a6Ab8D8151139b4D19B05c6b3E4",
     "IdFactory": "0xB93Bd8Db94F1bAfF474AA9cbA0739daaad01641F",
@@ -276,71 +230,13 @@ ssh -p 41722 -i ~/.ssh/DCRope_key ubuntu@92.243.26.189
     "IdentityRegistry": "0xB28E38b344A7238C9777D74209F966D1873D26e0",
     "DatawalletClaimIssuer": "0x34Ab12Ca0bc2cFb3510cCa479Cc5Bd4Eb6EAE883",
     "RopeComplianceModule": "0x30Ed28E33Fcd73705bDdA7c4246CF51F3d544cA6",
-    "DeployerONCHAINID": "0x6A74c57C3A1EE72D9d2cA29462fbD6fc8fE86bd2",
-    "TanastokONCHAINID": "0xE9D4fd64DF93fe848fE13303EAa28008feb72789"
+    "DeployerONCHAINID": "0xe172eE4EA9e7E1c8236f9E2B933A9CB11FB41d98",
+    "TanastokONCHAINID": "0x46F51982ecC608CE0902a6436A9C1542b9641fb2"
   },
-  "dcswap": {
-    "WFAT": "0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4",
-    "USDC": "0xb93bd8db94f1baff474aa9cba0739daaad01641f",
-    "USDT": "0x79a26132f48394421382c13b54ae77fa3af73289",
-    "EUROD": "0x24d6137807fa8a592888726d87ac748d018c6d4a",
-    "Multicall3": "0xc2eeb0100aa7e81a3193bdce6733ff767f3bb93a",
-    "DCSwapFactory": "0x772e5fd559069aecce5e6983c0c415c8579d780d",
-    "DCSwapRouter": "0x8ebdd966e9e9af2ec5d02c886b1c4b5ba617e7c4"
-  },
-  "pools": {
-    "FAT_USDC": "0xd9ebc3da001618a3ae90481d33ae7ef85e130317",
-    "FAT_USDT": "0x644da44bcd5f453c593781dbe22dfd733e8d1441",
-    "FAT_EUROD": "0x1e9c2ccf67320459bc4999a9f8be4a063d4021e4",
-    "USDC_USDT": "0xb86bdcecad93573d6ca21313aa7eac52800513c8"
-  },
-  "identities": {
-    "deployer": {
-      "address": "0x60FB32ef3A2381c2Ed71613F34fd56D56fCF4195",
-      "onchainid": "0x6A74c57C3A1EE72D9d2cA29462fbD6fc8fE86bd2",
-      "country": 250,
-      "isVerified": true
-    },
-    "tanastok": {
-      "address": "0x297Ba84d8c69Fb845Dab7C45FF7494dD561fF44c",
-      "onchainid": "0xE9D4fd64DF93fe848fE13303EAa28008feb72789",
-      "country": 756,
-      "isVerified": true,
-      "isTrustedIssuer": true,
-      "trustedTopics": [1, 2, 3, 4],
-      "balance": "10,000 FAT"
-    }
+  "key_accounts": {
+    "deployer": "0x60FB32ef3A2381c2Ed71613F34fd56D56fCF4195",
+    "genesis": "0x302fa11a6e784dfa89f96942a919c09b45559676",
+    "tanastok": "0x297Ba84d8c69Fb845Dab7C45FF7494dD561fF44c"
   }
 }
-```
-
----
-
-## QUICK REFERENCE — Interaction Commands
-
-```bash
-RPC=https://erpc.datachain.network
-PK=0xREDACTED_COMPROMISED_KEY_purged_2026_07_26_rotated
-
-# Check FAT price in USDC (1 FAT → ? USDC)
-cast call 0x8ebdd966e9e9af2ec5d02c886b1c4b5ba617e7c4 \
-  "getAmountsOut(uint256,address[])(uint256[])" \
-  1000000000000000000 \
-  "[0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4,0xb93bd8db94f1baff474aa9cba0739daaad01641f]" \
-  --rpc-url $RPC
-
-# Check pool reserves (FAT/USDC)
-cast call 0xd9ebc3da001618a3ae90481d33ae7ef85e130317 \
-  "getReserves()(uint112,uint112,uint32)" --rpc-url $RPC
-
-# Mint stablecoins (deployer is owner)
-cast send --private-key $PK --rpc-url $RPC \
-  0xb93bd8db94f1baff474aa9cba0739daaad01641f \
-  "mint(address,uint256)" $TARGET 1000000000000
-
-# Fund address with FAT (deployer holds the treasury)
-cast send --private-key $PK --rpc-url $RPC $TARGET --value 100000ether
-
-# Check canonical DC FAT price
-curl -s https://dcswap.net/v1/prices | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'FAT: \${d[\"data\"][\"FAT\"][\"usd\"]:.6f}')"
 ```
