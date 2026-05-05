@@ -57,6 +57,11 @@ pub fn build_router(state: ServerState) -> Router {
         .route("/v1/dora/incident", post(handle_dora_incident))
         .route("/v1/admin/flush-now", post(handle_flush_now))
         .route("/v1/health", get(handle_health))
+        // /healthz: K8s/load-balancer liveness convention. Lightweight —
+        // does not touch reporter/orchestrator state, so it stays 200 even
+        // if a downstream component is paused. Use /v1/health for the rich
+        // status snapshot.
+        .route("/healthz", get(handle_healthz))
         .route("/metrics", get(handle_metrics))
         .with_state(state)
 }
@@ -244,6 +249,13 @@ async fn handle_health(State(state): State<ServerState>) -> Json<HealthBody> {
         agent_wallet: state.agent_wallet.clone(),
         reporter: state.reporter.buffer_stats(),
     })
+}
+
+/// Liveness probe — returns the smallest possible 200 body without
+/// touching stateful components. Designed for repeated polling by
+/// nginx upstreams, kubelets, and uptime checks.
+async fn handle_healthz() -> Json<Value> {
+    Json(json!({"status": "ok"}))
 }
 
 async fn handle_metrics(State(state): State<ServerState>) -> Response {

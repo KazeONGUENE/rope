@@ -118,8 +118,27 @@ impl JsonRpcAnchor {
     }
 }
 
+impl JsonRpcAnchor {
+    /// Single round-trip. Returns the body text or the underlying
+    /// `reqwest::Error` so the caller can decide whether to retry.
+    async fn try_post(&self, request: &serde_json::Value) -> Result<String, reqwest::Error> {
+        let resp = self.client.post(&self.rpc_url).json(request).send().await?;
+        resp.text().await
+    }
+}
+
 #[async_trait]
 impl Anchor for JsonRpcAnchor {
+    /// Anchors with one retry on transient transport errors.
+    ///
+    /// `rope-node` occasionally returns "connection closed before message
+    /// completed" or "channel closed" when a feed bursts hundreds of
+    /// `rope_appendToLedger` calls back-to-back — its per-connection
+    /// mpsc channel briefly hits backpressure. The next call on a fresh
+    /// socket succeeds, so a single short-backoff retry collapses that
+    /// noise without masking real RPC errors. Non-transport errors
+    /// (Rpc / InvalidResponse) are NOT retried — they are authoritative
+    /// responses from the node.
     async fn anchor(
         &self,
         attestation: &ParametricInsuranceAttestation,
@@ -135,17 +154,31 @@ impl Anchor for JsonRpcAnchor {
             "submitting rope_appendToLedger"
         );
 
-        let resp = self
-            .client
-            .post(&self.rpc_url)
-            .json(&request)
-            .send()
-            .await?
-            .text()
-            .await?;
+        let resp = match self.try_post(&request).await {
+            Ok(body) => body,
+            Err(first) if is_retryable_transport_error(&first) => {
+                tracing::debug!(
+                    target: "insurance_agent::anchor",
+                    asset_id = %attestation.asset_id,
+                    error = %first,
+                    "transient transport error; retrying once after 150ms",
+                );
+                tokio::time::sleep(Duration::from_millis(150)).await;
+                self.try_post(&request).await?
+            }
+            Err(other) => return Err(AnchorError::Http(other)),
+        };
 
         parse_response(&resp, attestation.digest())
     }
+}
+
+/// Returns `true` for the narrow class of `reqwest::Error` that
+/// means "the previous socket died, try a new one" — connect /
+/// timeout / generic request errors. `is_status` and `is_decode`
+/// are NOT retried because those are post-handshake protocol failures.
+fn is_retryable_transport_error(e: &reqwest::Error) -> bool {
+    e.is_timeout() || e.is_connect() || e.is_request()
 }
 
 /// Build the JSON-RPC request payload. Pulled out so tests can assert on

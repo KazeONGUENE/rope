@@ -152,21 +152,14 @@ impl HttpRpcClient {
     }
 }
 
-#[async_trait]
-impl RopeRpcClient for HttpRpcClient {
-    async fn call(&self, method: &str, params: Value) -> RpcResult<Value> {
-        let id = self.next_id();
-        let body = json!({
-            "jsonrpc": "2.0",
-            "id": id,
-            "method": method,
-            "params": params,
-        });
-
+impl HttpRpcClient {
+    /// Inner per-attempt request. Returns a `JsonRpcError` so the
+    /// caller can decide whether to retry transport failures.
+    async fn call_once(&self, method: &str, body: &Value) -> RpcResult<Value> {
         let resp = self
             .inner
             .post(&self.url)
-            .json(&body)
+            .json(body)
             .send()
             .await
             .map_err(|e| JsonRpcError::Transport(format!("{method} send failed: {e}")))?;
@@ -200,6 +193,47 @@ impl RopeRpcClient for HttpRpcClient {
         }
 
         Ok(json.get("result").cloned().unwrap_or(Value::Null))
+    }
+}
+
+#[async_trait]
+impl RopeRpcClient for HttpRpcClient {
+    /// Retries once on `JsonRpcError::Transport` only.
+    ///
+    /// Rationale: `rope-node`'s HTTP server occasionally drops idle
+    /// keep-alive connections under load, which surfaces here as
+    /// `error sending request: connection closed before message
+    /// completed` or `connection reset by peer`. Both are textbook
+    /// transient failures — the next request opens a fresh socket and
+    /// succeeds. A single short-backoff retry collapses the previous
+    /// 3–5 warn/sec into ~zero noise without masking real protocol
+    /// errors (`HttpStatus` and `Server` are NOT retried — they are
+    /// authoritative responses from the node).
+    async fn call(&self, method: &str, params: Value) -> RpcResult<Value> {
+        let id = self.next_id();
+        let body = json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "method": method,
+            "params": params,
+        });
+
+        match self.call_once(method, &body).await {
+            Ok(v) => Ok(v),
+            Err(JsonRpcError::Transport(first)) => {
+                tokio::time::sleep(Duration::from_millis(150)).await;
+                match self.call_once(method, &body).await {
+                    Ok(v) => Ok(v),
+                    Err(JsonRpcError::Transport(second)) => {
+                        Err(JsonRpcError::Transport(format!(
+                            "{method} retry failed: first={first}; second={second}"
+                        )))
+                    }
+                    Err(other) => Err(other),
+                }
+            }
+            Err(other) => Err(other),
+        }
     }
 }
 
