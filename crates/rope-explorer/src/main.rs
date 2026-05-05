@@ -698,33 +698,117 @@ async fn fetch_from_xdcscan(client: &reqwest::Client) -> Result<PriceData, anyho
     })
 }
 
-/// Fetch and cache DC FAT price
-async fn fetch_and_cache_price(state: &Arc<AppState>) -> Result<PriceData, anyhow::Error> {
-    tracing::info!("Fetching DC FAT price from XDCScan...");
+/// Fetch DC FAT price from the canonical DCSwap feed at
+/// `https://dcswap.net/v1/prices`. This is the authoritative source per the
+/// 2026-03-14 canonical-FAT-price handover (v2.1 market mechanism, VWAP of
+/// dcswap-reserves + geckoterminal-xdc, no artificial floor). XDCScan is
+/// retained as a tertiary fallback only.
+async fn fetch_from_dcswap(client: &reqwest::Client) -> Result<PriceData, anyhow::Error> {
+    let response = client
+        .get("https://dcswap.net/v1/prices")
+        .send()
+        .await?;
 
-    // Fetch from XDCScan (primary and reliable source)
-    let price_data = match fetch_from_xdcscan(&state.http_client).await {
+    if !response.status().is_success() {
+        return Err(anyhow::anyhow!(
+            "DCSwap prices API returned status: {}",
+            response.status()
+        ));
+    }
+
+    let body: serde_json::Value = response.json().await?;
+    let fat = body
+        .get("data")
+        .and_then(|d| d.get("FAT"))
+        .ok_or_else(|| anyhow::anyhow!("DCSwap response missing data.FAT"))?;
+
+    let price = fat
+        .get("usd")
+        .and_then(|v| v.as_f64())
+        .ok_or_else(|| anyhow::anyhow!("DCSwap data.FAT.usd not a number"))?;
+
+    if price <= 0.0 {
+        return Err(anyhow::anyhow!("DCSwap reported non-positive FAT price"));
+    }
+
+    let change_24h = fat
+        .get("change_24h")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
+
+    let upstream_source = fat
+        .get("source")
+        .and_then(|v| v.as_str())
+        .unwrap_or("dcswap");
+
+    tracing::info!(
+        "DCSwap canonical price - FAT: ${:.8}, Change 24h: {:.4}%, upstream={}",
+        price,
+        change_24h,
+        upstream_source
+    );
+
+    Ok(PriceData {
+        price,
+        change_24h,
+        volume_24h: 0.0,
+        liquidity: 0.0,
+        source: format!("dcswap-canonical:{upstream_source}"),
+        timestamp: chrono::Utc::now().timestamp(),
+    })
+}
+
+/// Fetch and cache DC FAT price.
+///
+/// Source order, in line with the 2026-03-14 canonical-FAT-price handover:
+///   1. `https://dcswap.net/v1/prices` — canonical Datachain Rope feed.
+///      VWAP of DCSwap WFAT/USDC pool reserves + GeckoTerminal XDC pool.
+///      This is the same number DCSwap, MetaMask price displays, and the
+///      ecosystem all read.
+///   2. XDCScan — cross-chain mirror of the DC token on the XDC network.
+///      Useful as a sanity fallback only; expect a ~80x discrepancy versus
+///      the canonical feed because XDC is a different liquidity venue.
+///   3. FALLBACK_PRICE — pseudo-random walk for offline-degradation only.
+async fn fetch_and_cache_price(state: &Arc<AppState>) -> Result<PriceData, anyhow::Error> {
+    tracing::info!("Fetching DC FAT price (DCSwap canonical → XDCScan → fallback)...");
+
+    let price_data = match fetch_from_dcswap(&state.http_client).await {
         Ok(data) => {
-            tracing::info!("Price fetched from XDCScan: ${:.8}", data.price);
+            tracing::info!("Price fetched from DCSwap canonical feed: ${:.8}", data.price);
             data
         }
-        Err(e) => {
-            tracing::warn!("XDCScan fetch failed: {}, using fallback price", e);
-
-            // Use fallback with slight variation
-            let variation = (rand_variation() - 0.5) * 0.1;
-            PriceData {
-                price: FALLBACK_PRICE * (1.0 + variation),
-                change_24h: (rand_variation() - 0.5) * 10.0,
-                volume_24h: 0.0,
-                liquidity: 0.0,
-                source: "fallback".to_string(),
-                timestamp: chrono::Utc::now().timestamp(),
+        Err(dcswap_err) => {
+            tracing::warn!(
+                "DCSwap canonical fetch failed: {}, falling back to XDCScan",
+                dcswap_err
+            );
+            match fetch_from_xdcscan(&state.http_client).await {
+                Ok(data) => {
+                    tracing::info!(
+                        "Price fetched from XDCScan fallback: ${:.8} (note: XDC mirror, not canonical)",
+                        data.price
+                    );
+                    data
+                }
+                Err(xdc_err) => {
+                    tracing::warn!(
+                        "XDCScan fallback also failed: {}, using static fallback price",
+                        xdc_err
+                    );
+                    let variation = (rand_variation() - 0.5) * 0.1;
+                    PriceData {
+                        price: FALLBACK_PRICE * (1.0 + variation),
+                        change_24h: (rand_variation() - 0.5) * 10.0,
+                        volume_24h: 0.0,
+                        liquidity: 0.0,
+                        source: "fallback".to_string(),
+                        timestamp: chrono::Utc::now().timestamp(),
+                    }
+                }
             }
         }
     };
 
-    // Update cache
     let mut cache = state.price_cache.write().await;
     *cache = Some(price_data.clone());
 

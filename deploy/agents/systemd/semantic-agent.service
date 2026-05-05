@@ -23,13 +23,21 @@ StartLimitBurst=10
 Type=simple
 User=ubuntu
 Group=ubuntu
-WorkingDirectory=/home/ubuntu/datachain-rope
+# WorkingDirectory MUST be /var/lib/semantic-agent: the binary writes its
+# tantivy index to ./semantic-agent-index/ (relative to cwd) and the
+# SEMANTIC_INDEX_PATH env var is currently ignored. Combined with
+# ProtectHome=read-only, any cwd under /home would crash with EROFS at
+# startup. Keep this in sync with ReadWritePaths below.
+WorkingDirectory=/var/lib/semantic-agent
 Environment="PATH=/home/ubuntu/.cargo/bin:/usr/local/bin:/usr/bin:/bin"
 
 Environment="SEMANTIC_LISTEN=127.0.0.1:9092"
 Environment="SEMANTIC_RPC_URL=http://127.0.0.1:8545"
 Environment="SEMANTIC_AGENT_WALLET=0x000000000000000000000000000000000000C001"
-Environment="SEMANTIC_INDEX_PATH=/var/lib/semantic-agent/index"
+# NOTE: currently unused by the binary — index is written to
+# $WorkingDirectory/semantic-agent-index/. Kept here for forward-compat
+# once the binary honours SEMANTIC_INDEX_PATH.
+Environment="SEMANTIC_INDEX_PATH=/var/lib/semantic-agent/semantic-agent-index"
 Environment="SEMANTIC_POLL_INTERVAL_SECS=30"
 Environment="SEMANTIC_CHECKPOINT_INTERVAL_SECS=600"
 Environment="SEMANTIC_LOG=info,semantic_agent=info"
