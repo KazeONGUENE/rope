@@ -74,7 +74,16 @@ impl Default for EvmBackendConfig {
         Self {
             // Production Reth listens on 8595 (per reth-blue-green-ipfs-architecture.mdc).
             url: "http://127.0.0.1:8595".to_string(),
-            timeout: Duration::from_secs(300),
+            // 2026-05-05: was Duration::from_secs(300). A 5-minute timeout
+            // means a single hung Reth call (which can happen under memory
+            // pressure on the 8GB box) holds a tokio worker for 5 minutes.
+            // With ~4 default workers, just 4 hung requests stall the entire
+            // runtime — the precise pathway to the futex_wait deadlock seen
+            // on 2026-05-04 + 2026-05-05 (forensics in
+            // ~/rope-node-hang-2026-05-{04,05}/ on rope-vps). 30s is generous
+            // for any normal eth_* call against a local Reth; the
+            // long_running_rpc path (state dump/load) keeps its 30-min budget.
+            timeout: Duration::from_secs(30),
             max_failures: 5,
             health_interval: Duration::from_secs(30),
             expected_chain_id: 271828,

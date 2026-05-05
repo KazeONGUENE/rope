@@ -36,3 +36,12 @@ ed25519-dalek = { workspace = true }
 chrono = { workspace = true }
 uuid = { workspace = true }
 rand = { workspace = true }
+
+# Optional: tokio-console subscriber for diagnosing the recurring async deadlock
+# in rope-node under memory pressure. Build with:
+#   RUSTFLAGS="--cfg tokio_unstable" cargo build --profile release-debug -p rope-cli --features tokio-console
+console-subscriber = { version = "0.4", optional = true }
+
+[features]
+default = []
+tokio-console = ["console-subscriber"]

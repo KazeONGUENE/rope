@@ -146,3 +146,13 @@ strip = "symbols"
 inherits = "release"
 debug = true
 
+# Mirrors release profile but keeps debug symbols + lets unwinding work for
+# panic-driven diagnostics. Use this profile when capturing tokio-console or
+# gdb backtraces against rope-node. Build with:
+#   RUSTFLAGS="--cfg tokio_unstable" cargo build --profile release-debug -p rope-node --features tokio-console
+[profile.release-debug]
+inherits = "release"
+debug = true
+strip = "none"
+panic = "unwind"
+

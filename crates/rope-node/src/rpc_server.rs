@@ -36,7 +36,14 @@ pub struct RpcServer {
     tls_config: Option<TlsConfig>,
     rate_limiter: Arc<RateLimiter>,
     handlers: Arc<RpcHandlers>,
-    metrics: Arc<RwLock<RpcMetrics>>,
+    /// Per-request counter store. Held by parking_lot::Mutex (sync, not
+    /// async) — the critical sections are nanosecond-scale (a single integer
+    /// increment) so a sync mutex is the right tool. Using tokio::RwLock here
+    /// added an executor yield point on every accepted connection AND every
+    /// connection close, which under memory pressure produced the recurring
+    /// futex_wait deadlock observed on 2026-05-04 and 2026-05-05 (forensics:
+    /// ~/rope-node-hang-2026-05-{04,05}/ on rope-vps).
+    metrics: Arc<parking_lot::Mutex<RpcMetrics>>,
     ws_broadcast: broadcast::Sender<String>,
 }
 
@@ -213,7 +220,7 @@ impl RpcServer {
             tls_config: None,
             rate_limiter,
             handlers,
-            metrics: Arc::new(RwLock::new(RpcMetrics::default())),
+            metrics: Arc::new(parking_lot::Mutex::new(RpcMetrics::default())),
             ws_broadcast,
         })
     }
@@ -273,7 +280,7 @@ impl RpcServer {
                         let metrics = http_metrics.clone();
 
                         {
-                            let mut m = metrics.write().await;
+                            let mut m = metrics.lock();
                             m.active_connections += 1;
                         }
 
@@ -281,7 +288,7 @@ impl RpcServer {
                             let peer_ip = peer_addr.ip().to_string();
 
                             if !rate_limiter.check(&peer_ip).await {
-                                let mut m = metrics.write().await;
+                                let mut m = metrics.lock();
                                 m.rate_limited_requests += 1;
                                 return;
                             }
@@ -293,7 +300,7 @@ impl RpcServer {
                             }
 
                             {
-                                let mut m = metrics.write().await;
+                                let mut m = metrics.lock();
                                 m.active_connections = m.active_connections.saturating_sub(1);
                             }
                         });
@@ -323,7 +330,7 @@ impl RpcServer {
                             let peer_ip = peer_addr.ip().to_string();
 
                             if !rate_limiter.check(&peer_ip).await {
-                                let mut m = metrics.write().await;
+                                let mut m = metrics.lock();
                                 m.rate_limited_requests += 1;
                                 return;
                             }
@@ -360,7 +367,7 @@ impl RpcServer {
     }
 
     pub async fn metrics(&self) -> RpcMetrics {
-        self.metrics.read().await.clone()
+        self.metrics.lock().clone()
     }
 }
 
@@ -444,7 +451,7 @@ fn parse_content_length(headers: &str) -> usize {
 async fn handle_connection(
     mut stream: tokio::net::TcpStream,
     handlers: Arc<RpcHandlers>,
-    metrics: Arc<RwLock<RpcMetrics>>,
+    metrics: Arc<parking_lot::Mutex<RpcMetrics>>,
 ) -> anyhow::Result<()> {
     let start = std::time::Instant::now();
 
@@ -471,7 +478,7 @@ async fn handle_connection(
     let request = String::from_utf8_lossy(&data);
 
     {
-        let mut m = metrics.write().await;
+        let mut m = metrics.lock();
         m.total_requests += 1;
     }
 
@@ -505,7 +512,7 @@ async fn handle_connection(
 
     {
         let elapsed = start.elapsed().as_millis() as f64;
-        let mut m = metrics.write().await;
+        let mut m = metrics.lock();
         m.successful_requests += 1;
         m.avg_response_time_ms = (m.avg_response_time_ms * (m.successful_requests - 1) as f64
             + elapsed)
@@ -518,7 +525,7 @@ async fn handle_connection(
 async fn handle_websocket_connection(
     mut stream: tokio::net::TcpStream,
     handlers: Arc<RpcHandlers>,
-    metrics: Arc<RwLock<RpcMetrics>>,
+    metrics: Arc<parking_lot::Mutex<RpcMetrics>>,
     _broadcast: broadcast::Sender<String>,
 ) -> anyhow::Result<()> {
     let mut buf = [0u8; 4096];
@@ -550,7 +557,7 @@ async fn handle_websocket_connection(
         stream.write_all(response.as_bytes()).await?;
 
         {
-            let mut m = metrics.write().await;
+            let mut m = metrics.lock();
             m.active_connections += 1;
         }
 
@@ -606,7 +613,7 @@ async fn handle_websocket_connection(
                         send_websocket_frame(&mut stream, 0x1, response.as_bytes()).await?;
 
                         {
-                            let mut m = metrics.write().await;
+                            let mut m = metrics.lock();
                             m.total_requests += 1;
                             m.successful_requests += 1;
                         }
@@ -627,7 +634,7 @@ async fn handle_websocket_connection(
         }
 
         {
-            let mut m = metrics.write().await;
+            let mut m = metrics.lock();
             m.active_connections = m.active_connections.saturating_sub(1);
         }
     } else {

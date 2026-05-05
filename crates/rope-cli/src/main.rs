@@ -540,15 +540,34 @@ fn init_logging(verbose: bool) {
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"))
     };
 
-    tracing_subscriber::registry()
-        .with(env_filter)
-        .with(
-            tracing_subscriber::fmt::layer()
-                .with_target(true)
-                .with_thread_ids(false)
-                .with_file(false),
-        )
-        .init();
+    // When the `tokio-console` feature is on (debug/diagnostic build) the
+    // console-subscriber layer is registered FIRST so it sees every task
+    // spawn. It binds to 127.0.0.1:6669 by default; override with
+    // TOKIO_CONSOLE_BIND. Requires `RUSTFLAGS="--cfg tokio_unstable"` at
+    // build time. See ../../docs/ROPE_NODE_DEADLOCK_INVESTIGATION.md.
+    #[cfg(feature = "tokio-console")]
+    let console_layer = console_subscriber::ConsoleLayer::builder()
+        .with_default_env()
+        .spawn();
+
+    let registry = tracing_subscriber::registry().with(env_filter).with(
+        tracing_subscriber::fmt::layer()
+            .with_target(true)
+            .with_thread_ids(false)
+            .with_file(false),
+    );
+
+    #[cfg(feature = "tokio-console")]
+    let registry = registry.with(console_layer);
+
+    registry.init();
+
+    #[cfg(feature = "tokio-console")]
+    tracing::info!(
+        target: "rope-cli::diag",
+        "tokio-console subscriber active (default bind 127.0.0.1:6669; override with TOKIO_CONSOLE_BIND). \
+         This is a diagnostic build — do NOT leave running in production."
+    );
 }
 
 fn expand_path(path: &PathBuf) -> PathBuf {
