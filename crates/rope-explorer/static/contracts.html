@@ -234,11 +234,7 @@
                 </div>
                 <div class="pagination-wrap">
                     <span class="pagination-info" id="paginationInfo">Showing 0 to 0 of 0 verified contracts</span>
-                    <div class="pagination">
-                        <button class="page-btn" type="button" aria-label="Previous"><i class="fas fa-angle-left"></i></button>
-                        <button class="page-btn active" type="button">1</button>
-                        <button class="page-btn" type="button" aria-label="Next"><i class="fas fa-angle-right"></i></button>
-                    </div>
+                    <div class="pagination" id="dcscan-pager"></div>
                 </div>
             </div>
         </div>
@@ -375,5 +371,60 @@
     </script>
 <script src="/js/dcscan-labels.js"></script>
 <script src="/js/dcscan-stats.js"></script>
+<script src="/js/dcscan-pagination.js"></script>
+
+<script>
+(function() {
+    var PAGE_SIZE = 25;
+    var attached = false;
+    var lastChildCount = 0;
+    function init() {
+        var el = document.getElementById('dcscan-pager');
+        var tbody = document.getElementById('contractsTable') || document.querySelector('tbody');
+        if (!el || !tbody || typeof DCScanPager === 'undefined') return;
+        function rows() { return Array.prototype.slice.call(tbody.children).filter(function(c) { return c.tagName === 'TR' && !c.classList.contains('empty-row'); }); }
+        function show(page) {
+            var all = rows();
+            var start = (page - 1) * PAGE_SIZE;
+            var end = start + PAGE_SIZE;
+            for (var i = 0; i < all.length; i++) all[i].style.display = (i >= start && i < end) ? '' : 'none';
+            var info = document.querySelector('.pagination-info');
+            if (info && all.length > 0) {
+                var visStart = start + 1;
+                var visEnd = Math.min(end, all.length);
+                info.textContent = 'Showing ' + visStart + ' to ' + visEnd + ' of ' + all.length + ' rows';
+            } else if (info && all.length === 0) {
+                info.textContent = 'No rows';
+            }
+        }
+        function attach() {
+            attached = true;
+            var pager = DCScanPager.attach({
+                container: el,
+                pageSize: PAGE_SIZE,
+                getTotal: function() { return rows().length; },
+                onPage: function(p) { show(p); }
+            });
+            pager.render(1);
+            show(1);
+        }
+        // Wait until tbody is populated (replace placeholder rows). Compare child count to detect a new render
+        // — hiding rows via .style.display does NOT change childElementCount, so the loop is safe.
+        var tries = 0;
+        var iv = setInterval(function() {
+            var n = tbody.childElementCount;
+            if (n !== lastChildCount && n > 0) {
+                lastChildCount = n;
+                attach();
+            }
+            if (attached || tries > 40) clearInterval(iv);
+            tries++;
+        }, 250);
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+    else init();
+})();
+</script>
+
 </body>
 </html>

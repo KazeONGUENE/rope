@@ -215,13 +215,7 @@
             </table>
             <div class="pagination">
                 <div class="pagination-info">Loading...</div>
-                <div class="pagination-controls">
-                    <button class="page-btn" disabled><i class="fas fa-angle-left"></i></button>
-                    <button class="page-btn active">1</button>
-                    <button class="page-btn">2</button>
-                    <button class="page-btn">3</button>
-                    <button class="page-btn"><i class="fas fa-angle-right"></i></button>
-                </div>
+                <div class="pagination-controls" id="dcscan-pager"></div>
             </div>
         </div>
     </main>
@@ -289,6 +283,39 @@
         });
     </script>
 <script src="/js/dcscan-stats.js"></script>
+<script src="/js/dcscan-pagination.js"></script>
+
+<script>
+(function() {
+    var PAGE_SIZE = 25;
+    function init() {
+        var el = document.getElementById('dcscan-pager');
+        if (!el || typeof DCScanPager === 'undefined') return;
+        // Find the live row count once data has loaded.
+        function attach() {
+            var rows = document.querySelectorAll('tr[data-row], .agent-card, tbody tr:not(.empty-row)');
+            var total = rows.length;
+            var pager = DCScanPager.attach({
+                container: el,
+                pageSize: PAGE_SIZE,
+                getTotal: function() { return total; },
+                onPage: function() {}  // single page only
+            });
+            pager.render(1);
+        }
+        // Wait until data has likely loaded (poll briefly).
+        var tries = 0;
+        var iv = setInterval(function() {
+            var grid = document.getElementById('agentsGrid') || document.querySelector('tbody');
+            if ((grid && grid.children.length > 0) || tries > 20) { clearInterval(iv); attach(); }
+            tries++;
+        }, 250);
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+    else init();
+})();
+</script>
+
 </body>
 </html>
 

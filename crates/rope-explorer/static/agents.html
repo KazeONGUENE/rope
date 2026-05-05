@@ -73,14 +73,46 @@
         .agent-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 1.25rem; transition: all 0.2s; cursor: pointer; }
         .agent-card:hover { border-color: var(--gray-300); box-shadow: var(--shadow-md); }
         .agent-header { display: flex; align-items: flex-start; gap: 1rem; margin-bottom: 0.75rem; }
-        .agent-icon { width: 48px; height: 48px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0; }
-        .agent-icon.validation { background: var(--black); color: white; }
-        .agent-icon.insurance { background: var(--black); color: white; }
-        .agent-icon.compliance { background: var(--black); color: white; }
-        .agent-icon.oracle { background: var(--black); color: white; }
-        .agent-icon.semantic { background: var(--black); color: white; }
-        .agent-icon.security { background: var(--black); color: white; }
-        .agent-icon.analytics { background: var(--black); color: white; }
+        .agent-icon { width: 48px; height: 48px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0; color: white; }
+        .agent-icon.validation { background: linear-gradient(135deg, #1e293b 0%, #334155 100%); }
+        .agent-icon.insurance { background: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%); }
+        .agent-icon.compliance { background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%); }
+        .agent-icon.oracle { background: linear-gradient(135deg, #ea580c 0%, #f97316 100%); }
+        .agent-icon.semantic { background: linear-gradient(135deg, #16a34a 0%, #22c55e 100%); }
+        .agent-icon.security { background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); }
+        .agent-icon.analytics { background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%); }
+        .agent-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 1.25rem; transition: border-color 0.2s, box-shadow 0.2s; }
+        .agent-card:hover { border-color: var(--gray-300); box-shadow: var(--shadow-md); }
+        .audit-section { margin-top: 1rem; padding-top: 0.875rem; border-top: 1px dashed var(--gray-200); }
+        .audit-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gray-500); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.375rem; }
+        .audit-label i { color: var(--gray-400); }
+        .audit-list { margin: 0; padding-left: 1.125rem; font-size: 13px; color: var(--gray-700); line-height: 1.55; }
+        .audit-list li { margin-bottom: 0.25rem; }
+        .audit-chips { display: flex; flex-wrap: wrap; gap: 0.375rem; align-items: center; margin-top: 0.625rem; font-size: 12px; }
+        .audit-chip-label { color: var(--gray-500); font-weight: 600; margin-right: 0.25rem; }
+        .audit-chip { background: var(--gray-100); color: var(--gray-700); padding: 0.125rem 0.5rem; border-radius: var(--radius-sm); border: 1px solid var(--gray-200); text-decoration: none; }
+        .audit-chip:hover { background: var(--gray-200); color: var(--gray-900); }
+        .audit-chip.mono { font-family: var(--font-mono); font-size: 11px; }
+        .ident-row { display: grid; grid-template-columns: 200px 1fr; gap: 0.75rem; padding: 0.375rem 0; font-size: 13px; align-items: center; border-bottom: 1px solid var(--gray-100); }
+        .ident-row:last-child { border-bottom: none; }
+        .ident-label { color: var(--gray-600); display: flex; align-items: center; gap: 0.375rem; flex-wrap: wrap; }
+        .ident-label i { color: var(--gray-400); width: 14px; text-align: center; }
+        .ident-sub { display: block; font-size: 10px; color: var(--gray-400); margin-left: 1.375rem; font-weight: 400; }
+        .ident-value { color: var(--gray-800); display: flex; align-items: center; gap: 0.5rem; }
+        .ident-value.mono, .ident-value .mono { font-family: var(--font-mono); font-size: 12px; }
+        .ident-value a { color: var(--info); text-decoration: none; }
+        .ident-value a:hover { text-decoration: underline; }
+        .copy-btn { background: none; border: none; cursor: pointer; color: var(--gray-400); padding: 2px 4px; font-size: 11px; line-height: 1; border-radius: 3px; }
+        .copy-btn:hover { background: var(--gray-100); color: var(--gray-700); }
+        .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin-left: 0.375rem; }
+        .pill-beta { background: #fef3c7; color: #92400e; }
+        .pill-stable { background: #dcfce7; color: #166534; }
+        .pill-alpha { background: #fee2e2; color: #991b1b; }
+        .pill-source { background: var(--gray-100); color: var(--gray-600); }
+        @media (max-width: 640px) {
+            .ident-row { grid-template-columns: 1fr; gap: 0.125rem; }
+            .ident-label { font-size: 11px; }
+        }
         .agent-info { flex: 1; min-width: 0; }
         .agent-name { font-weight: 600; font-size: 15px; margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.5rem; }
         .agent-name a { color: var(--black); }
@@ -188,7 +220,7 @@
             <div class="page-header-inner">
                 <div class="page-header-left">
                     <h1 class="page-title"><i class="fas fa-robot" style="color: var(--gray-400);"></i> AI Agents <span class="page-count" id="agentCount">—</span></h1>
-                    <p class="page-subtitle">Browse AI testimony agents that validate transactions and provide cryptographic attestations on the Datachain Rope network.</p>
+                    <p class="page-subtitle">Browse AI testimony agents that validate transactions and provide cryptographic attestations on the Datachain Rope network. Each card shows the canonical agent identity (well-known wallet address used as <code>owner</code> on the agent's personal ledger) and the live signing pubkey (Ed25519 + CRYSTALS-Dilithium3 hybrid) actually emitting testimonies. <a href="https://github.com/KazeONGUENE/rope#canonical-agents" target="_blank" style="color: var(--info);">Learn more <i class="fas fa-arrow-up-right-from-square" style="font-size: 10px;"></i></a></p>
                 </div>
                 <button type="button" class="btn btn-primary" onclick="location.href='/agents/register'"><i class="fas fa-plus"></i> Add AI Agent</button>
             </div>
@@ -219,6 +251,8 @@
         </div>
 
         <div class="agents-grid" id="agentsGrid"></div>
+
+        <div class="pagination" id="dcscan-pager"></div>
     </main>
 
     <footer>
@@ -242,114 +276,154 @@
             var walletShort = wallet.slice(0, 6) + '...' + wallet.slice(-4);
             return '<a href="/address/' + encodeURIComponent(wallet) + '" onclick="event.stopPropagation()" style="color: var(--info); font-family: var(--font-mono); font-size: 12px;">' + escapeHtml(walletShort) + '</a>';
         }
-        // Maps the canonical FA icon to the homepage `/` AI Testimony
-        // Agents card icons. The /api/v1/ai-agents response now ships
-        // homepage-matching FA names directly (see canonical_ai_agents
-        // in rope-explorer/src/main.rs). This fallback table keeps the
-        // page working if the explorer is talking to an older API.
-        var HOMEPAGE_ICONS = {
-            semantic: 'fa-brain',
-            oracle: 'fa-satellite-dish',
-            insurance: 'fa-umbrella',
-            validation: 'fa-gavel',
-            compliance: 'fa-scale-balanced'
-        };
-
-        function statusBadge(rawStatus) {
-            var st = (rawStatus || 'standby').toLowerCase();
-            // Treat "active" as the production-ready synonym for "online"
-            // since the canonical fallback ships status:"active".
-            var isOnline = st === 'online' || st === 'active';
-            var cls = isOnline ? 'status-online' : st === 'offline' ? 'status-offline' : 'status-standby';
-            var text = isOnline ? 'Online' : st === 'offline' ? 'Offline' : 'Standby';
-            return '<span class="status-badge ' + cls + '">' + text + '</span>';
+        function shortHex(h, head, tail) {
+            if (!h || typeof h !== 'string') return '';
+            head = head || 10; tail = tail || 8;
+            return h.length > head + tail + 2 ? h.slice(0, head) + '…' + h.slice(-tail) : h;
         }
-
-        function scaleBadge(scale) {
-            var s = (scale || 'concept').toLowerCase();
-            var cls = s === 'production' ? 'scale-production' : s === 'beta' ? 'scale-beta' : 'scale-concept';
-            return '<span class="scale-badge ' + cls + '">' + escapeHtml(s) + '</span>';
+        function copyButton(value) {
+            return '<button class="copy-btn" onclick="event.stopPropagation();navigator.clipboard.writeText(\'' + value.replace(/\'/g, "\\'") + '\').then(function(){this.innerHTML=\'<i class=\\\'fas fa-check\\\'></i>\';}.bind(this));" title="Copy"><i class="fas fa-copy"></i></button>';
         }
-
-        function auditLink(label, value, href) {
-            if (!value) {
-                return '<div class="audit-row"><div class="audit-label">' + escapeHtml(label) + '</div>' +
-                    '<div class="audit-value muted">—</div></div>';
-            }
-            var text = href ? '<a href="' + href + '" target="_blank" rel="noopener">' + escapeHtml(value) + '</a>' : escapeHtml(value);
-            return '<div class="audit-row"><div class="audit-label">' + escapeHtml(label) + '</div>' +
-                '<div class="audit-value">' + text + '</div></div>';
+        function statusOf(agent) {
+            // Map API status (active/online/offline/standby) → display
+            var st = (agent.status || 'standby').toLowerCase();
+            if (st === 'active' || st === 'online') return { cls: 'status-online', text: 'Online' };
+            if (st === 'offline') return { cls: 'status-standby', text: 'Offline' };
+            return { cls: 'status-standby', text: 'Standby' };
         }
-
-        function auditList(label, items) {
-            if (!items || !items.length) {
-                return '<div class="audit-row"><div class="audit-label">' + escapeHtml(label) + '</div>' +
-                    '<div class="audit-value muted">none</div></div>';
-            }
-            var html = items.map(function(it) { return '<li>' + escapeHtml(it) + '</li>'; }).join('');
-            return '<div class="audit-row"><div class="audit-label">' + escapeHtml(label) + '</div>' +
-                '<ul class="audit-list">' + html + '</ul></div>';
-        }
-
         function createAgentCard(agent) {
-            // Icon — accept either the new rich FA name (`fa-brain`) or
-            // the older category-as-class convention. Falls back to the
-            // homepage map by id if neither is set.
-            var faIcon = agent.icon && /^fa-/.test(agent.icon) ? agent.icon : (HOMEPAGE_ICONS[agent.id] || 'fa-robot');
-
-            var testimonies = agent.testimoniesCount != null ? Number(agent.testimoniesCount).toLocaleString()
-                          : agent.testimonies != null ? Number(agent.testimonies).toLocaleString() : '0';
+            var status = statusOf(agent);
+            var name = agent.name || agent.id || 'Unknown';
+            var role = agent.role || agent.type || '';
+            var category = agent.category || '';
+            var description = agent.description || agent.desc || '';
+            var faIcon = agent.icon || 'fa-robot';
+            var iconWrap = agent.iconClass || 'validation';
+            var capabilities = Array.isArray(agent.capabilities) ? agent.capabilities : [];
+            var rpcMethods = Array.isArray(agent.rpcMethods) ? agent.rpcMethods : [];
+            var dataFeeds = Array.isArray(agent.dataFeeds) ? agent.dataFeeds : [];
+            var sourceCode = agent.sourceCode || '';
+            var apiEndpoint = agent.apiEndpoint || '';
+            var metricsEndpoint = agent.metricsEndpoint || '';
+            var smartContract = agent.smartContract || '';
+            var wallet = agent.wallet || '';
+            var walletKind = agent.walletKind || '';
+            var signingPubkey = agent.signingPubkey || '';
+            var nodeId = agent.nodeId || '';
+            var signingAlgo = agent.signingAlgorithm || '';
+            var testimonies = agent.testimoniesCount != null ? Number(agent.testimoniesCount).toLocaleString() : '—';
             var uptime = agent.uptime || '—';
-            var role = agent.role || agent.category || '';
+            var scaleStatus = agent.scaleStatus || '';
+            var sourceTag = agent.source || '';
+            var publicHttp = agent.publicHttp;
+            var deploymentMode = agent.deploymentMode || '';
+            var testimoniesUrl = agent.testimoniesUrl || (wallet ? '/address/' + encodeURIComponent(wallet) : '');
 
-            var agentUrl = agent.wallet ? '/address/' + agent.wallet : '/agents';
+            var capHtml = capabilities.length ? '<div class="audit-section"><div class="audit-label"><i class="fas fa-list-check"></i> Capabilities</div><ul class="audit-list">' + capabilities.map(function(c){return '<li>' + escapeHtml(c) + '</li>';}).join('') + '</ul></div>' : '';
+            var rpcHtml = rpcMethods.length ? '<div class="audit-chips"><span class="audit-chip-label">RPC:</span>' + rpcMethods.map(function(m){return '<span class="audit-chip mono">' + escapeHtml(m) + '</span>';}).join('') + '</div>' : '';
+            var feedHtml = dataFeeds.length ? '<div class="audit-chips"><span class="audit-chip-label">Feeds:</span>' + dataFeeds.map(function(f){return '<a class="audit-chip mono" href="' + encodeURI(f) + '" target="_blank" onclick="event.stopPropagation()">' + escapeHtml(f.replace(/^https?:\/\//, '')) + '</a>';}).join('') + '</div>' : '';
 
-            // Audit grid — only show fields that the API actually returned.
-            var auditRows = [
-                auditLink('Wallet / Account', agent.wallet, agent.wallet ? '/address/' + agent.wallet : null),
-                auditLink('Smart Contract', agent.smartContract, agent.smartContract ? '/address/' + agent.smartContract : null),
-                auditLink('Source Code', 'View on GitHub', agent.sourceCode),
-                auditLink('API Endpoint', agent.apiEndpoint, agent.apiEndpoint),
-                auditLink('Metrics', agent.metricsEndpoint, agent.metricsEndpoint),
-                auditList('RPC Methods', agent.rpcMethods),
-                auditList('Data Feeds', agent.dataFeeds)
-            ].join('');
+            // Identity rows
+            var rows = [];
+            if (wallet) {
+                var walletLabel = walletKind === 'canonical-agent-id' ? 'Canonical agent ID (well-known address — not key-controlled)' : 'Wallet';
+                rows.push(
+                    '<div class="ident-row">' +
+                        '<div class="ident-label" title="' + escapeHtml(walletLabel) + '"><i class="fas fa-id-badge"></i> Canonical wallet</div>' +
+                        '<div class="ident-value mono"><a href="/address/' + encodeURIComponent(wallet) + '" onclick="event.stopPropagation()">' + escapeHtml(shortHex(wallet, 14, 10)) + '</a> ' + copyButton(wallet) + '</div>' +
+                    '</div>'
+                );
+            }
+            if (signingPubkey) {
+                rows.push(
+                    '<div class="ident-row">' +
+                        '<div class="ident-label" title="The actual cryptographic key that signs every testimony this agent emits"><i class="fas fa-key"></i> Signing pubkey<span class="ident-sub">' + escapeHtml(signingAlgo) + '</span></div>' +
+                        '<div class="ident-value mono">' + escapeHtml(shortHex(signingPubkey, 14, 10)) + ' ' + copyButton(signingPubkey) + '</div>' +
+                    '</div>'
+                );
+            }
+            if (nodeId) {
+                rows.push(
+                    '<div class="ident-row">' +
+                        '<div class="ident-label" title="BLAKE3(signingPubkey) — used as libp2p node id"><i class="fas fa-fingerprint"></i> Node ID</div>' +
+                        '<div class="ident-value mono">' + escapeHtml(shortHex(nodeId, 14, 10)) + ' ' + copyButton(nodeId) + '</div>' +
+                    '</div>'
+                );
+            }
+            if (smartContract) {
+                rows.push(
+                    '<div class="ident-row">' +
+                        '<div class="ident-label"><i class="fas fa-file-contract"></i> Smart contract</div>' +
+                        '<div class="ident-value mono"><a href="/address/' + encodeURIComponent(smartContract) + '" onclick="event.stopPropagation()">' + escapeHtml(shortHex(smartContract, 14, 10)) + '</a> ' + copyButton(smartContract) + '</div>' +
+                    '</div>'
+                );
+            }
+            if (apiEndpoint) {
+                rows.push(
+                    '<div class="ident-row">' +
+                        '<div class="ident-label"><i class="fas fa-plug"></i> API endpoint</div>' +
+                        '<div class="ident-value"><a href="' + encodeURI(apiEndpoint) + '" target="_blank" onclick="event.stopPropagation()">' + escapeHtml(apiEndpoint) + '</a></div>' +
+                    '</div>'
+                );
+            } else if (publicHttp === false) {
+                rows.push(
+                    '<div class="ident-row">' +
+                        '<div class="ident-label"><i class="fas fa-server"></i> Deployment</div>' +
+                        '<div class="ident-value"><span style="color: var(--gray-600);">Background daemon — no public HTTP. Reads input on-chain or from feeds, writes outputs as testimony knots.</span></div>' +
+                    '</div>'
+                );
+            }
+            if (metricsEndpoint) {
+                rows.push(
+                    '<div class="ident-row">' +
+                        '<div class="ident-label"><i class="fas fa-chart-line"></i> Metrics</div>' +
+                        '<div class="ident-value"><a href="' + encodeURI(metricsEndpoint) + '" target="_blank" onclick="event.stopPropagation()">' + escapeHtml(metricsEndpoint.replace(/^https?:\/\//, '')) + '</a></div>' +
+                    '</div>'
+                );
+            }
+            if (testimoniesUrl) {
+                rows.push(
+                    '<div class="ident-row">' +
+                        '<div class="ident-label"><i class="fas fa-stamp"></i> Live testimonies</div>' +
+                        '<div class="ident-value"><a href="' + encodeURI(testimoniesUrl) + '" onclick="event.stopPropagation()">View on chain <i class="fas fa-arrow-up-right-from-square" style="font-size: 10px;"></i></a></div>' +
+                    '</div>'
+                );
+            }
+            if (sourceCode) {
+                rows.push(
+                    '<div class="ident-row">' +
+                        '<div class="ident-label"><i class="fab fa-github"></i> Source code</div>' +
+                        '<div class="ident-value"><a href="' + encodeURI(sourceCode) + '" target="_blank" onclick="event.stopPropagation()">' + escapeHtml(sourceCode.replace(/^https?:\/\//, '')) + '</a></div>' +
+                    '</div>'
+                );
+            }
+            var identHtml = '<div class="audit-section"><div class="audit-label"><i class="fas fa-shield-halved"></i> Identity &amp; Endpoints</div>' + rows.join('') + '</div>';
 
-            var capabilities = (agent.capabilities && agent.capabilities.length)
-                ? '<div class="agent-capabilities">' +
-                  '<div class="agent-capabilities-title">What this agent does on-chain</div>' +
-                  '<ul>' + agent.capabilities.map(function(c) { return '<li>' + escapeHtml(c) + '</li>'; }).join('') + '</ul>' +
-                  '</div>'
-                : '';
+            var pillHtml = '';
+            if (scaleStatus) pillHtml += '<span class="pill pill-' + escapeHtml(scaleStatus) + '">' + escapeHtml(scaleStatus) + '</span>';
+            if (sourceTag) pillHtml += '<span class="pill pill-source">' + escapeHtml(sourceTag) + '</span>';
 
-            var actions = '<div class="agent-actions">' +
-                (agent.wallet ? '<a class="agent-btn primary" href="/address/' + agent.wallet + '"><i class="fas fa-wallet"></i> View on-chain</a>' : '') +
-                (agent.sourceCode ? '<a class="agent-btn" href="' + agent.sourceCode + '" target="_blank" rel="noopener"><i class="fab fa-github"></i> Source</a>' : '') +
-                (agent.apiEndpoint ? '<a class="agent-btn" href="' + agent.apiEndpoint + '" target="_blank" rel="noopener"><i class="fas fa-plug"></i> API</a>' : '') +
-                (agent.metricsEndpoint ? '<a class="agent-btn" href="' + agent.metricsEndpoint + '" target="_blank" rel="noopener"><i class="fas fa-chart-bar"></i> Metrics</a>' : '') +
-                '<a class="agent-btn" href="/api/v1/ai-agents/' + encodeURIComponent(agent.id) + '/testimonies"><i class="fas fa-certificate"></i> Testimonies</a>' +
-                '</div>';
-
-            return '<div class="agent-card" id="agent-' + escapeHtml(agent.id) + '">' +
+            return '<div class="agent-card">' +
                 '<div class="agent-header">' +
-                    '<div class="agent-icon"><i class="fa-solid ' + escapeHtml(faIcon) + '"></i></div>' +
+                    '<div class="agent-icon ' + escapeHtml(iconWrap) + '"><i class="fas ' + escapeHtml(faIcon) + '"></i></div>' +
                     '<div class="agent-info">' +
                         '<div class="agent-name">' +
-                            '<a href="' + agentUrl + '">' + escapeHtml(agent.name) + '</a>' +
-                            statusBadge(agent.status) +
-                            scaleBadge(agent.scaleStatus) +
+                            '<a href="' + (wallet ? '/address/' + encodeURIComponent(wallet) : '#') + '">' + escapeHtml(name) + '</a>' +
+                            '<span class="status-badge ' + status.cls + '">' + status.text + '</span>' +
+                            pillHtml +
                         '</div>' +
-                        '<div class="agent-role">' + escapeHtml(role) + '</div>' +
-                        '<div class="agent-desc">' + escapeHtml(agent.description || agent.desc || '') + '</div>' +
+                        '<div class="agent-org">' + escapeHtml(role) + (category ? ' &middot; ' + escapeHtml(category) : '') + '</div>' +
+                        '<div class="agent-desc">' + escapeHtml(description) + '</div>' +
                         '<div class="agent-meta">' +
                             '<span class="agent-stat"><i class="fas fa-certificate"></i> ' + testimonies + ' testimonies</span>' +
-                            '<span class="agent-stat"><i class="fas fa-clock"></i> Uptime ' + escapeHtml(uptime) + '</span>' +
+                            '<span class="agent-stat"><i class="fas fa-clock"></i> Uptime: ' + escapeHtml(uptime) + '</span>' +
                         '</div>' +
-                        capabilities +
-                        '<div class="agent-audit">' + auditRows + '</div>' +
-                        actions +
                     '</div>' +
                 '</div>' +
+                capHtml +
+                identHtml +
+                rpcHtml +
+                feedHtml +
             '</div>';
         }
         function escapeHtml(s) {
@@ -369,30 +443,19 @@
         fetch('/api/v1/stats').then(function(r) { return r.ok ? r.json() : {}; }).then(updateTopBar).catch(function() { updateTopBar(null); });
 
         var allAgents = [];
-        function agentMatchesFilter(a, filter) {
-            if (!filter || filter === 'trending') return true;
-            if (filter === 'verified') {
-                var s = (a.scaleStatus || '').toLowerCase();
-                return s === 'production' || s === 'beta';
-            }
-            if (filter === 'active') {
-                var st = (a.status || '').toLowerCase();
-                return st === 'active' || st === 'online';
-            }
-            // Substring match against id / name / role / category — works
-            // for the chips: validation, security, analytics, semantic.
-            var hay = [a.id, a.name, a.role, a.category]
-                .filter(Boolean)
-                .map(function(s) { return String(s).toLowerCase(); })
-                .join(' ');
-            return hay.indexOf(filter) >= 0;
-        }
         function renderAgents(filter) {
             var grid = document.getElementById('agentsGrid');
-            var filtered = allAgents.filter(function(a) { return agentMatchesFilter(a, filter); });
-            if (grid) grid.innerHTML = filtered.length
-                ? filtered.map(createAgentCard).join('')
-                : '<p style="color: var(--gray-500); padding: 2rem;">No agents match this filter</p>';
+            var filtered = allAgents;
+            if (filter && filter !== 'trending' && filter !== 'all') {
+                filtered = allAgents.filter(function(a) {
+                    var st = (a.status || '').toLowerCase();
+                    if (filter === 'verified' || filter === 'active') return st === 'active' || st === 'online';
+                    if (filter === 'offline') return st === 'offline';
+                    var hay = ((a.role || '') + ' ' + (a.category || '') + ' ' + (a.id || '')).toLowerCase();
+                    return hay.indexOf(filter) >= 0;
+                });
+            }
+            if (grid) grid.innerHTML = filtered.length ? filtered.map(createAgentCard).join('') : '<p style="color: var(--gray-500); padding: 2rem;">No agents match this filter</p>';
         }
 
         fetch('/api/v1/ai-agents').then(function(r) { return r.ok ? r.json() : Promise.reject(r); }).then(function(data) {
@@ -427,6 +490,39 @@
     </script>
 <script src="/js/dcscan-labels.js"></script>
 <script src="/js/dcscan-stats.js"></script>
+<script src="/js/dcscan-pagination.js"></script>
+
+<script>
+(function() {
+    var PAGE_SIZE = 25;
+    function init() {
+        var el = document.getElementById('dcscan-pager');
+        if (!el || typeof DCScanPager === 'undefined') return;
+        // Find the live row count once data has loaded.
+        function attach() {
+            var rows = document.querySelectorAll('tr[data-row], .agent-card, tbody tr:not(.empty-row)');
+            var total = rows.length;
+            var pager = DCScanPager.attach({
+                container: el,
+                pageSize: PAGE_SIZE,
+                getTotal: function() { return total; },
+                onPage: function() {}  // single page only
+            });
+            pager.render(1);
+        }
+        // Wait until data has likely loaded (poll briefly).
+        var tries = 0;
+        var iv = setInterval(function() {
+            var grid = document.getElementById('agentsGrid') || document.querySelector('tbody');
+            if ((grid && grid.children.length > 0) || tries > 20) { clearInterval(iv); attach(); }
+            tries++;
+        }, 250);
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+    else init();
+})();
+</script>
+
 </body>
 </html>
 

@@ -662,17 +662,7 @@
                         </tbody>
                     </table>
                 </div>
-                <div class="pagination">
-                    <button class="page-btn"><i class="fas fa-angle-double-left"></i></button>
-                    <button class="page-btn"><i class="fas fa-angle-left"></i></button>
-                    <button class="page-btn active">1</button>
-                    <button class="page-btn">2</button>
-                    <button class="page-btn">3</button>
-                    <span>...</span>
-                    <button class="page-btn">124789</button>
-                    <button class="page-btn"><i class="fas fa-angle-right"></i></button>
-                    <button class="page-btn"><i class="fas fa-angle-double-right"></i></button>
-                </div>
+                <div class="pagination" id="dcscan-pager"></div>
             </div>
         </div>
     </main>
@@ -695,8 +685,7 @@
     <script>
         (function() {
             function timeAgo(ts) { if (!ts) return '—'; var s = Math.max(0, Math.floor(Date.now()/1000 - ts)); if (s < 60) return s + ' secs ago'; if (s < 3600) return Math.floor(s/60) + ' mins ago'; return Math.floor(s/3600) + ' hrs ago'; }
-            fetch('/api/v1/strings?page=1&limit=25').then(function(r) { return r.ok ? r.json() : {}; }).then(function(data) {
-                var list = data.strings || [];
+            function renderRows(list) {
                 var tbody = document.getElementById('stringsTable');
                 if (!tbody) return;
                 var html = list.length ? list.map(function(blk) {
@@ -704,10 +693,78 @@
                     return '<tr><td><a href="/string/' + num + '" class="string-number">' + num + '</a></td><td><span class="status final"><i class="fas fa-check-circle"></i> Final</span></td><td class="time">' + age + '</td><td>' + txns + '</td><td class="hash">' + (validator.length > 10 ? validator.slice(0,6)+'...'+validator.slice(-4) : validator) + '</td><td>' + gas + '</td></tr>';
                 }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--gray-500);">No blocks</td></tr>';
                 tbody.innerHTML = html;
-            }).catch(function() {});
+            }
+            window.dcscanLoadPage = function(page, limit) {
+                return fetch('/api/v1/strings?page=' + page + '&limit=' + limit)
+                    .then(function(r) { return r.ok ? r.json() : {}; })
+                    .then(function(data) {
+                        renderRows(data.strings || []);
+                        var u = new URL(window.location.href);
+                        if (page === 1) u.searchParams.delete('page'); else u.searchParams.set('page', page);
+                        window.history.replaceState({}, '', u.toString());
+                        try { window.scrollTo({top: 0, behavior: 'smooth'}); } catch (e) {}
+                    })
+                    .catch(function() {});
+            };
+            var initialPage = parseInt(new URLSearchParams(window.location.search).get('page'), 10) || 1;
+            window.dcscanLoadPage(initialPage, 25);
         })();
     </script>
 <script src="/js/dcscan-stats.js"></script>
+<script src="/js/dcscan-pagination.js"></script>
+
+<script>
+(function() {
+    var PAGE_SIZE = 25;
+    var ENDPOINT = '/api/v1/strings';
+    var TABLE_ID = 'stringsTable';
+    var totalItems = 0;
+
+    function init() {
+        var el = document.getElementById('dcscan-pager');
+        if (!el || typeof DCScanPager === 'undefined') return;
+
+        // First request: just probe the total.
+        fetch(ENDPOINT + '?limit=1&page=1').then(function(r) { return r.ok ? r.json() : {}; }).then(function(d) {
+            totalItems = (d.pagination && d.pagination.total) || d.total || d.totalCount || 0;
+            var pager = DCScanPager.attach({
+                container: el,
+                pageSize: PAGE_SIZE,
+                getTotal: function() { return totalItems; },
+                onPage: function(page) {
+                    if (typeof window.dcscanLoadPage === 'function') {
+                        window.dcscanLoadPage(page, PAGE_SIZE);
+                    } else {
+                        // No page-specific loader registered by the page; do a default reload of the URL with ?page=
+                        var url = new URL(window.location.href);
+                        url.searchParams.set('page', page);
+                        window.history.replaceState({}, '', url.toString());
+                        window.location.reload();
+                    }
+                    var info = document.querySelector('.pagination-info');
+                    if (info) {
+                        var s = (page - 1) * PAGE_SIZE + 1;
+                        var e = Math.min(page * PAGE_SIZE, totalItems);
+                        info.textContent = 'Showing ' + s + ' to ' + e + ' of ' + totalItems.toLocaleString() + ' items';
+                    }
+                }
+            });
+            var initialPage = parseInt(new URLSearchParams(window.location.search).get('page'), 10) || 1;
+            pager.render(initialPage);
+            var info = document.querySelector('.pagination-info');
+            if (info) {
+                var s = (initialPage - 1) * PAGE_SIZE + 1;
+                var e = Math.min(initialPage * PAGE_SIZE, totalItems);
+                info.textContent = 'Showing ' + s + ' to ' + e + ' of ' + totalItems.toLocaleString() + ' items';
+            }
+        });
+    }
+
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+    else init();
+})();
+</script>
+
 </body>
 </html>
 
