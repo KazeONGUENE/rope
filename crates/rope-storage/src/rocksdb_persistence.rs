@@ -34,7 +34,18 @@
 //! | `chain`         | `wallet_bytes \|\| u64-be seq_in_wallet` | `[u8; 32]` (string_id)            |
 //! | `reverse`       | `[u8; 32]` (string_id)                   | `wallet_bytes`                    |
 //! | `pieces`        | `[u8; 32]` (string_id)                   | `bincode(StoredPieceMap)`         |
+//! | `strings`       | `[u8; 32]` (string_id)                   | `bincode(RopeString)` blob        |
+//! | `tombstones`    | `[u8; 32]` (string_id)                   | `bincode(StoredTombstone)`        |
 //! | default         | `b"durable_seq"`                         | `u64-le` (latest fsync'd seq)     |
+//!
+//! Quipu Canon v2.0 **Phase 1.6** adds the `strings` and `tombstones`
+//! CFs so that the actual knot payloads (serialised `RopeString`s) and
+//! the canon v1.1 §4.2 untie-tombstones survive a node restart. The
+//! `strings` CF is disk-only — the read hot path stays in the
+//! `StringLattice`; blobs are read back exactly once at open time to
+//! rebuild the lattice. GDPR erasure deletes the blob from disk in the
+//! same fsync'd batch that records the tombstone, so cryptographic
+//! erasure remains true across restarts.
 //!
 //! Composite chain keys keep each wallet's appended ids contiguous and
 //! lexicographically sorted in RocksDB — recovery reconstructs the
@@ -60,6 +71,10 @@ pub const CF_HEADS: &str = "heads";
 pub const CF_CHAIN: &str = "chain";
 pub const CF_REVERSE: &str = "reverse";
 pub const CF_PIECES: &str = "pieces";
+/// Phase 1.6 — serialised `RopeString` knot payloads, keyed by string_id.
+pub const CF_STRINGS: &str = "strings";
+/// Phase 1.6 — canon v1.1 §4.2 untie-tombstones, keyed by string_id.
+pub const CF_TOMBSTONES: &str = "tombstones";
 
 /// Default-CF key holding the latest fsync'd global sequence number.
 const DURABLE_SEQ_KEY: &[u8] = b"durable_seq";
@@ -131,6 +146,45 @@ pub enum WriteOp {
     /// for callers using the persistence layer directly without an
     /// in-memory mirror — typically at startup or for migration tools.
     MarkDeleted { wallet: Vec<u8>, deleted_at: i64 },
+    /// Phase 1.6 — persist an opaque serialised `RopeString` blob so
+    /// the knot payload survives restarts. The blob is produced by
+    /// `bincode::serialize(&RopeString)` at the call site (rope-node);
+    /// rope-storage treats it as opaque bytes to avoid a circular
+    /// dependency on rope-core's concrete types.
+    PutStringBlob {
+        string_id: [u8; 32],
+        blob: Vec<u8>,
+    },
+    /// Phase 1.6 — cryptographic erasure on disk. Deletes the string
+    /// blob (whole-string erase pathway AND the payload-destruction
+    /// half of a per-knot untie). GDPR Art. 17 correctness across
+    /// restarts depends on this landing in the same fsync'd batch
+    /// wave as the tombstone that records the erasure.
+    DeleteStringBlob { string_id: [u8; 32] },
+    /// Phase 1.6 — persist a canon v1.1 §4.2 untie-tombstone.
+    PutTombstone {
+        string_id: [u8; 32],
+        tombstone: StoredTombstone,
+    },
+}
+
+/// Phase 1.6 — on-disk shape of a canon v1.1 §4.2 knot tombstone.
+/// Mirrors `rope_core::lattice::KnotTombstone` field-for-field, plus
+/// the untied knot's parent edges (`parents`) which the lattice needs
+/// to hop past the tombstone when walking a string after a restart
+/// (the live `RopeString` — and with it the in-payload parentage — is
+/// destroyed at untie time, so the edge must be carried here). Kept
+/// as an independent type so rope-storage does not depend on the
+/// lattice module's concrete types.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct StoredTombstone {
+    pub untied_at: i64,
+    pub audit_hash: [u8; 32],
+    pub reason: String,
+    /// Parent string-ids of the untied knot, genesis-sentinel included
+    /// as all-zero when the knot was a genesis (never true in practice
+    /// — genesis knots cannot be untied).
+    pub parents: Vec<[u8; 32]>,
 }
 
 /// One enqueued op, tagged with its assigned sequence number.
@@ -149,6 +203,11 @@ pub struct RecoveredState {
     pub reverse: Vec<([u8; 32], Vec<u8>)>,
     pub pieces: Vec<([u8; 32], StoredPieceMap)>,
     pub heads: Vec<(Vec<u8>, [u8; 32])>,
+    /// Phase 1.6 — serialised `RopeString` blobs (opaque to rope-storage;
+    /// rope-node deserialises them back into the lattice at boot).
+    pub string_blobs: Vec<([u8; 32], Vec<u8>)>,
+    /// Phase 1.6 — untie-tombstones to replay into the lattice at boot.
+    pub tombstones: Vec<([u8; 32], StoredTombstone)>,
     pub durable_seq: u64,
 }
 
@@ -207,6 +266,8 @@ impl RocksPersistence {
             ColumnFamilyDescriptor::new(CF_CHAIN, Options::default()),
             ColumnFamilyDescriptor::new(CF_REVERSE, Options::default()),
             ColumnFamilyDescriptor::new(CF_PIECES, Options::default()),
+            ColumnFamilyDescriptor::new(CF_STRINGS, Options::default()),
+            ColumnFamilyDescriptor::new(CF_TOMBSTONES, Options::default()),
         ];
 
         let db = Arc::new(DB::open_cf_descriptors(&db_opts, path, cfs)?);
@@ -469,6 +530,12 @@ fn flush_batch(db: &DB, ops: &[PendingWrite], durable_seq: &AtomicU64) -> Result
     let cf_pieces = db
         .cf_handle(CF_PIECES)
         .ok_or(RocksError::MissingCf(CF_PIECES))?;
+    let cf_strings = db
+        .cf_handle(CF_STRINGS)
+        .ok_or(RocksError::MissingCf(CF_STRINGS))?;
+    let cf_tombstones = db
+        .cf_handle(CF_TOMBSTONES)
+        .ok_or(RocksError::MissingCf(CF_TOMBSTONES))?;
 
     let mut batch = WriteBatch::default();
     let mut highest_seq = 0u64;
@@ -511,6 +578,19 @@ fn flush_batch(db: &DB, ops: &[PendingWrite], durable_seq: &AtomicU64) -> Result
                     let bytes = bincode::serialize(&desc)?;
                     batch.put_cf(&cf_descriptors, wallet, &bytes);
                 }
+            }
+            WriteOp::PutStringBlob { string_id, blob } => {
+                batch.put_cf(&cf_strings, string_id, blob);
+            }
+            WriteOp::DeleteStringBlob { string_id } => {
+                batch.delete_cf(&cf_strings, string_id);
+            }
+            WriteOp::PutTombstone {
+                string_id,
+                tombstone,
+            } => {
+                let bytes = bincode::serialize(tombstone)?;
+                batch.put_cf(&cf_tombstones, string_id, &bytes);
             }
         }
     }
@@ -561,6 +641,12 @@ fn recover_from_db(db: &DB) -> Result<RecoveredState, RocksError> {
     let cf_pieces = db
         .cf_handle(CF_PIECES)
         .ok_or(RocksError::MissingCf(CF_PIECES))?;
+    let cf_strings = db
+        .cf_handle(CF_STRINGS)
+        .ok_or(RocksError::MissingCf(CF_STRINGS))?;
+    let cf_tombstones = db
+        .cf_handle(CF_TOMBSTONES)
+        .ok_or(RocksError::MissingCf(CF_TOMBSTONES))?;
 
     let mut state = RecoveredState::default();
 
@@ -632,6 +718,33 @@ fn recover_from_db(db: &DB) -> Result<RecoveredState, RocksError> {
         sid.copy_from_slice(&k);
         let pm: StoredPieceMap = bincode::deserialize(&v)?;
         state.pieces.push((sid, pm));
+    }
+
+    for kv in db.iterator_cf(&cf_strings, IteratorMode::Start) {
+        let (k, v) = kv?;
+        if k.len() != 32 {
+            return Err(RocksError::Corrupted(format!(
+                "strings key malformed: expected 32 bytes, got {}",
+                k.len()
+            )));
+        }
+        let mut sid = [0u8; 32];
+        sid.copy_from_slice(&k);
+        state.string_blobs.push((sid, v.into_vec()));
+    }
+
+    for kv in db.iterator_cf(&cf_tombstones, IteratorMode::Start) {
+        let (k, v) = kv?;
+        if k.len() != 32 {
+            return Err(RocksError::Corrupted(format!(
+                "tombstones key malformed: expected 32 bytes, got {}",
+                k.len()
+            )));
+        }
+        let mut sid = [0u8; 32];
+        sid.copy_from_slice(&k);
+        let ts: StoredTombstone = bincode::deserialize(&v)?;
+        state.tombstones.push((sid, ts));
     }
 
     state.durable_seq = match db.get(DURABLE_SEQ_KEY)? {

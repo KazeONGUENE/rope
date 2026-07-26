@@ -1,0 +1,9 @@
+[Unit]
+Description=Global Databox Network heartbeat ping (one-shot, triggered by databox-heartbeat.timer)
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=__SERVICE_USER__
+EnvironmentFile=-__DATA_DIR__/databox.env
+ExecStart=__INSTALL_DIR__/scripts/heartbeat-databox.sh

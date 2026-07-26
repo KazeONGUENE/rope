@@ -1,0 +1,78 @@
+---
+description: "HANDOVER: Mapstore <> Datachain Rope integration. MapstoreEscrow.sol shipped (38/38 tests PASS), runbook ready, awaiting Mapstore's 5 governance addresses + Mapstore-side wiring. Authoritative pointer for the 8 use-cases Mapstore unlocks on Rope and the cross-references future Rope agent sessions need."
+alwaysApply: true
+---
+
+# HANDOVER: Mapstore <> Datachain Rope Integration — 2026-06-15
+
+**From:** Datachain Rope project agent (`/Users/kazealphonseonguene/Downloads/DATACHAIN ROPE/datachain-rope`)
+**To:** Mapstore project agent (`/Users/kazealphonseonguene/Downloads/mapstore`) and any future Rope agent session
+**Date:** 2026-06-15
+**Status:** READY on the Rope side, BLOCKED on 5 Mapstore governance addresses
+**Authoritative prompt:** `prompts/MAPSTORE_DATACHAIN_ROPE_INTEGRATION.md`
+**Deploy runbook:** `docs/MAPSTORE_DEPLOY_RUNBOOK.md`
+
+## 1. The 8 use-cases Mapstore unlocks on Rope
+
+| # | Use-case | Primitive | Surface |
+|---|---|---|---|
+| 1 | DCR-20 stablecoin checkout (USDC / USDT / EUROD) | DCSwap-redeployed pools | Mapstore basket / order |
+| 2 | Trustless service-job escrow with 7d auto-release | `MapstoreEscrow.sol` | `ServiceJob` lifecycle |
+| 3 | Per-wallet personal ledger of Mapstore activity | `rope_appendToLedger` | Shopper / merchant string |
+| 4 | Tamper-evident review and reputation anchoring | TestimonyAttestation knot | Reviews + ratings |
+| 5 | KYC-by-hash for merchant onboarding (no PII on-chain) | IdentityClaim knot + ERC-3643 | Onboarding step |
+| 6 | GDPR Art. 17 surgical erasure of personal Mapstore knots | `rope_untieKnot` -> tombstone | Account deletion |
+| 7 | Future DCNFTs (warranty, deed-of-purchase, click-and-collect token) | T-REX claim topics | Order receipt |
+| 8 | Cross-platform reputation portable to Tanastok / DCSwap | Federation cord aggregation | Datawallet+ string |
+
+Use-cases 1, 2, 3 are unblocked the moment the contract is deployed and Mapstore wires the API client. 4, 5 ship as the second wave once Phase-2 signed-RPC is live in production. 6, 7, 8 are the third wave and depend on Datawallet+ surfaces.
+
+## 2. Canonical cross-references (do not reinvent)
+
+| Canon | File | Why Mapstore needs it |
+|---|---|---|
+| Quipu Primitive Canon v1.2 | `.cursor/rules/quipu-primitive-canon-v1.1.mdc` (v1.2 extends naming) | Knot vs block vocabulary; tombstone semantics |
+| Phase-2 signed destructive RPC | `docs/PHASE2_SIGNED_DESTRUCTIVE_RPC_SPEC.md` | Wallet-owned `rope_*` calls |
+| Phase-2 reference clients | `examples/phase2-signed-rpc/{sign_phase2_rpc.rs,sign-phase2-rpc.ts}` | Drop-in Rust + TS signing flow |
+| DCR-20 token addresses | `.cursor/rules/handover-dcswap-redeployed-2026-02-26.mdc` | USDC / USDT / EUROD on chainId 271828 |
+| Tanastok treasury pattern | `.cursor/rules/handover-tanastok-treasury-address-confirmed-2026-06-04.mdc` | Establishment knot + dcscan label flow |
+| Production fleet topology | `.cursor/rules/digitalocean-third-blue-green-slot.mdc` | Where to deploy dcscan label patches |
+| Rope agent behaviours | `.cursor/rules/master-node-governance.mdc` | Multisig hygiene |
+
+## 3. What lives on each side
+
+**Datachain Rope owns:**
+- `contracts/src/mapstore/MapstoreEscrow.sol` (~475 lines, AccessControl + ReentrancyGuard + Pausable + SafeERC20).
+- `contracts/test/mapstore/MapstoreEscrow.t.sol` — 38/38 PASS (lifecycle, fee cap, dispute window, autorelease, role hygiene, pause).
+- `contracts/scripts/DeployMapstoreEscrow.s.sol` — broadcast script with anti-foot-gun zero-address + role-collision checks.
+- DCR-20 stablecoin pools on DCSwap (zero-fee FAT/USDC, FAT/USDT, FAT/EUROD).
+- Personal-ledger primitives (`rope_createPersonalLedger`, `rope_appendToLedger`, `rope_untieKnot`).
+- dcscan.io address registry (labels for the 6 Mapstore-side addresses).
+- Phase-2 signing canonical message + reference SDKs.
+
+**Mapstore consumes (must implement):**
+- A thin `RopeClient` wrapping `https://erpc.datachain.network` for read-only calls + an `EscrowClient` wrapping the deployed contract via `alloy` (Rust) and `ethers` / `viem` (TS).
+- A `LedgerClient` that signs Phase-2 envelopes for `rope_appendToLedger` from the API.
+- Route patches in `routes.rs` / `onboarding.rs` / `console.rs` to mint escrow on order / service-job creation, capture funds at completion, anchor reputation knots at review time.
+- Web + mobile UI that displays the on-chain `escrow_ref`, the dispute deadline, and links to dcscan.io.
+- A feature flag `CRYPTO_ENABLED` (default `false`) so all of this lands dormant first and the team can flip it once the deploy is live.
+
+**Mapstore must NEVER:**
+- Anchor PII on the chain. Hash everything, store the bytes in Postgres + Datawallet+, anchor only the digest.
+- Block a happy-path checkout on RPC errors. On-chain calls are fire-and-forget with retries; the off-chain order is canonical.
+- Reuse private keys across roles or commit them to git. The five governance addresses must be distinct.
+
+## 4. Six still-open action items
+
+| # | Owner | Item | Blocking |
+|---|---|---|---|
+| 1 | Datachain Rope agent | Foundry tests in CI | DONE locally (38/38). Wire `forge test` into the Rope CI workflow. |
+| 2 | Datachain Rope agent | `DeployMapstoreEscrow.s.sol` broadcast | Awaits 5 Mapstore addresses (item 3) |
+| 3 | **Mapstore agent** | Provide `PLATFORM_TREASURY`, `ESCROW_ADMIN`, `ESCROW_PLATFORM`, `ESCROW_OPERATOR`, `ESCROW_GUARDIAN` | Drop a `handover-from-mapstore-escrow-addresses-<date>.mdc` |
+| 4 | Datachain Rope agent | Mainnet broadcast + `deployed_addresses.json` update | Item 3 |
+| 5 | Datachain Rope agent | dcscan.io labels for the 6 Mapstore addresses | Item 4 |
+| 6 | Datachain Rope agent | `MapstoreEscrowEstablished` knot anchored on the platform-treasury string | Item 4 |
+
+When all 6 are checked, the Rope agent drops a `handover-from-rope-mapstore-escrow-live-<date>.mdc` back to the Mapstore workspace with the deployed address, tx hash, knot event id, and dcscan URL. Mapstore flips `CRYPTO_ENABLED=true` in the API env and the integration is live.
+
+*Canonical handle: HANDOVER MAPSTORE INTEGRATION 2026-06-15. Reference this rule from any Rope or Mapstore session that touches MapstoreEscrow, the marketplace knot taxonomy, or the cross-platform reputation cord.*

@@ -189,9 +189,13 @@
                 <div class="nav-item">
                     <a href="#" class="nav-link">Network <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
+                        <a href="/ecosystem" class="dropdown-item">Ecosystem Projects</a>
+                        <a href="/vote" class="dropdown-item" id="nav-governance-voting">Governance &amp; Voting</a>
                         <a href="/defi" class="dropdown-item">DeFi</a>
+                        <a href="/supply" class="dropdown-item">Supply Reconciliation</a>
                         <a href="/network/validators" class="dropdown-item">Validators</a>
                         <a href="/databases" class="dropdown-item">Databases</a>
+                        <a href="/databoxes" class="dropdown-item" id="nav-databox-network">Global Databox Network</a>
                         <a href="/stats" class="dropdown-item">Charts & Stats</a>
                     </div>
                 </div>
@@ -200,8 +204,10 @@
                     <div class="nav-dropdown">
                         <a href="/apis" class="dropdown-item">API Docs</a>
                         <a href="/verify" class="dropdown-item">Verify Contract</a>
+                        <a href="/create-wallet" class="dropdown-item" id="nav-create-wallet">Create Wallet</a>
                         <a href="/faucet" class="dropdown-item">Faucet</a>
                         <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank">GitHub</a>
+                        <a href="/partners" class="dropdown-item">Partners</a>
                         <a href="/contact" class="dropdown-item">Contact</a>
                     </div>
                 </div>
@@ -308,7 +314,7 @@
                 <a href="https://datachain.network">Datachain</a>
                 <a href="/apis">API</a>
                 <a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a>
-                <a href="/contact">Contact</a>
+                <a href="/partners">Partners</a><a href="/contact">Contact</a>
             </div>
         </div>
     </footer>
@@ -337,6 +343,7 @@
             if (sel === '0x095ea7b3') return { name: 'Approve', class: 'method-approve' };
             if (sel === '0xa9059cbb' || sel === '0x23b872dd') return { name: 'Transfer', class: 'method-transfer' };
             if (sel === '0x40c10f19') return { name: 'Mint', class: 'method-mint' };
+            if (sel === '0x94218091') return { name: 'Migration', class: 'method-mint' };
             if (sel === '0xe8e33700' || sel === '0xf305d719') return { name: 'Add Liq', class: 'method-contract' };
             return { name: 'Contract', class: 'method-contract' };
         }
@@ -459,6 +466,7 @@
         loadStats();
         loadPage(1);
     </script>
+    <script src="/js/dcscan-wallet.js?v=20260707b" defer></script>
 </body>
 </html>
 

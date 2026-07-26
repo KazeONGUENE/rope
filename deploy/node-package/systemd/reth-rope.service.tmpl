@@ -1,0 +1,32 @@
+[Unit]
+Description=Reth - Datachain Rope EVM backend (chainId 271828, production genesis, follower mode — no --dev)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__SERVICE_USER__
+Group=__SERVICE_USER__
+ExecStart=__BIN_DIR__/reth node \
+  --chain __DATA_DIR__/reth/genesis.json \
+  --datadir __DATA_DIR__/reth/data \
+  --http \
+  --http.addr 127.0.0.1 \
+  --http.port 8595 \
+  --http.api eth,net,web3,txpool,debug,trace \
+  --ws \
+  --ws.addr 127.0.0.1 \
+  --ws.port 8547 \
+  --ws.api eth,net,web3 \
+  --authrpc.addr 127.0.0.1 \
+  --authrpc.port 8552 \
+  --authrpc.jwtsecret __DATA_DIR__/reth/data/jwt.hex \
+  --port 30304 \
+  --metrics 127.0.0.1:9002 \
+  --log.file.directory __DATA_DIR__/reth/logs
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

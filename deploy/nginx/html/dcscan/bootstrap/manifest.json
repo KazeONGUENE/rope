@@ -1,0 +1,20 @@
+{
+  "schema": "dcrope-bootstrap-manifest/v1",
+  "version": "20260723-061709-4fa44311aef8",
+  "published_at": "2026-07-23T06:17:09Z",
+  "chain_id": 271828,
+  "target": {
+    "os": "ubuntu-24.04",
+    "arch": "x86_64",
+    "glibc": "2.39"
+  },
+  "artifacts": {
+    "rope_binary": {
+      "cid": "bafybeifp5xuleyc4wcfiagz6bv4wkcext55wsde7432eecpqal7irprjqe",
+      "sha256": "4fa44311aef83d6c3aedebea29534302de015619b27305ac73bed4e4dee669a3",
+      "size_bytes": 14282504,
+      "install_path": "/usr/local/bin/rope"
+    }
+  },
+  "gateways": ["https://dcswap.net/ipfs/", "https://ipfs.io/ipfs/", "https://dweb.link/ipfs/", "https://cloudflare-ipfs.com/ipfs/"]
+}

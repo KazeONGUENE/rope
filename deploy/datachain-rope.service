@@ -29,5 +29,34 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=datachain-rope
 
+# Hardening (M6, SECURITY_AUDIT_2026-07-25_FULL_WORKSPACE.md). rope-node
+# reads its config/genesis under WorkingDirectory (/home/ubuntu/datachain-rope,
+# read-only is fine) and writes ONLY under its data_dir, which defaults to
+# ~/.rope (i.e. /home/ubuntu/.rope) — see crates/rope-node/src/node.rs
+# (ledger_db, db, keys, genesis.json, validator_key.bin, validator_set.json)
+# and deploy/config/rope-production.toml's [storage].db_path /
+# [governance].log_path (both under the same ~/.rope tree). No other
+# on-disk write target exists in this binary.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+ReadWritePaths=/home/ubuntu/.rope
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RemoveIPC=yes
+# rope-node's RocksDB-backed LedgerStore (Quipu Canon v2.0 Phase 1.6) and
+# libp2p's networking stack both rely on mmap'd files / JIT-adjacent buffer
+# handling; do not enable MemoryDenyWriteExecute without testing first
+# (same caution as the existing agent-runtime units in deploy/agents/systemd/).
+
 [Install]
 WantedBy=multi-user.target

@@ -131,7 +131,7 @@
         .close-btn { background: none; border: none; font-size: 1.5rem; color: var(--gray-400); cursor: pointer; padding: 0.25rem; }
         .close-btn:hover { color: var(--black); }
         .modal-body { padding: 1.5rem; }
-        .modal-info { background: var(--gray-50); border-left: 3px solid var(--black); padding: 1rem; margin-bottom: 1.5rem; font-size: 13px; color: var(--gray-600); }
+        .modal-info { background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; font-size: 13px; color: var(--gray-600); }
         .form-steps { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
         .form-step { flex: 1; padding: 0.75rem 1rem; background: var(--gray-100); border: none; border-radius: var(--radius-md); font-size: 13px; font-weight: 500; color: var(--gray-500); cursor: pointer; text-align: center; }
         .form-step.active { background: var(--black); color: var(--white); }
@@ -251,16 +251,20 @@
                 </div>
                 <div class="nav-item"><a href="#" class="nav-link active">Tokens <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
                     <div class="nav-dropdown">
-                        <a href="/tokens" class="dropdown-item">DC-20 Tokens</a>
+                        <a href="/tokens" class="dropdown-item">DCR-20 Tokens</a>
                         <a href="/tokentxns" class="dropdown-item">Token Transfers</a>
                         <a href="/vote" class="dropdown-item">Vote</a>
                     </div>
                 </div>
                 <div class="nav-item"><a href="#" class="nav-link">Network <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
                     <div class="nav-dropdown">
+                        <a href="/ecosystem" class="dropdown-item">Ecosystem Projects</a>
+                        <a href="/vote" class="dropdown-item" id="nav-governance-voting">Governance &amp; Voting</a>
                         <a href="/defi" class="dropdown-item">DeFi</a>
+                        <a href="/supply" class="dropdown-item">Supply Reconciliation</a>
                         <a href="/validators" class="dropdown-item">Validators</a>
                         <a href="/databases" class="dropdown-item">Databases</a>
+                        <a href="/databoxes" class="dropdown-item" id="nav-databox-network">Global Databox Network</a>
                         <a href="/stats" class="dropdown-item">Charts & Stats</a>
                     </div>
                 </div>
@@ -268,8 +272,10 @@
                     <div class="nav-dropdown">
                         <a href="/apis" class="dropdown-item">API Docs</a>
                         <a href="/verify" class="dropdown-item">Verify Contract</a>
+                        <a href="/create-wallet" class="dropdown-item" id="nav-create-wallet">Create Wallet</a>
                         <a href="/faucet" class="dropdown-item">Faucet</a>
                         <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank">GitHub</a>
+                        <a href="/partners" class="dropdown-item">Partners</a>
                         <a href="/contact" class="dropdown-item">Contact</a>
                     </div>
                 </div>
@@ -558,27 +564,27 @@
         <div class="stats-row">
             <div class="stat-card">
                 <div class="stat-label">Active Proposals</div>
-                <div class="stat-value">12</div>
+                <div class="stat-value" id="stat-active-proposals">—</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Total Proposals</div>
-                <div class="stat-value">847</div>
+                <div class="stat-value" id="stat-total-proposals">—</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Total Votes Cast</div>
-                <div class="stat-value">24.7M FAT</div>
+                <div class="stat-value" id="stat-total-votes">—</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Unique Voters</div>
-                <div class="stat-value">8,492</div>
+                <div class="stat-value" id="stat-unique-voters">—</div>
             </div>
         </div>
 
         <div class="tabs">
-            <button class="tab active">Active (12)</button>
-            <button class="tab">Pending (8)</button>
-            <button class="tab">Approved (724)</button>
-            <button class="tab">Rejected (103)</button>
+            <button class="tab active" id="tab-active">Active</button>
+            <button class="tab" id="tab-pending">Pending</button>
+            <button class="tab" id="tab-approved">Approved</button>
+            <button class="tab" id="tab-rejected">Rejected</button>
         </div>
 
         <div class="proposals-grid" id="proposalsGrid"></div>
@@ -591,7 +597,7 @@
                 <a href="https://datachain.network">Datachain</a>
                 <a href="/apis">API</a>
                 <a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a>
-                <a href="/contact">Contact</a>
+                <a href="/partners">Partners</a><a href="/contact">Contact</a>
             </div>
         </div>
     </footer>
@@ -600,44 +606,86 @@
         // API Configuration
         const API_BASE = '/api/v1';
         
-        // Fetch projects from API
+        // Fetch projects from the real, chain-anchored API. No mock
+        // fallback: an unreachable API surfaces as an honest empty/error
+        // state so the community never votes on fabricated numbers.
         async function fetchProjects() {
             try {
-                const response = await fetch(`${API_BASE}/projects`);
+                const response = await fetch(`${API_BASE}/projects?limit=100`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const data = await response.json();
                 return data.projects || [];
             } catch (error) {
                 console.error('Error fetching projects:', error);
-                // Fallback to mock data if API unavailable
-                return [
-                    { id: 'proj-001', name: 'DataVault', tagline: 'Decentralized Storage Protocol', description: 'A decentralized storage solution built on Datachain Rope, enabling secure, encrypted data storage with AI-powered data integrity verification.', organizationType: 'business', category: 'infrastructure', votesFor: 847291, votesAgainst: 124892, status: 'voting', votingEndsAt: Date.now() / 1000 + 5 * 86400 },
-                    { id: 'proj-002', name: 'InsuraChain', tagline: 'Parametric Insurance Platform', description: 'Automated insurance claims processing using AI testimonies and oracle data. Instant payouts for verified events.', organizationType: 'business', category: 'defi', votesFor: 612847, votesAgainst: 89421, status: 'voting', votingEndsAt: Date.now() / 1000 + 3 * 86400 },
-                    { id: 'proj-003', name: 'ArtChain NFT Marketplace', tagline: 'Community-driven NFT marketplace', description: 'NFT marketplace with AI-verified provenance and royalty enforcement built on Datachain Rope.', organizationType: 'individual', category: 'nft', votesFor: 324891, votesAgainst: 187421, status: 'voting', votingEndsAt: Date.now() / 1000 + 7 * 86400 },
-                    { id: 'proj-004', name: 'UniGov', tagline: 'University Credential System', description: 'Smartchain-based academic credential verification system for universities worldwide. Powered by AI testimony validation.', organizationType: 'institution', category: 'identity', votesFor: 521847, votesAgainst: 42891, status: 'voting', votingEndsAt: Date.now() / 1000 + 2 * 86400 },
-                    { id: 'proj-005', name: 'GreenChain', tagline: 'Carbon Credit Trading', description: 'Transparent carbon credit marketplace with AI-verified environmental impact data and automated compliance.', organizationType: 'business', category: 'marketplace', votesFor: 287492, votesAgainst: 98421, status: 'voting', votingEndsAt: Date.now() / 1000 + 8 * 86400 }
-                ];
+                document.getElementById('proposalsGrid').innerHTML =
+                    '<div style="grid-column: 1/-1; text-align:center; padding: 3rem; color: var(--gray-500);">' +
+                    '<i class="fas fa-exclamation-triangle" style="font-size: 2rem; margin-bottom: 1rem;"></i>' +
+                    '<p>Could not load proposals right now. Please refresh in a moment.</p></div>';
+                return [];
             }
         }
-        
-        // Vote on a project
+
+        // Domain-separated EIP-191 vote-signing message. MUST match
+        // `vote_message()` in rope-explorer/src/governance_votes.rs
+        // byte-for-byte, or signature recovery fails server-side.
+        function voteAuthMessage(projectId, voteFor, timestamp) {
+            return `DCROPE-VOTE-AUTH\nvote\n${projectId}\n${voteFor}\n${timestamp}`;
+        }
+
+        // Vote on a project — real signature-verified, FAT-balance-weighted
+        // ballot casting. Requires a connected EVM wallet (MetaMask, etc.);
+        // the voter's LIVE native DC FAT balance on Datachain Rope becomes
+        // their voting weight (checked server-side at cast time).
         async function voteOnProject(projectId, voteFor) {
+            if (!window.DatachainWallet || !window.DatachainWallet.isConnected()) {
+                if (window.DatachainWallet) window.DatachainWallet.open();
+                alert('Connect your wallet first — your vote weight is your live DC FAT balance on Datachain Rope.');
+                return;
+            }
+            const provider = window.DatachainWallet.getEvmProvider();
+            const { address } = window.DatachainWallet.getState();
+            if (!provider || !address) {
+                alert('Connect an EVM wallet (MetaMask, etc.) to vote — Datawallet+ email sign-in and Phantom are not supported for on-chain voting.');
+                return;
+            }
+
+            const timestamp = Math.floor(Date.now() / 1000);
+            const message = voteAuthMessage(projectId, voteFor, timestamp);
+
+            let signature;
+            try {
+                signature = await provider.request({
+                    method: 'personal_sign',
+                    params: [message, address]
+                });
+            } catch (err) {
+                console.error('Vote signing rejected:', err);
+                alert('Signature request was rejected — your vote was not cast.');
+                return;
+            }
+
             try {
                 const response = await fetch(`${API_BASE}/projects/${projectId}/vote`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ vote_for: voteFor })
+                    body: JSON.stringify({
+                        voter_address: address,
+                        vote_for: voteFor,
+                        timestamp: timestamp,
+                        signature: signature
+                    })
                 });
                 const result = await response.json();
-                
-                if (result.success) {
-                    alert(`Vote recorded! You voted ${voteFor ? 'FOR' : 'AGAINST'} this project.`);
-                    loadProjects(); // Refresh
+
+                if (response.ok && result.success) {
+                    alert(`Vote recorded! You voted ${voteFor ? 'FOR' : 'AGAINST'} this project with ${Number(result.vote.weightFat).toLocaleString(undefined, {maximumFractionDigits: 4})} FAT of weight.`);
+                    loadProjects(); // Refresh with the real, updated tally
                 } else {
-                    alert('Vote failed. Please connect your wallet and try again.');
+                    alert(`Vote failed: ${result.error || 'unknown error'}`);
                 }
             } catch (error) {
                 console.error('Vote error:', error);
-                alert('Vote submitted successfully!'); // Demo mode
+                alert('Vote failed — could not reach the API. Please try again.');
             }
         }
 
@@ -720,10 +768,36 @@
         async function loadProjects() {
             const projects = await fetchProjects();
             document.getElementById('proposalsGrid').innerHTML = projects.map((p, i) => generateProposalCard(p, i)).join('');
-            
-            // Update stats
-            const totalVotes = projects.reduce((sum, p) => sum + (p.votesFor || 0) + (p.votesAgainst || 0), 0);
-            document.querySelector('.stat-value').textContent = projects.filter(p => p.status === 'voting').length;
+
+            // Compute stats from projects
+            var active = projects.filter(function(p) { return (p.status || '') === 'voting'; }).length;
+            var pending = projects.filter(function(p) { return (p.status || '') === 'pending_review'; }).length;
+            var approved = projects.filter(function(p) { return (p.status || '') === 'approved' || (p.status || '') === 'building'; }).length;
+            var rejected = projects.filter(function(p) { return (p.status || '') === 'rejected'; }).length;
+            var totalProposals = projects.length;
+            var totalVotesFAT = projects.reduce(function(sum, p) {
+                return sum + (p.votesFor || p.vote_count_for || 0) + (p.votesAgainst || p.vote_count_against || 0);
+            }, 0);
+
+            function setStat(id, val) {
+                var el = document.getElementById(id);
+                if (el) el.textContent = (val !== undefined && val !== null && val !== '') ? val : '—';
+            }
+            var totalVotesStr = totalVotesFAT > 0 ? (totalVotesFAT >= 1000000 ? (totalVotesFAT / 1000000).toFixed(1) + 'M FAT' : totalVotesFAT.toLocaleString() + ' FAT') : '—';
+            setStat('stat-active-proposals', active);
+            setStat('stat-total-proposals', totalProposals);
+            setStat('stat-total-votes', totalVotesStr);
+            setStat('stat-unique-voters', '—');
+
+            // Update tab labels (no hardcoded counts)
+            var tabActive = document.getElementById('tab-active');
+            var tabPending = document.getElementById('tab-pending');
+            var tabApproved = document.getElementById('tab-approved');
+            var tabRejected = document.getElementById('tab-rejected');
+            if (tabActive) tabActive.textContent = 'Active (' + active + ')';
+            if (tabPending) tabPending.textContent = 'Pending (' + pending + ')';
+            if (tabApproved) tabApproved.textContent = 'Approved (' + approved + ')';
+            if (tabRejected) tabRejected.textContent = 'Rejected (' + rejected + ')';
         }
         
         // Initialize
@@ -1136,17 +1210,17 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-                
+
                 const result = await response.json();
-                
-                if (result.success) {
+
+                if (response.ok && result.success) {
                     showSuccessMessage(payload);
                 } else {
-                    alert('❌ Submission failed. Please try again.');
+                    alert(`❌ Submission failed: ${result.error || 'please try again.'}`);
                 }
             } catch (error) {
                 console.error('Submit error:', error);
-                showSuccessMessage(payload);
+                alert('❌ Submission failed — could not reach the API. Please try again in a moment.');
             }
         }
         
@@ -1201,6 +1275,8 @@
             });
         });
     </script>
+<script src="/js/dcscan-stats.js"></script>
+    <script src="/js/dcscan-wallet.js?v=20260707b" defer></script>
 </body>
 </html>
 

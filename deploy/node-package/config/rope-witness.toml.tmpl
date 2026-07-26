@@ -1,0 +1,77 @@
+# Datachain Rope — Witness / Databox configuration (profile: witness)
+#
+# Lightweight profile for resource-constrained hardware (Databox devices,
+# small VMs, single-board computers). Does NOT run a local Reth — it
+# delegates all eth_* JSON-RPC calls to the public erpc endpoint (which
+# itself load-balances across the real 4-node committee: BLUE, GREEN,
+# DO-rpc-1, DO-rpc-2). This node still runs its own rope-node process,
+# participates in Testimony gossip, and can self-register on the Global
+# Databox Network (see scripts/register-databox.sh).
+#
+# Disk: a few GB is enough (no chain DB). Good fit for the databox.network
+# hardware tiers.
+#
+# Placeholders (substituted by install.sh):
+#   __NODE_NAME__   human-readable name for this node
+#   __DATA_DIR__    base data directory (default /opt/datachain-rope)
+
+[node]
+name = "__NODE_NAME__"
+mode = "validator"
+chain_id = 271828
+
+[network]
+listen_addr = "0.0.0.0:9000"
+bootstrap_nodes = ["/ip4/92.243.26.189/tcp/9000/p2p/12D3KooWBXNzc2E4Z9CLypkRXro5iSdbM5oTnTkmf8ncZAqjhAfM"]
+max_peers = 50
+enable_quic = true
+enable_nat = true
+
+[consensus]
+enabled = true
+block_time_ms = 3000
+min_testimonies = 5
+ai_agents_enabled = false
+
+[storage]
+db_path = "__DATA_DIR__/rope/db"
+enable_compression = true
+cache_size_mb = 256
+pruning = "archive"
+
+[rpc]
+enabled = true
+# Local-only by default; open this up in your own firewall if you want to
+# serve public RPC from this node.
+http_addr = "127.0.0.1:8545"
+grpc_addr = "127.0.0.1:9001"
+ws_addr = "127.0.0.1:8546"
+enable_tls = false
+enable_mtls = false
+cors_origins = ["*"]
+rate_limit = 100
+
+[metrics]
+enabled = true
+prometheus_addr = "127.0.0.1:9090"
+
+# No local Reth on the witness profile — eth_* calls delegate to the
+# public, load-balanced RPC.
+[evm_backend]
+enabled = true
+url = "https://erpc.datachain.network"
+health_interval_secs = 60
+max_failures = 5
+
+# === Deployer identity attestation (optional but recommended) ===
+[deployer]
+wallet_address  = "__DEPLOYER_WALLET__"
+did             = "did:datachain:__DEPLOYER_WALLET__"
+onchainid       = ""
+name            = "__OPERATOR_NAME__"
+organization    = ""
+incorporation   = ""
+address         = ""
+email           = "__OPERATOR_EMAIL__"
+country         = "__OPERATOR_COUNTRY__"
+self_signature  = ""

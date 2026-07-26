@@ -132,9 +132,13 @@
                 <div class="nav-item">
                     <a href="#" class="nav-link">Network <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
+                        <a href="/ecosystem" class="dropdown-item">Ecosystem Projects</a>
+                        <a href="/vote" class="dropdown-item" id="nav-governance-voting">Governance &amp; Voting</a>
                         <a href="/defi" class="dropdown-item">DeFi</a>
+                        <a href="/supply" class="dropdown-item">Supply Reconciliation</a>
                         <a href="/validators" class="dropdown-item">Validators</a>
                         <a href="/databases" class="dropdown-item">Databases</a>
+                        <a href="/databoxes" class="dropdown-item" id="nav-databox-network">Global Databox Network</a>
                         <a href="/stats" class="dropdown-item">Charts &amp; Stats</a>
                     </div>
                 </div>
@@ -143,8 +147,10 @@
                     <div class="nav-dropdown">
                         <a href="/apis" class="dropdown-item">API Docs</a>
                         <a href="/verify" class="dropdown-item">Verify Contract</a>
+                        <a href="/create-wallet" class="dropdown-item" id="nav-create-wallet">Create Wallet</a>
                         <a href="/faucet" class="dropdown-item">Faucet</a>
                         <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank">GitHub</a>
+                        <a href="/partners" class="dropdown-item">Partners</a>
                         <a href="/contact" class="dropdown-item">Contact</a>
                     </div>
                 </div>
@@ -195,8 +201,23 @@
             <button class="filter-pill" data-kind="wallet"><i class="fa-solid fa-wallet"></i> Wallets</button>
             <button class="filter-pill" data-kind="contract"><i class="fa-solid fa-file-contract"></i> Contracts</button>
             <button class="filter-pill" data-kind="asset"><i class="fa-solid fa-gem"></i> Assets</button>
-            <button class="filter-pill" data-kind="did"><i class="fa-solid fa-id-badge"></i> DIDs</button>
+            <button class="filter-pill" data-kind="did"><i class="fa-solid fa-id-badge"></i> Identities</button>
+            <button class="filter-pill" data-kind="organization"><i class="fa-solid fa-building"></i> Organizations</button>
+            <button class="filter-pill" data-kind="application"><i class="fa-solid fa-cubes"></i> Applications</button>
+            <button class="filter-pill" data-kind="ecosystem"><i class="fa-solid fa-globe"></i> Ecosystems</button>
+            <button class="filter-pill" data-kind="partner"><i class="fa-solid fa-handshake"></i> Partners</button>
             <button class="filter-pill" data-kind="cord"><i class="fa-solid fa-link"></i> Cord</button>
+            <span style="margin-left:auto; display:flex; gap:0.5rem; align-items:center;">
+                <input id="searchBox" type="search" placeholder="Search by name, address, kind, platform…" style="padding: 6px 10px; border: 1px solid var(--gray-300); border-radius: 6px; min-width: 280px; font-size: 13px;">
+                <select id="platformFilter" style="padding: 6px 10px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 13px;">
+                    <option value="">All platforms</option>
+                    <option value="tanastok">Tanastok</option>
+                    <option value="dcswap">DCSwap</option>
+                    <option value="datawallet">Datawallet+</option>
+                    <option value="naturaproof">NaturaProof</option>
+                    <option value="foundation">Foundation</option>
+                </select>
+            </span>
         </div>
 
         <div class="table-card">
@@ -246,7 +267,7 @@
                 <a href="https://datachain.network">Datachain</a>
                 <a href="/apis">API</a>
                 <a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a>
-                <a href="/contact">Contact</a>
+                <a href="/partners">Partners</a><a href="/contact">Contact</a>
             </div>
         </div>
     </footer>
@@ -281,9 +302,31 @@
                     contract: 'fa-file-contract',
                     asset: 'fa-gem',
                     did: 'fa-id-badge',
+                    organization: 'fa-building',
+                    application: 'fa-cubes',
+                    ecosystem: 'fa-globe',
+                    partner: 'fa-handshake',
                     cord: 'fa-link'
                 })[kind] || 'fa-circle';
                 return '<span class="kind-badge ' + cls + '"><i class="fa-solid ' + icon + '"></i>' + (kind || 'wallet') + '</span>';
+            }
+
+            // Color the platform pill the same way leadgeneration / event.datachain.one does:
+            //   tanastok=gold, dcswap=cyan, datawallet=orange, trex=violet,
+            //   naturaproof=green, foundation=slate.
+            const PLATFORM_PALETTE = {
+                tanastok:     { bg: 'rgba(245,193,0,.18)',  fg: '#caa400' },
+                dcswap:       { bg: 'rgba(6,182,212,.18)',  fg: '#0e7490' },
+                datawallet:   { bg: 'rgba(255,138,0,.18)',  fg: '#c2410c' },
+                datawalletplus:{bg: 'rgba(255,138,0,.18)',  fg: '#c2410c' },
+                trex:         { bg: 'rgba(168,85,247,.18)', fg: '#7c3aed' },
+                naturaproof:  { bg: 'rgba(16,185,129,.18)', fg: '#047857' },
+                foundation:   { bg: 'rgba(100,116,139,.20)',fg: '#334155' },
+            };
+            function platformBadge(platform) {
+                if (!platform) return '';
+                const p = PLATFORM_PALETTE[platform] || { bg: 'rgba(100,116,139,.18)', fg: '#475569' };
+                return '<span style="display:inline-block; padding:1px 8px; border-radius:4px; font-size:11px; font-weight:600; background:' + p.bg + '; color:' + p.fg + '; margin-left:6px; text-transform:capitalize;">' + platform + '</span>';
             }
 
             function renderRow(s) {
@@ -291,18 +334,36 @@
                 const gid = s.genesis_knot_id || s.genesis_string_id || '—';
                 const hid = s.head_knot_id || s.head_string_id || '—';
                 const cnt = s.knot_count != null ? s.knot_count : (s.entry_count != null ? s.entry_count : 0);
-                const linkable = (s.kind === 'wallet' || s.kind === 'contract');
-                const sidCell = linkable
-                    ? '<a href="/address/' + sid + '" class="mono">' + shortHex(sid) + '</a>'
-                    : '<span class="mono">' + shortHex(sid) + '</span>';
+                // Every kind is now linkable — the address page knows how
+                // to render synthetic 32-byte ids (assets / dids / apps /
+                // ecosystems) by falling back to rope_getString.
+                const sidCell = '<a href="/address/' + sid + '" class="mono">' + shortHex(sid) + '</a>';
+                const lbl = s.labels || {};
+                const display = lbl.display_name || s.label_display_name || '';
+                const platform = lbl.platform || s.label_platform || '';
+                const role = lbl.role || s.label_role || '';
+                const verified = !!(lbl.verified || s.label_verified);
+                const labelHtml = display
+                    ? '<div style="margin-top:3px; font-size:12px; color:var(--gray-700);">'
+                        + escHtml(display)
+                        + (role ? ' <span style="color:var(--gray-400); font-size:11px;">' + escHtml(role) + '</span>' : '')
+                        + (verified ? ' <i class="fas fa-check-circle" title="Verified by ecosystem operator" style="color:#16a34a; font-size:11px; margin-left:4px;"></i>' : '')
+                        + '</div>'
+                    : '';
                 return '<tr>' +
-                    '<td>' + kindBadge(s.kind) + '</td>' +
-                    '<td>' + sidCell + '</td>' +
+                    '<td>' + kindBadge(s.kind) + platformBadge(platform) + '</td>' +
+                    '<td>' + sidCell + labelHtml + '</td>' +
                     '<td><span class="mono">' + shortHex(gid) + '</span></td>' +
                     '<td><span class="mono">' + shortHex(hid) + '</span></td>' +
                     '<td style="text-align: right;" class="knot-count-cell">' + Number(cnt).toLocaleString() + '</td>' +
                     '<td style="color: var(--gray-500);">' + timeAgo(s.last_anchored_at) + '</td>' +
                     '</tr>';
+            }
+
+            function escHtml(s) {
+                return String(s == null ? '' : s)
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
             }
 
             function loadStats() {
@@ -324,31 +385,88 @@
                     });
             }
 
+            // Tanastok manifest cache — pulled once and used to enrich
+            // every kind=asset / contract / did / application / ecosystem
+            // row with a human-readable display name + role + platform
+            // colour. Falls back gracefully when the cache is cold.
+            let labelsCache = null;
+            let labelsLoaded = false;
+            function loadLabels() {
+                if (labelsLoaded) return Promise.resolve(labelsCache);
+                labelsLoaded = true;
+                return fetch('/api/v1/registry/labels')
+                    .then(function(r) { return r.ok ? r.json() : null; })
+                    .then(function(j) { labelsCache = (j && j.labels) ? j.labels : {}; return labelsCache; })
+                    .catch(function() { labelsCache = {}; return labelsCache; });
+            }
+            function enrichRowWithManifest(row) {
+                if (!labelsCache) return row;
+                const id = (row.string_id || row.wallet_address || '').toLowerCase();
+                const lookups = [id, id.replace(/^0x/, '')];
+                for (let i = 0; i < lookups.length; i++) {
+                    const l = labelsCache[lookups[i]] || labelsCache['0x' + lookups[i]];
+                    if (l) {
+                        const merged = Object.assign({}, row);
+                        merged.labels = Object.assign({}, l.label || {}, { platform: l.platform });
+                        // Promote to richer kind if upstream knows better.
+                        if (!merged.kind && l.kind) merged.kind = l.kind;
+                        return merged;
+                    }
+                }
+                return row;
+            }
+
+            // Client-side text + platform filter — backend-side filters
+            // apply first (`kind`, paging), the search box and the
+            // platform select narrow the visible page so an operator
+            // can scan the on-chain registry for "kibali", "tanastok",
+            // "dcswap router", etc.
+            function applyClientFilter(rows) {
+                const q = (document.getElementById('searchBox').value || '').trim().toLowerCase();
+                const p = (document.getElementById('platformFilter').value || '').trim().toLowerCase();
+                if (!q && !p) return rows;
+                return rows.filter(function(r) {
+                    const lbl = (r.labels || {});
+                    const platform = (lbl.platform || '').toLowerCase();
+                    if (p && platform !== p) return false;
+                    if (!q) return true;
+                    const sid = (r.string_id || r.wallet_address || '').toLowerCase();
+                    const display = (lbl.display_name || '').toLowerCase();
+                    const role = (lbl.role || '').toLowerCase();
+                    const kind = (r.kind || '').toLowerCase();
+                    return sid.indexOf(q) !== -1 || display.indexOf(q) !== -1 || role.indexOf(q) !== -1 || kind.indexOf(q) !== -1;
+                });
+            }
+
             function loadStrings() {
                 const params = new URLSearchParams({ offset: currentOffset, limit: PAGE_SIZE });
                 if (currentKind) params.set('kind', currentKind);
-                fetch('/api/v1/registry/strings?' + params.toString())
-                    .then(function(r) { return r.ok ? r.json() : { strings: [], total: 0 }; })
-                    .then(function(data) {
-                        const tbody = document.getElementById('stringsTable');
-                        currentTotal = Number(data.total || 0);
-                        const rows = (data.strings || []);
-                        if (!rows.length) {
-                            tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><i class="fas fa-inbox"></i><div>No strings of this kind yet.</div></div></td></tr>';
-                        } else {
-                            tbody.innerHTML = rows.map(renderRow).join('');
-                        }
-                        const start = currentTotal === 0 ? 0 : (currentOffset + 1);
-                        const end = Math.min(currentOffset + PAGE_SIZE, currentTotal);
-                        document.getElementById('pagInfo').textContent = 'Showing ' + start + '–' + end + ' of ' + currentTotal.toLocaleString() + (currentKind ? (' ' + currentKind) : '') + ' strings';
-                        document.getElementById('pageNum').textContent = 'Page ' + (Math.floor(currentOffset / PAGE_SIZE) + 1);
-                        document.getElementById('prevBtn').disabled = currentOffset === 0;
-                        document.getElementById('nextBtn').disabled = (currentOffset + PAGE_SIZE) >= currentTotal;
-                        document.getElementById('tableMeta').textContent = (data.error ? '⚠ ' + data.error : '');
-                    })
-                    .catch(function() {
-                        document.getElementById('stringsTable').innerHTML = '<tr><td colspan="6"><div class="empty-state"><i class="fas fa-circle-exclamation"></i><div>Unable to load strings — the consensus node may be mid-restart.</div></div></td></tr>';
-                    });
+                Promise.all([
+                    fetch('/api/v1/registry/strings?' + params.toString())
+                        .then(function(r) { return r.ok ? r.json() : { strings: [], total: 0 }; })
+                        .catch(function() { return { strings: [], total: 0 }; }),
+                    loadLabels(),
+                ]).then(function(parts) {
+                    const data = parts[0];
+                    const tbody = document.getElementById('stringsTable');
+                    currentTotal = Number(data.total || 0);
+                    let rows = (data.strings || []).map(enrichRowWithManifest);
+                    rows = applyClientFilter(rows);
+                    if (!rows.length) {
+                        tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><i class="fas fa-inbox"></i><div>No strings match the current filters.</div></div></td></tr>';
+                    } else {
+                        tbody.innerHTML = rows.map(renderRow).join('');
+                    }
+                    const start = currentTotal === 0 ? 0 : (currentOffset + 1);
+                    const end = Math.min(currentOffset + PAGE_SIZE, currentTotal);
+                    document.getElementById('pagInfo').textContent = 'Showing ' + start + '–' + end + ' of ' + currentTotal.toLocaleString() + (currentKind ? (' ' + currentKind) : '') + ' strings';
+                    document.getElementById('pageNum').textContent = 'Page ' + (Math.floor(currentOffset / PAGE_SIZE) + 1);
+                    document.getElementById('prevBtn').disabled = currentOffset === 0;
+                    document.getElementById('nextBtn').disabled = (currentOffset + PAGE_SIZE) >= currentTotal;
+                    document.getElementById('tableMeta').textContent = (data.error ? '⚠ ' + data.error : '');
+                }).catch(function() {
+                    document.getElementById('stringsTable').innerHTML = '<tr><td colspan="6"><div class="empty-state"><i class="fas fa-circle-exclamation"></i><div>Unable to load strings — the consensus node may be mid-restart.</div></div></td></tr>';
+                });
             }
 
             document.querySelectorAll('.filter-pill').forEach(function(el) {
@@ -374,10 +492,22 @@
                 }
             });
 
+            // Debounced search across the visible page (the on-chain
+            // registry has thousands of rows; for full-corpus search the
+            // user can use rope_resolveLabel directly via DCScan's
+            // address page).
+            let searchTimer = null;
+            document.getElementById('searchBox').addEventListener('input', function() {
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(loadStrings, 200);
+            });
+            document.getElementById('platformFilter').addEventListener('change', loadStrings);
+
             loadStats();
             loadStrings();
         })();
     </script>
     <script src="/js/dcscan-stats.js"></script>
+    <script src="/js/dcscan-wallet.js?v=20260707b" defer></script>
 </body>
 </html>

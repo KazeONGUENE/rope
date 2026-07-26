@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ecosystem Projects | DC Explorer</title>
+    <meta name="description" content="Directory of ecosystem projects deployed on Datachain Rope through the Ecosystem Deployment Console. Regulators and investors get direct, disintermediated, grant-scoped access to each project's live on-chain-anchored data streams.">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="/css/dcscan-header.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --black: #000000; --white: #ffffff; --gray-50: #fafafa; --gray-100: #f4f4f5; --gray-200: #e4e4e7;
+            --gray-400: #a1a1aa; --gray-500: #71717a; --gray-600: #52525b; --gray-700: #3f3f46;
+            --gray-800: #27272a; --gray-900: #18181b; --success: #22c55e; --success-bg: #dcfce7;
+            --warning: #f59e0b; --warning-bg: #fef3c7; --info: #3b82f6; --info-bg: #dbeafe;
+            --purple: #8b5cf6; --purple-bg: #ede9fe; --danger: #ef4444; --danger-bg: #fee2e2;
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px;
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: var(--font-sans); background: var(--gray-50); color: var(--gray-900); line-height: 1.5; font-size: 14px; }
+        a { color: var(--info); text-decoration: none; } a:hover { text-decoration: underline; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 0 1rem; }
+        .page-header { background: var(--white); border-bottom: 1px solid var(--gray-200); padding: 1.5rem 0; }
+        .page-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem; }
+        .page-subtitle { color: var(--gray-500); font-size: 0.875rem; max-width: 880px; }
+        .page-breadcrumb { display: flex; align-items: center; gap: 0.5rem; font-size: 12px; color: var(--gray-500); margin-bottom: 0.5rem; }
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin: 1.5rem 0; }
+        .stat-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 1.25rem; }
+        .stat-label { font-size: 12px; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+        .stat-value { font-size: 1.5rem; font-weight: 700; }
+        .stat-change { font-size: 12px; margin-top: 0.25rem; color: var(--gray-500); }
+        .filters { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1.25rem; align-items: center; }
+        .filters input, .filters select { padding: 0.5rem 0.75rem; border: 1px solid var(--gray-200); border-radius: var(--radius-md); background: var(--white); font-size: 13px; font-family: var(--font-sans); }
+        .filters input { min-width: 260px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+        .proj-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 1.25rem; display: flex; flex-direction: column; gap: 0.75rem; transition: box-shadow .15s; }
+        .proj-card:hover { box-shadow: var(--shadow-md); }
+        .proj-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; }
+        .proj-name { font-size: 1.05rem; font-weight: 700; }
+        .proj-loc { color: var(--gray-500); font-size: 12.5px; margin-top: 2px; }
+        .badge { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.25rem 0.55rem; font-size: 11px; font-weight: 600; border-radius: 100px; white-space: nowrap; }
+        .badge-live { background: var(--success-bg); color: #166534; }
+        .badge-suspended { background: var(--warning-bg); color: #92400e; }
+        .badge-pm { background: var(--info-bg); color: #1e40af; }
+        .badge-em { background: var(--success-bg); color: #166534; }
+        .badge-hy { background: var(--purple-bg); color: #5b21b6; }
+        .proj-meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
+        .meta-cell { background: var(--gray-50); border-radius: var(--radius-md); padding: 0.5rem 0.65rem; }
+        .meta-cell .k { font-size: 10.5px; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.04em; }
+        .meta-cell .v { font-weight: 600; font-size: 13.5px; margin-top: 1px; }
+        .tags { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+        .tag { background: var(--gray-100); color: var(--gray-600); padding: 0.15rem 0.5rem; border-radius: 100px; font-size: 11px; }
+        .proj-links { display: flex; gap: 0.5rem; margin-top: auto; padding-top: 0.5rem; border-top: 1px solid var(--gray-100); flex-wrap: wrap; }
+        .btn-link { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.45rem 0.8rem; border-radius: var(--radius-md); font-size: 12.5px; font-weight: 600; border: 1px solid var(--gray-200); color: var(--gray-700); background: var(--white); }
+        .btn-link:hover { background: var(--gray-50); text-decoration: none; }
+        .btn-link.primary { background: var(--black); color: var(--white); border-color: var(--black); }
+        .btn-link.primary:hover { background: var(--gray-800); }
+        .mono { font-family: var(--font-mono); font-size: 12px; }
+        .empty { text-align: center; padding: 3rem 1rem; color: var(--gray-500); background: var(--white); border: 1px dashed var(--gray-200); border-radius: var(--radius-lg); margin-bottom: 2rem; }
+        .how-panel { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 1.25rem 1.5rem; margin-bottom: 2rem; }
+        .how-panel h3 { font-size: 1rem; margin-bottom: 0.75rem; }
+        .how-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+        .how-step { display: flex; gap: 0.65rem; align-items: flex-start; }
+        .how-num { width: 26px; height: 26px; flex: none; background: var(--black); color: var(--white); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+        .how-step p { font-size: 12.5px; color: var(--gray-600); }
+        .how-step b { color: var(--gray-900); }
+        /* Detail modal */
+        .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: flex-start; justify-content: center; padding: 4rem 1rem; z-index: 200; overflow-y: auto; }
+        .modal-backdrop.open { display: flex; }
+        .modal { background: var(--white); border-radius: var(--radius-lg); max-width: 720px; width: 100%; padding: 1.5rem; box-shadow: 0 20px 50px rgba(0,0,0,.25); }
+        .modal h2 { font-size: 1.2rem; margin-bottom: 0.25rem; }
+        .modal .close { float: right; cursor: pointer; color: var(--gray-500); font-size: 18px; background: none; border: none; }
+        .grant-row { border: 1px solid var(--gray-200); border-radius: var(--radius-md); padding: 0.75rem 1rem; margin-top: 0.6rem; }
+        .grant-row .g-head { display: flex; justify-content: space-between; font-weight: 600; font-size: 13px; }
+        .grant-row .g-sub { font-size: 12px; color: var(--gray-500); margin-top: 2px; }
+        code.endpoint { display: block; background: var(--gray-900); color: #a7f3d0; font-family: var(--font-mono); font-size: 11.5px; padding: 0.6rem 0.8rem; border-radius: var(--radius-md); margin-top: 0.75rem; overflow-x: auto; white-space: pre; }
+        footer { background: var(--white); border-top: 1px solid var(--gray-200); padding: 2rem 0; margin-top: 3rem; }
+        .footer-content { display: flex; justify-content: space-between; align-items: center; }
+        .footer-brand { display: flex; align-items: center; gap: 0.5rem; color: var(--gray-500); }
+        .footer-links { display: flex; gap: 1.5rem; }
+        .footer-links a { font-size: 12px; color: var(--gray-500); }
+        @media (max-width: 1024px) { .stats-row, .how-steps { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 768px) { .stats-row, .how-steps { grid-template-columns: 1fr; } .grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <div class="top-bar-container">
+            <div class="top-bar-left">
+                <div class="top-bar-item">
+                    <i class="fa-solid fa-coins"></i>
+                    DC FAT Price:
+                    <span class="top-bar-value">$0.00390</span>
+                </div>
+                <div class="top-bar-item">
+                    <i class="fa-solid fa-gas-pump"></i>
+                    Gas:
+                    <span class="top-bar-value">0.001 gwei</span>
+                </div>
+                <div class="top-bar-item">
+                    <i class="fa-solid fa-clock"></i>
+                    Finality:
+                    <span class="top-bar-value">&lt;5s</span>
+                </div>
+            </div>
+            <div class="top-bar-right">
+                <button class="theme-toggle"><i class="fa-solid fa-sun"></i></button>
+            </div>
+        </div>
+    </div>
+    <header>
+        <div class="header-container">
+            <a href="/" class="logo">
+                <div class="logo-icon"><img src="/assets/logo.svg" alt="DC Explorer Logo" style="width: 100%; height: 100%; object-fit: contain;"></div>
+                <span class="logo-text"><span>DC</span><span>Explorer</span></span>
+            </a>
+            <nav class="main-nav">
+                <div class="nav-item">
+                    <a href="#" class="nav-link">Smartchain <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/strings" class="dropdown-item">Strings (per entity)</a>
+                        <a href="/knots" class="dropdown-item">Knots (anchors)</a>
+                        <a href="/txs" class="dropdown-item">Transactions</a>
+                        <a href="/txsPending" class="dropdown-item">Pending Txns</a>
+                        <div class="dropdown-divider"></div>
+                        <a href="/accounts" class="dropdown-item">Top Accounts</a>
+                        <a href="/contracts" class="dropdown-item">Verified Contracts</a>
+                    </div>
+                </div>
+                <div class="nav-item">
+                    <a href="#" class="nav-link">AI Agents <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/agents" class="dropdown-item">All Agents</a>
+                        <a href="/testimonies" class="dropdown-item">Testimonies</a>
+                        <a href="/validations" class="dropdown-item">Validators</a>
+                    </div>
+                </div>
+                <div class="nav-item">
+                    <a href="#" class="nav-link">Tokens <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/tokens" class="dropdown-item">DCR-20 Tokens</a>
+                        <a href="/tokentxns" class="dropdown-item">Token Transfers</a>
+                        <a href="/vote" class="dropdown-item">Vote</a>
+                    </div>
+                </div>
+                <div class="nav-item">
+                    <a href="#" class="nav-link active">Network <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/ecosystem" class="dropdown-item">Ecosystem Projects</a>
+                        <a href="/vote" class="dropdown-item" id="nav-governance-voting">Governance &amp; Voting</a>
+                        <a href="/defi" class="dropdown-item">DeFi</a>
+                        <a href="/supply" class="dropdown-item">Supply Reconciliation</a>
+                        <a href="/validators" class="dropdown-item">Validators</a>
+                        <a href="/databases" class="dropdown-item">Databases</a>
+                        <a href="/databoxes" class="dropdown-item" id="nav-databox-network">Global Databox Network</a>
+                        <a href="/stats" class="dropdown-item">Charts &amp; Stats</a>
+                    </div>
+                </div>
+                <div class="nav-item">
+                    <a href="#" class="nav-link">More <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/apis" class="dropdown-item">API Docs</a>
+                        <a href="/verify" class="dropdown-item">Verify Contract</a>
+                        <a href="/create-wallet" class="dropdown-item" id="nav-create-wallet">Create Wallet</a>
+                        <a href="/faucet" class="dropdown-item">Faucet</a>
+                        <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank">GitHub</a>
+                        <a href="/partners" class="dropdown-item">Partners</a>
+                        <a href="/contact" class="dropdown-item">Contact</a>
+                    </div>
+                </div>
+            </nav>
+            <div class="header-actions">
+                <button class="btn btn-secondary"><i class="fa-solid fa-wallet"></i> Connect</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="page-header">
+        <div class="container">
+            <div class="page-breadcrumb"><a href="/">Home</a> <i class="fas fa-chevron-right" style="font-size: 8px;"></i> <span>Ecosystem Projects</span></div>
+            <h1 class="page-title">Ecosystem Projects</h1>
+            <p class="page-subtitle">Every project deployed through the <strong>Ecosystem Deployment Console</strong> runs on its own sovereign Datachain Rope node — predictive maintenance fleets, environmental monitoring networks, sentient-environment deployments. Regulators and investors access each project's live, on-chain-anchored data <strong>directly from the project's node</strong>: dcscan lists the projects, but the data stream never passes through an intermediary. Access scope, duration, and pricing are controlled by each project owner via cryptographic grants.</p>
+            <div style="margin-top: 1rem; display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                <a href="https://console.datachain.network/console/" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 8px; background: var(--primary, #2563eb); color: #fff; padding: 9px 18px; border-radius: 8px; font-size: 13.5px; font-weight: 600; text-decoration: none;"><i class="fas fa-rocket"></i> Launch the Deployment Console</a>
+                <a href="https://console.datachain.network/api/v1/ecosystem/public/projects" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 8px; background: transparent; color: var(--gray-600, #4b5563); border: 1px solid var(--gray-300, #d1d5db); padding: 9px 18px; border-radius: 8px; font-size: 13.5px; font-weight: 600; text-decoration: none;"><i class="fas fa-code"></i> Directory API</a>
+            </div>
+            <p class="page-subtitle" style="margin-top: 0.75rem; font-size: 0.8rem;">The hosted console at <a href="https://console.datachain.network/console/">console.datachain.network</a> signs you in with your wallet (EIP-191) and includes a full <b>sandbox mode</b> with synthetic scenario data — no KYB, no cost. Sovereign production deployments can also self-host the same open-source <code>rope-edc</code> binary on their own node and register it in this directory.</p>
+        </div>
+    </div>
+
+    <main class="container">
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-label">Listed Projects</div>
+                <div class="stat-value" id="statTotal">—</div>
+                <div class="stat-change">Live + suspended, all instances</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Monitored Assets</div>
+                <div class="stat-value" id="statAssets">—</div>
+                <div class="stat-change">Machines, sites, environmental zones</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Sensors Anchoring</div>
+                <div class="stat-value" id="statSensors">—</div>
+                <div class="stat-change">Telemetry knots on entity strings</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Countries</div>
+                <div class="stat-value" id="statCountries">—</div>
+                <div class="stat-change">Sovereign deployments worldwide</div>
+            </div>
+        </div>
+
+        <div class="how-panel">
+            <h3><i class="fas fa-key" style="color: var(--gray-400);"></i> Direct data access for regulators &amp; investors</h3>
+            <div class="how-steps">
+                <div class="how-step"><div class="how-num">1</div><p><b>Discover</b> a project below and open its detail card — it lists the public access offers (scope, delivery, pricing) published by the project owner.</p></div>
+                <div class="how-step"><div class="how-num">2</div><p><b>Request a grant</b> from the project owner. Regulator and public grants pass through an on-chain Timelock before activation.</p></div>
+                <div class="how-step"><div class="how-num">3</div><p><b>Receive an API key</b> minted against the grant — scoped to specific assets, facets (readings / diagnoses / approvals), and an expiry.</p></div>
+                <div class="how-step"><div class="how-num">4</div><p><b>Consume directly</b> from the project's own node: REST, live SSE stream, or AI-narrated analytics. Every reading traces to an anchored knot.</p></div>
+            </div>
+        </div>
+
+        <div class="filters">
+            <input id="fQ" type="search" placeholder="Search name, region, tags…">
+            <select id="fArchetype">
+                <option value="">All archetypes</option>
+                <option value="predictive_maintenance">Predictive Maintenance</option>
+                <option value="environmental_monitoring">Environmental Monitoring</option>
+                <option value="hybrid">Hybrid</option>
+            </select>
+            <select id="fStatus">
+                <option value="">All statuses</option>
+                <option value="live">Live</option>
+                <option value="suspended">Suspended</option>
+            </select>
+            <span class="mono" style="color: var(--gray-500);" id="lastRefresh"></span>
+        </div>
+
+        <div class="grid" id="projGrid"></div>
+        <div class="empty" id="emptyState" style="display:none">
+            <i class="fas fa-satellite-dish" style="font-size: 28px; margin-bottom: 0.75rem; color: var(--gray-400);"></i>
+            <p>No ecosystem projects match the current filters.</p>
+            <p style="font-size: 12.5px; margin-top: 0.5rem;">Project owners: deploy through the Ecosystem Deployment Console on your primary node and set your project status to <b>Live</b> to appear here automatically.</p>
+        </div>
+    </main>
+
+    <div class="modal-backdrop" id="modalBackdrop" onclick="if(event.target===this)closeModal()">
+        <div class="modal" id="modalBody"></div>
+    </div>
+
+    <footer>
+        <div class="footer-container">
+            <div class="footer-brand">
+                <div class="logo-icon" style="width: 24px; height: 24px;">
+                    <img src="/assets/logo.svg" alt="DC Explorer" style="width: 100%; height: 100%; object-fit: contain;">
+                </div>
+                DC Explorer — Powered by Datachain Rope
+            </div>
+            <div class="footer-links">
+                <a href="https://datachain.network">Datachain</a>
+                <a href="/apis">API</a>
+                <a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a>
+                <a href="/partners">Partners</a><a href="/contact">Contact</a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        'use strict';
+        let allProjects = [];
+
+        function esc(s){ return String(s == null ? '' : s).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
+        function shortAddr(a){ return a && a.length > 14 ? a.slice(0,8) + '…' + a.slice(-6) : (a || '—'); }
+        function timeAgo(ts){
+            if (!ts) return '—';
+            const s = Math.floor(Date.now()/1000 - ts);
+            if (s < 60) return s + 's ago';
+            if (s < 3600) return Math.floor(s/60) + 'm ago';
+            if (s < 86400) return Math.floor(s/3600) + 'h ago';
+            return Math.floor(s/86400) + 'd ago';
+        }
+        function archetypeBadge(a){
+            const map = {
+                predictive_maintenance: ['badge-pm', 'fa-gears', 'Predictive Maintenance'],
+                environmental_monitoring: ['badge-em', 'fa-leaf', 'Environmental Monitoring'],
+                hybrid: ['badge-hy', 'fa-layer-group', 'Hybrid'],
+            };
+            const [cls, icon, label] = map[a] || map.hybrid;
+            return '<span class="badge ' + cls + '"><i class="fas ' + icon + '"></i> ' + label + '</span>';
+        }
+        function statusBadge(s){
+            const live = String(s).toLowerCase() === 'live';
+            return '<span class="badge ' + (live ? 'badge-live' : 'badge-suspended') + '"><i class="fas fa-circle" style="font-size:6px"></i> ' + esc(s) + '</span>';
+        }
+
+        function renderCard(p){
+            const tags = (p.tags || []).slice(0, 5).map(t => '<span class="tag">' + esc(t) + '</span>').join('');
+            const loc = [p.region, p.country].filter(Boolean).join(', ');
+            return '<div class="proj-card">' +
+                '<div class="proj-head"><div>' +
+                    '<div class="proj-name">' + esc(p.name || p.id) + '</div>' +
+                    '<div class="proj-loc"><i class="fas fa-location-dot"></i> ' + esc(loc || 'Undisclosed') + '</div>' +
+                '</div>' + statusBadge(p.status) + '</div>' +
+                '<div>' + archetypeBadge(String(p.archetype || '').toLowerCase()) + '</div>' +
+                '<div class="proj-meta">' +
+                    '<div class="meta-cell"><div class="k">Assets</div><div class="v">' + (p.asset_count ?? 0) + '</div></div>' +
+                    '<div class="meta-cell"><div class="k">Sensors</div><div class="v">' + (p.sensor_count ?? 0) + '</div></div>' +
+                    '<div class="meta-cell"><div class="k">Since</div><div class="v">' + timeAgo(p.created_at) + '</div></div>' +
+                '</div>' +
+                (tags ? '<div class="tags">' + tags + '</div>' : '') +
+                '<div class="proj-links">' +
+                    '<button class="btn-link primary" onclick="openDetail(\'' + esc(p.id) + '\')"><i class="fas fa-key"></i> Data Access</button>' +
+                    '<a class="btn-link" href="/address/' + esc(p.wallet || '') + '"><i class="fas fa-link"></i> On-chain String</a>' +
+                    (p.stakeholder_url ? '<a class="btn-link" href="' + esc(p.stakeholder_url) + '" target="_blank" rel="noopener"><i class="fas fa-server"></i> Project Node</a>' : '') +
+                '</div>' +
+            '</div>';
+        }
+
+        function applyFilters(){
+            const q = document.getElementById('fQ').value.trim().toLowerCase();
+            const arch = document.getElementById('fArchetype').value;
+            const status = document.getElementById('fStatus').value;
+            const filtered = allProjects.filter(p => {
+                if (arch && String(p.archetype).toLowerCase() !== arch) return false;
+                if (status && String(p.status).toLowerCase() !== status) return false;
+                if (q) {
+                    const hay = [p.name, p.region, p.country, (p.tags || []).join(' ')].join(' ').toLowerCase();
+                    if (!hay.includes(q)) return false;
+                }
+                return true;
+            });
+            const grid = document.getElementById('projGrid');
+            grid.innerHTML = filtered.map(renderCard).join('');
+            document.getElementById('emptyState').style.display = filtered.length ? 'none' : 'block';
+        }
+
+        function updateStats(){
+            document.getElementById('statTotal').textContent = allProjects.length.toLocaleString();
+            const assets = allProjects.reduce((n, p) => n + (p.asset_count || 0), 0);
+            const sensors = allProjects.reduce((n, p) => n + (p.sensor_count || 0), 0);
+            const countries = new Set(allProjects.map(p => (p.country || '').toUpperCase()).filter(Boolean));
+            document.getElementById('statAssets').textContent = assets.toLocaleString();
+            document.getElementById('statSensors').textContent = sensors.toLocaleString();
+            document.getElementById('statCountries').textContent = String(countries.size);
+        }
+
+        async function loadDirectory(){
+            try {
+                const res = await fetch('/api/v1/ecosystem/directory');
+                const data = await res.json();
+                allProjects = data.projects || [];
+                if (data.fetched_at) {
+                    document.getElementById('lastRefresh').textContent = 'refreshed ' + timeAgo(data.fetched_at);
+                }
+                updateStats();
+                applyFilters();
+            } catch (e) {
+                document.getElementById('projGrid').innerHTML = '';
+                const empty = document.getElementById('emptyState');
+                empty.style.display = 'block';
+                empty.querySelector('p').textContent = 'Unable to load the ecosystem directory. Retrying automatically…';
+            }
+        }
+
+        function closeModal(){ document.getElementById('modalBackdrop').classList.remove('open'); }
+
+        async function openDetail(id){
+            const backdrop = document.getElementById('modalBackdrop');
+            const body = document.getElementById('modalBody');
+            body.innerHTML = '<p style="color:var(--gray-500)"><i class="fas fa-spinner fa-spin"></i> Loading live detail from the project node…</p>';
+            backdrop.classList.add('open');
+            try {
+                const res = await fetch('/api/v1/ecosystem/directory/' + encodeURIComponent(id));
+                if (!res.ok) throw new Error('detail unavailable');
+                const data = await res.json();
+                const p = data.project || {};
+                const grants = data.public_grants || [];
+                const apiBase = data.stakeholder_api || '';
+                const grantsHtml = grants.length ? grants.map(g => {
+                    const facets = ((g.scope && g.scope.facets) || []).join(', ') || 'all facets';
+                    const price = g.price
+                        ? (g.price.model === 'free' ? 'Free' : esc((g.price.amount ?? '') + ' ' + (g.price.currency || '') + ' / ' + (g.price.model || '')))
+                        : 'On request';
+                    return '<div class="grant-row">' +
+                        '<div class="g-head"><span><i class="fas fa-id-badge"></i> ' + esc(g.stakeholder_class || 'stakeholder') + '</span><span>' + price + '</span></div>' +
+                        '<div class="g-sub">Scope: ' + esc(facets) + ' · Delivery: ' + esc((g.delivery || []).join(', ') || 'rest') + '</div>' +
+                    '</div>';
+                }).join('') : '<p style="color:var(--gray-500);font-size:13px;margin-top:0.5rem">No public access offers published yet — contact the project owner to request a bespoke grant.</p>';
+                body.innerHTML =
+                    '<button class="close" onclick="closeModal()"><i class="fas fa-xmark"></i></button>' +
+                    '<h2>' + esc(p.name || id) + '</h2>' +
+                    '<div style="margin:0.35rem 0 0.75rem; display:flex; gap:0.5rem; flex-wrap:wrap">' + archetypeBadge(String(p.archetype||'').toLowerCase()) + statusBadge(p.status) + '</div>' +
+                    '<p style="font-size:13px;color:var(--gray-600)">Project wallet <a class="mono" href="/address/' + esc(p.wallet||'') + '">' + shortAddr(p.wallet) + '</a> — every telemetry reading, diagnosis, and approval is anchored as a knot on the project\'s entity strings. Data is served <b>directly from the project\'s own node</b>; dcscan never intermediates the stream.</p>' +
+                    '<h3 style="font-size:0.95rem;margin-top:1rem">Public access offers</h3>' + grantsHtml +
+                    (apiBase ?
+                        '<h3 style="font-size:0.95rem;margin-top:1.1rem">Disintermediated endpoints (with your API key)</h3>' +
+                        '<code class="endpoint">GET  ' + esc(apiBase) + '/overview\nGET  ' + esc(apiBase) + '/readings\nGET  ' + esc(apiBase) + '/stream        # live SSE\nPOST ' + esc(apiBase) + '/ask           # AI-narrated analytics\nAuthorization: Bearer &lt;your-grant-api-key&gt;</code>'
+                        : '') +
+                    '<div class="proj-links" style="margin-top:1rem">' +
+                        (p.stakeholder_url ? '<a class="btn-link primary" href="' + esc(p.stakeholder_url) + '" target="_blank" rel="noopener"><i class="fas fa-server"></i> Open Project Node</a>' : '') +
+                        '<a class="btn-link" href="/address/' + esc(p.wallet||'') + '"><i class="fas fa-link"></i> View On-chain String</a>' +
+                    '</div>';
+            } catch (e) {
+                body.innerHTML = '<button class="close" onclick="closeModal()"><i class="fas fa-xmark"></i></button>' +
+                    '<h2>Project node unreachable</h2>' +
+                    '<p style="font-size:13px;color:var(--gray-600);margin-top:0.5rem">The project\'s sovereign node did not answer. Its public card remains listed from the last directory refresh — try again shortly.</p>';
+            }
+        }
+
+        document.getElementById('fQ').addEventListener('input', applyFilters);
+        document.getElementById('fArchetype').addEventListener('change', applyFilters);
+        document.getElementById('fStatus').addEventListener('change', applyFilters);
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+        loadDirectory();
+        setInterval(loadDirectory, 60000);
+    </script>
+    <script src="/js/dcscan-stats.js"></script>
+    <script src="/js/dcscan-wallet.js?v=20260707b" defer></script>
+</body>
+</html>

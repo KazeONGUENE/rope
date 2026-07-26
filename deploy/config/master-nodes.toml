@@ -27,7 +27,7 @@
 
 schema_version = "1.0"
 chain_id = 271828
-last_updated = "2026-05-03T09:30:00Z"
+last_updated = "2026-07-01T11:20:00Z"
 authority = "Datachain Foundation"
 
 [[master_nodes]]
@@ -122,10 +122,27 @@ domains = [
 #     # then add the printed pubkey here and rsync the file to all nodes.
 # Multiple keys are allowed (laptop + airgapped backup + cold key, etc.).
 founder_keys = [
-    # Founder laptop (Kazé's Mac, 2026-05-03). Private key at ~/.rope/founder.key
-    # NEVER committed to repo. To rotate: revoke + remove this entry, generate
-    # a new one with `rope identity init-founder`, commit, rsync.
-    "eed9f8f6fa68d6272fb81229ca311bd0836e38a188d433253adb2d503564a2e3",
+    # ==================================================================
+    # Rotated 2026-07-01T11:20Z during 2026-06-22 incident response.
+    #
+    # PREVIOUS KEY (REVOKED at this timestamp — no longer recognised as
+    # founder authority anywhere on Datachain Rope):
+    #   eed9f8f6fa68d6272fb81229ca311bd0836e38a188d433253adb2d503564a2e3
+    #
+    # Reason for revocation: precautionary rotation because the workspace
+    # Mac from which the deployer secp256k1 key leaked (see
+    # docs/INCIDENT_2026-06-22_FOUNDATION_TREASURY_DRAIN.md) may have
+    # also held the founder key material or its filesystem-adjacent
+    # artefacts. Rotating removes any residual risk.
+    #
+    # New key generated 2026-07-01T10:25Z on an offline MacBook Pro
+    # (never used for workspace files, never signed into workspace
+    # Cursor / iCloud sync), via OpenSSL 3.6.0 openssl-genpkey Ed25519.
+    # Private key held encrypted on USB (AES-256-CBC + PBKDF2 600K iter)
+    # + paper backup at separate physical location. Cleartext PEM
+    # shredded from the offline machine after backup.
+    # ==================================================================
+    "0e6aa71f8e8161ec7448eca9b04f2e2205b4ef8783810f66cc5c94e4292a77ef",
 ]
 
 # Additional Datawallet+ DID/ONCHAINID identifiers recognized as founder

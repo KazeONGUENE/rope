@@ -1,0 +1,10 @@
+[Unit]
+Description=Ping the Global Databox Network registry every 5 minutes (heartbeat TTL is 10 minutes server-side)
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

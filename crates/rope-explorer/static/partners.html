@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Partners &amp; Ecosystem | DC Explorer</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root { --black: #000; --white: #fff; --gray-50: #fafafa; --gray-100: #f4f4f5; --gray-200: #e4e4e7; --gray-500: #71717a; --gray-600: #52525b; --gray-700: #3f3f46; --gray-800: #27272a; --gray-900: #18181b; --success: #22c55e; --info: #3b82f6; --info-bg: #dbeafe; --font-sans: 'Inter', sans-serif; --radius-md: 8px; --radius-lg: 12px; --radius-xl: 16px; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: var(--font-sans); background: var(--gray-50); color: var(--gray-900); font-size: 14px; }
+        a { color: var(--info); text-decoration: none; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 0 1rem; }
+        header { background: var(--white); border-bottom: 1px solid var(--gray-200); position: sticky; top: 0; z-index: 100; }
+        .header-container { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+        .logo { display: flex; align-items: center; gap: 0.625rem; font-weight: 450; font-size: 1rem; color: #000; line-height: 1.2; }
+        .logo-text { display: flex; flex-direction: column; }
+        .logo-icon { width: 32px; height: 32px; }
+        .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.5rem 1rem; font-size: 13px; font-weight: 600; border-radius: var(--radius-md); border: none; cursor: pointer; }
+        .btn-secondary { background: var(--gray-100); color: var(--gray-700); }
+        .btn-primary { background: var(--black); color: var(--white); }
+        .hero { background: linear-gradient(135deg, var(--gray-900), var(--gray-800)); color: var(--white); padding: 4rem 0; text-align: center; }
+        .hero-title { font-size: 2.5rem; font-weight: 700; margin-bottom: 0.75rem; }
+        .hero-subtitle { color: #94a3b8; font-size: 1.125rem; max-width: 640px; margin: 0 auto; line-height: 1.6; }
+        .partners-intro { color: var(--gray-600); max-width: 800px; margin: 2rem auto 0; line-height: 1.7; text-align: center; }
+        .partners-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin: 2.5rem 0; }
+        .partner-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-xl); padding: 1.75rem; transition: border-color 0.2s, box-shadow 0.2s; }
+        .partner-card.linkable:hover { border-color: var(--gray-500); box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+        .partner-card.current { background: var(--gray-900); color: var(--white); border-color: var(--gray-900); }
+        .partner-icon { width: 44px; height: 44px; border-radius: var(--radius-md); background: var(--black); color: var(--white); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; margin-bottom: 1rem; }
+        .partner-card.current .partner-icon { background: var(--white); color: var(--black); }
+        .partner-name { font-size: 1.15rem; font-weight: 700; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; }
+        .partner-badge { font-size: 0.65rem; font-weight: 600; background: rgba(255,255,255,0.15); color: var(--white); padding: 2px 8px; border-radius: 6px; }
+        .partner-desc { color: var(--gray-600); font-size: 0.85rem; line-height: 1.6; margin-bottom: 0.75rem; }
+        .partner-card.current .partner-desc { color: #cbd5e1; }
+        .partner-url { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 600; }
+        .partner-card.current .partner-url { color: #e2e8f0; }
+        .control-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-xl); padding: 2rem; margin-bottom: 3rem; }
+        .control-card h2 { font-size: 1.2rem; margin-bottom: 0.75rem; }
+        .control-card p { color: var(--gray-600); line-height: 1.7; margin-bottom: 1rem; }
+        .control-list { display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.85rem; color: var(--gray-600); }
+        .control-list i { width: 18px; color: var(--black); }
+        .control-list code { background: var(--gray-100); padding: 1px 6px; border-radius: 4px; font-size: 0.8rem; }
+        footer { background: var(--white); border-top: 1px solid var(--gray-200); padding: 2rem 0; margin-top: 3rem; }
+        .footer-content { display: flex; justify-content: space-between; }
+        .footer-brand { display: flex; align-items: center; gap: 0.5rem; color: var(--gray-500); }
+        .footer-links { display: flex; gap: 1.5rem; }
+        .footer-links a { font-size: 12px; color: var(--gray-500); }
+        @media (max-width: 768px) { .partners-grid { grid-template-columns: 1fr; } .footer-content { flex-direction: column; gap: 1rem; text-align: center; } }
+    </style>
+</head>
+<body>
+    <header><div class="container header-container"><a href="/" class="logo"><div class="logo-icon"><img src="/assets/logo.svg" alt="DC Explorer" style="width:100%;height:100%;object-fit:contain;"></div><span class="logo-text"><span>DC</span><span>Explorer</span></span></a><button class="btn btn-secondary"><i class="fas fa-wallet"></i> Connect</button></div></header>
+
+    <div class="hero">
+        <div class="container">
+            <h1 class="hero-title">Datachain Ecosystem</h1>
+            <p class="hero-subtitle">DC Explorer is one of three flagship applications built and operated end-to-end by Datachain Foundation SAS on Datachain Rope (chain ID 271828, EVM-compatible).</p>
+        </div>
+    </div>
+
+    <main class="container">
+        <p class="partners-intro">All three applications below run on infrastructure controlled by the Foundation, share the same footer branding, and cross-link to one another &mdash; so anyone (exchanges, listing sites, auditors, users) can independently verify common operational control without taking our word for it.</p>
+
+        <div class="partners-grid">
+            <a href="https://datachain.network" target="_blank" class="partner-card linkable" style="color:inherit;">
+                <div class="partner-icon"><i class="fas fa-globe"></i></div>
+                <div class="partner-name">Datachain Network</div>
+                <div class="partner-desc">Official Foundation site &mdash; mainnet configuration (RPC, chain ID 271828, native FAT symbol), whitepaper, and ecosystem overview.</div>
+                <div class="partner-url">datachain.network <i class="fas fa-arrow-up-right-from-square" style="font-size:0.7rem;"></i></div>
+            </a>
+            <a href="https://dcswap.net" target="_blank" class="partner-card linkable" style="color:inherit;">
+                <div class="partner-icon"><i class="fas fa-right-left"></i></div>
+                <div class="partner-name">DCSwap</div>
+                <div class="partner-desc">The native decentralized exchange for FAT and Datachain Rope assets &mdash; swaps, liquidity, staking, LaunchLab, and perpetual markets.</div>
+                <div class="partner-url">dcswap.net <i class="fas fa-arrow-up-right-from-square" style="font-size:0.7rem;"></i></div>
+            </a>
+            <div class="partner-card current">
+                <div class="partner-icon"><i class="fas fa-magnifying-glass-chart"></i></div>
+                <div class="partner-name">DC Explorer <span class="partner-badge">You are here</span></div>
+                <div class="partner-desc">Block explorer for Datachain Rope &mdash; verify every transaction, contract, and the live supply-reconciliation dashboard on-chain.</div>
+                <div class="partner-url">dcscan.io</div>
+            </div>
+        </div>
+
+        <div class="control-card">
+            <h2>Operator &amp; Domain Control</h2>
+            <p>Legal operating entity: <strong>Datachain Foundation SAS</strong>. All three domains above &mdash; <code>datachain.network</code>, <code>dcswap.net</code>, and <code>dcscan.io</code> &mdash; are operated on the Foundation's own infrastructure and reference each other directly from their respective footers/navigation, exactly as shown on this page. Anyone can navigate these links themselves rather than relying on a written claim.</p>
+            <div class="control-list">
+                <div><i class="fas fa-envelope"></i> Contact: <a href="mailto:contact@datachain.one">contact@datachain.one</a></div>
+                <div><i class="fab fa-github"></i> Source code: <a href="https://github.com/KazeONGUENE/rope" target="_blank">github.com/KazeONGUENE/rope</a></div>
+                <div><i class="fab fa-x-twitter"></i> Social: <a href="https://x.com/DATACHAINDC" target="_blank">@DATACHAINDC</a> &middot; <a href="https://t.me/datachain" target="_blank">Telegram</a> &middot; <a href="https://www.linkedin.com/company/datachaindc/" target="_blank">LinkedIn</a></div>
+                <div><i class="fas fa-server"></i> Public RPC: <code>erpc.datachain.network</code> (chain ID 271828)</div>
+                <div><i class="fas fa-chart-pie"></i> Live cross-checks: <a href="/supply">Supply reconciliation</a> &middot; <a href="/defi">DeFi / DCSwap stats</a> &middot; <a href="/api/v1/supply/circulating" target="_blank">Circulating supply API</a></div>
+            </div>
+        </div>
+    </main>
+
+    <footer><div class="container footer-content"><div class="footer-brand"><img src="/assets/logo.svg" alt="DC Explorer" style="width:24px;height:24px;"> DC Explorer - Powered by Datachain Rope</div><div class="footer-links"><a href="https://datachain.network">Datachain</a><a href="/apis">API</a><a href="/partners">Partners</a><a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a><a href="/contact">Contact</a></div></div></footer>
+</body>
+</html>

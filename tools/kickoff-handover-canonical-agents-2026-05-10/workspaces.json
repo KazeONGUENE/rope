@@ -1,0 +1,326 @@
+{
+  "$comment": [
+    "Single source of truth for the 2026-05-10 canonical-agents handover kickoff.",
+    "Both kickoff.ts (SDK) and kickoff.sh (cursor-agent CLI) read this file.",
+    "",
+    "SCHEMA NOTES (v2 — refactored 2026-05-10 after the tanastok deploy lesson):",
+    "  - cwd: absolute path to the project workspace on this laptop",
+    "  - sensitivity: 'normal' | 'health' | 'securities' | 'real-money' — gates safety constraints",
+    "  - actions: ordered list of recommendations from the refreshed handover that THIS project owes",
+    "  - emission_signals: code-presence checks (ripgrep / file existence). Honoured in --emission and --full",
+    "    modes only. A hit means 'the code change is shipped to disk', NOT that production is running it.",
+    "  - deploy_signals: live-production checks (curl URL, RPC call, dcscan.io stats). Honoured in --deploy",
+    "    and --full modes only. A hit means 'production is verifiably running the new code'.",
+    "  - already_done_signals (deprecated): pre-v2 alias. Treated as the union of emission+deploy when",
+    "    emission_signals/deploy_signals aren't set.",
+    "  - deploy_command: the audited shell command to deploy this project, harvested from",
+    "    .cursor/quipu-canon-v1.2-deploy-plan.md. null = no scripted deploy path (deploy is human-owned).",
+    "  - production_check: { url, expected_status, follow_redirects, ssh_state_check?, eas_check?,",
+    "    rpc_check? } — used by primer STEP 5 (verify) and by --direct-deploy mode for end-to-end smoke",
+    "    testing. eas_check is for Expo OTA deploys; rpc_check is for chain-level state.",
+    "  - min_disk_gib: minimum free disk required to safely build+deploy this project. Pre-flight gate.",
+    "  - ssh_keys_required: list of SSH key paths the deploy_command needs. Pre-flight gate.",
+    "  - human_setup_required (optional, default false): true when the workspace needs one-off operator",
+    "    config (linking an EAS project, creating a git remote, generating a service account) before the",
+    "    deploy_command can run. Pre-flight surfaces this as a soft warning; --deploy mode skips deploy",
+    "    step but still allows --emission to proceed.",
+    "  - human_setup_checklist (optional): ordered list of one-off setup steps the operator must perform.",
+    "    Surfaced verbatim by pre-flight when human_setup_required is true. Examples: link EAS project,",
+    "    rotate API keys, configure git remote.",
+    "  - primer_extra: a single concise project-specific paragraph",
+    "",
+    "TANASTOK LESSON (2026-05-10): the v1 schema treated emission and deploy as one phase, so a",
+    "code-grep hit on emission_signals[0] was enough to write the 'implemented' marker even when the",
+    "deploy had crashed on ENOSPC and production was still serving the old build. The split below",
+    "makes that conflation impossible — STEP 0 in deploy mode now requires a deploy_signal hit (a live",
+    "URL serving HTTP 200 against the new build), not just a code-grep."
+  ],
+  "schema_version": 2,
+  "handover_reference": "/Users/kazealphonseonguene/Downloads/DATACHAIN ROPE/.cursor/rules/handover-canonical-agents-live-from-rope-2026-05-05.mdc",
+  "implemented_marker": ".cursor/handover-canonical-agents-2026-05-10-implemented.marker",
+  "blocked_report": ".cursor/handover-canonical-agents-2026-05-10-blocked.md",
+  "plan_file": ".cursor/handover-canonical-agents-2026-05-10-plan.md",
+  "default_min_disk_gib": 5,
+  "workspaces": [
+    {
+      "name": "dcswap",
+      "cwd": "/Users/kazealphonseonguene/Downloads/dcswap",
+      "sensitivity": "normal",
+      "actions": [
+        "Add a 'Request data erasure (GDPR Art.17)' link in the DCSwap front-end pointing at https://compliance-agent.datachain.network/v1/gdpr/article17",
+        "Emit per-contract strings (kind='contract') via rope_appendToLedger for the Router, Factory, and each Pair on structural events (deploy, upgrade, fee-policy change, pool listing/delisting). The Quipu v1.2 string registry currently shows zero contract-strings — your project owes this",
+        "Confirm /v1/prices payload shape stays stable; if you must bump the priceMechanism version, coordinate with dcscan.io first (it consumes priceMechanism.version verbatim)",
+        "Note the new 'dcswap-reserves(outlier-rejected-gecko)' source string is intended behaviour — the GeckoTerminal XDC feed is auto-rejected when it diverges. Document it in your indexer if you haven't already"
+      ],
+      "emission_signals": [
+        "Front-end source contains a string match for 'compliance-agent.datachain.network' or 'gdpr/article17'",
+        "Indexer source contains a call to rope_appendToLedger with kind=\"contract\""
+      ],
+      "deploy_signals": [
+        "https://dcscan.io/api/v1/stats reports stringsByKind.contract.strings >= 1",
+        "https://dcswap.net rendered HTML contains a string match for 'gdpr/article17' or 'data erasure' (case-insensitive)"
+      ],
+      "deploy_command": null,
+      "deploy_command_notes": "BLOCKED per .cursor/quipu-canon-v1.2-deploy-plan.md — no single command path qualifies as the project's own deploy method with audit evidence. Deploy is currently human-owned (rsync to dcswap-vps + indexer/frontend restart). When this is automated, set deploy_command to the audited entry-point.",
+      "production_check": {
+        "url": "https://dcswap.net",
+        "expected_status": 200,
+        "follow_redirects": true
+      },
+      "min_disk_gib": 3,
+      "ssh_keys_required": [],
+      "primer_extra": "DCSwap has TWO surfaces to consider: the indexer (Node service on dcswap-vps:/opt/dcswap) and the front-end (https://dcswap.net). The Art.17 link is pure UI work; the contract-string emission is indexer-side. The deploy-kickoff-quipu-canon-v1.2 marker is already present, so v1.2 emission code is in production — your job is the additive 2026-05-10 recommendations. No automated deploy path is recorded; if you can implement the changes but can't ship them, write a blocker."
+    },
+    {
+      "name": "moneymaker",
+      "cwd": "/Users/kazealphonseonguene/Downloads/moneymaker",
+      "sensitivity": "real-money",
+      "actions": [
+        "Ensure the trading-bot's primary wallet has a personal ledger created via rope_createPersonalLedger (the May 5 lesson: anchors silently fail with RPC error 2002 if the ledger does not yet exist; the call is idempotent — error 2001 'already exists' is a safe no-op)",
+        "Optional: add the wallet-onboarding call to your bootstrap script so future deployments are self-healing"
+      ],
+      "emission_signals": [
+        "Bot bootstrap source contains a string match for 'rope_createPersonalLedger'"
+      ],
+      "deploy_signals": [
+        "Querying rope_getString(<bot wallet>) on https://erpc.datachain.network returns knot_count >= 1 (proving the ledger exists)",
+        "A recent log entry on the bot host confirms a successful rope_appendToLedger call (which is impossible without a ledger)"
+      ],
+      "deploy_command": "./deploy.sh",
+      "deploy_command_notes": "Audited via .cursor/quipu-canon-v1.2-deploy-plan.md. Default key is ~/.ssh/shametrails_key; pass an alternate path as $1 if needed.",
+      "production_check": {
+        "url": null,
+        "rpc_check": "POST https://erpc.datachain.network method=rope_getString params=[<bot wallet>] expects: knot_count >= 1"
+      },
+      "min_disk_gib": 2,
+      "ssh_keys_required": ["~/.ssh/shametrails_key"],
+      "primer_extra": "REAL-MONEY trading bot. Do NOT modify trading logic; the ONLY change is the one-time-per-wallet rope_createPersonalLedger bootstrap, which is read-only side-effect-free at the protocol level. If the bot already anchors successfully today, the ledger exists — write the marker with a deploy_signals hit and exit."
+    },
+    {
+      "name": "tanastok",
+      "cwd": "/Users/kazealphonseonguene/Downloads/tanastok-app",
+      "sensitivity": "normal",
+      "actions": [
+        "Start emitting per-asset strings (kind='asset') via rope_appendToLedger for every DCNFT and every ERC-3643 token. Genesis knot = mint event; subsequent knots = transfers, valuation updates, fractionalisation. The Quipu v1.2 string registry currently shows zero asset-strings — this is the canonical example of the per-entity emission gap flagged in the refreshed handover §'Drift since 2026-05-05' §3",
+        "Optional: put a thin Cloudflare cache (or equivalent) in front of /api/v1/tokenized-assets so the rope-vps 5-min priming cron becomes redundant. If you do this, send a note to the Datachain Rope agent so the cron can be retired"
+      ],
+      "emission_signals": [
+        "Issuer scripts contain a call to rope_appendToLedger with kind=\"asset\" (e.g. src/lib/quipu-canon-emission.ts)",
+        "scripts/quipu-backfill-asset-registry-knots.ts exists"
+      ],
+      "deploy_signals": [
+        "https://dcscan.io/api/v1/stats reports stringsByKind.asset.strings >= 1",
+        "https://semantic-agent.datachain.network/v1/search?q=&string_kind=asset returns at least one hit"
+      ],
+      "deploy_command": "./deploy-clean-production.sh",
+      "deploy_command_notes": "Audited via .cursor/quipu-canon-v1.2-deploy-plan.md. Blue-green zero-downtime: reads /opt/tanastok/deploy-state/active-slot, deploys to inactive slot, health-checks, switches nginx, stops old slot. Built locally first (Next.js production build, ~1 GB output), then rsync to VPS. Disk: needs ~5 GiB free for Next.js build trace files (we hit ENOSPC at 4 GiB on 2026-05-10). Use --maintenance flag ONLY for intentional downtime.",
+      "production_check": {
+        "url": "https://tanastok.io",
+        "expected_status": 200,
+        "follow_redirects": true,
+        "ssh_state_check": "ssh -p 47891 -i ~/.ssh/shametrails_key ubuntu@92.243.24.244 'cat /opt/tanastok/deploy-state/active-slot'"
+      },
+      "min_disk_gib": 5,
+      "ssh_keys_required": ["~/.ssh/shametrails_key"],
+      "primer_extra": "Tanastok ships 198+ tokenized assets and is the reference implementation for kind='asset' emission across the ecosystem. Your existing v1.2-emission-shipped marker covers the wallet-kind path; the asset-kind path is the new work. Touch ONLY issuer / minting scripts; do NOT modify the public API at /api/v1/tokenized-assets. Build is HEAVY (Next.js 16, ~1 GB output) — pre-flight gate must clear 5 GiB free disk before launching. The audited deploy-clean-production.sh is the script to use; do NOT improvise."
+    },
+    {
+      "name": "naturaproof",
+      "cwd": "/Users/kazealphonseonguene/Downloads/NaturaProof-platform",
+      "sensitivity": "normal",
+      "actions": [
+        "If your real biodiversity API is ready, document its base URL + auth method in .cursor/handover-canonical-agents-2026-05-10-plan.md so the Datachain Rope agent can swap the insurance-agent's NaturaProofStubFeed placeholder for the live feed (the swap itself happens in the Datachain Rope repo, not yours)",
+        "Optional: emit per-asset strings (kind='asset') for verified biodiversity claims via rope_appendToLedger. Genesis knot = field measurement; subsequent knots = third-party verification, certificate issuance, revocation"
+      ],
+      "emission_signals": [
+        "Workspace contains an environment file or config that documents a /v1/biodiversity/... or similar real API base URL (not 'TODO' or 'stub')",
+        "Issuer scripts contain a call to rope_appendToLedger with kind=\"asset\""
+      ],
+      "deploy_signals": [
+        "https://naturaproof.com/api/rope/handover-status returns HTTP 200 with a recent timestamp",
+        "https://dcscan.io/api/v1/stats reports stringsByKind.asset.strings >= 1 attributed to naturaproof"
+      ],
+      "deploy_command": "./deploy/deploy.sh",
+      "deploy_command_notes": "Audited via .cursor/quipu-canon-v1.2-deploy-plan.md. Workspace has NO .git directory — emission code lives only on this laptop, so there is no push step.",
+      "production_check": {
+        "url": "https://naturaproof.com/api/rope/handover-status",
+        "expected_status": 200,
+        "follow_redirects": false
+      },
+      "min_disk_gib": 2,
+      "ssh_keys_required": [],
+      "primer_extra": "Workspace has NO .git directory according to the v1.2 deploy-kickoff README — emission code lives only on this laptop. Anything you add lives only here unless you intentionally push elsewhere. Be conservative: prefer documenting the API in the plan file over wiring it up automatically."
+    },
+    {
+      "name": "careaway",
+      "cwd": "/Users/kazealphonseonguene/Downloads/Careways_health_Connect",
+      "sensitivity": "health",
+      "actions": [
+        "Wire the Art.17 endpoint (POST https://compliance-agent.datachain.network/v1/gdpr/article17) into the health-data erasure flow. When a patient invokes their GDPR right-of-erasure, the endpoint orchestrates the rope_untieKnot call, anchors a GdprArticle17Testimony, and returns the audit trail",
+        "Tag knots emitted from this app with explicit event_type (e.g. 'health:enrollment', 'health:care-delivery') and string_kind so semantic-agent can index them — see https://semantic-agent.datachain.network/v1/search"
+      ],
+      "emission_signals": [
+        "Source contains a string match for 'compliance-agent.datachain.network' OR 'gdpr/article17'",
+        "Source contains explicit event_type strings prefixed with 'health:' or similar"
+      ],
+      "deploy_signals": [
+        "Production careaway URL serves a page whose HTML contains 'gdpr/article17' OR 'data erasure' (case-insensitive)",
+        "https://semantic-agent.datachain.network/v1/search?q=health:&limit=1 returns at least one hit"
+      ],
+      "deploy_command": "bash ./deploy-marketplace-admin.sh",
+      "deploy_command_notes": "Audited via .cursor/quipu-canon-v1.2-deploy-plan.md. PRIMARY: bash ./deploy-marketplace-admin.sh (uses pm2 — confirmed live supervisor on VPS, NOT systemd). FOLLOW-UP scp sync of quipuCanonEmitter.cjs + auth/consent/liquidity-pool/health-plans routes to /var/www/careaway/api on 92.243.24.180, then ssh restart pm2 careaway-api --update-env. server.cjs may need /tmp + sudo cp because of www-data ownership.",
+      "production_check": {
+        "url": "https://careaway.health",
+        "expected_status": 200,
+        "follow_redirects": true
+      },
+      "min_disk_gib": 3,
+      "ssh_keys_required": ["~/.ssh/careaway_admin_key"],
+      "primer_extra": "HEALTH DATA. If the Art.17 wiring requires a database migration that touches patient records, STOP and write a blocker — that migration needs human approval, not an agent. The recommended scope is UI + API plumbing only: a button that POSTs to the compliance-agent endpoint and surfaces the response. The audited deploy is multi-step (script + scp sync + remote pm2 restart); follow it exactly."
+    },
+    {
+      "name": "alteros",
+      "cwd": "/Users/kazealphonseonguene/alteros",
+      "sensitivity": "normal",
+      "actions": [
+        "Verify the agent wallet (or platform wallet) has a personal ledger created via rope_createPersonalLedger. If not, add it to the bootstrap path",
+        "Confirm v1.2 emission code is still active and successfully anchoring — query rope_getString on the platform wallet and verify recent knot_count growth"
+      ],
+      "emission_signals": [
+        "Bootstrap or onboarding source contains a string match for 'rope_createPersonalLedger'"
+      ],
+      "deploy_signals": [
+        "Querying rope_getString(<alteros wallet>) on https://erpc.datachain.network returns knot_count >= 1",
+        "Docker container 'alteros-alteros-webapp-1' is 'Up' on the alteros webapp VPS and HTTP GET http://localhost:15432/health returns 200"
+      ],
+      "deploy_command": "./deploy-to-vps.sh",
+      "deploy_command_notes": "Audited via .cursor/quipu-canon-v1.2-deploy-plan.md. FULL run (NOT --skip-build) so Dockerfile.webapp includes current src/quipu/ and the image is pushed before the VPS pulls braincitieslab/alteros-webapp:latest. CORRECTED 2026-05-10: alteros is docker-compose-managed (compose stack 'alteros' in /opt/alteros), NOT a systemd unit. The earlier 'alteros-webapp.service inactive' verification failure was a false alarm — there is no such systemd unit and there never was. Verify with 'docker ps --filter name=alteros-webapp' + curl /health.",
+      "production_check": {
+        "url": null,
+        "ssh_state_check": "ssh -i ~/.ssh/shametrails_key ubuntu@92.243.25.58 'docker ps --filter name=alteros-webapp --format \"{{.Status}}\" | grep -q \"^Up\" && curl -sf -o /dev/null -w \"%{http_code}\" http://localhost:15432/health' (must return 200 with the docker filter matching)"
+      },
+      "min_disk_gib": 5,
+      "ssh_keys_required": ["~/.ssh/shametrails_key"],
+      "primer_extra": "Alteros is outside ~/Downloads (lives at ~/alteros). The v1.2 emission-shipped marker may not be present here — the pattern was scoped to the 9 Downloads-resident projects. If the marker is missing, treat that as a separate finding (not a hard precondition fail) and proceed with the canonical-agents recommendations only. CORRECTED 2026-05-10: alteros is docker-compose-managed (not systemd); the previous 'systemd unit inactive' verification was looking at a non-existent unit. Use 'docker ps --filter name=alteros-webapp' as the canonical container-up check, and 'curl http://localhost:15432/health' as the canonical readiness check."
+    },
+    {
+      "name": "shametrails",
+      "cwd": "/Users/kazealphonseonguene/Downloads/shametrails",
+      "sensitivity": "normal",
+      "actions": [
+        "Wire the Art.17 endpoint (POST https://compliance-agent.datachain.network/v1/gdpr/article17) into the wellness-data erasure flow",
+        "Tag knots emitted from this app with explicit event_type and string_kind so semantic-agent can index them"
+      ],
+      "emission_signals": [
+        "Source contains a string match for 'compliance-agent.datachain.network' OR 'gdpr/article17'",
+        "Source contains explicit event_type strings (e.g. 'wellness:...', 'shame:...')"
+      ],
+      "deploy_signals": [
+        "EAS update channel 'production' shows a recent push: `eas update:list --branch production --limit 1` is dated within 24h of the latest local commit",
+        "https://expo.dev/accounts/datachainfoundation/projects/shametrails/updates returns the new commit message",
+        "OTA fetch from a phone (or `expo-updates` API) returns the build whose JS bundle hash matches the local hash"
+      ],
+      "deploy_command": "eas update --branch production --message \"chore(handover-2026-05-10): GDPR Art.17 + semantic facets + ledger append\"",
+      "deploy_command_notes": "EAS-OTA path. Owner: datachainfoundation. Project URL: https://expo.dev/accounts/datachainfoundation/projects/shametrails. Native binary path (eas build + eas submit) is HUMAN-ONLY because store review is required. Past submission: EAS Submit 1n0g9AMUes. iOS App Store Connect keys: PM964XKLSQ (Skywatchers), GQ2QI5GE3QV1 (+Skywatchers). Apple Team: Q5UBRU9F2C (BRAINCITIES LAB). +Skywatchers iOS bundle: com.shametrails.shametrails.9lkvv3.",
+      "human_setup_required": true,
+      "human_setup_checklist": [
+        "STEP 1: Update app.json to set owner=\"datachainfoundation\", slug=\"shametrails\", expo.ios.bundleIdentifier (likely com.shametrails.shametrails or com.shametrails.shametrails.9lkvv3 for +Skywatchers), expo.android.package (mirror iOS naming).",
+        "STEP 2: Run `eas init --id <projectId>` from the workspace to link to the existing Expo project (project id is visible at https://expo.dev/accounts/datachainfoundation/projects/shametrails — not in this file because it changes on every project).",
+        "STEP 3: Create eas.json with at least a 'production' build profile (channel: production) and a 'submit' section referencing the App Store Connect API key (key id PM964XKLSQ or GQ2QI5GE3QV1 for the +Skywatchers variant) and Apple team Q5UBRU9F2C.",
+        "STEP 4: Add a git remote (gh repo create datachainfoundation/shametrails --source=. --push, or analog) so the handover commits have a durable home. EAS does not need git, but ecosystem audit trail does.",
+        "STEP 5: Run `eas whoami` and confirm the logged-in account has write access to datachainfoundation/shametrails. This laptop is currently logged in as 'datachainers' (owner mismatch) — `eas login` with the correct account before first push."
+      ],
+      "production_check": {
+        "url": null,
+        "eas_check": "eas update:list --branch production --limit 1 --json"
+      },
+      "min_disk_gib": 5,
+      "ssh_keys_required": [],
+      "primer_extra": "Wellness data falls under GDPR special categories like Careaway. Same scope: UI + API plumbing only. No DB migrations on user records without explicit human approval. UPDATED 2026-05-10: deploy is via EAS OTA (eas update --branch production), NOT via shell script. The local workspace is currently in a 'vibecode' template state (slug=vibecode, no eas.json, no git remote, owned-by mismatch with datachainfoundation EAS project) — see human_setup_checklist. Until those preconditions are satisfied, agents must EMIT only and write a deferred-deploy blocker, not skip with a false marker."
+    },
+    {
+      "name": "datawallet-web",
+      "cwd": "/Users/kazealphonseonguene/Downloads/Datawallet+",
+      "sensitivity": "normal",
+      "actions": [
+        "Call rope_createPersonalLedger(wallet) at wallet onboarding. The May 5 lesson: anchors silently fail with RPC error 2002 if the ledger does not yet exist. Idempotent — error 2001 'already exists' is a safe no-op",
+        "Integrate the Art.17 endpoint (POST https://compliance-agent.datachain.network/v1/gdpr/article17) into the in-app data-erasure flow",
+        "Use https://semantic-agent.datachain.network/v1/search as the canonical way to query a wallet's history (instead of scanning the chain)",
+        "Optional: emit per-DID strings (kind='did') for ONCHAINID / Datawallet+ identity events"
+      ],
+      "emission_signals": [
+        "Onboarding flow source contains a string match for 'rope_createPersonalLedger'",
+        "Erasure flow source contains a string match for 'compliance-agent.datachain.network' OR 'gdpr/article17'",
+        "History/search source uses 'semantic-agent.datachain.network/v1/search'"
+      ],
+      "deploy_signals": [
+        "https://datawallet.io (or production URL) rendered HTML contains 'gdpr/article17' OR 'data erasure'",
+        "https://dcscan.io/api/v1/stats reports stringsByKind.did.strings >= 1"
+      ],
+      "deploy_command": "npm run build && ./deploy-to-vps.sh",
+      "deploy_command_notes": "Audited via .cursor/quipu-canon-v1.2-deploy-plan.md. dist/ is gitignored and deploy-to-vps.sh only rsyncs ./dist/, so the npm run build prefix is REQUIRED. Target: ubuntu@92.243.25.106:/var/www/datawallet, followed by sudo systemctl restart nginx.",
+      "production_check": {
+        "url": "https://datawallet.io",
+        "expected_status": 200,
+        "follow_redirects": true
+      },
+      "min_disk_gib": 3,
+      "ssh_keys_required": [],
+      "primer_extra": "Vite/React web app. Most of the work is API plumbing in the existing wallet flows. Touch ONLY the wallet/erasure/history modules — do not refactor unrelated UI."
+    },
+    {
+      "name": "datawallet-rn",
+      "cwd": "/Users/kazealphonseonguene/Downloads/DATAWALLET+ReactNative",
+      "sensitivity": "normal",
+      "actions": [
+        "Same four actions as datawallet-web, ported to the React Native surface (mobile)",
+        "Native binary releases (App Store / Play Store) are out of scope; OTA / web-preview surface is in scope"
+      ],
+      "emission_signals": [
+        "Onboarding flow source contains a string match for 'rope_createPersonalLedger'",
+        "Erasure flow source contains a string match for 'compliance-agent.datachain.network' OR 'gdpr/article17'",
+        "History/search source uses 'semantic-agent.datachain.network/v1/search'"
+      ],
+      "deploy_signals": [
+        "OTA / web-preview surface URL serves a build whose HTML contains 'gdpr/article17' OR 'data erasure'",
+        "Recent EAS build log shows a successful OTA push (operator-supplied)"
+      ],
+      "deploy_command": "./deploy.sh --no-push",
+      "deploy_command_notes": "Audited via .cursor/quipu-canon-v1.2-deploy-plan.md. PRIMARY: ./deploy.sh --no-push. Default builds BOTH iOS bundle IDs (modern + legacy). Use ./deploy.sh android --no-push or ./deploy.sh modern --no-push to scope. Native binary releases (App Store / Play Store) are out of agent scope — operator must approve and submit.",
+      "production_check": {
+        "url": null
+      },
+      "min_disk_gib": 5,
+      "ssh_keys_required": [],
+      "primer_extra": "React Native. ONLY touch the JS / OTA / web-preview surface — DO NOT push native binary builds (those need human + store review). If a recommendation requires native code changes, write a blocker."
+    },
+    {
+      "name": "syndicated",
+      "cwd": "/Users/kazealphonseonguene/Downloads/LUZRAN GROUP/syndicated.ltd",
+      "sensitivity": "securities",
+      "actions": [
+        "Replace any hardcoded DC FAT market cap figure (especially the stale $298M from the May 5 handover) with a live read from https://dcscan.io/api/v1/stats → marketCap",
+        "Refresh investor-facing decks / dashboards with the current market cap value (~$323M as of 2026-05-10) — but do not hardcode a new number; use the live read",
+        "If the project ships any tooling that reads marketCap from elsewhere, update it to the canonical source"
+      ],
+      "emission_signals": [
+        "Source contains a string match for 'dcscan.io/api/v1/stats' AND a marketCap-related accessor",
+        "No string match for the literal '298M' or '$298,' anywhere in current source"
+      ],
+      "deploy_signals": [
+        "https://syndicated.ltd rendered HTML displays a market cap value within ±5% of dcscan.io/api/v1/stats marketCap (live read confirmed)",
+        "No literal '$298' string in the live HTML"
+      ],
+      "deploy_command": "bash deploy/quick-deploy.sh",
+      "deploy_command_notes": "Audited via .cursor/quipu-canon-v1.2-deploy-plan.md.",
+      "production_check": {
+        "url": "https://syndicated.ltd",
+        "expected_status": 200,
+        "follow_redirects": true
+      },
+      "min_disk_gib": 3,
+      "ssh_keys_required": [],
+      "primer_extra": "SECURITIES platform. If any recommendation drifts toward an investor-record migration, STOP and write a blocker — that needs human approval. The expected scope is purely a config / data-source swap (hardcoded number → live API read). No DB writes."
+    }
+  ]
+}

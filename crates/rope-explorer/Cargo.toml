@@ -13,6 +13,7 @@ path = "src/main.rs"
 [dependencies]
 rope-core = { path = "../rope-core" }
 rope-crypto = { path = "../rope-crypto" }
+rope-security = { path = "../rope-security" }
 
 # Web framework
 axum = { version = "0.7", features = ["macros", "tokio"] }
@@ -40,8 +41,16 @@ uuid = { version = "1.6", features = ["v4"] }
 hex = { workspace = true }
 blake3 = { workspace = true }
 
+# EIP-191 wallet-signature verification for governance vote casting
+# (same construction as rope-idp's Datachain ID wallet auth).
+k256 = { workspace = true }
+sha3 = { workspace = true }
+
 # HTTP client for price fetching
 reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+
+# CSPRNG for API-key minting
+rand = { workspace = true }
 
 # Caching
 tokio-util = { version = "0.7", features = ["time"] }

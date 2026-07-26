@@ -1,0 +1,59 @@
+/* Address label tag — styled chip shown when address is labelized */
+.addr-label-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: var(--label-bg, #e0f2fe);
+  color: var(--label-fg, #0369a1);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+
+/* Category-based colors */
+.addr-label-tag[data-cat="treasury"] { background: #fef3c7; color: #92400e; }
+.addr-label-tag[data-cat="system"]   { background: #f3e8ff; color: #6b21a8; }
+.addr-label-tag[data-cat="token"]    { background: #dbeafe; color: #1e40af; }
+.addr-label-tag[data-cat="defi"]     { background: #d1fae5; color: #065f46; }
+.addr-label-tag[data-cat="identity"] { background: #fce7f3; color: #9d174d; }
+.addr-label-tag[data-cat="infrastructure"] { background: #e5e7eb; color: #374151; }
+.addr-label-tag[data-cat="trex"]           { background: #f3e8ff; color: #6b21a8; }
+
+/* Toggle button — small icon to switch between label and raw address */
+.addr-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  margin-left: 3px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--gray-400, #9ca3af);
+  font-size: 9px;
+  cursor: pointer;
+  vertical-align: middle;
+  opacity: 0.5;
+  transition: opacity 0.15s, color 0.15s;
+}
+.addr-toggle-btn:hover {
+  opacity: 1;
+  color: var(--primary, #3b82f6);
+  background: var(--gray-100, #f3f4f6);
+}
+
+/* Wrapper links inherit no underline decoration on hover */
+.addr-display-link {
+  text-decoration: none;
+}
+.addr-display-link:hover .mono {
+  text-decoration: underline;
+}
+.addr-display-link:hover .addr-label-tag {
+  filter: brightness(0.95);
+}

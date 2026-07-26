@@ -1,0 +1,8 @@
+/Users/kazealphonseonguene/Downloads/DATACHAIN ROPE/datachain-rope/examples/phase2-signed-rpc/target/debug/deps/displaydoc-d166bccfdec9e166.d: /Users/kazealphonseonguene/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/displaydoc-0.2.6/src/lib.rs /Users/kazealphonseonguene/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/displaydoc-0.2.6/src/attr.rs /Users/kazealphonseonguene/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/displaydoc-0.2.6/src/expand.rs /Users/kazealphonseonguene/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/displaydoc-0.2.6/src/fmt.rs
+
+/Users/kazealphonseonguene/Downloads/DATACHAIN ROPE/datachain-rope/examples/phase2-signed-rpc/target/debug/deps/libdisplaydoc-d166bccfdec9e166.dylib: /Users/kazealphonseonguene/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/displaydoc-0.2.6/src/lib.rs /Users/kazealphonseonguene/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/displaydoc-0.2.6/src/attr.rs /Users/kazealphonseonguene/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/displaydoc-0.2.6/src/expand.rs /Users/kazealphonseonguene/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/displaydoc-0.2.6/src/fmt.rs
+
+/Users/kazealphonseonguene/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/displaydoc-0.2.6/src/lib.rs:
+/Users/kazealphonseonguene/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/displaydoc-0.2.6/src/attr.rs:
+/Users/kazealphonseonguene/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/displaydoc-0.2.6/src/expand.rs:
+/Users/kazealphonseonguene/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/displaydoc-0.2.6/src/fmt.rs:

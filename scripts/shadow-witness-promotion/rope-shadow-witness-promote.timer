@@ -1,0 +1,19 @@
+[Unit]
+Description=rope-shadow-witness — auto-promotion timer (one-shot at canary T+7d)
+Documentation=https://github.com/Datachain-Foundation/datachain-rope/tree/main/datachain-rope/scripts/shadow-witness-promotion
+
+[Timer]
+# Canary started at 2026-05-09T09:16:07 UTC.
+# T+7 days = 2026-05-16T09:16:07 UTC. Fire once at that wall-clock instant.
+# `Persistent=true` plus the `--gate-only` post-run check means a missed
+# fire (host down at the moment) still runs at the next start, while the
+# gate's `chain.first_observed_at_age_s >= 7 days` requirement guarantees
+# the soak window is never short-circuited even if the timer triggers
+# earlier (defence in depth).
+OnCalendar=2026-05-16 09:16:07 UTC
+Persistent=true
+AccuracySec=1min
+Unit=rope-shadow-witness-promote.service
+
+[Install]
+WantedBy=timers.target

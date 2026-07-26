@@ -166,7 +166,7 @@
                 </div>
                 
                 <div class="social-links">
-                    <a href="https://twitter.com/datachain" class="social-link" target="_blank"><i class="fab fa-twitter"></i></a>
+                    <a href="https://x.com/DATACHAINDC" class="social-link" target="_blank"><i class="fab fa-twitter"></i></a>
                     <a href="https://github.com/KazeONGUENE/rope" class="social-link" target="_blank"><i class="fab fa-github"></i></a>
                     <a href="https://discord.gg/datachain" class="social-link" target="_blank"><i class="fab fa-discord"></i></a>
                     <a href="https://t.me/datachain" class="social-link" target="_blank"><i class="fab fa-telegram"></i></a>
@@ -238,6 +238,8 @@
                 <span>Datachain Rope</span>
             </div>
             <div class="footer-links">
+                <a href="/about/">About</a>
+                <a href="https://dcscan.io/create-wallet">Create Wallet</a>
                 <a href="https://dcscan.io">Explorer</a>
                 <a href="https://docs.datachain.network">Documentation</a>
                 <a href="https://github.com/KazeONGUENE/rope">GitHub</a>
@@ -250,25 +252,58 @@
     </footer>
 
     <script>
+        // Contact form — delivered through the ecosystem SendGrid relay
+        // (POST /api/v1/contact on the dc-explorer backend).
+        const CONTACT_ENDPOINT = 'https://dcscan.io/api/v1/contact';
+        const SUBJECT_LABELS = {
+            contributor: 'Becoming a contributor',
+            advisor: 'Becoming an advisor',
+            jobs: 'Internships and jobs',
+            investment: 'Investment offers',
+            partnership: 'Partnership inquiry',
+            other: 'Ask us anything'
+        };
+
         document.getElementById('contactForm').addEventListener('submit', async function(e) {
             e.preventDefault();
-            
+
             const formData = new FormData(this);
             const data = Object.fromEntries(formData.entries());
-            
-            // In production, this would send to an API
-            console.log('Form submitted:', data);
-            
-            // Show success message
-            this.style.display = 'none';
-            document.getElementById('successMessage').classList.add('show');
-            
-            // Reset after 5 seconds
-            setTimeout(() => {
-                this.style.display = 'block';
-                this.reset();
-                document.getElementById('successMessage').classList.remove('show');
-            }, 5000);
+            const submitBtn = this.querySelector('.btn-submit');
+            const originalHtml = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending…';
+
+            try {
+                const res = await fetch(CONTACT_ENDPOINT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: (data.firstName + ' ' + data.lastName).trim(),
+                        email: data.email,
+                        subject: SUBJECT_LABELS[data.subject] || data.subject || 'Contact form',
+                        message: data.message,
+                        source: 'datachain.network'
+                    })
+                });
+                const body = await res.json().catch(() => ({}));
+                if (!res.ok || !body.success) {
+                    throw new Error(body.error || 'Delivery failed — please email contact@datachain.one directly.');
+                }
+
+                this.style.display = 'none';
+                document.getElementById('successMessage').classList.add('show');
+                setTimeout(() => {
+                    this.style.display = 'block';
+                    this.reset();
+                    document.getElementById('successMessage').classList.remove('show');
+                }, 5000);
+            } catch (err) {
+                alert(err.message || 'Delivery failed — please email contact@datachain.one directly.');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalHtml;
+            }
         });
     </script>
 </body>

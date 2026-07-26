@@ -21,6 +21,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 pub mod evm_invocation;
+pub mod migration;
 
 pub mod common {
     //! Common bridge utilities and traits

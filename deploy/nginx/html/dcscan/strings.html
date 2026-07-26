@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Strings (Blocks) | DC Explorer</title>
-    <meta name="description" content="View all strings (blocks) on the Datachain Rope network">
+    <title>Strings (per-entity ledgers) | DC Explorer</title>
+    <meta name="description" content="Per-entity strings on Datachain Rope. Each wallet, contract, asset, and DID owns exactly one string — a logical chain of knots — under Quipu Canon v1.2.">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="/css/dcscan-header.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -13,6 +14,10 @@
             --gray-400: #a1a1aa; --gray-500: #71717a; --gray-600: #52525b; --gray-700: #3f3f46;
             --gray-800: #27272a; --gray-900: #18181b; --success: #22c55e; --success-bg: #dcfce7;
             --warning: #f59e0b; --warning-bg: #fef3c7; --info: #3b82f6; --info-bg: #dbeafe;
+            --purple: #8b5cf6; --purple-bg: #ede9fe;
+            --pink: #ec4899; --pink-bg: #fce7f3;
+            --teal: #14b8a6; --teal-bg: #ccfbf1;
+            --orange: #f97316; --orange-bg: #ffedd5;
             --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             --font-mono: 'JetBrains Mono', monospace;
             --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px;
@@ -22,136 +27,148 @@
         body { font-family: var(--font-sans); background: var(--gray-50); color: var(--gray-900); line-height: 1.5; font-size: 14px; }
         a { color: var(--info); text-decoration: none; } a:hover { text-decoration: underline; }
         .container { max-width: 1400px; margin: 0 auto; padding: 0 1rem; }
-        .top-bar { background: var(--gray-900); color: var(--white); padding: 0.5rem 0; font-size: 12px; }
-        .top-bar-content { display: flex; justify-content: space-between; align-items: center; }
-        .top-bar-left { display: flex; align-items: center; gap: 1.5rem; }
-        .top-bar-item { display: flex; align-items: center; gap: 0.375rem; color: var(--gray-400); }
-        .top-bar-value { color: var(--white); font-weight: 500; }
-        header { background: var(--white); border-bottom: 1px solid var(--gray-200); position: sticky; top: 0; z-index: 100; }
-        .header-container { display: flex; align-items: center; justify-content: space-between; height: 64px; }
-        .logo { display: flex; align-items: center; gap: 0.625rem; font-weight: 450; font-size: 1rem; color: #000; line-height: 1.2; }
-        .logo-text { display: flex; flex-direction: column; }
-        .logo-icon { width: 32px; height: 32px; }
-        .main-nav { display: flex; align-items: center; gap: 0.25rem; }
-        .nav-item { position: relative; }
-        .nav-link { display: flex; align-items: center; gap: 0.375rem; padding: 0.5rem 0.875rem; color: var(--gray-600); font-weight: 500; font-size: 13px; border-radius: var(--radius-md); }
-        .nav-link:hover { color: var(--black); background: var(--gray-100); text-decoration: none; }
-        .nav-link.active { background: var(--gray-900); color: var(--white); }
-        .nav-dropdown { position: absolute; top: 100%; left: 0; min-width: 220px; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); padding: 0.5rem; opacity: 0; visibility: hidden; transform: translateY(10px); transition: all 0.2s; z-index: 200; }
-        .nav-item:hover .nav-dropdown { opacity: 1; visibility: visible; transform: translateY(0); }
-        .dropdown-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.625rem 0.75rem; color: var(--gray-700); border-radius: var(--radius-sm); font-size: 13px; }
-        .dropdown-item:hover { background: var(--gray-100); color: var(--black); text-decoration: none; }
-        .dropdown-item i { width: 16px; color: var(--gray-500); }
-        .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.5rem 1rem; font-size: 13px; font-weight: 600; border-radius: var(--radius-md); border: none; cursor: pointer; }
-        .btn-secondary { background: var(--gray-100); color: var(--gray-700); }
         .page-header { background: var(--white); border-bottom: 1px solid var(--gray-200); padding: 1.5rem 0; }
         .page-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem; }
         .page-subtitle { color: var(--gray-500); font-size: 0.875rem; }
         .page-breadcrumb { display: flex; align-items: center; gap: 0.5rem; font-size: 12px; color: var(--gray-500); margin-bottom: 0.5rem; }
+        .invariant-callout { background: var(--info-bg); border-left: 3px solid var(--info); padding: 0.75rem 1rem; border-radius: var(--radius-sm); margin-top: 0.75rem; font-size: 13px; color: var(--gray-700); }
+        .invariant-callout code { font-family: var(--font-mono); background: rgba(255,255,255,0.5); padding: 0 0.25rem; border-radius: 3px; }
         .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin: 1.5rem 0; }
         .stat-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 1.25rem; }
         .stat-label { font-size: 12px; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
         .stat-value { font-size: 1.5rem; font-weight: 700; }
         .stat-change { font-size: 12px; margin-top: 0.25rem; color: var(--gray-500); }
-        .stat-change.positive { color: #ef4444; }
+        .filter-row { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+        .filter-pill { padding: 0.45rem 0.9rem; border: 1px solid var(--gray-200); background: var(--white); border-radius: 100px; font-size: 12px; font-weight: 600; cursor: pointer; color: var(--gray-700); }
+        .filter-pill:hover { background: var(--gray-100); }
+        .filter-pill.active { background: var(--black); color: var(--white); border-color: var(--black); }
         .table-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); overflow: hidden; }
         .table-header { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; border-bottom: 1px solid var(--gray-200); }
         .table-title { font-weight: 600; display: flex; align-items: center; gap: 0.5rem; }
         .data-table { width: 100%; border-collapse: collapse; }
         .data-table th { background: var(--gray-50); padding: 0.75rem 1rem; text-align: left; font-weight: 600; font-size: 12px; color: var(--gray-600); text-transform: uppercase; border-bottom: 1px solid var(--gray-200); }
-        .data-table td { padding: 0.875rem 1rem; border-bottom: 1px solid var(--gray-100); font-size: 13px; }
+        .data-table td { padding: 0.875rem 1rem; border-bottom: 1px solid var(--gray-100); font-size: 13px; vertical-align: middle; }
         .data-table tr:hover { background: var(--gray-50); }
         .mono { font-family: var(--font-mono); font-size: 12px; }
-        .badge { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.5rem; font-size: 11px; font-weight: 600; border-radius: 100px; }
-        .badge-success { background: var(--success-bg); color: #ef4444; }
-        .string-number { font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 0.5rem; }
-        .string-icon { width: 32px; height: 32px; background: var(--black); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; color: var(--white); }
-        .validator-link { display: flex; align-items: center; gap: 0.375rem; }
-        .validator-icon { width: 20px; height: 20px; border-radius: 50%; background: url('/assets/user-avatar.png') center/cover no-repeat; color: var(--white); }
-        .progress-bar { width: 80px; height: 4px; background: var(--gray-200); border-radius: 2px; overflow: hidden; }
-        .progress-bar-fill { height: 100%; background: var(--success); border-radius: 2px; }
+        .kind-badge { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.25rem 0.55rem; font-size: 11px; font-weight: 700; border-radius: 100px; text-transform: uppercase; letter-spacing: 0.04em; }
+        .kind-wallet { background: var(--info-bg); color: var(--info); }
+        .kind-contract { background: var(--purple-bg); color: var(--purple); }
+        .kind-asset { background: var(--orange-bg); color: var(--orange); }
+        .kind-did { background: var(--teal-bg); color: var(--teal); }
+        .kind-cord { background: var(--gray-100); color: var(--gray-700); }
+        .knot-count-cell { font-family: var(--font-mono); font-weight: 600; color: var(--gray-900); }
         .pagination { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; border-top: 1px solid var(--gray-200); }
         .pagination-info { font-size: 13px; color: var(--gray-500); }
         .pagination-controls { display: flex; align-items: center; gap: 0.25rem; }
         .page-btn { padding: 0.5rem 0.75rem; border: 1px solid var(--gray-200); background: var(--white); border-radius: var(--radius-sm); font-size: 13px; cursor: pointer; }
-        .page-btn:hover { background: var(--gray-100); }
-        .page-btn.active { background: var(--black); color: var(--white); border-color: var(--black); }
+        .page-btn:hover:not(:disabled) { background: var(--gray-100); }
+        .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .empty-state { text-align: center; padding: 3rem 1rem; color: var(--gray-500); }
+        .empty-state i { font-size: 2.5rem; margin-bottom: 0.75rem; color: var(--gray-400); }
         footer { background: var(--white); border-top: 1px solid var(--gray-200); padding: 2rem 0; margin-top: 3rem; }
         .footer-content { display: flex; justify-content: space-between; align-items: center; }
         .footer-brand { display: flex; align-items: center; gap: 0.5rem; color: var(--gray-500); }
         .footer-links { display: flex; gap: 1.5rem; }
         .footer-links a { font-size: 12px; color: var(--gray-500); }
         @media (max-width: 1024px) { .stats-row { grid-template-columns: repeat(2, 1fr); } }
-        @media (max-width: 768px) { .stats-row { grid-template-columns: 1fr; } .main-nav { display: none; } }
+        @media (max-width: 768px) { .stats-row { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
     <div class="top-bar">
-        <div class="container top-bar-content">
+        <div class="top-bar-container">
             <div class="top-bar-left">
-                <div class="top-bar-item"><span>DC FAT Price:</span><span class="top-bar-value">$0.00390</span><span style="color: #ef4444; margin-left: 0.25rem;">-2.94%</span></div>
-                <div class="top-bar-item"><span>Gas:</span><span class="top-bar-value">0.001 gwei</span></div>
-                <div class="top-bar-item"><span>Finality:</span><span class="top-bar-value">&lt;5s</span></div>
+                <div class="top-bar-item">
+                    <i class="fa-solid fa-coins"></i>
+                    DC FAT Price:
+                    <span class="top-bar-value">$0.00390</span>
+                </div>
+                <div class="top-bar-item">
+                    <i class="fa-solid fa-clock"></i>
+                    Finality:
+                    <span class="top-bar-value">&lt;5s</span>
+                </div>
+            </div>
+            <div class="top-bar-right">
+                <button class="theme-toggle"><i class="fa-solid fa-sun"></i></button>
             </div>
         </div>
     </div>
     <header>
-        <div class="container header-container">
+        <div class="header-container">
             <a href="/" class="logo">
-                <div class="logo-icon"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 100%; height: 100%; object-fit: contain;"></div>
+                <div class="logo-icon"><img src="/assets/logo.svg" alt="DC Explorer Logo" style="width: 100%; height: 100%; object-fit: contain;"></div>
                 <span class="logo-text"><span>DC</span><span>Explorer</span></span>
             </a>
             <nav class="main-nav">
-                <div class="nav-item"><a href="#" class="nav-link active">Smartchain <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                <div class="nav-item">
+                    <a href="#" class="nav-link active">Smartchain <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
-                        <a href="/strings" class="dropdown-item">View Strings</a>
+                        <a href="/strings" class="dropdown-item">Strings (per entity)</a>
+                        <a href="/knots" class="dropdown-item">Knots (anchors)</a>
                         <a href="/txs" class="dropdown-item">Transactions</a>
                         <a href="/txsPending" class="dropdown-item">Pending Txns</a>
+                        <div class="dropdown-divider"></div>
                         <a href="/accounts" class="dropdown-item">Top Accounts</a>
                         <a href="/contracts" class="dropdown-item">Verified Contracts</a>
                     </div>
                 </div>
-                <div class="nav-item"><a href="#" class="nav-link">AI Agents <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                <div class="nav-item">
+                    <a href="#" class="nav-link">AI Agents <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/agents" class="dropdown-item">All Agents</a>
                         <a href="/testimonies" class="dropdown-item">Testimonies</a>
                         <a href="/validations" class="dropdown-item">Validators</a>
                     </div>
                 </div>
-                <div class="nav-item"><a href="#" class="nav-link">Tokens <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                <div class="nav-item">
+                    <a href="#" class="nav-link">Tokens <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
-                        <a href="/tokens" class="dropdown-item">DC-20 Tokens</a>
+                        <a href="/tokens" class="dropdown-item">DCR-20 Tokens</a>
                         <a href="/tokentxns" class="dropdown-item">Token Transfers</a>
                         <a href="/vote" class="dropdown-item">Vote</a>
                     </div>
                 </div>
-                <div class="nav-item"><a href="#" class="nav-link">Network <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                <div class="nav-item">
+                    <a href="#" class="nav-link">Network <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
+                        <a href="/ecosystem" class="dropdown-item">Ecosystem Projects</a>
+                        <a href="/vote" class="dropdown-item" id="nav-governance-voting">Governance &amp; Voting</a>
                         <a href="/defi" class="dropdown-item">DeFi</a>
+                        <a href="/supply" class="dropdown-item">Supply Reconciliation</a>
                         <a href="/validators" class="dropdown-item">Validators</a>
                         <a href="/databases" class="dropdown-item">Databases</a>
-                        <a href="/stats" class="dropdown-item">Charts & Stats</a>
+                        <a href="/databoxes" class="dropdown-item" id="nav-databox-network">Global Databox Network</a>
+                        <a href="/stats" class="dropdown-item">Charts &amp; Stats</a>
                     </div>
                 </div>
-                <div class="nav-item"><a href="#" class="nav-link">More <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                <div class="nav-item">
+                    <a href="#" class="nav-link">More <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/apis" class="dropdown-item">API Docs</a>
                         <a href="/verify" class="dropdown-item">Verify Contract</a>
+                        <a href="/create-wallet" class="dropdown-item" id="nav-create-wallet">Create Wallet</a>
                         <a href="/faucet" class="dropdown-item">Faucet</a>
                         <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank">GitHub</a>
+                        <a href="/partners" class="dropdown-item">Partners</a>
                         <a href="/contact" class="dropdown-item">Contact</a>
                     </div>
                 </div>
             </nav>
-            <button class="btn btn-secondary"><i class="fas fa-wallet"></i> Connect</button>
+            <div class="header-actions">
+                <button class="btn btn-secondary"><i class="fa-solid fa-wallet"></i> Connect</button>
+            </div>
         </div>
     </header>
 
     <div class="page-header">
         <div class="container">
             <div class="page-breadcrumb"><a href="/">Home</a> <i class="fas fa-chevron-right" style="font-size: 8px;"></i> <span>Strings</span></div>
-            <h1 class="page-title">Strings (Blocks)</h1>
-            <p class="page-subtitle">All strings produced on the Datachain Rope network</p>
+            <h1 class="page-title">Strings (per-entity ledgers)</h1>
+            <p class="page-subtitle">Each wallet, smart contract, tokenized asset, DID, and the global federation cord owns exactly one <strong>string</strong> — a logical chain of <strong>knots</strong> tracking that entity's history (Quipu Canon v1.2). For the cord-anchor stream see <a href="/knots">Knots</a>.</p>
+            <div class="invariant-callout">
+                <strong>Quipu Canon v1.2 invariant:</strong> <code>count(strings) &le; count(knots)</code>. Every string starts with a genesis knot, then accumulates more as the entity participates in the network.
+            </div>
         </div>
     </div>
 
@@ -159,129 +176,338 @@
         <div class="stats-row">
             <div class="stat-card">
                 <div class="stat-label">Total Strings</div>
-                <div class="stat-value" id="totalStrings">1,247,893</div>
-                <div class="stat-change positive"><i class="fas fa-arrow-up"></i> 1 new string every ~3.5s</div>
+                <div class="stat-value" id="totalStrings">—</div>
+                <div class="stat-change">Distinct entities with at least one knot</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Network Utilization</div>
-                <div class="stat-value">42.7%</div>
-                <div class="stat-change">Avg. gas used per string</div>
+                <div class="stat-label">Total Knots</div>
+                <div class="stat-value" id="totalKnots">—</div>
+                <div class="stat-change">Sum across all strings</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Average String Time</div>
-                <div class="stat-value">3.47s</div>
-                <div class="stat-change positive"><i class="fas fa-arrow-down"></i> 0.12s faster than avg</div>
+                <div class="stat-label">Avg Knots / String</div>
+                <div class="stat-value" id="avgKnots">—</div>
+                <div class="stat-change">Mean events per entity</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Active Validators</div>
-                <div class="stat-value">127</div>
-                <div class="stat-change">Producing strings</div>
+                <div class="stat-label">Active Kinds</div>
+                <div class="stat-value" id="activeKinds">—</div>
+                <div class="stat-change">Wallet · Contract · Asset · DID · Cord</div>
             </div>
+        </div>
+
+        <div class="filter-row">
+            <button class="filter-pill active" data-kind="">All</button>
+            <button class="filter-pill" data-kind="wallet"><i class="fa-solid fa-wallet"></i> Wallets</button>
+            <button class="filter-pill" data-kind="contract"><i class="fa-solid fa-file-contract"></i> Contracts</button>
+            <button class="filter-pill" data-kind="asset"><i class="fa-solid fa-gem"></i> Assets</button>
+            <button class="filter-pill" data-kind="did"><i class="fa-solid fa-id-badge"></i> Identities</button>
+            <button class="filter-pill" data-kind="organization"><i class="fa-solid fa-building"></i> Organizations</button>
+            <button class="filter-pill" data-kind="application"><i class="fa-solid fa-cubes"></i> Applications</button>
+            <button class="filter-pill" data-kind="ecosystem"><i class="fa-solid fa-globe"></i> Ecosystems</button>
+            <button class="filter-pill" data-kind="partner"><i class="fa-solid fa-handshake"></i> Partners</button>
+            <button class="filter-pill" data-kind="cord"><i class="fa-solid fa-link"></i> Cord</button>
+            <span style="margin-left:auto; display:flex; gap:0.5rem; align-items:center;">
+                <input id="searchBox" type="search" placeholder="Search by name, address, kind, platform…" style="padding: 6px 10px; border: 1px solid var(--gray-300); border-radius: 6px; min-width: 280px; font-size: 13px;">
+                <select id="platformFilter" style="padding: 6px 10px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 13px;">
+                    <option value="">All platforms</option>
+                    <option value="tanastok">Tanastok</option>
+                    <option value="dcswap">DCSwap</option>
+                    <option value="datawallet">Datawallet+</option>
+                    <option value="naturaproof">NaturaProof</option>
+                    <option value="foundation">Foundation</option>
+                </select>
+            </span>
         </div>
 
         <div class="table-card">
             <div class="table-header">
-                <div class="table-title"><i class="fas fa-cubes" style="color: var(--gray-400);"></i> Latest Strings</div>
+                <div class="table-title"><i class="fas fa-list-ol" style="color: var(--gray-400);"></i> All Strings</div>
+                <div style="font-size: 12px; color: var(--gray-500);" id="tableMeta">—</div>
             </div>
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>String</th>
-                        <th>Age</th>
-                        <th>Txn</th>
-                        <th>Validator</th>
-                        <th>Gas Used</th>
-                        <th>Gas Limit</th>
-                        <th style="text-align: right;">Reward</th>
+                        <th>Kind</th>
+                        <th>String ID</th>
+                        <th>Genesis Knot</th>
+                        <th>Head Knot</th>
+                        <th style="text-align: right;">Knots</th>
+                        <th>Last Anchored</th>
                     </tr>
                 </thead>
-                <tbody id="stringsTable"></tbody>
+                <tbody id="stringsTable">
+                    <tr><td colspan="6"><div class="empty-state"><i class="fas fa-spinner fa-spin"></i><div>Loading…</div></div></td></tr>
+                </tbody>
             </table>
             <div class="pagination">
-                <div class="pagination-info">Showing 1 to 25 of 1,247,893 strings</div>
+                <div class="pagination-info" id="pagInfo">—</div>
                 <div class="pagination-controls">
-                    <button class="page-btn" disabled><i class="fas fa-angle-double-left"></i></button>
-                    <button class="page-btn" disabled><i class="fas fa-angle-left"></i></button>
-                    <button class="page-btn active">1</button>
-                    <button class="page-btn">2</button>
-                    <button class="page-btn">3</button>
-                    <button class="page-btn">4</button>
-                    <button class="page-btn">5</button>
-                    <span style="padding: 0 0.5rem;">...</span>
-                    <button class="page-btn">49916</button>
-                    <button class="page-btn"><i class="fas fa-angle-right"></i></button>
-                    <button class="page-btn"><i class="fas fa-angle-double-right"></i></button>
+                    <button class="page-btn" id="prevBtn" disabled><i class="fas fa-angle-left"></i></button>
+                    <span style="padding: 0 0.75rem; font-size: 13px;" id="pageNum">Page 1</span>
+                    <button class="page-btn" id="nextBtn" disabled><i class="fas fa-angle-right"></i></button>
                 </div>
             </div>
+        </div>
+
+        <div style="margin-top: 1.5rem; padding: 1rem 1.25rem; background: var(--gray-100); border-radius: var(--radius-lg); font-size: 13px; color: var(--gray-700);">
+            <strong>Heads-up:</strong> ecosystem-side issuers (Tanastok, DCSwap, NaturaProof, Careaway) are scheduled to start emitting knots on contract / asset strings in v1.2. Until those land, expect the <em>contract</em>, <em>asset</em>, and <em>did</em> rows to be sparse. The <em>wallet</em> column is fully active today (deployer attestations + personal-ledger interactions).
         </div>
     </main>
 
     <footer>
-        <div class="container footer-content">
-            <div class="footer-brand"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 24px; height: 24px;"> DC Explorer - Powered by Datachain Rope</div>
+        <div class="footer-container">
+            <div class="footer-brand">
+                <div class="logo-icon" style="width: 24px; height: 24px;">
+                    <img src="/assets/logo.svg" alt="DC Explorer" style="width: 100%; height: 100%; object-fit: contain;">
+                </div>
+                DC Explorer — Powered by Datachain Rope
+            </div>
             <div class="footer-links">
                 <a href="https://datachain.network">Datachain</a>
                 <a href="/apis">API</a>
                 <a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a>
-                <a href="/contact">Contact</a>
+                <a href="/partners">Partners</a><a href="/contact">Contact</a>
             </div>
         </div>
     </footer>
 
     <script>
-        let currentString = 1247893;
-        
-        function randomAddr() { return '0x' + Array.from({length: 40}, () => Math.floor(Math.random() * 16).toString(16)).join(''); }
-        
-        function generateStringRow(stringNum, ageOffset) {
-            const validator = randomAddr();
-            const txns = Math.floor(Math.random() * 50) + 5;
-            const gasUsed = Math.floor(Math.random() * 8000000) + 1000000;
-            const gasLimit = 15000000;
-            const utilization = ((gasUsed / gasLimit) * 100).toFixed(1);
-            const age = (ageOffset * 3.5).toFixed(1) + 's ago';
-            const reward = (0.1 + Math.random() * 0.5).toFixed(4);
-            
-            return `<tr>
-                <td>
-                    <div class="string-number">
-                        <div class="string-icon"><i class="fas fa-cube"></i></div>
-                        <a href="/string/${stringNum}">${stringNum}</a>
-                    </div>
-                </td>
-                <td style="color: var(--gray-500);">${age}</td>
-                <td><a href="/txs?block=${stringNum}">${txns} txns</a></td>
-                <td>
-                    <div class="validator-link">
-                        <div class="validator-icon"></div>
-                        <a href="/address/${validator}" class="mono">${validator.slice(0, 10)}...${validator.slice(-6)}</a>
-                    </div>
-                </td>
-                <td>
-                    <div style="display: flex; align-items: center; gap: 0.5rem;">
-                        <span class="mono">${gasUsed.toLocaleString()}</span>
-                        <div class="progress-bar"><div class="progress-bar-fill" style="width: ${utilization}%;"></div></div>
-                        <span style="font-size: 11px; color: var(--gray-500);">${utilization}%</span>
-                    </div>
-                </td>
-                <td class="mono">${gasLimit.toLocaleString()}</td>
-                <td style="text-align: right;" class="mono">${reward} FAT</td>
-            </tr>`;
-        }
-        
-        const tbody = document.getElementById('stringsTable');
-        let rows = '';
-        for (let i = 0; i < 25; i++) {
-            rows += generateStringRow(currentString - i, i);
-        }
-        tbody.innerHTML = rows;
-        
-        // Simulate new strings
-        setInterval(() => {
-            currentString++;
-            document.getElementById('totalStrings').textContent = currentString.toLocaleString();
-        }, 3500);
+        (function() {
+            const PAGE_SIZE = 25;
+            let currentKind = '';
+            let currentOffset = 0;
+            let currentTotal = 0;
+
+            function shortHex(s, head, tail) {
+                if (!s) return '—';
+                head = head || 8; tail = tail || 6;
+                if (s.length <= head + tail + 2) return s;
+                return s.slice(0, head) + '…' + s.slice(-tail);
+            }
+
+            function timeAgo(ts) {
+                if (typeof ts !== 'number' || ts <= 0) return '—';
+                const s = Math.floor(Date.now()/1000 - ts);
+                if (s < 60) return s + 's ago';
+                if (s < 3600) return Math.floor(s/60) + 'm ago';
+                if (s < 86400) return Math.floor(s/3600) + 'h ago';
+                return Math.floor(s/86400) + 'd ago';
+            }
+
+            function kindBadge(kind) {
+                const cls = 'kind-' + (kind || 'wallet');
+                const icon = ({
+                    wallet: 'fa-wallet',
+                    contract: 'fa-file-contract',
+                    asset: 'fa-gem',
+                    did: 'fa-id-badge',
+                    organization: 'fa-building',
+                    application: 'fa-cubes',
+                    ecosystem: 'fa-globe',
+                    partner: 'fa-handshake',
+                    cord: 'fa-link'
+                })[kind] || 'fa-circle';
+                return '<span class="kind-badge ' + cls + '"><i class="fa-solid ' + icon + '"></i>' + (kind || 'wallet') + '</span>';
+            }
+
+            // Color the platform pill the same way leadgeneration / event.datachain.one does:
+            //   tanastok=gold, dcswap=cyan, datawallet=orange, trex=violet,
+            //   naturaproof=green, foundation=slate.
+            const PLATFORM_PALETTE = {
+                tanastok:     { bg: 'rgba(245,193,0,.18)',  fg: '#caa400' },
+                dcswap:       { bg: 'rgba(6,182,212,.18)',  fg: '#0e7490' },
+                datawallet:   { bg: 'rgba(255,138,0,.18)',  fg: '#c2410c' },
+                datawalletplus:{bg: 'rgba(255,138,0,.18)',  fg: '#c2410c' },
+                trex:         { bg: 'rgba(168,85,247,.18)', fg: '#7c3aed' },
+                naturaproof:  { bg: 'rgba(16,185,129,.18)', fg: '#047857' },
+                foundation:   { bg: 'rgba(100,116,139,.20)',fg: '#334155' },
+            };
+            function platformBadge(platform) {
+                if (!platform) return '';
+                const p = PLATFORM_PALETTE[platform] || { bg: 'rgba(100,116,139,.18)', fg: '#475569' };
+                return '<span style="display:inline-block; padding:1px 8px; border-radius:4px; font-size:11px; font-weight:600; background:' + p.bg + '; color:' + p.fg + '; margin-left:6px; text-transform:capitalize;">' + platform + '</span>';
+            }
+
+            function renderRow(s) {
+                const sid = s.string_id || s.wallet_address || '—';
+                const gid = s.genesis_knot_id || s.genesis_string_id || '—';
+                const hid = s.head_knot_id || s.head_string_id || '—';
+                const cnt = s.knot_count != null ? s.knot_count : (s.entry_count != null ? s.entry_count : 0);
+                // Every kind is now linkable — the address page knows how
+                // to render synthetic 32-byte ids (assets / dids / apps /
+                // ecosystems) by falling back to rope_getString.
+                const sidCell = '<a href="/address/' + sid + '" class="mono">' + shortHex(sid) + '</a>';
+                const lbl = s.labels || {};
+                const display = lbl.display_name || s.label_display_name || '';
+                const platform = lbl.platform || s.label_platform || '';
+                const role = lbl.role || s.label_role || '';
+                const verified = !!(lbl.verified || s.label_verified);
+                const labelHtml = display
+                    ? '<div style="margin-top:3px; font-size:12px; color:var(--gray-700);">'
+                        + escHtml(display)
+                        + (role ? ' <span style="color:var(--gray-400); font-size:11px;">' + escHtml(role) + '</span>' : '')
+                        + (verified ? ' <i class="fas fa-check-circle" title="Verified by ecosystem operator" style="color:#16a34a; font-size:11px; margin-left:4px;"></i>' : '')
+                        + '</div>'
+                    : '';
+                return '<tr>' +
+                    '<td>' + kindBadge(s.kind) + platformBadge(platform) + '</td>' +
+                    '<td>' + sidCell + labelHtml + '</td>' +
+                    '<td><span class="mono">' + shortHex(gid) + '</span></td>' +
+                    '<td><span class="mono">' + shortHex(hid) + '</span></td>' +
+                    '<td style="text-align: right;" class="knot-count-cell">' + Number(cnt).toLocaleString() + '</td>' +
+                    '<td style="color: var(--gray-500);">' + timeAgo(s.last_anchored_at) + '</td>' +
+                    '</tr>';
+            }
+
+            function escHtml(s) {
+                return String(s == null ? '' : s)
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            }
+
+            function loadStats() {
+                fetch('/api/v1/registry/stats')
+                    .then(function(r) { return r.ok ? r.json() : {}; })
+                    .then(function(stats) {
+                        const ts = Number(stats.total_strings || 0);
+                        const tk = Number(stats.total_knots || 0);
+                        document.getElementById('totalStrings').textContent = ts.toLocaleString();
+                        document.getElementById('totalKnots').textContent = tk.toLocaleString();
+                        const avg = ts > 0 ? (tk / ts).toFixed(1) : '—';
+                        document.getElementById('avgKnots').textContent = avg;
+                        const kinds = stats.by_kind ? Object.keys(stats.by_kind).filter(function(k) { return stats.by_kind[k].strings > 0; }) : [];
+                        document.getElementById('activeKinds').textContent = kinds.length || '0';
+                    })
+                    .catch(function() {
+                        document.getElementById('totalStrings').textContent = '0';
+                        document.getElementById('totalKnots').textContent = '0';
+                    });
+            }
+
+            // Tanastok manifest cache — pulled once and used to enrich
+            // every kind=asset / contract / did / application / ecosystem
+            // row with a human-readable display name + role + platform
+            // colour. Falls back gracefully when the cache is cold.
+            let labelsCache = null;
+            let labelsLoaded = false;
+            function loadLabels() {
+                if (labelsLoaded) return Promise.resolve(labelsCache);
+                labelsLoaded = true;
+                return fetch('/api/v1/registry/labels')
+                    .then(function(r) { return r.ok ? r.json() : null; })
+                    .then(function(j) { labelsCache = (j && j.labels) ? j.labels : {}; return labelsCache; })
+                    .catch(function() { labelsCache = {}; return labelsCache; });
+            }
+            function enrichRowWithManifest(row) {
+                if (!labelsCache) return row;
+                const id = (row.string_id || row.wallet_address || '').toLowerCase();
+                const lookups = [id, id.replace(/^0x/, '')];
+                for (let i = 0; i < lookups.length; i++) {
+                    const l = labelsCache[lookups[i]] || labelsCache['0x' + lookups[i]];
+                    if (l) {
+                        const merged = Object.assign({}, row);
+                        merged.labels = Object.assign({}, l.label || {}, { platform: l.platform });
+                        // Promote to richer kind if upstream knows better.
+                        if (!merged.kind && l.kind) merged.kind = l.kind;
+                        return merged;
+                    }
+                }
+                return row;
+            }
+
+            // Client-side text + platform filter — backend-side filters
+            // apply first (`kind`, paging), the search box and the
+            // platform select narrow the visible page so an operator
+            // can scan the on-chain registry for "kibali", "tanastok",
+            // "dcswap router", etc.
+            function applyClientFilter(rows) {
+                const q = (document.getElementById('searchBox').value || '').trim().toLowerCase();
+                const p = (document.getElementById('platformFilter').value || '').trim().toLowerCase();
+                if (!q && !p) return rows;
+                return rows.filter(function(r) {
+                    const lbl = (r.labels || {});
+                    const platform = (lbl.platform || '').toLowerCase();
+                    if (p && platform !== p) return false;
+                    if (!q) return true;
+                    const sid = (r.string_id || r.wallet_address || '').toLowerCase();
+                    const display = (lbl.display_name || '').toLowerCase();
+                    const role = (lbl.role || '').toLowerCase();
+                    const kind = (r.kind || '').toLowerCase();
+                    return sid.indexOf(q) !== -1 || display.indexOf(q) !== -1 || role.indexOf(q) !== -1 || kind.indexOf(q) !== -1;
+                });
+            }
+
+            function loadStrings() {
+                const params = new URLSearchParams({ offset: currentOffset, limit: PAGE_SIZE });
+                if (currentKind) params.set('kind', currentKind);
+                Promise.all([
+                    fetch('/api/v1/registry/strings?' + params.toString())
+                        .then(function(r) { return r.ok ? r.json() : { strings: [], total: 0 }; })
+                        .catch(function() { return { strings: [], total: 0 }; }),
+                    loadLabels(),
+                ]).then(function(parts) {
+                    const data = parts[0];
+                    const tbody = document.getElementById('stringsTable');
+                    currentTotal = Number(data.total || 0);
+                    let rows = (data.strings || []).map(enrichRowWithManifest);
+                    rows = applyClientFilter(rows);
+                    if (!rows.length) {
+                        tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><i class="fas fa-inbox"></i><div>No strings match the current filters.</div></div></td></tr>';
+                    } else {
+                        tbody.innerHTML = rows.map(renderRow).join('');
+                    }
+                    const start = currentTotal === 0 ? 0 : (currentOffset + 1);
+                    const end = Math.min(currentOffset + PAGE_SIZE, currentTotal);
+                    document.getElementById('pagInfo').textContent = 'Showing ' + start + '–' + end + ' of ' + currentTotal.toLocaleString() + (currentKind ? (' ' + currentKind) : '') + ' strings';
+                    document.getElementById('pageNum').textContent = 'Page ' + (Math.floor(currentOffset / PAGE_SIZE) + 1);
+                    document.getElementById('prevBtn').disabled = currentOffset === 0;
+                    document.getElementById('nextBtn').disabled = (currentOffset + PAGE_SIZE) >= currentTotal;
+                    document.getElementById('tableMeta').textContent = (data.error ? '⚠ ' + data.error : '');
+                }).catch(function() {
+                    document.getElementById('stringsTable').innerHTML = '<tr><td colspan="6"><div class="empty-state"><i class="fas fa-circle-exclamation"></i><div>Unable to load strings — the consensus node may be mid-restart.</div></div></td></tr>';
+                });
+            }
+
+            document.querySelectorAll('.filter-pill').forEach(function(el) {
+                el.addEventListener('click', function() {
+                    document.querySelectorAll('.filter-pill').forEach(function(p) { p.classList.remove('active'); });
+                    el.classList.add('active');
+                    currentKind = el.getAttribute('data-kind') || '';
+                    currentOffset = 0;
+                    loadStrings();
+                });
+            });
+
+            document.getElementById('prevBtn').addEventListener('click', function() {
+                if (currentOffset >= PAGE_SIZE) {
+                    currentOffset -= PAGE_SIZE;
+                    loadStrings();
+                }
+            });
+            document.getElementById('nextBtn').addEventListener('click', function() {
+                if (currentOffset + PAGE_SIZE < currentTotal) {
+                    currentOffset += PAGE_SIZE;
+                    loadStrings();
+                }
+            });
+
+            // Debounced search across the visible page (the on-chain
+            // registry has thousands of rows; for full-corpus search the
+            // user can use rope_resolveLabel directly via DCScan's
+            // address page).
+            let searchTimer = null;
+            document.getElementById('searchBox').addEventListener('input', function() {
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(loadStrings, 200);
+            });
+            document.getElementById('platformFilter').addEventListener('change', loadStrings);
+
+            loadStats();
+            loadStrings();
+        })();
     </script>
+    <script src="/js/dcscan-stats.js"></script>
+    <script src="/js/dcscan-wallet.js?v=20260707b" defer></script>
 </body>
 </html>
-

@@ -1,0 +1,373 @@
+{
+  "$comment": [
+    "Single source of truth for the 2026-07-08 datachain-id-sso handover kickoff.",
+    "Both kickoff.ts (SDK) and kickoff.sh (cursor-agent CLI) read this file.",
+    "",
+    "GOAL: every ecosystem platform integrates Datachain ID (https://id.datachain.network)",
+    "end-to-end: front-end sign-in (credentials via /v1/auth/login and/or wallet via",
+    "/v1/auth/wallet), token storage + session resume, and back-end verification",
+    "(offline JWKS EdDSA verify preferred; /v1/auth/introspect acceptable).",
+    "",
+    "The handover .mdc is already present in EVERY target workspace at",
+    ".cursor/rules/handover-datachain-id-sso-live-2026-07-07-from-rope.mdc (alwaysApply),",
+    "so each workspace's agent sees the full contract on session start even without",
+    "this dispatcher. The dispatcher exists to actively drive the work instead of",
+    "waiting for each workspace to be opened manually.",
+    "",
+    "Reference consumer (already live): dcscan.io Connect-Wallet modal",
+    "(datachain-rope/crates/rope-explorer/static/js/dcscan-wallet.js).",
+    "",
+    "Deploy commands below are carried over verbatim from the audited 2026-05-10",
+    "canonical-agents rollout (tools/kickoff-handover-canonical-agents-2026-05-10/).",
+    "Per LESSONS.md §Migration step 5, re-audit any deploy_command that may have been",
+    "replaced since 2026-05-10 before running --deploy or --full."
+  ],
+  "schema_version": 2,
+  "handover_reference": "/Users/kazealphonseonguene/Downloads/DATACHAIN ROPE/.cursor/rules/handover-datachain-id-sso-live-2026-07-07.mdc",
+  "implemented_marker": ".cursor/handover-datachain-id-sso-2026-07-08-implemented.marker",
+  "blocked_report": ".cursor/handover-datachain-id-sso-2026-07-08-blocked.md",
+  "plan_file": ".cursor/handover-datachain-id-sso-2026-07-08-plan.md",
+  "default_min_disk_gib": 5,
+  "workspaces": [
+    {
+      "name": "tanastok",
+      "cwd": "/Users/kazealphonseonguene/Downloads/tanastok-app",
+      "sensitivity": "normal",
+      "actions": [
+        "Accept Datachain ID Bearer tokens on API routes: verify offline with jose (createRemoteJWKSet against https://id.datachain.network/.well-known/jwks.json, issuer https://id.datachain.network, audience datachain-ecosystem) per handover §Option A.",
+        "Map token `sub` to tanastok_users.auth_user_id (same Supabase GoTrue id) so existing accounts resolve without migration.",
+        "Add 'Sign in with Datawallet+' to the site auth UI: email+password form POSTing to /v1/auth/login AND wallet path via personal_sign of 'DATACHAIN-ID-AUTH\\n{address_lowercase}\\n{timestamp}' POSTed to /v1/auth/wallet.",
+        "Gate Private-Pool gain-withdrawal actions on amr containing 'wallet_signature' (proof of key possession) per handover §Tanastok note.",
+        "Freeze (stop advertising) the bespoke /api/auth/datawallet/verify endpoint in favor of Datachain ID; keep it responding for old callers but mark deprecated."
+      ],
+      "emission_signals": [
+        "Source contains a string match for 'id.datachain.network' outside .cursor/",
+        "Source contains a string match for 'DATACHAIN-ID-AUTH' (wallet-path message tag) or 'datachain-ecosystem' (audience check)"
+      ],
+      "deploy_signals": [
+        "https://tanastok.io serves HTTP 200 AND its shipped JS/HTML bundle references 'id.datachain.network' (curl the login page / main chunk and grep)"
+      ],
+      "deploy_command": "./deploy-clean-production.sh",
+      "deploy_command_notes": "Audited 2026-05-10 (canonical-agents rollout). Blue-green zero-downtime: reads /opt/tanastok/deploy-state/active-slot, deploys to inactive slot, health-checks, switches nginx, stops old slot. Built locally first (Next.js production build, ~1 GB output), then rsync to VPS. Disk: needs ~5 GiB free (ENOSPC at 4 GiB on 2026-05-10). Use --maintenance ONLY for intentional downtime.",
+      "production_check": {
+        "url": "https://tanastok.io",
+        "expected_status": 200,
+        "follow_redirects": true,
+        "ssh_state_check": "ssh -p 47891 -i ~/.ssh/shametrails_key ubuntu@92.243.24.244 'cat /opt/tanastok/deploy-state/active-slot'"
+      },
+      "min_disk_gib": 5,
+      "ssh_keys_required": ["~/.ssh/shametrails_key"],
+      "primer_extra": "Tanastok already shares the same Supabase project as Datawallet+, so token `sub` IS the GoTrue user id already stored in tanastok_users.auth_user_id — the identity mapping is a lookup, not a migration. Do not touch the Private-Pool payout/settlement logic itself; only add the amr gate in front of the withdrawal request handler."
+    },
+    {
+      "name": "dcswap",
+      "cwd": "/Users/kazealphonseonguene/Downloads/dcswap",
+      "sensitivity": "normal",
+      "actions": [
+        "Add a 'Sign in with Datawallet+' entry next to the existing wallet-connect flow in public/app.js (or the current frontend entry point), using the wallet path: personal_sign of 'DATACHAIN-ID-AUTH\\n{address_lowercase}\\n{timestamp}' POSTed to https://id.datachain.network/v1/auth/wallet per handover §DCSwap note.",
+        "Store the returned token + user object; render a signed-in pill (truncated primary_address); local-decode exp for session resume; clear on disconnect (mirror the dcscan-wallet.js reference behavior).",
+        "Where the indexer/API keys any per-user data (prefs, watchlists), key it on token `sub` and verify tokens server-side via /v1/auth/introspect or offline jose verify."
+      ],
+      "emission_signals": [
+        "Source contains a string match for 'id.datachain.network' outside .cursor/",
+        "Source contains a string match for 'DATACHAIN-ID-AUTH'"
+      ],
+      "deploy_signals": [
+        "https://dcswap.net serves HTTP 200 AND its shipped JS references 'id.datachain.network'"
+      ],
+      "deploy_command": null,
+      "deploy_command_notes": "Deploy is human-owned per the 2026-05-10 audit (rsync to dcswap-vps 92.243.26.114 port 41722 + frontend/indexer restart) — no single audited script exists. Emission phase can run; deploy phase defers to the operator or to the dcswap workspace agent with operator approval.",
+      "production_check": {
+        "url": "https://dcswap.net",
+        "expected_status": 200,
+        "follow_redirects": true
+      },
+      "min_disk_gib": 3,
+      "ssh_keys_required": [],
+      "primer_extra": "DCSwap users already have injected wallet providers connected, so the wallet path is one personal_sign away — prefer it over the email form. Do NOT touch trading, bot, pool, or price-feed code paths; this change is strictly additive auth UI + optional per-user data keying."
+    },
+    {
+      "name": "datawallet-web",
+      "cwd": "/Users/kazealphonseonguene/Downloads/Datawallet+",
+      "sensitivity": "normal",
+      "actions": [
+        "Add ecosystem SSO sign-in on datawallet.io: email+password form POSTing to https://id.datachain.network/v1/auth/login, plus the wallet-signature path where an injected provider is present.",
+        "After sign-in, render the session (name/email + truncated primary_address from the token's user object) and surface 'Your Datawallet+ account now signs you in across the Datachain ecosystem' messaging.",
+        "Verify tokens client-side by calling GET /v1/auth/userinfo with the Bearer token on page load for session resume."
+      ],
+      "emission_signals": [
+        "Source contains a string match for 'id.datachain.network' outside .cursor/"
+      ],
+      "deploy_signals": [
+        "https://datawallet.io serves HTTP 200 AND its shipped JS/HTML references 'id.datachain.network'"
+      ],
+      "deploy_command": "npm run build && ./deploy-to-vps.sh",
+      "deploy_command_notes": "Audited 2026-05-10. dist/ is gitignored and deploy-to-vps.sh only rsyncs ./dist/, so the npm run build prefix is REQUIRED. Target: ubuntu@92.243.25.106:/var/www/datawallet, followed by sudo systemctl restart nginx.",
+      "production_check": {
+        "url": "https://datawallet.io",
+        "expected_status": 200,
+        "follow_redirects": true
+      },
+      "min_disk_gib": 3,
+      "ssh_keys_required": [],
+      "primer_extra": "This is the marketing/web surface of Datawallet+; the credentials it accepts are the SAME Supabase GoTrue accounts the mobile app uses, via the Datachain ID gateway. No Supabase keys may be added to this codebase — all auth goes through id.datachain.network."
+    },
+    {
+      "name": "datawallet-rn",
+      "cwd": "/Users/kazealphonseonguene/Downloads/DATAWALLET+ReactNative",
+      "sensitivity": "normal",
+      "actions": [
+        "Surface 'Sign in to ecosystem sites with your Datawallet+ account' in the app (settings or profile screen) explaining that the same credentials work on dcscan.io, dcswap.net, tanastok.io, etc., per handover §Datawallet+ note.",
+        "Add a service module that exchanges the user's credentials (or an in-app personal_sign with the active wallet key) for a Datachain ID token via /v1/auth/login or /v1/auth/wallet, so in-app webviews / deep links can be pre-authenticated.",
+        "Handle the wallet path in-app: sign 'DATACHAIN-ID-AUTH\\n{address_lowercase}\\n{timestamp}' with the local wallet key (no password prompt) and POST to /v1/auth/wallet."
+      ],
+      "emission_signals": [
+        "Source contains a string match for 'id.datachain.network' outside .cursor/",
+        "Source contains a string match for 'DATACHAIN-ID-AUTH'"
+      ],
+      "deploy_signals": [
+        "./deploy.sh --no-push completed after the emission commit (check the script's build output artifacts are newer than the emission commit timestamp)"
+      ],
+      "deploy_command": "./deploy.sh --no-push",
+      "deploy_command_notes": "Audited 2026-05-10. PRIMARY: ./deploy.sh --no-push. Default builds BOTH iOS bundle IDs (modern + legacy). Use ./deploy.sh android --no-push or ./deploy.sh modern --no-push to scope. Native binary releases (App Store / Play Store) are out of agent scope — operator must approve and submit.",
+      "production_check": {
+        "url": null
+      },
+      "min_disk_gib": 5,
+      "ssh_keys_required": [],
+      "primer_extra": "Nothing breaks server-side: the gateway authenticates against the SAME Supabase GoTrue the app already uses. Passwords, MFA enrolment, and account lifecycle stay app-side. The app already holds the wallet private key locally, so the wallet path needs no user-visible password entry."
+    },
+    {
+      "name": "naturaproof",
+      "cwd": "/Users/kazealphonseonguene/Downloads/NaturaProof-platform",
+      "sensitivity": "normal",
+      "actions": [
+        "Add Datachain ID sign-in to the platform frontend: /v1/auth/login form + /v1/auth/wallet path, storing the token and rendering the session per the dcscan-wallet.js reference.",
+        "Verify tokens on the backend per handover §Option A (offline JWKS verify — jose for Node, PyJWT for Python) or §Option B (/v1/auth/introspect).",
+        "Key any per-user records on token `sub` (stable ecosystem identifier), not email."
+      ],
+      "emission_signals": [
+        "Source contains a string match for 'id.datachain.network' outside .cursor/"
+      ],
+      "deploy_signals": [
+        "https://naturaproof.com serves HTTP 200 AND its shipped JS/HTML references 'id.datachain.network'"
+      ],
+      "deploy_command": "./deploy/deploy.sh",
+      "deploy_command_notes": "Audited 2026-05-10. Workspace has NO .git directory — emission code lives only on this laptop, so there is no push step.",
+      "production_check": {
+        "url": "https://naturaproof.com",
+        "expected_status": 200,
+        "follow_redirects": true
+      },
+      "min_disk_gib": 2,
+      "ssh_keys_required": [],
+      "primer_extra": "naturaproof.io/.net/.org redirect to naturaproof.com (server-side, managed by ROPE). Only the .com app needs the integration."
+    },
+    {
+      "name": "careaway",
+      "cwd": "/Users/kazealphonseonguene/Downloads/Careways_health_Connect",
+      "sensitivity": "health",
+      "actions": [
+        "Add Datachain ID sign-in (login + wallet paths) to the patient/marketplace frontend.",
+        "Verify tokens server-side via /v1/auth/introspect (simplest for the pm2 Node API) or offline jose verify; attach the verified `sub` to the request context.",
+        "Keep Careaway's own authorization scopes on top of `sub` — the token carries identity only, never health payloads, per handover §Careaway note."
+      ],
+      "emission_signals": [
+        "Source contains a string match for 'id.datachain.network' outside .cursor/"
+      ],
+      "deploy_signals": [
+        "https://careaway.health serves HTTP 200 AND its shipped JS/HTML references 'id.datachain.network'"
+      ],
+      "deploy_command": "bash ./deploy-marketplace-admin.sh",
+      "deploy_command_notes": "Audited 2026-05-10. PRIMARY: bash ./deploy-marketplace-admin.sh (uses pm2 — confirmed live supervisor on VPS, NOT systemd). FOLLOW-UP scp sync of changed auth routes to /var/www/careaway/api on 92.243.24.180, then ssh restart pm2 careaway-api --update-env. server.cjs may need /tmp + sudo cp because of www-data ownership.",
+      "production_check": {
+        "url": "https://careaway.health",
+        "expected_status": 200,
+        "follow_redirects": true
+      },
+      "min_disk_gib": 3,
+      "ssh_keys_required": ["~/.ssh/careaway_admin_key"],
+      "primer_extra": "HEALTH-SENSITIVITY: do not touch patient records, consent flows, care-plan data, or any DB migration. The integration is strictly additive authentication. GDPR special-category rules apply to everything beyond the identity token."
+    },
+    {
+      "name": "shametrails",
+      "cwd": "/Users/kazealphonseonguene/Downloads/shametrails",
+      "sensitivity": "normal",
+      "actions": [
+        "Add Datachain ID sign-in to the app: /v1/auth/login (email+password) as the primary path; store the token for ecosystem API calls.",
+        "Key user-linked ecosystem features on token `sub`."
+      ],
+      "emission_signals": [
+        "Source contains a string match for 'id.datachain.network' outside .cursor/"
+      ],
+      "deploy_signals": [
+        "`eas update:list --branch production --limit 1 --json` is dated after the emission commit"
+      ],
+      "deploy_command": "eas update --branch production --message \"feat(datachain-id-sso-2026-07-08): Datachain ID ecosystem sign-in\"",
+      "deploy_command_notes": "EAS-OTA path. Owner: datachainfoundation. Project: https://expo.dev/accounts/datachainfoundation/projects/shametrails. Native binary path (eas build + eas submit) is HUMAN-ONLY (store review). Apple Team: Q5UBRU9F2C. App Store Connect key ids: PM964XKLSQ / GQ2QI5GE3QV1 (+Skywatchers, bundle com.shametrails.shametrails.9lkvv3).",
+      "human_setup_required": true,
+      "human_setup_checklist": [
+        "Update app.json: owner=\"datachainfoundation\", slug=\"shametrails\", expo.ios.bundleIdentifier, expo.android.package",
+        "Run `eas init --id <projectId>` to link to the existing Expo project",
+        "Create eas.json with a 'production' build profile (channel: production) and submit section referencing the App Store Connect API key",
+        "Add a git remote for code persistence",
+        "Run `eas whoami`; if logged in as 'datachainers' instead of 'datachainfoundation', run `eas login` with the correct account"
+      ],
+      "production_check": {
+        "url": null,
+        "eas_check": "eas update:list --branch production --limit 1 --json"
+      },
+      "min_disk_gib": 5,
+      "ssh_keys_required": [],
+      "primer_extra": "Workspace may still be in vibecode-template state (see human_setup_checklist and LESSONS.md Lesson 2). Emission can proceed regardless; deploy defers until the operator clears the checklist."
+    },
+    {
+      "name": "moneymaker",
+      "cwd": "/Users/kazealphonseonguene/Downloads/moneymaker",
+      "sensitivity": "real-money",
+      "actions": [
+        "Verify Datachain ID tokens on any operator/user-facing surface via /v1/auth/introspect (server-side, zero crypto code) per handover §Option B.",
+        "Where a human signs in to view dashboards or reports, add the /v1/auth/login form and require amr 'wallet_signature' for any action that can move funds."
+      ],
+      "emission_signals": [
+        "Source contains a string match for 'id.datachain.network' outside .cursor/"
+      ],
+      "deploy_signals": [
+        "The deployed service on the VPS references 'id.datachain.network' (ssh grep of the deployed tree) after ./deploy.sh"
+      ],
+      "deploy_command": "./deploy.sh",
+      "deploy_command_notes": "Audited 2026-05-10. Default key is ~/.ssh/shametrails_key; pass an alternate path as $1 if needed.",
+      "production_check": {
+        "url": null,
+        "ssh_state_check": "ssh -i ~/.ssh/shametrails_key ubuntu@92.243.25.58 'echo reachable' (adjust host per moneymaker's deploy.sh target)"
+      },
+      "min_disk_gib": 2,
+      "ssh_keys_required": ["~/.ssh/shametrails_key"],
+      "primer_extra": "REAL-MONEY SENSITIVITY: forbidden from touching trading logic, balance code, order execution, or fund-movement paths. The integration is authentication-only. If no human-facing sign-in surface exists, write the introspection helper module + tests and record that in the marker; do not invent UI."
+    },
+    {
+      "name": "alteros",
+      "cwd": "/Users/kazealphonseonguene/alteros",
+      "sensitivity": "normal",
+      "actions": [
+        "Add Datachain ID sign-in (login + wallet paths) to the webapp frontend.",
+        "Verify tokens in the backend via offline JWKS verify (jose) or /v1/auth/introspect; key user records on `sub`."
+      ],
+      "emission_signals": [
+        "Source contains a string match for 'id.datachain.network' outside .cursor/"
+      ],
+      "deploy_signals": [
+        "The running alteros-webapp container serves content referencing 'id.datachain.network' (ssh + curl localhost:15432 grep)"
+      ],
+      "deploy_command": "./deploy-to-vps.sh",
+      "deploy_command_notes": "Audited 2026-05-10. FULL run (NOT --skip-build) so Dockerfile.webapp includes current src and the image is pushed (braincitieslab/alteros-webapp:latest) before the VPS pulls. alteros is docker-compose-managed (stack 'alteros' in /opt/alteros), NOT a systemd unit. Verify with 'docker ps --filter name=alteros-webapp' + curl /health.",
+      "production_check": {
+        "url": null,
+        "ssh_state_check": "ssh -i ~/.ssh/shametrails_key ubuntu@92.243.25.58 'docker ps --filter name=alteros-webapp --format \"{{.Status}}\" | grep -q \"^Up\" && curl -sf -o /dev/null -w \"%{http_code}\" http://localhost:15432/health' (must return 200 with the docker filter matching)"
+      },
+      "min_disk_gib": 5,
+      "ssh_keys_required": ["~/.ssh/shametrails_key"],
+      "primer_extra": "Docker image build + push happens locally then the VPS pulls — budget disk for the image layers."
+    },
+    {
+      "name": "syndicated",
+      "cwd": "/Users/kazealphonseonguene/Downloads/LUZRAN GROUP/syndicated.ltd",
+      "sensitivity": "securities",
+      "actions": [
+        "Add Datachain ID sign-in to the investor-facing portal (login form → /v1/auth/login; wallet path where a provider is present).",
+        "Verify tokens server-side per handover §Option A/B; attach `sub` to the session; require amr 'wallet_signature' for any document-signing or subscription action."
+      ],
+      "emission_signals": [
+        "Source contains a string match for 'id.datachain.network' outside .cursor/"
+      ],
+      "deploy_signals": [
+        "https://syndicated.ltd serves HTTP 200 AND its shipped JS/HTML references 'id.datachain.network'"
+      ],
+      "deploy_command": "bash deploy/quick-deploy.sh",
+      "deploy_command_notes": "Audited 2026-05-10.",
+      "production_check": {
+        "url": "https://syndicated.ltd",
+        "expected_status": 200,
+        "follow_redirects": true
+      },
+      "min_disk_gib": 3,
+      "ssh_keys_required": [],
+      "primer_extra": "SECURITIES SENSITIVITY: forbidden from touching investor records, subscription/allocation logic, or any compliance data. Authentication-only change."
+    },
+    {
+      "name": "mapstore",
+      "cwd": "/Users/kazealphonseonguene/Downloads/mapstore",
+      "sensitivity": "real-money",
+      "actions": [
+        "Backend (web-rust): offline EdDSA JWKS verification module + Bearer extractor; POST /api/auth/datachain-id exchanging a verified ecosystem token for a native mapstore session, linking users on token `sub` (shopper role by default).",
+        "Frontend: 'Sign in with Datawallet+' (login form + wallet path) wired into the existing Connect affordance on mapstore.net."
+      ],
+      "emission_signals": [
+        "Source contains a string match for 'id.datachain.network' outside .cursor/"
+      ],
+      "deploy_signals": [
+        "https://mapstore.net serves HTTP 200 AND its shipped JS/HTML references 'id.datachain.network'"
+      ],
+      "deploy_command": null,
+      "deploy_command_notes": "deploy/deploy.sh exists but has NOT been audited for this rollout (mapstore was not part of the 2026-05-10 audit). Per the pinned-deploy-command hard rule, deploy is human-owned until the operator audits and pins it. Escrow/reconcile services (mapstore-escrow handover 2026-06-15) are on this box — extra care required.",
+      "production_check": {
+        "url": "https://mapstore.net",
+        "expected_status": 200,
+        "follow_redirects": true
+      },
+      "min_disk_gib": 3,
+      "ssh_keys_required": [],
+      "primer_extra": "REAL-MONEY adjacency: mapstore has a live escrow + USDC vault (see .cursor/rules escrow handovers). Authentication-only change; never touch escrow, reconcile, or payment code."
+    },
+    {
+      "name": "tangibledc",
+      "cwd": "/Users/kazealphonseonguene/Downloads/tangibledc_goodies",
+      "sensitivity": "normal",
+      "actions": [
+        "Frontend (index.html/app.js on dc.datachain.one): 'Sign in with Datawallet+' via Datachain ID (login form + wallet path), token in localStorage, session resume via /v1/auth/userinfo, sign-out.",
+        "Backend (Rust src/): verify ecosystem tokens (JWKS or introspect) where orders/checkout attribute a customer; key linkage on `sub`."
+      ],
+      "emission_signals": [
+        "Source contains a string match for 'id.datachain.network' outside .cursor/"
+      ],
+      "deploy_signals": [
+        "https://dc.datachain.one serves HTTP 200 AND its shipped JS/HTML references 'id.datachain.network'"
+      ],
+      "deploy_command": null,
+      "deploy_command_notes": "Deployed via Fly.io (fly.toml present) — `fly deploy` is the likely path but has NOT been audited for this rollout. Human-owned until the operator audits and pins it. NOTE: this directory sits inside the shared ~/Downloads git root, so commits must be scoped to this directory only.",
+      "production_check": {
+        "url": "https://dc.datachain.one",
+        "expected_status": 200,
+        "follow_redirects": true
+      },
+      "min_disk_gib": 2,
+      "ssh_keys_required": [],
+      "primer_extra": "Tangible DC goodies storefront. Authentication-only change; never touch payment or NFT-minting logic."
+    },
+    {
+      "name": "leadgeneration",
+      "cwd": "/Users/kazealphonseonguene/Downloads/leadgeneration",
+      "sensitivity": "normal",
+      "actions": [
+        "Add an optional 'Sign in with Datachain ID' affordance to the Rope Graph at event.datachain.one (Main File/HTML/index2.html): wallet path preferred, storing the token in localStorage and showing a signed-in pill.",
+        "No backend exists for this static site — verification is client-side only (local-decode exp; call /v1/auth/userinfo to validate on load)."
+      ],
+      "emission_signals": [
+        "Main File/HTML/index2.html (or its JS) contains 'id.datachain.network'"
+      ],
+      "deploy_signals": [
+        "https://event.datachain.one serves HTTP 200 AND its HTML/JS references 'id.datachain.network'"
+      ],
+      "deploy_command": null,
+      "deploy_command_notes": "Workspace has deploy.sh / deploy-cercle.sh / deploy-png.sh but none has been audited for this rollout (not part of the 2026-05-10 audit). Per the pinned-deploy-command hard rule, deploy is human-owned until the operator audits and pins one. Emission can ship.",
+      "production_check": {
+        "url": "https://event.datachain.one",
+        "expected_status": 200,
+        "follow_redirects": true
+      },
+      "min_disk_gib": 2,
+      "ssh_keys_required": [],
+      "primer_extra": "This is the Rope Graph visualization (see handover-rope-graph-tanastok-discovery-2026-05-21). SSO here is a nice-to-have personalization layer, lowest priority in the rollout."
+    }
+  ]
+}

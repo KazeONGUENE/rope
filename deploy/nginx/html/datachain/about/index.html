@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About | Datachain Foundation</title>
+    <meta name="description" content="Datachain Foundation is a community moved by a vision. We empower individuals with data ownership through decentralized technologies. Meet the team, the advisors, and the Ecosystem Builders growing the network in every region.">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+    <!-- Leaflet — same version used by dcscan.io's Global Databox Network map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --black: #000000;
+            --white: #ffffff;
+            --gray-50: #fafafa;
+            --gray-100: #f5f5f5;
+            --gray-200: #e5e5e5;
+            --gray-300: #d4d4d4;
+            --gray-400: #a3a3a3;
+            --gray-500: #737373;
+            --gray-600: #525252;
+            --gray-700: #404040;
+            --gray-800: #262626;
+            --gray-900: #171717;
+            --gray-950: #0a0a0a;
+
+            --font-sans: 'Instrument Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: var(--font-sans);
+            background: var(--white);
+            color: var(--black);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+        a { color: inherit; text-decoration: none; }
+
+        /* ============ Navigation (identical to home page) ============ */
+        nav {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--gray-200);
+        }
+        .nav-container {
+            max-width: 1400px; margin: 0 auto; padding: 0 2rem;
+            display: flex; align-items: center; justify-content: space-between;
+            height: 72px;
+        }
+        .logo {
+            display: flex; align-items: center; gap: 0.75rem;
+            color: #000000; font-weight: 450; font-size: 1rem;
+            letter-spacing: -0.02em; line-height: 1.2;
+        }
+        .logo-text { display: flex; flex-direction: column; }
+        .logo-icon { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
+        .logo-icon img { width: 100%; height: 100%; object-fit: contain; }
+        .nav-links { display: flex; align-items: center; gap: 2.5rem; }
+        .nav-links a {
+            color: var(--gray-600); font-size: 0.9375rem; font-weight: 500;
+            transition: color 0.2s;
+        }
+        .nav-links a:hover { color: var(--black); }
+        .nav-links a.active { color: var(--black); font-weight: 600; }
+        .nav-actions { display: flex; align-items: center; gap: 1rem; }
+        .btn {
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            padding: 0.75rem 1.5rem; font-size: 0.9375rem; font-weight: 600;
+            border-radius: 8px; transition: all 0.2s;
+            cursor: pointer; border: none; font-family: inherit;
+        }
+        .btn-primary { background: var(--black); color: var(--white); }
+        .btn-primary:hover { background: var(--gray-800); transform: translateY(-1px); }
+        .btn-secondary { background: transparent; color: var(--black); border: 1.5px solid var(--gray-300); }
+        .btn-secondary:hover { border-color: var(--black); background: var(--gray-50); }
+        .btn-ghost { background: transparent; color: var(--gray-600); padding: 0.5rem 0.75rem; }
+        .btn-ghost:hover { color: var(--black); background: var(--gray-100); }
+
+        /* ============ Hero ============ */
+        .hero {
+            padding: 160px 2rem 80px;
+            background: linear-gradient(180deg, var(--white) 0%, var(--gray-50) 100%);
+        }
+        .hero-container { max-width: 1000px; margin: 0 auto; text-align: center; }
+        .hero-badge {
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            padding: 0.5rem 1rem; background: var(--gray-100);
+            border: 1px solid var(--gray-200); border-radius: 999px;
+            font-size: 0.8125rem; font-weight: 500; color: var(--gray-700);
+            margin-bottom: 2rem;
+        }
+        .hero-badge i { color: var(--black); }
+        .hero h1 {
+            font-size: clamp(2.5rem, 6vw, 4.5rem);
+            font-weight: 700; letter-spacing: -0.03em;
+            line-height: 1.05; margin-bottom: 1.5rem;
+        }
+        .hero h1 em { font-style: normal; color: var(--gray-500); }
+        .hero-subtitle {
+            font-size: 1.25rem; color: var(--gray-600);
+            max-width: 780px; margin: 0 auto 2.5rem;
+            line-height: 1.6;
+        }
+        .hero-actions { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+
+        /* ============ Generic Section ============ */
+        .section { padding: 100px 2rem; }
+        .section-container { max-width: 1400px; margin: 0 auto; }
+        .section-header {
+            max-width: 720px; margin: 0 auto 4rem; text-align: center;
+        }
+        .section-label {
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            font-size: 0.875rem; font-weight: 600; color: var(--gray-500);
+            text-transform: uppercase; letter-spacing: 0.1em;
+            margin-bottom: 1rem;
+        }
+        .section-title {
+            font-size: clamp(2rem, 4vw, 3rem);
+            font-weight: 700; letter-spacing: -0.02em; margin-bottom: 1rem;
+        }
+        .section-desc {
+            font-size: 1.125rem; color: var(--gray-600); line-height: 1.7;
+        }
+
+        /* ============ Principles grid (3 cards) ============ */
+        .principles-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem;
+        }
+        .principle-card {
+            background: var(--white); border: 1px solid var(--gray-200);
+            border-radius: 16px; padding: 2rem; transition: all 0.3s;
+        }
+        .principle-card:hover {
+            border-color: var(--gray-300);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.06);
+            transform: translateY(-2px);
+        }
+        .principle-icon {
+            width: 48px; height: 48px; background: var(--gray-900);
+            color: var(--white); border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.25rem; margin-bottom: 1.25rem;
+        }
+        .principle-card h3 { font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem; }
+        .principle-card p { color: var(--gray-600); font-size: 0.9375rem; line-height: 1.6; }
+
+        /* ============ Prose block (integrity by design etc.) ============ */
+        .prose-block {
+            background: var(--gray-900); color: var(--white);
+            border-radius: 24px; padding: 4rem;
+            display: grid; grid-template-columns: 1fr 1.5fr; gap: 4rem;
+            align-items: start;
+        }
+        .prose-block .section-label { color: var(--gray-400); }
+        .prose-block h2 { font-size: 2rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 1rem; }
+        .prose-block p { color: var(--gray-300); font-size: 1.0625rem; line-height: 1.7; }
+        .prose-block p + p { margin-top: 1rem; }
+        @media (max-width: 900px) {
+            .prose-block { grid-template-columns: 1fr; gap: 2rem; padding: 2.5rem; }
+        }
+
+        /* ============ Team / Advisor cards ============ */
+        .team-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem;
+        }
+        .advisor-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem;
+        }
+        .team-card, .advisor-card {
+            background: var(--white); border: 1px solid var(--gray-200);
+            border-radius: 16px; padding: 2rem; transition: all 0.3s;
+        }
+        .team-card:hover, .advisor-card:hover {
+            border-color: var(--gray-300);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.06);
+            transform: translateY(-2px);
+        }
+        .team-avatar {
+            width: 96px; height: 96px; border-radius: 50%;
+            overflow: hidden;
+            background: var(--gray-100);
+            border: 1px solid var(--gray-200);
+            margin-bottom: 1.25rem;
+        }
+        .team-avatar img {
+            width: 100%; height: 100%; object-fit: cover; display: block;
+        }
+        .team-card h3 { font-size: 1.125rem; font-weight: 700; margin-bottom: 0.25rem; }
+        .team-role, .advisor-role {
+            font-size: 0.8125rem; color: var(--gray-500);
+            text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600;
+            margin-bottom: 0.75rem;
+        }
+        .advisor-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.25rem; }
+        .advisor-quote {
+            color: var(--gray-600); font-size: 0.875rem;
+            line-height: 1.5; font-style: italic;
+            border-left: 2px solid var(--gray-300);
+            padding-left: 0.875rem; margin-top: 0.75rem;
+        }
+
+        /* ============ Ecosystem Builders (map + cards) ============ */
+        .ecosystem {
+            background: var(--gray-50);
+            border-top: 1px solid var(--gray-200);
+            border-bottom: 1px solid var(--gray-200);
+        }
+        /* Map card — identical dark aesthetic to dcscan.io */
+        .map-card {
+            background: var(--white); border: 1px solid var(--gray-200);
+            border-radius: 16px; overflow: hidden;
+        }
+        .map-card-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        .map-card-title { font-size: 1rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; }
+        .map-card-title i { color: var(--gray-600); }
+        .map-card-action {
+            font-size: 0.8125rem; color: var(--gray-600); font-weight: 500;
+            display: inline-flex; align-items: center; gap: 0.375rem;
+        }
+        .map-card-action:hover { color: var(--black); }
+        .map-container {
+            height: 520px; background: #1a2332;
+            position: relative; overflow: hidden;
+        }
+        #leafletMap {
+            width: 100%; height: 100%; background: #1a2332;
+        }
+        /* Custom markers — inherit dcscan.io look, add a distinct builder marker */
+        .custom-marker { border-radius: 50% !important; background: transparent !important; border: none !important; }
+        .custom-marker > div { border-radius: 50%; animation: pulse-marker 2s ease-in-out infinite; }
+        .validator-marker > div {
+            background: #00ff88 !important;
+            border: 2px solid rgba(0, 255, 136, 0.5);
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.9), 0 0 30px rgba(0, 255, 136, 0.5);
+        }
+        .databox-marker > div {
+            background: #00d4ff !important;
+            border: 2px solid rgba(0, 212, 255, 0.5);
+            box-shadow: 0 0 12px rgba(0, 212, 255, 0.8), 0 0 25px rgba(0, 212, 255, 0.4);
+            animation-delay: 0.5s;
+        }
+        .builder-marker > div {
+            background: #ffd166 !important;
+            border: 2px solid rgba(255, 209, 102, 0.6);
+            box-shadow: 0 0 18px rgba(255, 209, 102, 0.9), 0 0 40px rgba(255, 209, 102, 0.6);
+            animation-delay: 0.25s;
+        }
+        @keyframes pulse-marker {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.5); opacity: 0.8; }
+        }
+        /* Leaflet popup theming */
+        .leaflet-popup-content-wrapper {
+            background: rgba(0, 0, 0, 0.92) !important; color: white !important;
+            border-radius: 8px !important; font-family: var(--font-sans) !important;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3) !important;
+        }
+        .leaflet-popup-content { margin: 12px 16px !important; font-size: 13px !important; line-height: 1.4 !important; }
+        .leaflet-popup-tip { background: rgba(0, 0, 0, 0.92) !important; }
+        .popup-name { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+        .popup-type { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .popup-type.validator { color: #00ff88; }
+        .popup-type.databox { color: #00d4ff; }
+        .popup-type.builder { color: #ffd166; }
+        .popup-linkedin {
+            display: inline-flex; align-items: center; gap: 4px;
+            color: #ffd166 !important; margin-top: 6px;
+            font-size: 11px; font-weight: 600;
+        }
+        .popup-linkedin:hover { color: #fff !important; }
+        /* Zoom controls (bottom-left, matching dcscan.io style) */
+        .leaflet-top.leaflet-left { top: auto !important; bottom: 10px !important; }
+        .leaflet-control-zoom { border: none !important; box-shadow: 0 2px 10px rgba(0,0,0,0.15) !important; border-radius: 8px !important; overflow: hidden; margin-bottom: 0 !important; }
+        .leaflet-control-zoom a { background: rgba(255, 255, 255, 0.95) !important; color: #404040 !important; border: none !important; width: 36px !important; height: 36px !important; line-height: 36px !important; font-size: 18px !important; transition: all 0.2s !important; }
+        .leaflet-control-zoom a:hover { background: white !important; color: black !important; }
+        .leaflet-control-zoom-in { border-bottom: 1px solid #e5e5e5 !important; }
+        .leaflet-control-attribution { display: none !important; }
+        /* Map legend row */
+        .map-legend-row {
+            padding: 1rem 1.5rem;
+            display: flex; justify-content: space-between; align-items: center;
+            gap: 1rem; flex-wrap: wrap;
+            border-top: 1px solid var(--gray-200);
+            background: var(--gray-50);
+        }
+        .legend-group { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+        .legend-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8125rem; color: var(--gray-700); }
+        .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+        .legend-dot.validator { background: #00ff88; box-shadow: 0 0 6px rgba(0,255,136,0.6); }
+        .legend-dot.databox { background: #00d4ff; box-shadow: 0 0 6px rgba(0,212,255,0.6); }
+        .legend-dot.builder { background: #ffd166; box-shadow: 0 0 6px rgba(255,209,102,0.6); }
+
+        /* Builder cards under the map */
+        .builders-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.5rem; margin-top: 2rem;
+        }
+        .builder-card {
+            display: flex; gap: 1.25rem; align-items: center;
+            background: var(--white); border: 1px solid var(--gray-200);
+            border-radius: 16px; padding: 1.5rem;
+            transition: all 0.3s; color: inherit;
+        }
+        .builder-card:hover {
+            border-color: var(--black);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.06);
+            transform: translateY(-2px);
+        }
+        .builder-photo {
+            flex-shrink: 0; width: 88px; height: 88px;
+            border-radius: 14px; overflow: hidden;
+            background: var(--gray-100); border: 1px solid var(--gray-200);
+        }
+        .builder-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .builder-info { flex: 1; min-width: 0; }
+        .builder-name { font-size: 1.125rem; font-weight: 700; margin-bottom: 0.25rem; }
+        .builder-role { font-size: 0.8125rem; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.5rem; }
+        .builder-region { display: inline-flex; align-items: center; gap: 0.375rem; font-size: 0.875rem; color: var(--gray-700); margin-bottom: 0.75rem; }
+        .builder-region i { color: var(--black); }
+        .builder-links { display: flex; gap: 0.75rem; }
+        .builder-link {
+            display: inline-flex; align-items: center; gap: 0.375rem;
+            font-size: 0.8125rem; font-weight: 500; color: var(--gray-600);
+        }
+        .builder-link:hover { color: var(--black); }
+        .builder-card-empty {
+            border-style: dashed; background: transparent;
+            flex-direction: column; justify-content: center;
+            text-align: center; padding: 2rem 1.5rem;
+        }
+        .builder-empty-icon {
+            width: 48px; height: 48px; border-radius: 12px;
+            background: var(--white); border: 1px solid var(--gray-200);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.25rem; color: var(--gray-400);
+            margin-bottom: 1rem;
+        }
+        .builder-card-empty h4 { font-size: 1rem; font-weight: 600; margin-bottom: 0.25rem; }
+        .builder-card-empty p { font-size: 0.875rem; color: var(--gray-500); margin-bottom: 1rem; }
+
+        .ecosystem-note {
+            margin-top: 2rem;
+            padding: 1.25rem 1.75rem;
+            background: var(--white);
+            border-left: 3px solid var(--black);
+            border-radius: 0 12px 12px 0;
+            font-size: 0.9375rem;
+            color: var(--gray-700);
+        }
+        .ecosystem-note code {
+            font-family: var(--font-mono); font-size: 0.8125rem;
+            background: var(--gray-100); padding: 2px 6px; border-radius: 4px;
+            border: 1px solid var(--gray-200);
+        }
+
+        /* ============ Multidisciplinarity ============ */
+        .disciplines-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem;
+        }
+        .discipline-card {
+            background: var(--white); border: 1px solid var(--gray-200);
+            border-radius: 16px; padding: 1.75rem; transition: all 0.3s;
+        }
+        .discipline-card:hover {
+            border-color: var(--gray-300);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.06);
+            transform: translateY(-2px);
+        }
+        .discipline-card h4 {
+            font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem;
+            display: flex; align-items: center; gap: 0.5rem;
+        }
+        .discipline-card h4 i { color: var(--gray-500); font-size: 0.875rem; }
+        .discipline-card p { color: var(--gray-600); font-size: 0.875rem; line-height: 1.6; }
+
+        /* ============ CTA ============ */
+        .cta {
+            padding: 100px 2rem; text-align: center;
+            background: var(--gray-900); color: var(--white);
+        }
+        .cta-container { max-width: 720px; margin: 0 auto; }
+        .cta h2 { font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; letter-spacing: -0.02em; margin-bottom: 1rem; }
+        .cta p { font-size: 1.125rem; color: var(--gray-400); margin-bottom: 2rem; }
+        .cta-actions { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+        .cta .btn-primary { background: var(--white); color: var(--black); }
+        .cta .btn-primary:hover { background: var(--gray-100); }
+        .cta .btn-secondary { color: var(--white); border-color: var(--gray-700); }
+        .cta .btn-secondary:hover { border-color: var(--white); background: var(--gray-800); }
+
+        /* ============ Footer ============ */
+        footer {
+            padding: 3rem 2rem;
+            background: var(--white);
+            border-top: 1px solid var(--gray-200);
+        }
+        .footer-container {
+            max-width: 1400px; margin: 0 auto;
+            display: flex; justify-content: space-between; align-items: center;
+            flex-wrap: wrap; gap: 1.5rem;
+        }
+        .footer-brand { display: flex; align-items: center; gap: 0.75rem; font-weight: 500; color: var(--gray-700); }
+        .footer-links { display: flex; gap: 2rem; flex-wrap: wrap; }
+        .footer-links a { color: var(--gray-600); font-size: 0.875rem; font-weight: 500; }
+        .footer-links a:hover { color: var(--black); }
+
+        /* ============ Responsive ============ */
+        @media (max-width: 900px) {
+            .nav-links { display: none; }
+            .principles-grid, .team-grid, .advisor-grid, .disciplines-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        @media (max-width: 1100px) and (min-width: 901px) {
+            .advisor-grid, .disciplines-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav>
+        <div class="nav-container">
+            <a href="/" class="logo">
+                <div class="logo-icon"><img src="/assets/logo.svg" alt="Datachain Logo"></div>
+                <span class="logo-text">
+                    <span>Datachain</span>
+                    <span>Network</span>
+                </span>
+            </a>
+            <div class="nav-links">
+                <a href="/#features">Features</a>
+                <a href="/#technology">Technology</a>
+                <a href="/about/" class="active">About</a>
+                <a href="https://dcscan.io" target="_blank">Explorer</a>
+                <a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a>
+                <a href="/docs">Documentation</a>
+            </div>
+            <div class="nav-actions">
+                <a href="https://dcscan.io" class="btn btn-primary">
+                    <i class="fa-solid fa-arrow-right"></i>
+                    Launch Explorer
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="hero">
+        <div class="hero-container">
+            <div class="hero-badge">
+                <i class="fa-solid fa-heart"></i>
+                About Datachain Foundation
+            </div>
+            <h1>We Are A Community<br><em>Moved By A Vision</em></h1>
+            <p class="hero-subtitle">
+                The ethos of Datachain Foundation is rooted in empowerment, innovation, and transparency. Our mission is to empower individuals with data ownership through decentralized technologies and data management, reshaping the future of digital and tangible asset ownership for a secure and trustworthy data ecosystem for all.
+            </p>
+            <div class="hero-actions">
+                <a href="#ecosystem" class="btn btn-primary">
+                    <i class="fa-solid fa-globe"></i>
+                    Ecosystem Builders
+                </a>
+                <a href="#team" class="btn btn-secondary">
+                    <i class="fa-solid fa-users"></i>
+                    Meet the Team
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Mission / What We Do -->
+    <section class="section" id="mission">
+        <div class="section-container">
+            <div class="section-header">
+                <div class="section-label"><i class="fa-solid fa-compass"></i> What We Do</div>
+                <h2 class="section-title">More Than A Company</h2>
+                <p class="section-desc">
+                    The Datachain Foundation is a pioneering organization dedicated to revolutionizing data management through decentralized technologies. Our mission is to shape the future of cyberspace by empowering individuals with full control over their personal data, ensuring privacy and security in the digital age. As a family-spirited organization, we work together to guide, support, and challenge ambitious projects while promoting ethical practices in data management.
+                </p>
+            </div>
+
+            <div class="principles-grid">
+                <div class="principle-card">
+                    <div class="principle-icon"><i class="fa-solid fa-hand-fist"></i></div>
+                    <h3>Empowerment</h3>
+                    <p>We give users full control over their personal information and digital twins, fostering sovereignty in every interaction with the network.</p>
+                </div>
+                <div class="principle-card">
+                    <div class="principle-icon"><i class="fa-solid fa-flask"></i></div>
+                    <h3>Innovation</h3>
+                    <p>We foster long-term innovation and creativity within a community of experts, developers, and enthusiasts building the next generation of infrastructure.</p>
+                </div>
+                <div class="principle-card">
+                    <div class="principle-icon"><i class="fa-solid fa-eye"></i></div>
+                    <h3>Transparency</h3>
+                    <p>We provide users with the knowledge and keys to understand the technology we offer. Every knot on the network is walkable, auditable, and yours.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Integrity by Design -->
+    <section class="section" style="padding-top: 20px;">
+        <div class="section-container">
+            <div class="prose-block">
+                <div>
+                    <div class="section-label"><i class="fa-solid fa-shield-halved"></i> Integrity by Design</div>
+                    <h2>Decentralization<br>as a default</h2>
+                </div>
+                <div>
+                    <p>
+                        Decentralization and non-custody data storage enable integrity by design. By distributing data across a network of nodes, we reduce the risk of tampering or unauthorized access. Users retain full ownership and control of their data, which is stored securely on their devices, ensuring data integrity and privacy.
+                    </p>
+                    <p>
+                        By eliminating central custodians, these solutions minimize the risk of data breaches and manipulation, promoting a culture of trust and ethical data management. This transparent and tamper-proof data ecosystem safeguards the integrity of data throughout its lifecycle.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Core Team -->
+    <section class="section" id="team">
+        <div class="section-container">
+            <div class="section-header">
+                <div class="section-label"><i class="fa-solid fa-users"></i> Meet Our Core Team</div>
+                <h2 class="section-title">A Team of Visionaries</h2>
+                <p class="section-desc">
+                    Building a multidisciplinary team of builders eager to put their talents to the service of a vision whose impact will resonate for decades.
+                </p>
+            </div>
+
+            <div class="team-grid">
+                <div class="team-card">
+                    <div class="team-avatar">
+                        <img src="/assets/team/kaze-onguene.png" alt="Kazé A. ONGUENE" loading="lazy">
+                    </div>
+                    <h3>Kazé A. ONGUENE</h3>
+                    <div class="team-role">Founder · CEO</div>
+                    <p style="color: var(--gray-600); font-size: 0.9375rem;">
+                        Driving the vision. Founder of Datachain Foundation. Architect of Datachain Rope and the Quipu Primitive Canon.
+                    </p>
+                </div>
+                <div class="team-card">
+                    <div class="team-avatar">
+                        <img src="/assets/team/dalila-belkhiri.png" alt="Dalila BELKHIRI" loading="lazy">
+                    </div>
+                    <h3>Dalila BELKHIRI</h3>
+                    <div class="team-role">COO · Strategic Partnerships</div>
+                    <p style="color: var(--gray-600); font-size: 0.9375rem;">
+                        Turning the vision into operating reality. Owner of strategic partnerships, community, and day-to-day operations.
+                    </p>
+                </div>
+                <div class="team-card">
+                    <div class="team-avatar">
+                        <img src="/assets/team/hira-nguyen.png" alt="Hira NGUYEN" loading="lazy">
+                    </div>
+                    <h3>Hira NGUYEN</h3>
+                    <div class="team-role">CTO · Chief Engineer</div>
+                    <p style="color: var(--gray-600); font-size: 0.9375rem;">
+                        Leading the engineering craft. Ensures the primitives shipped in the network match the primitives promised in the whitepaper.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Advisors & Contributors -->
+    <section class="section" id="advisors" style="background: var(--gray-50);">
+        <div class="section-container">
+            <div class="section-header">
+                <div class="section-label"><i class="fa-solid fa-handshake"></i> Advisors and Contributors</div>
+                <h2 class="section-title">Trusted Voices</h2>
+                <p class="section-desc">
+                    Discover the key contributors and advisors playing a pivotal role in the sustainable growth of Datachain Foundation.
+                </p>
+            </div>
+
+            <div class="advisor-grid">
+                <div class="advisor-card">
+                    <h3>K.J Stevens</h3>
+                    <div class="advisor-role">Advisor · Lead Investor</div>
+                    <p class="advisor-quote">"I believe you're trying to promote a decentralized world — the decentralizing of everything. I think that's great."</p>
+                </div>
+                <div class="advisor-card">
+                    <h3>Pr. Leandro Marcarian</h3>
+                    <div class="advisor-role">Contributor · Host of SOTB</div>
+                    <p class="advisor-quote">"Crypto is here to stay but we have to take it seriously."</p>
+                </div>
+                <div class="advisor-card">
+                    <h3>Mohd Hamza</h3>
+                    <div class="advisor-role">Strategic Development Chair</div>
+                    <p class="advisor-quote">"Together let's contribute to an era of technological change."</p>
+                </div>
+                <div class="advisor-card">
+                    <h3>Xavier Haziza</h3>
+                    <div class="advisor-role">Advisor · CXO</div>
+                    <p class="advisor-quote">"Helping Datachain reach product-market fit by bridging the gap between these amazing technology makers and industrials."</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================
+         Ecosystem Builders — with dcscan.io Leaflet map
+         ============================================ -->
+    <section class="section ecosystem" id="ecosystem">
+        <div class="section-container">
+            <div class="section-header">
+                <div class="section-label"><i class="fa-solid fa-globe"></i> Global Presence</div>
+                <h2 class="section-title">Ecosystem Builders</h2>
+                <p class="section-desc">
+                    Ecosystem Builders are the regional stewards who grow the Datachain community in their part of the world — anchoring partnerships, on-boarding institutions, and giving the network a named human face in every geography it serves. Each Builder is geolocalized on the same live network map used by <a href="https://dcscan.io" style="color: var(--black); font-weight: 600;">dcscan.io</a>.
+                </p>
+            </div>
+
+            <!-- Interactive Leaflet map (same component as dcscan.io Global Databox Network) -->
+            <div class="map-card">
+                <div class="map-card-header">
+                    <div class="map-card-title">
+                        <i class="fa-solid fa-globe"></i>
+                        Ecosystem Builders — Global Map
+                    </div>
+                    <a href="https://dcscan.io" class="map-card-action" target="_blank" rel="noopener">
+                        View live network map on DCScan
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                    </a>
+                </div>
+                <div class="map-container">
+                    <div id="leafletMap"></div>
+                </div>
+                <div class="map-legend-row">
+                    <div class="legend-group">
+                        <div class="legend-item">
+                            <div class="legend-dot builder"></div>
+                            <span><strong id="builderCount">1</strong> Ecosystem Builder</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-dot validator"></div>
+                            <span>Validator nodes (from dcscan.io)</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-dot databox"></div>
+                            <span>Databox nodes (from dcscan.io)</span>
+                        </div>
+                    </div>
+                    <div class="legend-item">
+                        <i class="fa-solid fa-map-location-dot" style="color: var(--gray-400);"></i>
+                        <span>Powered by CartoDB · Leaflet · shared with dcscan.io</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Builder cards under the map -->
+            <div class="builders-grid">
+                <a class="builder-card" href="https://www.linkedin.com/in/mr-mohammed-zellaya-7b64622a2/" target="_blank" rel="noopener noreferrer">
+                    <div class="builder-photo">
+                        <img src="/assets/ecosystem-builders/mohammed-zellaya.png" alt="Mohammed Zellaya" loading="lazy">
+                    </div>
+                    <div class="builder-info">
+                        <div class="builder-name">Mohammed Zellaya</div>
+                        <div class="builder-role">Ecosystem Builder</div>
+                        <div class="builder-region">
+                            <i class="fa-solid fa-location-dot"></i>
+                            GCC &amp; MENA region
+                        </div>
+                        <div class="builder-links">
+                            <span class="builder-link">
+                                <i class="fa-brands fa-linkedin"></i>
+                                LinkedIn
+                            </span>
+                            <span class="builder-link">
+                                <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                                Profile
+                            </span>
+                        </div>
+                    </div>
+                </a>
+
+                <div class="builder-card builder-card-empty">
+                    <div class="builder-empty-icon">
+                        <i class="fa-solid fa-plus"></i>
+                    </div>
+                    <h4>Your region here</h4>
+                    <p>We are recruiting Ecosystem Builders across the Americas, Sub-Saharan Africa, Europe, and APAC.</p>
+                    <a href="/contact" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.8125rem;">
+                        <i class="fa-solid fa-paper-plane"></i>
+                        Apply to a region
+                    </a>
+                </div>
+            </div>
+
+            <div class="ecosystem-note">
+                Every Ecosystem Builder anchors a public wallet-string on Datachain Rope via <code>rope_appendToLedger</code>. Their activity — partnerships onboarded, events held, institutions attested — is walkable end-to-end via <code>rope_walkString</code> on <a href="https://dcscan.io" style="color: var(--black); font-weight: 600;">dcscan.io</a>. Transparency is a Foundation value; it is also a Foundation primitive.
+            </div>
+        </div>
+    </section>
+
+    <!-- Multidisciplinarity -->
+    <section class="section" id="multidisciplinarity">
+        <div class="section-container">
+            <div class="section-header">
+                <div class="section-label"><i class="fa-solid fa-layer-group"></i> We Master Multidisciplinarity</div>
+                <h2 class="section-title">A Unique Set of Skills</h2>
+                <p class="section-desc">
+                    Datachain Foundation operates at the intersection of AI, Blockchain, and decentralized finance. This multidisciplinary approach lets us drive innovation, unlock new possibilities, and shape the future of decentralized technologies.
+                </p>
+            </div>
+
+            <div class="disciplines-grid">
+                <div class="discipline-card">
+                    <h4><i class="fa-solid fa-network-wired"></i> NextGen Architecture</h4>
+                    <p>A paradigm shift in data management — eliminating central authorities, distributing data across nodes, driving innovation and redefining digital infrastructure.</p>
+                </div>
+                <div class="discipline-card">
+                    <h4><i class="fa-solid fa-database"></i> Distributed Databases</h4>
+                    <p>Enhanced scalability, fault tolerance, and availability. Seamless synchronization and a resilient ecosystem evolving modern data management.</p>
+                </div>
+                <div class="discipline-card">
+                    <h4><i class="fa-solid fa-cube"></i> Digital Twins</h4>
+                    <p>Real-time replication of physical assets in virtual environments. Enhanced insights, predictive analysis, and remote monitoring across industries.</p>
+                </div>
+                <div class="discipline-card">
+                    <h4><i class="fa-solid fa-vr-cardboard"></i> Mixed Reality</h4>
+                    <p>Simulation environments like the Nanoverse merge virtual and physical worlds, empowering informed decisions and optimizing processes.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta" id="collaborate">
+        <div class="cta-container">
+            <h2>We Are Open to Collaboration</h2>
+            <p>Let's have a call. Whether you want to build on the network, join as an Ecosystem Builder, or partner with the Foundation — reach out.</p>
+            <div class="cta-actions">
+                <a href="/contact" class="btn btn-primary">
+                    <i class="fa-solid fa-paper-plane"></i>
+                    Contact the Foundation
+                </a>
+                <a href="#ecosystem" class="btn btn-secondary">
+                    <i class="fa-solid fa-globe"></i>
+                    Become an Ecosystem Builder
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-container">
+            <div class="footer-brand">
+                <div class="logo-icon" style="width: 24px; height: 24px;">
+                    <img src="/assets/logo.svg" alt="Datachain Logo" style="width: 100%; height: 100%; object-fit: contain;">
+                </div>
+                Datachain Foundation — Crafted with ❤ in Paris, France
+            </div>
+            <div class="footer-links">
+                <a href="/about/">About</a>
+                <a href="https://dcscan.io/create-wallet">Create Wallet</a>
+                <a href="https://dcscan.io" target="_blank">Explorer</a>
+                <a href="/docs">Documentation</a>
+                <a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a>
+                <a href="/contact">Contact</a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // ============================================================
+        // Ecosystem Builders — Leaflet map
+        // Uses the exact same component that powers dcscan.io's
+        // "Global Databox Network" map (CartoDB Dark Matter tiles,
+        // pulsing divIcon markers, dark popups). Adds a new marker
+        // type "builder" for Ecosystem Builders on top of the
+        // validator + databox layers.
+        // ============================================================
+        (function() {
+            const map = L.map('leafletMap', {
+                center: [25, 30],       // Middle-East-ish centered so Mohammed's pin lands near screen centre
+                zoom: 3,
+                minZoom: 2,
+                maxZoom: 8,
+                zoomControl: true,
+                attributionControl: false,
+                worldCopyJump: true
+            });
+
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                subdomains: 'abcd',
+                maxZoom: 19
+            }).addTo(map);
+
+            // ---- Ecosystem Builders (the primary payload of this map) ----
+            const builders = [
+                {
+                    name: "Mohammed Zellaya",
+                    role: "Ecosystem Builder",
+                    region: "GCC & MENA region",
+                    // Dubai — a regional anchor point for GCC + MENA
+                    lat: 25.2048,
+                    lng: 55.2708,
+                    linkedin: "https://www.linkedin.com/in/mr-mohammed-zellaya-7b64622a2/",
+                    type: "builder"
+                }
+                // Add future builders here — one object per region.
+            ];
+
+            // ---- Background layers: validator + databox nodes (shared with dcscan.io) ----
+            // Kept as visual context so Builders are geolocalized *inside*
+            // the same live network map users see on dcscan.io.
+            const backgroundNodes = [
+                { name: "New York",       country: "USA",          lat: 40.7128,  lng: -74.0060, type: "validator" },
+                { name: "San Francisco",  country: "USA",          lat: 37.7749,  lng: -122.4194, type: "databox" },
+                { name: "Toronto",        country: "Canada",       lat: 43.6532,  lng: -79.3832, type: "validator" },
+                { name: "São Paulo",      country: "Brazil",       lat: -23.5505, lng: -46.6333, type: "validator" },
+                { name: "Buenos Aires",   country: "Argentina",    lat: -34.6037, lng: -58.3816, type: "validator" },
+                { name: "London",         country: "UK",           lat: 51.5074,  lng: -0.1278,  type: "validator" },
+                { name: "Paris",          country: "France",       lat: 48.8566,  lng: 2.3522,   type: "validator" },
+                { name: "Frankfurt",      country: "Germany",      lat: 50.1109,  lng: 8.6821,   type: "validator" },
+                { name: "Berlin",         country: "Germany",      lat: 52.5200,  lng: 13.4050,  type: "validator" },
+                { name: "Amsterdam",      country: "Netherlands",  lat: 52.3676,  lng: 4.9041,   type: "validator" },
+                { name: "Zurich",         country: "Switzerland",  lat: 47.3769,  lng: 8.5417,   type: "validator" },
+                { name: "Stockholm",      country: "Sweden",       lat: 59.3293,  lng: 18.0686,  type: "validator" },
+                { name: "Madrid",         country: "Spain",        lat: 40.4168,  lng: -3.7038,  type: "databox" },
+                { name: "Milan",          country: "Italy",        lat: 45.4642,  lng: 9.1900,   type: "databox" },
+                { name: "Tokyo",          country: "Japan",        lat: 35.6762,  lng: 139.6503, type: "validator" },
+                { name: "Seoul",          country: "South Korea",  lat: 37.5665,  lng: 126.9780, type: "validator" },
+                { name: "Singapore",      country: "Singapore",    lat: 1.3521,   lng: 103.8198, type: "validator" },
+                { name: "Mumbai",         country: "India",        lat: 19.0760,  lng: 72.8777,  type: "validator" },
+                { name: "Bangalore",      country: "India",        lat: 12.9716,  lng: 77.5946,  type: "databox" },
+                { name: "Shanghai",       country: "China",        lat: 31.2304,  lng: 121.4737, type: "validator" },
+                { name: "Hong Kong",      country: "China",        lat: 22.3193,  lng: 114.1694, type: "databox" },
+                { name: "Dubai",          country: "UAE",          lat: 25.2048,  lng: 55.2708,  type: "validator" },
+                { name: "Riyadh",         country: "Saudi Arabia", lat: 24.7136,  lng: 46.6753,  type: "databox" },
+                { name: "Tel Aviv",       country: "Israel",       lat: 32.0853,  lng: 34.7818,  type: "databox" },
+                { name: "Cairo",          country: "Egypt",        lat: 30.0444,  lng: 31.2357,  type: "databox" },
+                { name: "Casablanca",     country: "Morocco",      lat: 33.5731,  lng: -7.5898,  type: "databox" },
+                { name: "Johannesburg",   country: "South Africa", lat: -26.2041, lng: 28.0473,  type: "validator" },
+                { name: "Lagos",          country: "Nigeria",      lat: 6.5244,   lng: 3.3792,   type: "databox" },
+                { name: "Nairobi",        country: "Kenya",        lat: -1.2921,  lng: 36.8219,  type: "databox" },
+                { name: "Sydney",         country: "Australia",    lat: -33.8688, lng: 151.2093, type: "validator" },
+                { name: "Melbourne",      country: "Australia",    lat: -37.8136, lng: 144.9631, type: "validator" },
+            ];
+
+            function createMarkerIcon(type) {
+                let size;
+                if (type === 'builder')        size = 22;
+                else if (type === 'validator') size = 14;
+                else                           size = 10;
+                return L.divIcon({
+                    className: `custom-marker ${type}-marker`,
+                    iconSize: [size, size],
+                    iconAnchor: [size/2, size/2],
+                    popupAnchor: [0, -size/2],
+                    html: `<div style="width:${size}px;height:${size}px;"></div>`
+                });
+            }
+
+            // Draw background nodes first so Builders visually sit on top
+            backgroundNodes.forEach(city => {
+                const marker = L.marker([city.lat, city.lng], {
+                    icon: createMarkerIcon(city.type)
+                }).addTo(map);
+                marker.bindPopup(`
+                    <div class="popup-name">${city.name}</div>
+                    <div class="popup-type ${city.type}">● ${city.type === 'validator' ? 'Validator Node' : 'Databox Node'}</div>
+                    <div style="font-size: 10px; opacity: 0.7; margin-top: 4px;">${city.country}</div>
+                `, { closeButton: false, offset: [0, -5] });
+                marker.on('mouseover', function() { this.openPopup(); });
+                marker.on('mouseout',  function() { this.closePopup(); });
+            });
+
+            // Draw Ecosystem Builders on top with a distinct gold pin + LinkedIn CTA in popup
+            builders.forEach(builder => {
+                const marker = L.marker([builder.lat, builder.lng], {
+                    icon: createMarkerIcon(builder.type),
+                    zIndexOffset: 1000
+                }).addTo(map);
+                marker.bindPopup(`
+                    <div class="popup-name">${builder.name}</div>
+                    <div class="popup-type builder">★ ${builder.role}</div>
+                    <div style="font-size: 11px; opacity: 0.85; margin-top: 4px;">
+                        <i class="fa-solid fa-location-dot"></i> ${builder.region}
+                    </div>
+                    <a class="popup-linkedin" href="${builder.linkedin}" target="_blank" rel="noopener">
+                        <i class="fa-brands fa-linkedin"></i> View LinkedIn
+                    </a>
+                `, { closeButton: true, offset: [0, -8] });
+                marker.on('mouseover', function() { this.openPopup(); });
+            });
+
+            // Keep the legend count in sync with the builders array
+            const counter = document.getElementById('builderCount');
+            if (counter) counter.textContent = builders.length;
+
+            // Ensure Leaflet recomputes size after fonts/images settle
+            setTimeout(() => map.invalidateSize(), 200);
+        })();
+    </script>
+</body>
+</html>

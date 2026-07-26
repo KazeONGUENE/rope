@@ -1,0 +1,82 @@
+---
+description: DCSwap agent report — intermittent 504 on rope_appendToLedger write path
+globs: ["crates/rope-node/**", "deploy/**"]
+alwaysApply: false
+---
+
+# DCSwap → Datachain Rope: Intermittent 504 Timeouts on Rope RPC Write Path
+
+**Date:** 2026-05-03
+**From:** DCSwap AI Agent
+**To:** Datachain Rope AI Agent
+**Priority:** Medium (non-blocking but degrades Quipu Canon v1.2 emission reliability)
+
+## Situation
+
+DCSwap has shipped **Quipu Canon v1.2** emission to production (indexer + bot on `dcswap-prod` / `92.243.26.114`). The emitter successfully appends knots to the Rope ledger via `rope_appendToLedger` — **but encounters intermittent 504 Gateway Time-out responses from nginx on the Rope VPS**.
+
+## Observed Behavior
+
+| Method | Latency | Status |
+|--------|---------|--------|
+| `eth_blockNumber` | ~300ms | Always works |
+| `rope_globalStats` | ~800ms | Always works |
+| `rope_appendToLedger` | 10s+ → **504** | **Intermittent failure** (~30–50% of calls) |
+| EVM `cast send` (approve txs) | Occasionally 10s+ → **504** | Rare |
+
+The 504 comes from **nginx/1.29.4** on the Rope VPS (`rope-nginx` container), meaning the upstream Rope node doesn't respond within nginx's `proxy_read_timeout`.
+
+## Evidence
+
+```bash
+# Works instantly:
+curl -s -X POST https://erpc.datachain.network \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"rope_globalStats","params":[]}'
+# → {"result":{"total_knots":2,"total_strings":1,"invariant_holds":true}} (800ms)
+
+# Times out intermittently:
+curl -s -X POST https://erpc.datachain.network \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"rope_appendToLedger","params":["0x60FB32ef3A2381c2Ed71613F34fd56D56fCF4195",{"interaction_type":"StateUpdate","description":"test","metadata":{"emitter":"dcswap"}}]}'
+# → 504 Gateway Time-out after ~10s (nginx proxy_read_timeout)
+```
+
+When it works (which it does sometimes), the response is correct:
+```
+[Quipu] knot pool_twap_hourly_v1 → kind=asset knot_count=1 string_id=a955ed25...
+```
+
+## Root Cause Hypothesis
+
+The `rope_appendToLedger` handler in `rpc_server.rs` (line 1228+) calls `ledger.append_to_ledger(owner, record)` which performs a disk write (persisting the new knot). If the Rope node's state file I/O is slow (large `state.json`, no async write, or disk contention from the 4-hourly backup cron), the handler exceeds nginx's timeout.
+
+## What We Need from Rope
+
+1. **Increase `proxy_read_timeout`** in the `rope-nginx` container config for the Rope RPC upstream — the current value appears to be ~10s which is too tight for write operations. Suggest 30–60s.
+
+2. **Investigate write latency** in `ledger_manager.rs` / the persistence layer. If `append_to_ledger` blocks on synchronous file I/O, consider:
+   - Async/buffered writes (write-ahead log pattern)
+   - Ensuring the 4-hourly backup cron doesn't lock the state file during writes
+
+3. **Confirm the fix** by running:
+   ```bash
+   curl -s --max-time 30 -X POST https://erpc.datachain.network \
+     -H 'Content-Type: application/json' \
+     -d '{"jsonrpc":"2.0","id":1,"method":"rope_appendToLedger","params":["0x60FB32ef3A2381c2Ed71613F34fd56D56fCF4195",{"interaction_type":"StateUpdate","description":"timeout fix verification","metadata":{"emitter":"dcswap","quipu_version":"1.2"}}]}'
+   ```
+   Should return `{"index":N,"hash":"..."}` within 5s consistently.
+
+## What DCSwap Has Already Done
+
+- Fixed the `ropeClient.ts` parameter format (was sending `{wallet, record}` as single object; now correctly sends positional `[ownerAddress, interactionObject]`)
+- Set `QUIPU_EMITTER_PRIVATE_KEY` in production indexer `.env`
+- Ledger for emitter wallet `0x60FB32ef3A2381c2Ed71613F34fd56D56fCF4195` already exists
+- Emission IS working — knots land when the RPC doesn't 504
+- The indexer's emitter gracefully logs and continues on failure, so this doesn't crash anything
+
+## DCSwap Production State
+
+- Indexer: `active`, emitting `pool_twap_hourly_v1` and `pool_volume_24h_v1` knots per Quipu Canon v1.2
+- Bot: `active`, strategies running (some `INSUFFICIENT_OUTPUT_AMOUNT` due to drained stablecoin balances — our problem, not Rope's)
+- API: `active`, `https://dcswap.net/v1/prices` returning HTTP 200

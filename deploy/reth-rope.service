@@ -7,6 +7,32 @@ Wants=network-online.target
 Type=simple
 User=ubuntu
 Group=ubuntu
+# H7 (SECURITY_AUDIT_2026-07-25_FULL_WORKSPACE.md): this port set is only
+# reachable today because UFW allow-lists a handful of known fleet IPs and
+# denies everything else (digitalocean-third-blue-green-slot.mdc). The bind
+# address itself stays 0.0.0.0 because reth-health-check.sh polls this port
+# cross-host (BLUE <-> GREEN over their public IPs) — narrowing the bind to
+# 127.0.0.1 would break that monitoring without a companion change to tunnel
+# health checks over SSH. Two changes below DO remove real attack surface
+# without touching bind/health-check behavior:
+#   - `admin` dropped from --http.api: verified unused anywhere in the
+#     rope-node/rope-explorer/rope-engine-driver codebase (only eth, net,
+#     web3, txpool, debug, trace RPC namespaces are ever called), and it is
+#     the most privileged/dangerous namespace reth exposes (peer control,
+#     node lifecycle). No functional impact from removing it.
+#   - --http.corsdomain / --ws.origins wildcards removed: nothing that
+#     talks to this port is a browser (rope-node calls it over plain HTTP
+#     from 127.0.0.1; the cross-host health check is a bare curl POST with
+#     no Origin header), so CORS enforcement here can only ever help an
+#     attacker who gets a victim's browser to reach this port — it has no
+#     legitimate use. Omitting the flags makes reth apply its safe default
+#     (no Access-Control-Allow-Origin header emitted).
+# Residual risk (tracked, not closed by this change): defense-in-depth for
+# the bind address itself still depends on UFW being correct. Recommend a
+# follow-up to move cross-host health polling behind an SSH tunnel or a
+# private VPC address (as the Phase-3 cluster already does) so this port
+# can move to 127.0.0.1-only like reth-rope.service.tmpl already does for
+# follower-mode nodes.
 ExecStart=/usr/local/bin/reth node \
   --dev \
   --dev.block-time 3s \
@@ -15,13 +41,11 @@ ExecStart=/usr/local/bin/reth node \
   --http \
   --http.addr 0.0.0.0 \
   --http.port 8595 \
-  --http.api eth,net,web3,txpool,debug,trace,admin \
-  --http.corsdomain "*" \
+  --http.api eth,net,web3,txpool,debug,trace \
   --ws \
   --ws.addr 0.0.0.0 \
   --ws.port 8547 \
   --ws.api eth,net,web3 \
-  --ws.origins "*" \
   --authrpc.port 8552 \
   --port 30304 \
   --metrics 0.0.0.0:9002 \
@@ -31,6 +55,34 @@ RestartSec=10
 LimitNOFILE=65536
 MemoryMax=8G
 Environment=RUST_LOG=info
+
+# Hardening (M6, SECURITY_AUDIT_2026-07-25_FULL_WORKSPACE.md). Reth's
+# ExecStart above uses only absolute paths under /opt/datachain-rope/reth/
+# (datadir + log directory) and never touches /home — ProtectHome=yes
+# (fully inaccessible, stricter than read-only) is safe here, unlike the
+# datachain-rope.service/dc-explorer.service units above which need
+# read-only access to /home/ubuntu/datachain-rope.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/opt/datachain-rope/reth/data
+ReadWritePaths=/opt/datachain-rope/reth/logs
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RemoveIPC=yes
+# Reth's MDBX storage engine and JIT-adjacent EVM interpreter paths rely on
+# mmap'd read/write/execute pages; do not enable MemoryDenyWriteExecute
+# without testing first (same caution as the existing agent-runtime units
+# in deploy/agents/systemd/ and the two units hardened above).
 
 [Install]
 WantedBy=multi-user.target

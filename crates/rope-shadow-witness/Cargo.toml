@@ -1,0 +1,40 @@
+[package]
+name = "rope-shadow-witness"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Quipu Canon §6.1.1 shadow chain witness — observes the canonical chain via public RPC and computes v2 knot-hash commitments without touching consensus."
+
+[dependencies]
+rope-core = { path = "../rope-core" }
+
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+config = { workspace = true }
+clap = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+hex = { workspace = true }
+chrono = { workspace = true }
+parking_lot = { workspace = true }
+blake3 = { workspace = true }
+rocksdb = { workspace = true }
+reqwest = { workspace = true }
+prometheus = { workspace = true }
+hashbrown = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[[bin]]
+name = "rope-shadow-witness"
+path = "src/main.rs"
+
+[lib]
+name = "rope_shadow_witness"
+path = "src/lib.rs"

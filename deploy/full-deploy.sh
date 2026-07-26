@@ -2,15 +2,42 @@
 # =============================================================================
 # Datachain Rope - Full Deployment Script
 # This script handles everything from local machine to VPS deployment
+#
+# SECURITY NOTE (2026-07-25 remediation, findings C2/C3 of
+# docs/SECURITY_AUDIT_2026-07-25_FULL_WORKSPACE.md):
+#   This script previously embedded a plaintext OpenSSH private key and a
+#   live Neon Postgres OWNER connection string (plus hardcoded PG/Redis
+#   passwords) directly in this file, which is tracked by git and pushed
+#   to a public GitHub repository. Both keys/credentials must be treated
+#   as already compromised if they were ever real — rotate them
+#   independently of this fix.
+#
+#   This script now REQUIRES all secrets to come from the operator's local
+#   environment (never embedded, never git-tracked). Run it like:
+#
+#     SSH_KEY="$HOME/.ssh/DCRope_key" \
+#     POSTGRES_PASSWORD="$(openssl rand -base64 32)" \
+#     REDIS_PASSWORD="$(openssl rand -base64 32)" \
+#     NEON_DATABASE_URL="postgresql://<least-privilege-app-role>:<password>@<host>/<db>?sslmode=require" \
+#     ./full-deploy.sh
+#
+#   The SSH private key must already exist at $SSH_KEY (generate it with
+#   `ssh-keygen -t ed25519 -f ~/.ssh/DCRope_key` and register the public
+#   half in the VPS's authorized_keys out-of-band) — this script will
+#   refuse to run rather than fabricate or embed one.
 # =============================================================================
 
-set -e
+set -euo pipefail
 
 VPS_IP="92.243.26.189"
 VPS_USER="ubuntu"
-SSH_KEY="$HOME/.ssh/DCRope_key"
+SSH_KEY="${SSH_KEY:-$HOME/.ssh/DCRope_key}"
 REMOTE_DIR="/opt/datachain-rope"
 LOCAL_DEPLOY_DIR="$(dirname "$0")"
+
+: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD env var is required — generate with: openssl rand -base64 32}"
+: "${REDIS_PASSWORD:?REDIS_PASSWORD env var is required — generate with: openssl rand -base64 32}"
+: "${NEON_DATABASE_URL:?NEON_DATABASE_URL env var is required — use a least-privilege app role, not the *_owner role}"
 
 echo "╔════════════════════════════════════════════════════════════════╗"
 echo "║       DATACHAIN ROPE - FULL DEPLOYMENT                        ║"
@@ -18,47 +45,19 @@ echo "║       VPS: $VPS_IP                                            ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 
 # =============================================================================
-# Step 1: Save SSH Key
+# Step 1: Verify SSH Key
 # =============================================================================
 echo ""
-echo "📝 Step 1: Setting up SSH key..."
+echo "📝 Step 1: Verifying SSH key..."
 
 if [ ! -f "$SSH_KEY" ]; then
-    echo "Creating SSH key file..."
-    cat > "$SSH_KEY" << 'SSHKEY'
------BEGIN OPENSSH PRIVATE KEY-----
-b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAABFwAAAAdzc2gtcn
-NhAAAAAwEAAQAAAQEAmpc5kH+ARkEFRThAEb8IZ0sgc60NKWXcEcm5Y3wnbNfZg9iZ4KEQ
-0JcukOM759+vskNKUB2Mpoyve1ABgnbrop1DkVZnjzBZgUthssfkWJxOUrNV0FWqr9MHoc
-pYUI77QGhH/VlLd5AoEEQS3CPLyL+zIg6hWtWIY1HC+K7iZ4E56rV43iOf33RZsUUUvHII
-r6yJA3QRdxwjrUOztIWkG+6mXMDceXSaili6noroDH3HzJdKwZiB4b87T3MeRJgMupEkQQ
-dGztNYD27/o0nnin8FbheUqfcMaSXOJZNvXHVugGD0H+FaGaWFw2qwIxPSNucMyNldLNOh
-3EENSJKZ0wAAA9g/LqY5Py6mOQAAAAdzc2gtcnNhAAABAQCalzmQf4BGQQVFOEARvwhnSy
-BzrQ0pZdwRybljfCds19mD2JngoRDQly6Q4zvn36+yQ0pQHYymjK97UAGCduuinUORVmeP
-MFmBS2Gyx+RYnE5Ss1XQVaqv0wehylhQjvtAaEf9WUt3kCgQRBLcI8vIv7MiDqFa1YhjUc
-L4ruJngTnqtXjeI5/fdFmxRRS8cgivrIkDdBF3HCOtQ7O0haQb7qZcwNx5dJqKWLqeiugM
-fcfMl0rBmIHhvztPcx5EmAy6kSRBB0bO01gPbv+jSeeKfwVuF5Sp9wxpJc4lk29cdW6AYP
-Qf4VoZpYXDarAjE9I25wzI2V0s06HcQQ1IkpnTAAAAAwEAAQAAAQAWrzqGY9HzZ9wkSvuf
-1Fv2farek+tlV+nsqaDCIqL4Zk4n+j348o7wmkFTh9IFFakHAWJ4vMqkWpWaLznMJrOEx7
-X1Wuv/B4BtfXMcfxeYvHWueLFkIltVyfjfOr2DM2VWugFXrGWWFGRvSptH4XAoXkpPej0e
-1/cCYqo3wBXp9m1FjTlDGrTdStxRv60FU69Lk50pEvk80yKdzCJ18wMur07GpQAsS+kFkp
-Ui5HQog+MSmzxdxGdSi5B/OlRD7MTNpNgQnc8CVhh//xHkEOB7hzWkiNzAE5KvMt/LR/fN
-40+dV0ZwgkgLQbI/15YKqi5kHAassM4M+UF92W8ijzkZAAAAgFXw4cd6tSU/1SzLHDc53/
-ze4BkrhUi9IMEc9XcrMEO++rEPpB97L9kSC/mcrcQrf3xpQypNXAmdR1POHL7qYGoCYq7S
-0PTx4rxao7dZZihsxCw2AX27lC1LtgQI+7zrqrhV2zO83kQdwV9xt0P0iff6wGNyRQ2vO4
-fu5r/pTgDkAAAAgQDNXq1aFEz44Bg4NY1sr/dqQMNfJpOyL4MTb7GRMa6rN8dtq67d22CZ
-KkkKxDDoBD74WsgxAF7MWm0/UVhLj5vnRCGFVEKvzlSdrW3lypSZ9G8lST7a2CwWxSfldX
-EnUZo2fiRW9MyKUbu93E1OSmYBqZUgHfBykmwrZjogHyNkuwAAAIEAwLPFY4+yY0tFCPRY
-lJXEH06VTwYTgVzyMpYmqt/LAwzlNrtgz/eIS5HuWUSEwB9073ACJAaMzQ6+W44VZ/VflE
-iy7skwcj6ng6Uusxb5X5+uFkBd+Td1kahVccyMV5DRf3vaZqEyemxDV/pf0MPlaLVmC8s+
-qpH5ptp3XFzS2ckAAAAhR2VuZXJhdGVkIGJ5IFNob3dETlMgLSAyMDI1LTEwLTA4AQI=
------END OPENSSH PRIVATE KEY-----
-SSHKEY
-    chmod 600 "$SSH_KEY"
-    echo "✅ SSH key created at $SSH_KEY"
-else
-    echo "✅ SSH key already exists"
+    echo "❌ ERROR: SSH key not found at $SSH_KEY"
+    echo "   This script never embeds or generates private key material."
+    echo "   Generate one and register the public half on the VPS first:"
+    echo "     ssh-keygen -t ed25519 -f \"$SSH_KEY\""
+    exit 1
 fi
+echo "✅ SSH key found at $SSH_KEY"
 
 # =============================================================================
 # Step 2: Test Connection
@@ -147,20 +146,23 @@ ssh -i "$SSH_KEY" "$VPS_USER@$VPS_IP" "chmod +x $REMOTE_DIR/code/deploy/install-
 echo ""
 echo "⚙️ Step 6: Creating .env file..."
 
-ssh -i "$SSH_KEY" "$VPS_USER@$VPS_IP" << 'ENV_CREATE'
-cat > /opt/datachain-rope/code/deploy/.env << 'ENVFILE'
+ssh -i "$SSH_KEY" "$VPS_USER@$VPS_IP" "cat > /opt/datachain-rope/code/deploy/.env" << ENV_CREATE
 # =============================================================================
 # Datachain Rope - Production Environment
+# Generated by full-deploy.sh from operator-supplied env vars — never
+# hardcode secrets in this heredoc; see the security note at the top of
+# full-deploy.sh.
 # =============================================================================
 
 # PostgreSQL (Local Docker)
-POSTGRES_PASSWORD=DCRope_Secure_PG_2026!
+POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 
 # Redis
-REDIS_PASSWORD=DCRope_Redis_Cache_2026!
+REDIS_PASSWORD=${REDIS_PASSWORD}
 
-# Neon PostgreSQL (Cloud backup/sync)
-NEON_DATABASE_URL=postgresql://neondb_owner:npg_Gr7mLYdpaI9S@ep-noisy-sun-a9xwa3gc-pooler.gwc.azure.neon.tech/neondb?sslmode=require&channel_binding=require
+# Neon PostgreSQL (Cloud backup/sync) — must be a least-privilege app role,
+# never the *_owner role.
+NEON_DATABASE_URL=${NEON_DATABASE_URL}
 
 # Node Configuration
 ROPE_NODE_ID=
@@ -175,10 +177,10 @@ P2P_PORT=9000
 
 # Explorer
 EXPLORER_PORT=3000
-ENVFILE
-
-echo "✅ .env file created"
 ENV_CREATE
+
+ssh -i "$SSH_KEY" "$VPS_USER@$VPS_IP" "chmod 600 /opt/datachain-rope/code/deploy/.env"
+echo "✅ .env file created (mode 600, secrets sourced from operator environment)"
 
 # =============================================================================
 # Step 7: Start Services

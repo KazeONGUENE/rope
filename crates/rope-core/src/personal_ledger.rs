@@ -533,6 +533,41 @@ impl StringRegistry {
         self.ledgers.read().get(&(kind, id_bytes.to_vec())).cloned()
     }
 
+    /// Quipu Canon v2.0 Phase 1.6 — restore a string's full registry
+    /// state from the persistent store at node boot.
+    ///
+    /// Unlike [`Self::create_string`] + [`Self::record_knot`], this
+    /// path installs the descriptor verbatim (preserving original
+    /// timestamps, entry counts, OES generations, and deletion state)
+    /// and registers every knot in `chain` in the knot→owner reverse
+    /// index. Idempotent: restoring an entity that is already present
+    /// is a no-op returning `false`.
+    pub fn restore_string_state(&self, descriptor: LedgerDescriptor, chain: &[StringId]) -> bool {
+        let key = (descriptor.kind, descriptor.wallet_address.clone());
+        let mut ledgers = self.ledgers.write();
+        if ledgers.contains_key(&key) {
+            return false;
+        }
+        self.genesis_index
+            .write()
+            .insert(key.clone(), descriptor.genesis_string_id);
+        self.head_index
+            .write()
+            .insert(key.clone(), descriptor.head_string_id);
+        {
+            let mut owners = self.knot_to_owner.write();
+            for knot_id in chain {
+                owners.insert(*knot_id, key.clone());
+            }
+            // The genesis and head are always owned, even when the
+            // caller passed an empty chain (defensive).
+            owners.insert(descriptor.genesis_string_id, key.clone());
+            owners.insert(descriptor.head_string_id, key.clone());
+        }
+        ledgers.insert(key, descriptor);
+        true
+    }
+
     /// Mark a string as deleted (OES key destroyed). Generic over kind.
     pub fn mark_string_deleted(
         &self,

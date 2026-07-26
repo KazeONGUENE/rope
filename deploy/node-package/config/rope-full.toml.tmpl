@@ -1,0 +1,79 @@
+# Datachain Rope — Full Node configuration (profile: full)
+#
+# Runs a local Reth v1.11.2 EVM backend (synced via the rope-engine-driver
+# "follower" mirror — see systemd/rope-evm-follower.service.tmpl) plus a
+# local rope-node in relay mode. This node holds a complete local copy of
+# chain state and can serve eth_* / rope_* JSON-RPC to your own
+# applications without depending on erpc.datachain.network at request time.
+#
+# Placeholders (substituted by install.sh):
+#   __NODE_NAME__   human-readable name for this node
+#   __DATA_DIR__    base data directory (default /opt/datachain-rope)
+
+[node]
+name = "__NODE_NAME__"
+mode = "relay"
+chain_id = 271828
+
+[network]
+listen_addr = "0.0.0.0:9000"
+# BLUE's public libp2p bootstrap — used for rope-node's own testimony/gossip
+# mesh (peer discovery), independent of the Reth EVM-layer sync below.
+bootstrap_nodes = ["/ip4/92.243.26.189/tcp/9000/p2p/12D3KooWBXNzc2E4Z9CLypkRXro5iSdbM5oTnTkmf8ncZAqjhAfM"]
+max_peers = 50
+enable_quic = true
+enable_nat = true
+
+[consensus]
+# Third-party full nodes do not participate in EVM-layer block production
+# (that quorum is a fixed 4-node Foundation committee, onboarded
+# separately). This node is a read/relay participant only.
+enabled = false
+block_time_ms = 3000
+min_testimonies = 5
+ai_agents_enabled = false
+
+[storage]
+db_path = "__DATA_DIR__/rope/db"
+enable_compression = true
+cache_size_mb = 512
+pruning = "archive"
+
+[rpc]
+enabled = true
+http_addr = "0.0.0.0:8545"
+grpc_addr = "127.0.0.1:9001"
+ws_addr = "127.0.0.1:8546"
+enable_tls = false
+enable_mtls = false
+cors_origins = ["*"]
+rate_limit = 100
+
+[metrics]
+enabled = true
+prometheus_addr = "127.0.0.1:9090"
+
+# Local Reth, kept in sync by rope-engine-driver's follower mode (Engine
+# API mirror against the public erpc endpoint — no quorum keys required).
+[evm_backend]
+enabled = true
+url = "http://127.0.0.1:8595"
+health_interval_secs = 30
+max_failures = 5
+
+# === Deployer identity attestation (optional but recommended) ===
+# Generate your own with:
+#   rope identity sign-deployer --config __CONFIG_PATH__ --key <your-evm-privkey-file>
+# This is YOUR attestation, signed by YOUR wallet — never reuse the
+# Foundation's. Leave blank to skip; the node runs fine without it.
+[deployer]
+wallet_address  = "__DEPLOYER_WALLET__"
+did             = "did:datachain:__DEPLOYER_WALLET__"
+onchainid       = ""
+name            = "__OPERATOR_NAME__"
+organization    = ""
+incorporation   = ""
+address         = ""
+email           = "__OPERATOR_EMAIL__"
+country         = "__OPERATOR_COUNTRY__"
+self_signature  = ""

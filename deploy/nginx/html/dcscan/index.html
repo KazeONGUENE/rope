@@ -8,7 +8,7 @@
     
     <!-- Font Awesome Free -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-    
+    <link rel="stylesheet" href="/css/dcscan-header.css">
     <!-- Leaflet.js for interactive maps -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
@@ -1060,6 +1060,7 @@
             font-family: var(--font-mono);
         }
     </style>
+    <link rel="stylesheet" href="/css/dcscan-labels.css">
 </head>
 <body>
     <!-- Top Bar -->
@@ -1069,18 +1070,17 @@
                 <div class="top-bar-item">
                     <i class="fa-solid fa-coins"></i>
                     DC FAT Price:
-                    <span class="top-bar-value">$0.00390</span>
-                    <span style="color: #ef4444; margin-left: 0.25rem;">-2.94%</span>
+                    <span class="top-bar-value" id="topbar-price">—</span>
                 </div>
                 <div class="top-bar-item">
                     <i class="fa-solid fa-gas-pump"></i>
                     Gas:
-                    <span class="top-bar-value">0.001 gwei</span>
+                    <span class="top-bar-value" id="topbar-gas">—</span>
                 </div>
                 <div class="top-bar-item">
                     <i class="fa-solid fa-clock"></i>
                     Finality:
-                    <span class="top-bar-value">&lt;5s</span>
+                    <span class="top-bar-value" id="topbar-finality">&lt;5s</span>
                 </div>
             </div>
             <div class="top-bar-right">
@@ -1113,8 +1113,7 @@
                     <div class="nav-dropdown">
                         <a href="/strings" class="dropdown-item">View Strings</a>
                         <a href="/txs" class="dropdown-item">Transactions</a>
-                        <a href="/txsPending" class="dropdown-item">Pending Transactions</a>
-                        <div class="dropdown-divider"></div>
+                        <a href="/txsPending" class="dropdown-item">Pending Txns</a>
                         <a href="/accounts" class="dropdown-item">Top Accounts</a>
                         <a href="/contracts" class="dropdown-item">Verified Contracts</a>
                     </div>
@@ -1128,7 +1127,7 @@
                     <div class="nav-dropdown">
                         <a href="/agents" class="dropdown-item">All Agents</a>
                         <a href="/testimonies" class="dropdown-item">Testimonies</a>
-                        <a href="/validations" class="dropdown-item">Validations</a>
+                        <a href="/validations" class="dropdown-item">Validators</a>
                     </div>
                 </div>
                 
@@ -1138,8 +1137,9 @@
                         <i class="fa-solid fa-chevron-down"></i>
                     </a>
                     <div class="nav-dropdown">
-                        <a href="/tokens" class="dropdown-item">DC-20 Tokens</a>
+                        <a href="/tokens" class="dropdown-item">DCR-20 Tokens</a>
                         <a href="/tokentxns" class="dropdown-item">Token Transfers</a>
+                        <a href="/vote" class="dropdown-item">Vote</a>
                     </div>
                 </div>
                 
@@ -1149,8 +1149,13 @@
                         <i class="fa-solid fa-chevron-down"></i>
                     </a>
                     <div class="nav-dropdown">
+                        <a href="/ecosystem" class="dropdown-item">Ecosystem Projects</a>
+                        <a href="/vote" class="dropdown-item" id="nav-governance-voting">Governance &amp; Voting</a>
+                        <a href="/defi" class="dropdown-item">DeFi</a>
+                        <a href="/supply" class="dropdown-item">Supply Reconciliation</a>
                         <a href="/validators" class="dropdown-item">Validators</a>
-                        <a href="/databoxes" class="dropdown-item">Databoxes</a>
+                        <a href="/databases" class="dropdown-item">Databases</a>
+                        <a href="/databoxes" class="dropdown-item" id="nav-databox-network">Global Databox Network</a>
                         <a href="/stats" class="dropdown-item">Charts & Stats</a>
                     </div>
                 </div>
@@ -1161,9 +1166,13 @@
                         <i class="fa-solid fa-chevron-down"></i>
                     </a>
                     <div class="nav-dropdown">
-                        <a href="/apis" class="dropdown-item">API Documentation</a>
+                        <a href="/apis" class="dropdown-item">API Docs</a>
                         <a href="/verify" class="dropdown-item">Verify Contract</a>
+                        <a href="/create-wallet" class="dropdown-item" id="nav-create-wallet">Create Wallet</a>
                         <a href="/faucet" class="dropdown-item">Faucet</a>
+                        <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank">GitHub</a>
+                        <a href="/partners" class="dropdown-item">Partners</a>
+                        <a href="/contact" class="dropdown-item">Contact</a>
                     </div>
                 </div>
             </nav>
@@ -1209,13 +1218,9 @@
                         <div class="stat-icon">
                             <i class="fa-solid fa-link"></i>
                         </div>
-                        <div class="stat-change positive">
-                            <i class="fa-solid fa-arrow-up"></i>
-                            12.3%
-                        </div>
                     </div>
-                    <div class="stat-value">1,247,893</div>
-                    <div class="stat-label">Total Strings</div>
+                    <div class="stat-value" id="hero-total-strings">—</div>
+                    <div class="stat-label" title="Anchor knots tied on the federation cord — one every ~3 s. Each anchor knot bundles all the transactions of that interval. See Quipu Canon v1.2.">Cord Anchor Knots</div>
                 </div>
                 
                 <div class="stat-card">
@@ -1223,13 +1228,9 @@
                         <div class="stat-icon">
                             <i class="fa-solid fa-arrow-right-arrow-left"></i>
                         </div>
-                        <div class="stat-change positive">
-                            <i class="fa-solid fa-arrow-up"></i>
-                            8.7%
-                        </div>
                     </div>
-                    <div class="stat-value">4,892,451</div>
-                    <div class="stat-label">Total Transactions</div>
+                    <div class="stat-value" id="hero-total-transactions">—</div>
+                    <div class="stat-label" title="Transactions are one type of knot — the EVM-shaped knot inside cord anchors. Each transaction may emit multiple events (Transfer, Approval, Mint, …). See Quipu Canon v1.2.">Transactions (knot type)</div>
                 </div>
                 
                 <div class="stat-card">
@@ -1238,7 +1239,7 @@
                             <i class="fa-solid fa-robot"></i>
                         </div>
                     </div>
-                    <div class="stat-value">5</div>
+                    <div class="stat-value" id="hero-ai-agents">—</div>
                     <div class="stat-label">AI Testimony Agents</div>
                 </div>
                 
@@ -1247,12 +1248,8 @@
                         <div class="stat-icon">
                             <i class="fa-solid fa-server"></i>
                         </div>
-                        <div class="stat-change positive">
-                            <i class="fa-solid fa-arrow-up"></i>
-                            3.2%
-                        </div>
                     </div>
-                    <div class="stat-value">127</div>
+                    <div class="stat-value" id="hero-active-validators">—</div>
                     <div class="stat-label">Active Validators</div>
                 </div>
             </div>
@@ -1262,7 +1259,7 @@
     <!-- Main Content -->
     <main>
         <div class="content-grid">
-            <!-- Latest Strings -->
+            <!-- Latest Strings (fetched from API) -->
             <div class="card">
                 <div class="card-header">
                     <div class="card-title">
@@ -1275,101 +1272,8 @@
                     </a>
                 </div>
                 <div class="card-body">
-                    <div class="data-table">
-                        <div class="table-row">
-                            <div class="row-icon">
-                                <i class="fa-solid fa-cube"></i>
-                            </div>
-                            <div class="row-content">
-                                <div class="row-primary">
-                                    <a href="/string/1247893" class="row-hash">1247893</a>
-                                    <span class="badge badge-success">Final</span>
-                                </div>
-                                <div class="row-secondary">
-                                    <span>24 txns</span>
-                                    <span>Validator: 0x7f3a...8d2e</span>
-                                </div>
-                            </div>
-                            <div class="row-meta">
-                                <div class="row-amount">3.2s ago</div>
-                            </div>
-                        </div>
-                        
-                        <div class="table-row">
-                            <div class="row-icon">
-                                <i class="fa-solid fa-cube"></i>
-                            </div>
-                            <div class="row-content">
-                                <div class="row-primary">
-                                    <a href="/string/1247892" class="row-hash">1247892</a>
-                                    <span class="badge badge-success">Final</span>
-                                </div>
-                                <div class="row-secondary">
-                                    <span>18 txns</span>
-                                    <span>Validator: 0x2b9c...4f1a</span>
-                                </div>
-                            </div>
-                            <div class="row-meta">
-                                <div class="row-amount">6.8s ago</div>
-                            </div>
-                        </div>
-                        
-                        <div class="table-row">
-                            <div class="row-icon">
-                                <i class="fa-solid fa-cube"></i>
-                            </div>
-                            <div class="row-content">
-                                <div class="row-primary">
-                                    <a href="/string/1247891" class="row-hash">1247891</a>
-                                    <span class="badge badge-success">Final</span>
-                                </div>
-                                <div class="row-secondary">
-                                    <span>31 txns</span>
-                                    <span>Validator: 0x9e4d...7c3b</span>
-                                </div>
-                            </div>
-                            <div class="row-meta">
-                                <div class="row-amount">10.4s ago</div>
-                            </div>
-                        </div>
-                        
-                        <div class="table-row">
-                            <div class="row-icon">
-                                <i class="fa-solid fa-cube"></i>
-                            </div>
-                            <div class="row-content">
-                                <div class="row-primary">
-                                    <a href="/string/1247890" class="row-hash">1247890</a>
-                                    <span class="badge badge-success">Final</span>
-                                </div>
-                                <div class="row-secondary">
-                                    <span>12 txns</span>
-                                    <span>Validator: 0x5a1f...2e8d</span>
-                                </div>
-                            </div>
-                            <div class="row-meta">
-                                <div class="row-amount">14.1s ago</div>
-                            </div>
-                        </div>
-                        
-                        <div class="table-row">
-                            <div class="row-icon">
-                                <i class="fa-solid fa-cube"></i>
-                            </div>
-                            <div class="row-content">
-                                <div class="row-primary">
-                                    <a href="/string/1247889" class="row-hash">1247889</a>
-                                    <span class="badge badge-success">Final</span>
-                                </div>
-                                <div class="row-secondary">
-                                    <span>27 txns</span>
-                                    <span>Validator: 0x8c2e...9a4f</span>
-                                </div>
-                            </div>
-                            <div class="row-meta">
-                                <div class="row-amount">17.6s ago</div>
-                            </div>
-                        </div>
+                    <div class="data-table" id="latest-strings-container">
+                        <div style="text-align:center;padding:24px;color:var(--gray-400);"><div class="spinner" style="width:20px;height:20px;border:2px solid var(--gray-200);border-top-color:var(--black);border-radius:50%;animation:spin .6s linear infinite;margin:0 auto 8px;"></div>Loading...</div>
                     </div>
                 </div>
                 <div class="card-footer">
@@ -1380,7 +1284,7 @@
                 </div>
             </div>
             
-            <!-- Latest Transactions -->
+            <!-- Latest Transactions (fetched from API) -->
             <div class="card">
                 <div class="card-header">
                     <div class="card-title">
@@ -1393,106 +1297,8 @@
                     </a>
                 </div>
                 <div class="card-body">
-                    <div class="data-table">
-                        <div class="table-row">
-                            <div class="row-icon">
-                                <i class="fa-solid fa-exchange-alt"></i>
-                            </div>
-                            <div class="row-content">
-                                <div class="row-primary">
-                                    <a href="/tx/0x8f2a9c3d" class="row-hash truncate">0x8f2a9c3d...4e7b1f8a</a>
-                                    <span class="badge badge-ai">AI Verified</span>
-                                </div>
-                                <div class="row-secondary">
-                                    <span>From: 0x7f3a...8d2e</span>
-                                    <span>To: 0x2b9c...4f1a</span>
-                                </div>
-                            </div>
-                            <div class="row-meta">
-                                <div class="row-amount">1,250.00 FAT</div>
-                                <div class="row-time">2s ago</div>
-                            </div>
-                        </div>
-                        
-                        <div class="table-row">
-                            <div class="row-icon">
-                                <i class="fa-solid fa-exchange-alt"></i>
-                            </div>
-                            <div class="row-content">
-                                <div class="row-primary">
-                                    <a href="/tx/0x4c7e2b1f" class="row-hash truncate">0x4c7e2b1f...9a3d5c8e</a>
-                                    <span class="badge badge-success">Success</span>
-                                </div>
-                                <div class="row-secondary">
-                                    <span>From: 0x9e4d...7c3b</span>
-                                    <span>To: 0x5a1f...2e8d</span>
-                                </div>
-                            </div>
-                            <div class="row-meta">
-                                <div class="row-amount">847.50 FAT</div>
-                                <div class="row-time">5s ago</div>
-                            </div>
-                        </div>
-                        
-                        <div class="table-row">
-                            <div class="row-icon">
-                                <i class="fa-solid fa-file-code"></i>
-                            </div>
-                            <div class="row-content">
-                                <div class="row-primary">
-                                    <a href="/tx/0x1d5a8e3c" class="row-hash truncate">0x1d5a8e3c...6f2b9a4d</a>
-                                    <span class="badge badge-ai">AI Verified</span>
-                                </div>
-                                <div class="row-secondary">
-                                    <span>Contract Call</span>
-                                    <span>To: 0x8c2e...9a4f</span>
-                                </div>
-                            </div>
-                            <div class="row-meta">
-                                <div class="row-amount">0.00 FAT</div>
-                                <div class="row-time">8s ago</div>
-                            </div>
-                        </div>
-                        
-                        <div class="table-row">
-                            <div class="row-icon">
-                                <i class="fa-solid fa-exchange-alt"></i>
-                            </div>
-                            <div class="row-content">
-                                <div class="row-primary">
-                                    <a href="/tx/0x6b3f9d2e" class="row-hash truncate">0x6b3f9d2e...8c1a4e7f</a>
-                                    <span class="badge badge-success">Success</span>
-                                </div>
-                                <div class="row-secondary">
-                                    <span>From: 0x3e7b...1d4c</span>
-                                    <span>To: 0x6f2a...8e5d</span>
-                                </div>
-                            </div>
-                            <div class="row-meta">
-                                <div class="row-amount">5,000.00 FAT</div>
-                                <div class="row-time">12s ago</div>
-                            </div>
-                        </div>
-                        
-                        <div class="table-row">
-                            <div class="row-icon">
-                                <i class="fa-solid fa-exchange-alt"></i>
-                            </div>
-                            <div class="row-content">
-                                <div class="row-primary">
-                                    <a href="/tx/0x9a2c7e4f" class="row-hash truncate">0x9a2c7e4f...3b8d1f6a</a>
-                                    <span class="badge badge-pending">Pending</span>
-                                </div>
-                                <div class="row-secondary">
-                                    <span>From: 0x1c4e...9b2f</span>
-                                    <span>To: 0x4d7a...3c8e</span>
-                                </div>
-                            </div>
-                            <div class="row-meta">
-                                <div class="row-amount">320.75 FAT</div>
-                                <div class="row-time">15s ago</div>
-                            </div>
-                        </div>
+                    <div class="data-table" id="latest-txs-container">
+                        <div style="text-align:center;padding:24px;color:var(--gray-400);"><div class="spinner" style="width:20px;height:20px;border:2px solid var(--gray-200);border-top-color:var(--black);border-radius:50%;animation:spin .6s linear infinite;margin:0 auto 8px;"></div>Loading...</div>
                     </div>
                 </div>
                 <div class="card-footer">
@@ -1518,51 +1324,8 @@
                     </a>
                 </div>
                 <div class="card-body" style="padding: 1.25rem;">
-                    <div class="ai-grid">
-                        <div class="ai-card">
-                            <div class="ai-icon">
-                                <i class="fa-solid fa-gavel"></i>
-                            </div>
-                            <div class="ai-name">ValidationAgent</div>
-                            <div class="ai-role">Transaction Validator</div>
-                            <div class="ai-status">Online</div>
-                        </div>
-                        
-                        <div class="ai-card">
-                            <div class="ai-icon">
-                                <i class="fa-solid fa-umbrella"></i>
-                            </div>
-                            <div class="ai-name">InsuranceAgent</div>
-                            <div class="ai-role">Risk Assessment</div>
-                            <div class="ai-status">Online</div>
-                        </div>
-                        
-                        <div class="ai-card">
-                            <div class="ai-icon">
-                                <i class="fa-solid fa-scale-balanced"></i>
-                            </div>
-                            <div class="ai-name">ComplianceAgent</div>
-                            <div class="ai-role">Regulatory Check</div>
-                            <div class="ai-status">Online</div>
-                        </div>
-                        
-                        <div class="ai-card">
-                            <div class="ai-icon">
-                                <i class="fa-solid fa-satellite-dish"></i>
-                            </div>
-                            <div class="ai-name">OracleAgent</div>
-                            <div class="ai-role">External Data</div>
-                            <div class="ai-status">Online</div>
-                        </div>
-                        
-                        <div class="ai-card">
-                            <div class="ai-icon">
-                                <i class="fa-solid fa-brain"></i>
-                            </div>
-                            <div class="ai-name">SemanticAgent</div>
-                            <div class="ai-role">Intent Analysis</div>
-                            <div class="ai-status">Online</div>
-                        </div>
+                    <div class="ai-grid" id="agentsGrid">
+                        <div style="color:var(--gray-500);text-align:center;padding:1rem;grid-column:1/-1;">Loading agents...</div>
                     </div>
                 </div>
             </div>
@@ -1607,16 +1370,16 @@
                     <div style="display: flex; gap: 1.5rem;">
                         <div class="legend-item">
                             <div class="legend-dot validator"></div>
-                            <span>127 Validators</span>
+                            <span id="idx-legend-validators">Validators</span>
                         </div>
                         <div class="legend-item">
                             <div class="legend-dot databox"></div>
-                            <span>284 Databoxes</span>
+                            <span id="idx-legend-databoxes">Databoxes</span>
                         </div>
                     </div>
                     <div class="legend-item">
                         <i class="fa-solid fa-globe" style="color: var(--gray-400);"></i>
-                        <span>42 Countries</span>
+                        <span id="idx-legend-countries">Countries</span>
                     </div>
                 </div>
             </div>
@@ -1636,52 +1399,210 @@
                 <a href="https://datachain.network">Datachain</a>
                 <a href="/apis">API</a>
                 <a href="https://github.com/KazeONGUENE/rope">GitHub</a>
-                <a href="/contact">Contact</a>
+                <a href="/partners">Partners</a><a href="/contact">Contact</a>
             </div>
         </div>
     </footer>
     
     <script>
-        // Simulated real-time updates
         function formatNumber(num) {
-            return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+            if (num == null || num === '') return '—';
+            var n = typeof num === 'string' ? parseFloat(String(num).replace(/,/g, '')) : num;
+            if (isNaN(n)) return '—';
+            return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
         }
         
-        function updateStats() {
-            // Simulate incrementing stats
-            const stringCount = document.querySelectorAll('.stat-value')[0];
-            const txCount = document.querySelectorAll('.stat-value')[1];
-            
-            if (stringCount && txCount) {
-                let strings = parseInt(stringCount.textContent.replace(/,/g, ''));
-                let txs = parseInt(txCount.textContent.replace(/,/g, ''));
-                
-                strings += Math.floor(Math.random() * 3);
-                txs += Math.floor(Math.random() * 15);
-                
-                stringCount.textContent = formatNumber(strings);
-                txCount.textContent = formatNumber(txs);
+        function updateHeroStats() {
+            Promise.all([
+                fetch('/api/v1/stats').then(function(r) { return r.ok ? r.json() : Promise.reject(r); }),
+                fetch('/api/v1/validators').then(function(r) { return r.ok ? r.json() : {}; }).catch(function() { return {}; })
+            ]).then(function(results) {
+                var stats = results[0];
+                var validatorsData = results[1];
+                var stringsEl = document.getElementById('hero-total-strings');
+                var txsEl = document.getElementById('hero-total-transactions');
+                var agentsEl = document.getElementById('hero-ai-agents');
+                var validatorsEl = document.getElementById('hero-active-validators');
+                // Quipu Canon v1.2: hero cards now show distinct knot layers.
+                // - cordAnchors  → "Cord Anchor Knots" (== EVM block height)
+                // - transactions → "Transactions (knot type)" (one knot kind)
+                // Fallbacks keep older API responses working during rollout.
+                var cordAnchors = stats.cordAnchors != null ? stats.cordAnchors :
+                                  (stats.totalKnots != null ? stats.totalKnots : stats.latestBlock);
+                var txCount = stats.transactions != null ? stats.transactions : stats.totalTransactions;
+                if (stringsEl) stringsEl.textContent = formatNumber(cordAnchors);
+                if (txsEl) txsEl.textContent = formatNumber(txCount);
+                if (agentsEl) agentsEl.textContent = formatNumber(stats.aiAgents != null ? stats.aiAgents : 5);
+                var vCount = (validatorsData && (validatorsData.activeCount != null ? validatorsData.activeCount : (validatorsData.validators && validatorsData.validators.length))) || stats.validators;
+                if (validatorsEl) validatorsEl.textContent = formatNumber(vCount);
+                var topbarPrice = document.getElementById('topbar-price');
+                var topbarGas = document.getElementById('topbar-gas');
+                var topbarFinality = document.getElementById('topbar-finality');
+                if (topbarPrice && stats.fatPrice) topbarPrice.textContent = stats.fatPrice;
+                else if (topbarPrice && stats.fatPriceUsd != null) topbarPrice.textContent = '$' + Number(stats.fatPriceUsd).toFixed(4);
+                if (topbarGas && stats.gasPrice) topbarGas.textContent = stats.gasPrice;
+                if (topbarFinality) topbarFinality.textContent = stats.finalityTime || stats.finality || '<5s';
+            }).catch(function() {
+                var stringsEl = document.getElementById('hero-total-strings');
+                var txsEl = document.getElementById('hero-total-transactions');
+                var agentsEl = document.getElementById('hero-ai-agents');
+                var validatorsEl = document.getElementById('hero-active-validators');
+                if (stringsEl) stringsEl.textContent = '—';
+                if (txsEl) txsEl.textContent = '—';
+                if (agentsEl) agentsEl.textContent = '—';
+                if (validatorsEl) validatorsEl.textContent = '—';
+            });
+        }
+        
+        updateHeroStats();
+        setInterval(updateHeroStats, 15000);
+
+        var agentIcons = { ValidationAgent: 'fa-gavel', InsuranceAgent: 'fa-umbrella', ComplianceAgent: 'fa-scale-balanced', OracleAgent: 'fa-satellite-dish', SemanticAgent: 'fa-brain' };
+        fetch('/api/v1/ai-agents').then(function(r) { return r.ok ? r.json() : {}; }).then(function(data) {
+            var agents = data.agents || [];
+            var grid = document.getElementById('agentsGrid');
+            if (!grid || !agents.length) return;
+            grid.innerHTML = agents.map(function(a) {
+                var icon = agentIcons[a.name] || 'fa-robot';
+                var statusCls = a.status === 'active' ? 'Online' : a.status || 'Offline';
+                return '<div class="ai-card" onclick="window.location=\'/address/' + (a.wallet || '') + '\'" style="cursor:pointer;">' +
+                    '<div class="ai-icon"><i class="fa-solid ' + icon + '"></i></div>' +
+                    '<div class="ai-name">' + a.name + '</div>' +
+                    '<div class="ai-role">' + (a.role || a.category || '') + '</div>' +
+                    '<div class="ai-status">' + statusCls + '</div></div>';
+            }).join('');
+            var agentsEl = document.getElementById('hero-ai-agents');
+            if (agentsEl) agentsEl.textContent = String(agents.length);
+        }).catch(function() {});
+
+        fetch('/api/v1/validators').then(function(r) { return r.ok ? r.json() : {}; }).then(function(d) {
+            var count = d.activeCount || d.totalValidators || (d.validators && d.validators.length) || 0;
+            var el = document.getElementById('idx-legend-validators');
+            if (el) el.textContent = count + ' Validators';
+        }).catch(function() {});
+
+        function shortAddr(addr) {
+            if (!addr || addr.length < 12) return addr || '—';
+            return addr.slice(0, 6) + '...' + addr.slice(-4);
+        }
+        function shortHash(hash) {
+            if (!hash || hash.length < 16) return hash || '—';
+            return hash.slice(0, 10) + '...' + hash.slice(-8);
+        }
+        function timeAgo(ts) {
+            if (!ts) return '—';
+            var s = Math.max(0, Math.floor(Date.now() / 1000 - ts));
+            if (s < 5) return 'just now';
+            if (s < 60) return s + 's ago';
+            if (s < 3600) return Math.floor(s / 60) + 'm ago';
+            if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+            return Math.floor(s / 86400) + 'd ago';
+        }
+
+        function fetchWithRetry(url, retries) {
+            retries = retries || 3;
+            return fetch(url).then(function(r) {
+                if (r.status === 429 && retries > 0) {
+                    return new Promise(function(resolve) {
+                        setTimeout(function() { resolve(fetchWithRetry(url, retries - 1)); }, 1000 + Math.random() * 1000);
+                    });
+                }
+                return r.ok ? r.json() : {};
+            }).catch(function() {
+                if (retries > 0) {
+                    return new Promise(function(resolve) {
+                        setTimeout(function() { resolve(fetchWithRetry(url, retries - 1)); }, 1500);
+                    });
+                }
+                return {};
+            });
+        }
+
+        function renderStrings(list, el) {
+            if (!list.length) {
+                el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--gray-400);">No strings yet</div>';
+                return;
             }
+            el.innerHTML = list.map(function(s) {
+                return '<div class="table-row">'
+                    + '<div class="row-icon"><i class="fa-solid fa-cube"></i></div>'
+                    + '<div class="row-content">'
+                    + '<div class="row-primary"><a href="/string/' + s.number + '" class="row-hash">' + formatNumber(s.number) + '</a> <span class="badge badge-success">Final</span></div>'
+                    + '<div class="row-secondary"><span>' + (s.transactions || 0) + ' txns</span>'
+                    + '<span>Validator: ' + shortAddr(s.validator) + '</span></div>'
+                    + '</div>'
+                    + '<div class="row-meta"><div class="row-amount">' + timeAgo(s.timestamp) + '</div></div>'
+                    + '</div>';
+            }).join('');
         }
-        
-        // Update every 5 seconds
-        setInterval(updateStats, 5000);
-        
-        // Search functionality
+
+        function renderTransactions(list, el) {
+            if (!list.length) {
+                el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--gray-400);">No transactions yet</div>';
+                return;
+            }
+            el.innerHTML = list.map(function(tx) {
+                var from = tx.from || '—';
+                var to = tx.to || 'Contract Creation';
+                var val = tx.value || '0 FAT';
+                if (val.length > 30) val = val.slice(0, 28) + '…';
+                return '<div class="table-row">'
+                    + '<div class="row-icon"><i class="fa-solid fa-exchange-alt"></i></div>'
+                    + '<div class="row-content">'
+                    + '<div class="row-primary"><a href="/tx/' + tx.hash + '" class="row-hash truncate">' + shortHash(tx.hash) + '</a> <span class="badge badge-success">Success</span></div>'
+                    + '<div class="row-secondary"><span>From: ' + shortAddr(from) + '</span>'
+                    + '<span>To: ' + shortAddr(to) + '</span></div>'
+                    + '</div>'
+                    + '<div class="row-meta"><div class="row-amount" style="font-size:0.8125rem;">' + val + '</div>'
+                    + '<div class="row-time">' + timeAgo(tx.timestamp) + '</div></div>'
+                    + '</div>';
+            }).join('');
+        }
+
+        function loadLatestStrings() {
+            var el = document.getElementById('latest-strings-container');
+            if (!el) return;
+            fetchWithRetry('/api/v1/strings/latest').then(function(data) {
+                renderStrings(data.strings || [], el);
+            });
+        }
+
+        function loadLatestTransactions() {
+            var el = document.getElementById('latest-txs-container');
+            if (!el) return;
+            fetchWithRetry('/api/v1/transactions/latest').then(function(data) {
+                renderTransactions(data.transactions || [], el);
+            });
+        }
+
+        loadLatestStrings();
+        loadLatestTransactions();
+        setInterval(loadLatestStrings, 15000);
+        setInterval(loadLatestTransactions, 15000);
+
+        // Search: address, tx hash, string number, or token name/symbol (via API)
         document.querySelector('.search-btn').addEventListener('click', function() {
             const query = document.querySelector('.search-input').value.trim();
-            if (query) {
-                // Determine search type
-                if (query.startsWith('0x') && query.length === 66) {
-                    window.location.href = '/tx/' + query;
-                } else if (query.startsWith('0x') && query.length === 42) {
-                    window.location.href = '/address/' + query;
-                } else if (!isNaN(query)) {
-                    window.location.href = '/string/' + query;
-                } else {
-                    alert('Please enter a valid address, transaction hash, or string number.');
-                }
+            if (!query) return;
+            if (query.startsWith('0x') && query.length === 66) {
+                window.location.href = '/tx/' + query;
+                return;
             }
+            if (query.startsWith('0x') && query.length === 42) {
+                window.location.href = '/address/' + query;
+                return;
+            }
+            if (!isNaN(query) && String(Number(query)) === query) {
+                window.location.href = '/string/' + query;
+                return;
+            }
+            fetch('/api/v1/search?q=' + encodeURIComponent(query)).then(function(r) { return r.json(); }).then(function(data) {
+                if (data.type === 'token' && data.results && data.results[0] && data.results[0].value) {
+                    window.location.href = '/token/' + data.results[0].value;
+                    return;
+                }
+                alert('No results for "' + query + '". Enter a valid address, transaction hash, string number, or token name/symbol.');
+            }).catch(function() { alert('Search failed. Please try again.'); });
         });
         
         document.querySelector('.search-input').addEventListener('keypress', function(e) {
@@ -1691,11 +1612,11 @@
         });
         
         // Theme toggle (placeholder)
-        document.querySelector('.theme-toggle').addEventListener('click', function() {
+        var themeToggle = document.querySelector('.theme-toggle');
+        if (themeToggle) themeToggle.addEventListener('click', function() {
             document.body.classList.toggle('dark-mode');
             const icon = this.querySelector('i');
-            icon.classList.toggle('fa-sun');
-            icon.classList.toggle('fa-moon');
+            if (icon) { icon.classList.toggle('fa-sun'); icon.classList.toggle('fa-moon'); }
         });
         
         // Connect wallet
@@ -1705,7 +1626,7 @@
                     await window.ethereum.request({ method: 'eth_requestAccounts' });
                     const accounts = await window.ethereum.request({ method: 'eth_accounts' });
                     if (accounts.length > 0) {
-                        this.innerHTML = `<i class="fa-solid fa-check"></i> ${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}`;
+                        this.innerHTML = '<i class="fa-solid fa-check"></i> ' + accounts[0].slice(0, 6) + '...' + accounts[0].slice(-4);
                     }
                 } catch (error) {
                     console.error('Failed to connect wallet:', error);
@@ -1919,6 +1840,9 @@
             });
         })();
     </script>
+<script src="/js/dcscan-labels.js"></script>
+<script src="/js/dcscan-stats.js"></script>
+    <script src="/js/dcscan-wallet.js?v=20260707b" defer></script>
 </body>
 </html>
 

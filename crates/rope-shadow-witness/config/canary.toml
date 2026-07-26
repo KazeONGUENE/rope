@@ -1,0 +1,21 @@
+# Canary deployment config for `rope-shadow-witness`.
+#
+# Target: `datachain-rpc-1` (DigitalOcean tertiary follower, Frankfurt).
+# Risk: lowest of the three production VPS. The shadow witness here
+# observes the canonical chain via the public RPC (which has nginx
+# upstream failover from BLUE -> GREEN -> DO), so it is robust to a
+# single rope-node being momentarily wedged. It does not impact the
+# canonical chain.
+#
+# Note: as of 2026-05-09 the local rope-node on this VPS exhibits
+# an RPC-stall symptom under load (Recv-Q backlog on 127.0.0.1:8545).
+# Pointing the witness at the public RPC sidesteps that and gives us
+# the same v2 chain. If/when the local rope-node is healthy and
+# preferred for latency, this URL can be flipped back to 127.0.0.1.
+
+upstream_rpc_url = "https://erpc.datachain.network"
+data_dir         = "/var/lib/rope-shadow-witness/data"
+bind_addr        = "127.0.0.1:8556"
+poll_interval_secs = 10
+strings_per_round  = 200
+witness_tag        = "datachain-rpc-1-canary"

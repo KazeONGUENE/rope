@@ -1,0 +1,25 @@
+{
+  "_comment": "EVM block-production quorum roster for Datachain Rope's Testimony-timed Engine API driver (rope-engine-driver). Each entry's pubkey_hex is the SAME Ed25519 identity that node already registered for the native Quipu Canon consensus layer (~/.rope/validator_key.bin) -- not a second, parallel key. To onboard a future node: run `rope-engine-driver print-pubkey` on it, append an entry here, redistribute this file to every node in the committee (including the new one), and restart each attester service. See deploy/scripts/onboard-evm-quorum-node.sh.",
+  "members": [
+    {
+      "name": "BLUE",
+      "pubkey_hex": "0aacedc92621c4255f80bf445da962f7f72de414f6f7a01e3941e8de21c4944a",
+      "attester_url": "http://92.243.26.189:9600"
+    },
+    {
+      "name": "GREEN",
+      "pubkey_hex": "c03ef830f02db4d80a8beed5836c1f9be3b1f2b4a95bd2187b4f88e2fdf1b1a2",
+      "attester_url": "http://92.243.25.119:9600"
+    },
+    {
+      "name": "DO-rpc-1",
+      "pubkey_hex": "e795bbd735f6ccffa89f93fd85643af18fab00586b9dd8ae46ca93fad09a132e",
+      "attester_url": "http://157.230.18.45:9600"
+    },
+    {
+      "name": "DO-rpc-2",
+      "pubkey_hex": "c0da7a24c6b8caccec45cdf0fc96a7131d9f1f2f3a5548c8942689f6ba7bea9d",
+      "attester_url": "http://167.172.106.174:9600"
+    }
+  ]
+}

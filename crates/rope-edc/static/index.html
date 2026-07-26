@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ecosystem Deployment Console — Datachain Rope</title>
+<link rel="icon" type="image/svg+xml" href="logo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* dcscan.io / datachain.network design system */
+  --black:#000000; --white:#ffffff;
+  --gray-50:#fafafa; --gray-100:#f4f4f5; --gray-200:#e4e4e7; --gray-300:#d4d4d8;
+  --gray-400:#a1a1aa; --gray-500:#71717a; --gray-600:#52525b; --gray-700:#3f3f46;
+  --gray-800:#27272a; --gray-900:#18181b; --gray-950:#09090b;
+  --success:#22c55e; --success-bg:#dcfce7; --success-fg:#166534;
+  --warning:#f59e0b; --warning-bg:#fef3c7; --warning-fg:#92400e;
+  --error:#ef4444;   --error-bg:#fee2e2;   --error-fg:#991b1b;
+  --info:#3b82f6;    --info-bg:#dbeafe;    --info-fg:#1e40af;
+  --gold:#f5c100;    --gold-bg:#fef9c3;    --gold-fg:#854d0e;
+  /* semantic aliases used throughout the console */
+  --bg:var(--gray-50); --panel:var(--white); --panel2:var(--gray-100); --line:var(--gray-200);
+  --text:var(--gray-900); --muted:var(--gray-500); --accent:var(--info);
+  --ok:var(--success); --warn:var(--warning); --crit:var(--error);
+  --font-sans:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
+  --radius-sm:6px; --radius-md:8px; --radius:12px;
+  --shadow-sm:0 1px 2px 0 rgba(0,0,0,.05);
+  --shadow-md:0 4px 6px -1px rgba(0,0,0,.1);
+  --shadow-lg:0 10px 15px -3px rgba(0,0,0,.1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh}
+a{color:var(--black);text-decoration:none;transition:color .15s}
+a:hover{color:var(--gray-600)}
+.layout{display:grid;grid-template-columns:250px 1fr;min-height:100vh}
+.side{background:var(--white);border-right:1px solid var(--line);padding:18px 14px;position:sticky;top:0;height:100vh;overflow-y:auto}
+.brand{display:flex;align-items:center;gap:10px;margin-bottom:22px}
+.brand .logo-icon{width:32px;height:32px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.brand .logo-icon img{width:100%;height:100%;object-fit:contain}
+.brand b{font-size:14px;font-weight:600;color:var(--black)}
+.brand small{display:block;color:var(--muted);font-size:10.5px;font-weight:400}
+.side h4{font-size:10.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:16px 6px 6px}
+.pitem{padding:8px 10px;border-radius:var(--radius-md);cursor:pointer;color:var(--gray-600);font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:all .15s}
+.pitem:hover{background:var(--gray-100);color:var(--black)}
+.pitem.active{background:var(--gray-100);color:var(--black);font-weight:600}
+.btn{display:inline-flex;align-items:center;gap:6px;background:var(--gray-900);color:var(--white);border:none;border-radius:var(--radius-md);padding:8px 14px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s}
+.btn:hover{background:var(--gray-700)}
+.btn.ghost{background:var(--white);border:1px solid var(--gray-300);color:var(--gray-900)}
+.btn.ghost:hover{background:var(--gray-100)}
+.btn.small{padding:5px 10px;font-size:12px}
+.btn.danger{background:var(--error)}
+.btn.danger:hover{background:#dc2626}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.main{padding:24px 28px;max-width:1280px}
+.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;gap:12px;flex-wrap:wrap}
+.topbar h1{font-size:20px;font-weight:600;color:var(--black)}
+.wallet-box{display:flex;gap:8px;align-items:center}
+input,select,textarea{background:var(--white);border:1px solid var(--gray-300);border-radius:var(--radius-md);color:var(--text);padding:8px 10px;font-family:inherit;font-size:13px;width:100%;transition:border-color .15s}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--gray-900);box-shadow:0 0 0 3px rgba(24,24,27,.08)}
+label{font-size:11.5px;color:var(--muted);font-weight:500;display:block;margin-bottom:4px}
+.field{margin-bottom:12px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:16px;box-shadow:var(--shadow-sm)}
+.card h3{font-size:14px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px;color:var(--black)}
+.kpi{background:var(--white);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow-sm)}
+.kpi .v{font-size:22px;font-weight:700;font-family:var(--mono);color:var(--black)}
+.kpi .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:500}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px;flex-wrap:wrap}
+.tab{padding:9px 14px;font-size:13px;font-weight:500;color:var(--gray-600);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s}
+.tab:hover{color:var(--black)}
+.tab.active{color:var(--black);border-bottom-color:var(--black)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{color:var(--muted);text-align:left;padding:7px 8px;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--line)}
+td{padding:7px 8px;border-bottom:1px solid var(--gray-100)}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:600}
+.b-ok{background:var(--success-bg);color:var(--success-fg)}
+.b-warn{background:var(--warning-bg);color:var(--warning-fg)}
+.b-crit{background:var(--error-bg);color:var(--error-fg)}
+.b-info{background:var(--info-bg);color:var(--info-fg)}
+.b-gold{background:var(--gold-bg);color:var(--gold-fg)}
+.mono{font-family:var(--mono);font-size:11.5px}
+.muted{color:var(--muted)}
+.steps{display:flex;gap:4px;margin-bottom:18px;flex-wrap:wrap}
+.step{flex:1;min-width:90px;text-align:center;font-size:10.5px;font-weight:500;padding:8px 4px;border-radius:var(--radius-md);background:var(--white);border:1px solid var(--line);color:var(--muted);cursor:pointer;transition:all .15s}
+.step:hover{border-color:var(--gray-400)}
+.step.done{border-color:var(--success);color:var(--success-fg);background:var(--success-bg)}
+.step.current{border-color:var(--gray-900);color:var(--black);background:var(--gray-100)}
+.charts{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:16px}
+.chartbox{background:var(--white);border:1px solid var(--line);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow-sm)}
+.chartbox h5{font-size:12.5px;font-weight:600;margin-bottom:8px;color:var(--black)}
+.askbox{display:flex;gap:8px;margin-bottom:14px}
+.answer{background:var(--gray-50);border:1px solid var(--line);border-radius:var(--radius-md);padding:14px;margin-bottom:14px;white-space:pre-wrap;font-size:13.5px}
+.grounding{font-size:11px;color:var(--muted);margin-top:8px}
+.grounding code{background:var(--gray-100);padding:1px 6px;border-radius:4px;font-family:var(--mono);font-size:10.5px;color:var(--gray-700)}
+.toast{position:fixed;bottom:20px;right:20px;background:var(--gray-900);color:var(--white);border-radius:10px;padding:12px 18px;font-size:13px;z-index:99;max-width:420px;box-shadow:var(--shadow-lg)}
+.toast.err{background:var(--error-fg)}
+.empty{color:var(--muted);text-align:center;padding:36px 12px;font-size:13px}
+.token-reveal{background:var(--gray-100);border:1px dashed var(--warning);border-radius:var(--radius-md);padding:12px;font-family:var(--mono);font-size:12px;word-break:break-all;margin-top:10px}
+textarea.csv{min-height:110px;font-family:var(--mono);font-size:11.5px}
+@media(max-width:920px){.layout{grid-template-columns:1fr}.side{position:static;height:auto}.grid2,.grid3,.grid4{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="side">
+    <a class="brand" href="https://datachain.network" target="_blank" rel="noopener">
+      <div class="logo-icon"><img src="logo.svg" alt="Datachain Logo"></div>
+      <div><b>Ecosystem Console</b><small>Datachain Rope · EDC</small></div>
+    </a>
+    <h4>Identity</h4>
+    <button class="btn" style="width:100%;margin-bottom:8px" id="connectBtn" onclick="App.connectWallet()">Connect wallet (sign in)</button>
+    <div class="muted" id="sessionState" style="font-size:10.5px;padding:0 4px 6px"></div>
+    <div class="field" style="padding:0 4px">
+      <label>Operator wallet (0x…) — manual fallback</label>
+      <input id="walletInput" placeholder="0x…" onchange="App.setWallet(this.value)">
+    </div>
+    <button class="btn" style="width:100%;margin-top:6px" onclick="App.newProject()">+ New Project</button>
+    <h4>My Projects</h4>
+    <div id="projList"><div class="empty" style="padding:14px">No projects yet</div></div>
+    <div class="field" style="padding:0 4px">
+      <label>Console token (optional)</label>
+      <input id="tokenInput" type="password" placeholder="EDC_CONSOLE_TOKEN" onchange="App.setToken(this.value)">
+    </div>
+    <div class="muted" style="font-size:10.5px;padding:0 4px">AI engine: <span id="aiEngine" class="mono">—</span></div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <h1 id="pageTitle">Ecosystem Deployment Console</h1>
+      <div id="projStatus"></div>
+    </div>
+    <div id="view"></div>
+  </main>
+</div>
+
+<script>
+/* Shared Datachain Rope Connect Wallet drawer — branding for the EDC
+   console. Must be set before dcscan-wallet.js loads. */
+window.DCW_CONFIG = {
+  brand: 'Ecosystem Console',
+  assetBase: 'assets/wallets/',
+  explorerBase: 'https://dcscan.io'
+};
+</script>
+<script src="js/dcscan-wallet.js?v=20260707"></script>
+<script>
+'use strict';
+/* ============================================================ API client */
+const Api = {
+  base: '',
+  headers(){
+    const h = {'Content-Type':'application/json'};
+    const s = localStorage.getItem('edc_session'); if(s) h['X-Edc-Session']=s;
+    const w = localStorage.getItem('edc_wallet'); if(w) h['X-Edc-Wallet']=w;
+    const t = localStorage.getItem('edc_token');  if(t) h['X-Edc-Console-Token']=t;
+    return h;
+  },
+  async req(method, path, body, raw){
+    const opts = {method, headers: this.headers()};
+    if(body !== undefined) opts.body = raw ? body : JSON.stringify(body);
+    if(raw) opts.headers['Content-Type'] = 'text/csv';
+    const res = await fetch(this.base + path, opts);
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error || res.statusText);
+    return data;
+  },
+  get(p){return this.req('GET',p)}, post(p,b){return this.req('POST',p,b)},
+  put(p,b){return this.req('PUT',p,b)}, del(p){return this.req('DELETE',p)},
+  postCsv(p,text){return this.req('POST',p,text,true)},
+};
+
+/* ============================================================ SVG charts */
+const Charts = {
+  colors:['#18181b','#3b82f6','#22c55e','#f59e0b','#ef4444','#8b5cf6'],
+  grid:'#e4e4e7', axis:'#71717a', ink:'#18181b',
+  render(spec, el){
+    const fns = {line:this.line, bar:this.bar, donut:this.donut, gauge:this.gauge, scatter:this.scatter};
+    (fns[spec.chart]||this.line).call(this, spec, el);
+  },
+  svg(el,w,h){ el.innerHTML = `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}"></svg>`; return el.querySelector('svg'); },
+  esc(s){return String(s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))},
+  line(spec, el){
+    const W=440,H=200,P={l:46,r:10,t:12,b:26}, svg=this.svg(el,W,H);
+    const all = spec.series.flatMap(s=>s.values); if(!all.length){el.innerHTML='<div class="empty">no data</div>';return;}
+    let mn=Math.min(...all), mx=Math.max(...all); if(mn===mx){mn-=1;mx+=1;}
+    const n = Math.max(...spec.series.map(s=>s.values.length));
+    const x=i=> P.l + (n<=1?0:(i/(n-1))*(W-P.l-P.r));
+    const y=v=> H-P.b - ((v-mn)/(mx-mn))*(H-P.t-P.b);
+    let g='';
+    for(let t=0;t<=4;t++){ const vy=P.t+(t/4)*(H-P.t-P.b), val=mx-(t/4)*(mx-mn);
+      g+=`<line x1="${P.l}" y1="${vy}" x2="${W-P.r}" y2="${vy}" stroke="#e4e4e7" stroke-width="0.5"/>`+
+         `<text x="${P.l-6}" y="${vy+3.5}" fill="#71717a" font-size="9" text-anchor="end">${val.toFixed(1)}</text>`;}
+    spec.series.forEach((s,si)=>{
+      const pts=s.values.map((v,i)=>`${x(i)},${y(v)}`).join(' ');
+      g+=`<polyline points="${pts}" fill="none" stroke="${this.colors[si%6]}" stroke-width="1.8"/>`;
+      s.values.forEach((v,i)=>{g+=`<circle cx="${x(i)}" cy="${y(v)}" r="1.8" fill="${this.colors[si%6]}"/>`;});
+    });
+    const step=Math.max(1,Math.ceil(n/6));
+    (spec.x||[]).forEach((lb,i)=>{ if(i%step===0) g+=`<text x="${x(i)}" y="${H-8}" fill="#71717a" font-size="8.5" text-anchor="middle">${this.esc(lb)}</text>`;});
+    svg.innerHTML=g;
+  },
+  bar(spec, el){
+    const W=440,H=200,P={l:46,r:10,t:12,b:44}, svg=this.svg(el,W,H);
+    const vals=spec.series[0]?.values||[]; if(!vals.length){el.innerHTML='<div class="empty">no data</div>';return;}
+    const mx=Math.max(...vals,0)||1, n=vals.length, bw=Math.min(46,(W-P.l-P.r)/n*0.7);
+    let g='';
+    for(let t=0;t<=4;t++){const vy=P.t+(t/4)*(H-P.t-P.b), val=mx-(t/4)*mx;
+      g+=`<line x1="${P.l}" y1="${vy}" x2="${W-P.r}" y2="${vy}" stroke="#e4e4e7" stroke-width="0.5"/>`+
+         `<text x="${P.l-6}" y="${vy+3.5}" fill="#71717a" font-size="9" text-anchor="end">${val.toFixed(1)}</text>`;}
+    vals.forEach((v,i)=>{
+      const cx=P.l+((i+0.5)/n)*(W-P.l-P.r), bh=(v/mx)*(H-P.t-P.b);
+      g+=`<rect x="${cx-bw/2}" y="${H-P.b-bh}" width="${bw}" height="${bh}" rx="3" fill="${this.colors[i%6]}" opacity="0.85"/>`;
+      const lb=this.esc((spec.x||[])[i]||'');
+      g+=`<text x="${cx}" y="${H-P.b+12}" fill="#71717a" font-size="8.5" text-anchor="middle" transform="rotate(18 ${cx} ${H-P.b+12})">${lb.slice(0,14)}</text>`;
+    });
+    svg.innerHTML=g;
+  },
+  donut(spec, el){
+    const W=440,H=200,cx=140,cy=100,R=70,r=44, svg=this.svg(el,W,H);
+    const vals=spec.series[0]?.values||[]; const tot=vals.reduce((a,b)=>a+b,0);
+    if(!tot){el.innerHTML='<div class="empty">no data</div>';return;}
+    let a0=-Math.PI/2,g='';
+    const bandColors={ok:'#22c55e',warning:'#f59e0b',critical:'#ef4444'};
+    vals.forEach((v,i)=>{
+      if(v<=0)return;
+      const a1=a0+(v/tot)*Math.PI*2, large=(a1-a0)>Math.PI?1:0;
+      const p=(a,rr)=>`${cx+rr*Math.cos(a)},${cy+rr*Math.sin(a)}`;
+      const col=bandColors[(spec.x||[])[i]]||this.colors[i%6];
+      g+=`<path d="M${p(a0,R)} A${R},${R} 0 ${large} 1 ${p(a1,R)} L${p(a1,r)} A${r},${r} 0 ${large} 0 ${p(a0,r)} Z" fill="${col}" opacity="0.9"/>`;
+      a0=a1;
+    });
+    g+=`<text x="${cx}" y="${cy+4}" fill="#18181b" font-size="15" font-weight="700" text-anchor="middle">${tot}</text>`;
+    (spec.x||[]).forEach((lb,i)=>{
+      const ly=60+i*22, col=bandColors[lb]||this.colors[i%6];
+      g+=`<rect x="265" y="${ly-8}" width="10" height="10" rx="2" fill="${col}"/>`+
+         `<text x="282" y="${ly+1}" fill="#18181b" font-size="11">${this.esc(lb)} — ${vals[i]||0}</text>`;
+    });
+    svg.innerHTML=g;
+  },
+  gauge(spec, el){
+    const W=440,H=180,cx=220,cy=140,R=95, svg=this.svg(el,W,H);
+    const v=Math.max(0,Math.min(100, spec.series[0]?.values[0]||0));
+    const a=-Math.PI+(v/100)*Math.PI;
+    const p=(ang,rr)=>`${cx+rr*Math.cos(ang)},${cy+rr*Math.sin(ang)}`;
+    const col=v>=90?'#22c55e':v>=70?'#f59e0b':'#ef4444';
+    let g=`<path d="M${p(-Math.PI,R)} A${R},${R} 0 0 1 ${p(0,R)}" fill="none" stroke="#e4e4e7" stroke-width="16" stroke-linecap="round"/>`;
+    if(v>0.5) g+=`<path d="M${p(-Math.PI,R)} A${R},${R} 0 ${a> -Math.PI/2+Math.PI/2?0:0} 1 ${p(a,R)}" fill="none" stroke="${col}" stroke-width="16" stroke-linecap="round"/>`;
+    g+=`<text x="${cx}" y="${cy-14}" fill="#18181b" font-size="30" font-weight="800" text-anchor="middle">${v.toFixed(1)}${this.esc(spec.unit||'%')}</text>`;
+    svg.innerHTML=g;
+  },
+  scatter(spec, el){
+    const W=440,H=200,P={l:46,r:10,t:12,b:26}, svg=this.svg(el,W,H);
+    const xs=(spec.x||[]).map(Number), ys=spec.series[0]?.values||[];
+    const n=Math.min(xs.length,ys.length); if(!n){el.innerHTML='<div class="empty">no data</div>';return;}
+    let mnx=Math.min(...xs),mxx=Math.max(...xs),mny=Math.min(...ys),mxy=Math.max(...ys);
+    if(mnx===mxx){mnx-=1;mxx+=1} if(mny===mxy){mny-=1;mxy+=1}
+    const X=v=>P.l+((v-mnx)/(mxx-mnx))*(W-P.l-P.r), Y=v=>H-P.b-((v-mny)/(mxy-mny))*(H-P.t-P.b);
+    let g='';
+    for(let i=0;i<n;i++) g+=`<circle cx="${X(xs[i])}" cy="${Y(ys[i])}" r="3" fill="#3b82f6" opacity="0.75"/>`;
+    svg.innerHTML=g;
+  },
+};
+
+/* ============================================================ App state */
+const App = {
+  projects: [], current: null, tab: 'dashboard', wizardStep: 1, streamTimer: null,
+
+  async init(){
+    document.getElementById('walletInput').value = localStorage.getItem('edc_wallet')||'';
+    document.getElementById('tokenInput').value  = localStorage.getItem('edc_token')||'';
+    this.renderSession();
+    // Always resolve the AI-engine status, whatever view renders first
+    // (a project now auto-opens when one exists, bypassing the Welcome
+    // branch that used to trigger this probe).
+    this.loadEngineLabel();
+    await this.refresh();
+    this.render();
+  },
+  setWallet(v){ localStorage.setItem('edc_wallet', v.trim()); this.refresh().then(()=>this.render()); },
+  setToken(v){ localStorage.setItem('edc_token', v.trim()); },
+
+  /* Wallet-signature sign-in via the shared Datachain Rope Connect
+     Wallet drawer (Datawallet+ credentials + every injected wallet).
+     Opening the drawer sets _signInPending; when the drawer reports a
+     connection (datachain-wallet:connected) the pending sign-in is
+     completed: EVM wallets sign the EIP-191 EDC-CONSOLE-AUTH message,
+     Datawallet+ sessions exchange the verified Datachain ID token.
+     Falls back to a direct window.ethereum flow if the shared
+     component failed to load. */
+  _signInPending: false,
+  async connectWallet(){
+    if(window.DatachainWallet){
+      if(window.DatachainWallet.isConnected()){
+        // Drawer already connected — go straight to the session exchange.
+        await this.completeSignIn(window.DatachainWallet.getState());
+        return;
+      }
+      this._signInPending = true;
+      window.DatachainWallet.open();
+      return;
+    }
+    await this.legacyConnectWallet();
+  },
+  async completeSignIn(detail){
+    this._signInPending = false;
+    try{
+      if(detail.walletName === 'Datawallet+'){
+        const idToken = window.DatachainWallet.getIdentityToken();
+        if(!idToken){ this.toast('Datawallet+ session expired — sign in again from the drawer.', true); return; }
+        const d = await Api.post('/api/v1/ecosystem/auth/session', {datachain_id_token: idToken});
+        this.storeSession(d);
+        return;
+      }
+      if(detail.walletName === 'Phantom Wallet'){
+        this.toast('Phantom connects a Solana account — console sign-in needs an EVM signature. Pick MetaMask, XDC Pay, Coinbase, Trust or Exodus in the drawer.', true);
+        return;
+      }
+      const provider = window.DatachainWallet.getEvmProvider();
+      if(!provider){ this.toast('No EVM provider available for '+(detail.walletName||'this wallet')+'.', true); return; }
+      const address = (detail.address||'').toLowerCase();
+      if(!address){ this.toast('Wallet returned no account.', true); return; }
+      const timestamp = Math.floor(Date.now()/1000);
+      const message = 'EDC-CONSOLE-AUTH\n'+address+'\n'+timestamp;
+      const signature = await provider.request({method:'personal_sign', params:[message, address]});
+      const d = await Api.post('/api/v1/ecosystem/auth/session', {address, timestamp, signature});
+      this.storeSession(d);
+    }catch(e){ this.toast('Sign-in failed: '+(e.message||e), true); }
+  },
+  async storeSession(d){
+    localStorage.setItem('edc_session', d.session_token);
+    localStorage.setItem('edc_wallet', d.wallet);
+    document.getElementById('walletInput').value = d.wallet;
+    this.renderSession();
+    this.toast('Signed in as '+d.wallet.slice(0,10)+'…');
+    await this.refresh(); this.render();
+  },
+  /* Direct EIP-191 flow — only used when the shared drawer component
+     is unavailable (e.g. self-hosted console without js/ assets). */
+  async legacyConnectWallet(){
+    if(!window.ethereum){ this.toast('No wallet extension found. Install MetaMask, or use the manual wallet field on a self-hosted console.', true); return; }
+    try{
+      const accounts = await window.ethereum.request({method:'eth_requestAccounts'});
+      const address = (accounts[0]||'').toLowerCase();
+      if(!address){ this.toast('Wallet returned no account.', true); return; }
+      const timestamp = Math.floor(Date.now()/1000);
+      const message = 'EDC-CONSOLE-AUTH\n'+address+'\n'+timestamp;
+      const signature = await window.ethereum.request({method:'personal_sign', params:[message, address]});
+      const d = await Api.post('/api/v1/ecosystem/auth/session', {address, timestamp, signature});
+      this.storeSession(d);
+    }catch(e){ this.toast('Sign-in failed: '+(e.message||e), true); }
+  },
+  async signOut(){
+    try{ await Api.del('/api/v1/ecosystem/auth/session'); }catch(e){}
+    localStorage.removeItem('edc_session');
+    this.renderSession();
+    this.toast('Signed out.');
+    await this.refresh(); this.render();
+  },
+  renderSession(){
+    const el = document.getElementById('sessionState');
+    const btn = document.getElementById('connectBtn');
+    if(!el || !btn) return;
+    if(localStorage.getItem('edc_session')){
+      const w = localStorage.getItem('edc_wallet')||'';
+      el.innerHTML = 'Session active — <span class="mono">'+Charts.esc(w.slice(0,10))+'…</span> <a href="#" onclick="App.signOut();return false" style="color:var(--crit)">sign out</a>';
+      btn.textContent = 'Re-sign in';
+    } else {
+      el.textContent = 'Not signed in — wallet-signature session recommended.';
+      btn.textContent = 'Connect wallet (sign in)';
+    }
+  },
+  toast(msg, err){
+    const t=document.createElement('div'); t.className='toast'+(err?' err':''); t.textContent=msg;
+    document.body.appendChild(t); setTimeout(()=>t.remove(), 4200);
+  },
+
+  async refresh(){
+    if(!localStorage.getItem('edc_wallet')) { this.projects=[]; this.renderList(); return; }
+    try{
+      const d = await Api.get('/api/v1/ecosystem/projects');
+      this.projects = (d.projects||[]).slice()
+        .sort((a,b)=>(b.created_at||0)-(a.created_at||0));
+      if(this.current) this.current = this.projects.find(p=>p.id===this.current.id)||this.current;
+      // Always surface the latest added project: when nothing is open
+      // yet, auto-select the newest one so it is displayed immediately.
+      if(!this.current && this.projects.length){
+        this.current = this.projects[0];
+        this.tab = this.current.status==='draft' ? 'wizard' : 'dashboard';
+      }
+    }catch(e){ this.toast('Load failed: '+e.message, true); }
+    this.renderList();
+  },
+  renderList(){
+    const el=document.getElementById('projList');
+    if(!this.projects.length){ el.innerHTML='<div class="empty" style="padding:14px">No projects yet</div>'; return; }
+    el.innerHTML=this.projects.map(p=>
+      `<div class="pitem ${this.current&&this.current.id===p.id?'active':''}" onclick="App.open('${p.id}')">${Charts.esc(p.definition?.name||p.id)}</div>`).join('');
+  },
+
+  async newProject(){
+    const wallet = localStorage.getItem('edc_wallet');
+    if(!wallet){ this.toast('Set your operator wallet first (left sidebar).', true); return; }
+    const name = prompt('Project name'); if(!name) return;
+    try{
+      const p = await Api.post('/api/v1/ecosystem/projects', {name});
+      await this.refresh(); this.current=p; this.tab='wizard'; this.wizardStep=1; this.render();
+    }catch(e){ this.toast(e.message, true); }
+  },
+  open(id){
+    this.current = this.projects.find(p=>p.id===id);
+    this.tab = (this.current&&this.current.status==='draft')?'wizard':'dashboard';
+    this.render();
+  },
+
+  /* ---------------------------------------------------------- rendering */
+  render(){
+    const v=document.getElementById('view');
+    clearInterval(this.streamTimer);
+    if(!this.current){
+      document.getElementById('pageTitle').textContent='Ecosystem Deployment Console';
+      document.getElementById('projStatus').innerHTML='';
+      v.innerHTML=`<div class="card"><h3>Welcome</h3>
+        <p class="muted">Deploy sovereign predictive-maintenance and environmental-monitoring infrastructure on Datachain Rope.
+        Set your operator wallet on the left, then create a project. The nine-step wizard takes you from identity to a live,
+        on-chain-anchored deployment with AI analytics and disintermediated stakeholder access.</p></div>`;
+      this.loadEngineLabel();
+      return;
+    }
+    const p=this.current;
+    document.getElementById('pageTitle').textContent = p.definition?.name||p.id;
+    document.getElementById('projStatus').innerHTML =
+      `<span class="badge ${p.status==='live'?'b-ok':p.status==='draft'?'b-info':'b-warn'}">${p.status.toUpperCase()}</span>
+       <span class="mono muted" style="margin-left:8px">${p.wallet.slice(0,10)}…</span>`;
+    const tabs=[['dashboard','Dashboard'],['wizard','Setup Wizard'],['inventory','Inventory'],['analytics','AI Analytics'],['grants','Data Access'],['chain','On-chain']];
+    v.innerHTML = `<div class="tabs">${tabs.map(([id,lb])=>
+      `<div class="tab ${this.tab===id?'active':''}" onclick="App.tab='${id}';App.render()">${lb}</div>`).join('')}</div>
+      <div id="tabBody"></div>`;
+    this['render_'+this.tab]?.(document.getElementById('tabBody'));
+    this.renderList();
+  },
+  async loadEngineLabel(){
+    const el=document.getElementById('aiEngine');
+    try{
+      const h=await fetch('/healthz');
+      el.textContent = h.ok ? 'online' : 'offline';
+    }catch(_){ el.textContent='offline'; }
+  },
+
+  /* ---------------------------------------------------------- dashboard */
+  async render_dashboard(el){
+    const p=this.current;
+    el.innerHTML='<div class="empty">Loading live data…</div>';
+    let readings=[], diags=[], apps=[];
+    try{
+      const [r,d,a] = await Promise.all([
+        Api.get(`/api/v1/ecosystem/projects/${p.id}/readings?limit=1500`),
+        Api.get(`/api/v1/ecosystem/projects/${p.id}/diagnoses`),
+        Api.get(`/api/v1/ecosystem/projects/${p.id}/approvals`),
+      ]);
+      readings=r.readings||[]; diags=d.diagnoses||[]; apps=a.approvals||[];
+    }catch(e){ el.innerHTML=`<div class="card"><div class="empty">${Charts.esc(e.message)}</div></div>`; return; }
+    const ok=readings.filter(r=>r.band==='ok').length, wa=readings.filter(r=>r.band==='warning').length, cr=readings.filter(r=>r.band==='critical').length;
+    el.innerHTML=`
+      <div class="grid4" style="margin-bottom:16px">
+        <div class="kpi"><div class="v">${p.inventory.assets.length}</div><div class="l">Assets</div></div>
+        <div class="kpi"><div class="v">${p.inventory.sensors.length}</div><div class="l">Sensors</div></div>
+        <div class="kpi"><div class="v" style="color:var(--ok)">${readings.length?((ok/readings.length)*100).toFixed(1)+'%':'—'}</div><div class="l">In optimum</div></div>
+        <div class="kpi"><div class="v" style="color:${cr?'var(--crit)':'var(--text)'}">${cr}</div><div class="l">Critical readings</div></div>
+      </div>
+      <div id="dashCharts" class="charts" style="margin-bottom:16px"></div>
+      <div class="grid2">
+        <div class="card"><h3>Latest readings <span class="badge b-info">${readings.length}</span></h3>
+          <div style="max-height:320px;overflow:auto"><table><thead><tr><th>Time</th><th>Asset</th><th>Parameter</th><th>Value</th><th>Band</th></tr></thead>
+          <tbody>${readings.slice(0,60).map(r=>`<tr><td class="mono">${new Date(r.ts*1000).toLocaleTimeString()}</td>
+            <td>${Charts.esc(r.asset_id)}</td><td>${Charts.esc(r.parameter)}</td>
+            <td class="mono">${r.value} ${Charts.esc(r.unit)}</td>
+            <td><span class="badge b-${r.band==='ok'?'ok':r.band==='warning'?'warn':'crit'}">${r.band}</span></td></tr>`).join('')||'<tr><td colspan="5" class="empty">No readings yet — POST telemetry to /api/v1/ecosystem/projects/'+p.id+'/telemetry</td></tr>'}</tbody></table></div></div>
+        <div>
+          <div class="card"><h3>AI diagnoses <span class="badge b-gold">${diags.length}</span></h3>
+            <div style="max-height:150px;overflow:auto">${diags.slice(0,8).map(d=>
+              `<div style="margin-bottom:8px;font-size:12.5px"><b>${Charts.esc(d.asset_id)}</b> · <span class="muted">${Charts.esc(d.agent_id)} · conf ${(d.confidence*100).toFixed(0)}%</span><br>${Charts.esc(d.diagnosis)} — <i>${Charts.esc(d.recommendation)}</i></div>`).join('')||'<div class="empty">No diagnoses yet</div>'}</div></div>
+          <div class="card"><h3>Governance approvals <span class="badge b-info">${apps.length}</span></h3>
+            <div style="max-height:120px;overflow:auto">${apps.slice(0,6).map(a=>
+              `<div style="margin-bottom:6px;font-size:12.5px"><b>${Charts.esc(a.subject)}</b> · <span class="muted">${Charts.esc(a.approved_by.slice(0,10))}… (${Charts.esc(String(a.role))})</span></div>`).join('')||'<div class="empty">No approvals yet</div>'}</div></div>
+        </div>
+      </div>`;
+    // Charts from the deterministic dossier endpoint.
+    try{
+      const d = await Api.get(`/api/v1/ecosystem/projects/${p.id}/analytics/dossier?limit=1500`);
+      const box=document.getElementById('dashCharts');
+      box.innerHTML='';
+      (d.charts||[]).slice(0,6).forEach(spec=>{
+        const c=document.createElement('div'); c.className='chartbox';
+        c.innerHTML=`<h5>${Charts.esc(spec.title)}</h5><div class="cv"></div>`;
+        box.appendChild(c); Charts.render(spec, c.querySelector('.cv'));
+      });
+    }catch(_){}
+    // Poll every 15 s while the dashboard tab is open.
+    this.streamTimer=setInterval(()=>{ if(this.tab==='dashboard') this.render_dashboard(el); }, 15000);
+  },
+
+  /* ---------------------------------------------------------- wizard */
+  render_wizard(el){
+    const p=this.current, s=this.wizardStep;
+    const stepDefs=[[1,'Identity'],[2,'Definition'],[3,'Crypto Asset'],[4,'Team'],[5,'Inventory'],[6,'Node Plan'],[7,'Policy'],[8,'Review'],[9,'Deploy']];
+    const done={1:!!p.identity,2:!!(p.definition&&p.definition.country),3:p.crypto.kind!=='none'||true,4:p.team.length>0,5:p.inventory.sensors.length>0,6:!!p.node_plan,7:true,8:true,9:p.status==='live'};
+    el.innerHTML=`<div class="steps">${stepDefs.map(([n,lb])=>
+      `<div class="step ${n===s?'current':done[n]?'done':''}" onclick="App.wizardStep=${n};App.render()">${n}. ${lb}</div>`).join('')}</div><div id="stepBody"></div>`;
+    this['wstep'+s]?.(document.getElementById('stepBody'));
+  },
+  wstep1(el){
+    const i=this.current.identity||{};
+    el.innerHTML=`<div class="card"><h3>Step 1 — Identity &amp; Compliance</h3>
+      <div class="grid2">
+        <div class="field"><label>Kind</label><select id="w_kind"><option value="organization" ${i.kind==='organization'?'selected':''}>Organization (KYB)</option><option value="individual" ${i.kind==='individual'?'selected':''}>Individual (KYC)</option></select></div>
+        <div class="field"><label>Legal name</label><input id="w_legal" value="${Charts.esc(i.legal_name||'')}"></div>
+        <div class="field"><label>Datawallet+ DID</label><input id="w_did" value="${Charts.esc(i.did||'')}" placeholder="did:dwp:…"></div>
+        <div class="field"><label>ONCHAINID address</label><input id="w_ocid" value="${Charts.esc(i.onchainid||'')}" placeholder="0x…"></div>
+        <div class="field"><label>Country (ISO-2)</label><input id="w_country" value="${Charts.esc(i.country||'')}" maxlength="2" placeholder="NL"></div>
+      </div>
+      <button class="btn" onclick="App.saveStep1()">Save &amp; continue</button></div>`;
+  },
+  async saveStep1(){
+    try{
+      await Api.put(`/api/v1/ecosystem/projects/${this.current.id}/identity`,{
+        kind:v('w_kind'), legal_name:v('w_legal'), did:v('w_did'), onchainid:v('w_ocid'),
+        country:v('w_country').toUpperCase(), screening_passed:false});
+      await this.refresh(); this.wizardStep=2; this.render();
+    }catch(e){ this.toast(e.message,true); }
+  },
+  wstep2(el){
+    const d=this.current.definition||{};
+    el.innerHTML=`<div class="card"><h3>Step 2 — Project definition</h3>
+      <div class="grid2">
+        <div class="field"><label>Name</label><input id="w_name" value="${Charts.esc(d.name||'')}"></div>
+        <div class="field"><label>Archetype</label><select id="w_arch">
+          <option value="predictive_maintenance" ${d.archetype==='predictive_maintenance'?'selected':''}>Predictive maintenance</option>
+          <option value="environmental_monitoring" ${d.archetype==='environmental_monitoring'?'selected':''}>Environmental monitoring</option>
+          <option value="hybrid" ${d.archetype==='hybrid'?'selected':''}>Hybrid</option></select></div>
+        <div class="field"><label>Country (ISO-2)</label><input id="w_pcountry" value="${Charts.esc(d.country||'')}" maxlength="2"></div>
+        <div class="field"><label>Region / city</label><input id="w_region" value="${Charts.esc(d.region||'')}"></div>
+        <div class="field"><label>Latitude</label><input id="w_lat" type="number" step="any" value="${d.gps?d.gps[0]:''}"></div>
+        <div class="field"><label>Longitude</label><input id="w_lon" type="number" step="any" value="${d.gps?d.gps[1]:''}"></div>
+        <div class="field"><label>Tags (comma-separated)</label><input id="w_tags" value="${Charts.esc((d.tags||[]).join(', '))}" placeholder="Cities, Energy"></div>
+        <div class="field"><label>Expected asset band</label><input id="w_band" value="${Charts.esc(d.expected_assets_band||'')}" placeholder="50-500"></div>
+      </div>
+      <div class="field"><label>Description &amp; objectives</label><textarea id="w_desc" rows="3">${Charts.esc(d.description||'')}</textarea></div>
+      <button class="btn" onclick="App.saveStep2()">Save &amp; continue</button></div>`;
+  },
+  async saveStep2(){
+    const d=this.current.definition||{};
+    const lat=parseFloat(v('w_lat')), lon=parseFloat(v('w_lon'));
+    try{
+      await Api.put(`/api/v1/ecosystem/projects/${this.current.id}/definition`,{
+        ...d, name:v('w_name'), archetype:v('w_arch'), country:v('w_pcountry').toUpperCase(),
+        region:v('w_region'), gps:(isFinite(lat)&&isFinite(lon))?[lat,lon]:null,
+        tags:v('w_tags').split(',').map(s=>s.trim()).filter(Boolean),
+        expected_assets_band:v('w_band'), description:v('w_desc'),
+        boundary:d.boundary||[], kpis:d.kpis||{}, ownership_structure:d.ownership_structure||''});
+      await this.refresh(); this.wizardStep=3; this.render();
+    }catch(e){ this.toast(e.message,true); }
+  },
+  wstep3(el){
+    const c=this.current.crypto;
+    el.innerHTML=`<div class="card"><h3>Step 3 — Crypto asset decision</h3>
+      <div class="grid2">
+        <div class="field"><label>Asset kind</label><select id="w_ckind">
+          ${['none','dcr20','erc3643','dcnft','hybrid'].map(k=>`<option value="${k}" ${c.kind===k?'selected':''}>${{none:'None — FAT gas only',dcr20:'DCR-20 utility token',erc3643:'ERC-3643 security token',dcnft:'DCNFT per asset',hybrid:'DCNFT + fractional ERC-3643 (Tanastok model)'}[k]}</option>`).join('')}</select></div>
+        <div class="field"><label>Supply model</label><select id="w_supply"><option value="fixed" ${c.supply_model==='fixed'?'selected':''}>Fixed</option><option value="elastic" ${c.supply_model==='elastic'?'selected':''}>Elastic</option><option value="fractional" ${c.supply_model==='fractional'?'selected':''}>Fractional</option></select></div>
+        <div class="field"><label>Initial supply</label><input id="w_isupply" type="number" value="${c.initial_supply||0}"></div>
+        <div class="field"><label>Max supply</label><input id="w_msupply" type="number" value="${c.max_supply||0}"></div>
+        <div class="field"><label>Revenue share %</label><input id="w_rev" type="number" step="any" value="${c.revenue_share_pct||0}"></div>
+        <div class="field"><label>Distribution channel</label><select id="w_chan"><option value="private_pool" ${c.distribution_channel==='private_pool'?'selected':''}>Private pool</option><option value="dcswap" ${c.distribution_channel==='dcswap'?'selected':''}>DCSwap</option><option value="hybrid" ${c.distribution_channel==='hybrid'?'selected':''}>Hybrid</option></select></div>
+      </div>
+      <p class="muted" style="font-size:12px;margin-bottom:12px">Security tokens (ERC-3643) require KYC-verified holders via ONCHAINID. Token contracts deploy through the standard T-REX factory after the project goes live.</p>
+      <button class="btn" onclick="App.saveStep3()">Save &amp; continue</button></div>`;
+  },
+  async saveStep3(){
+    const c=this.current.crypto;
+    try{
+      await Api.put(`/api/v1/ecosystem/projects/${this.current.id}/crypto`,{
+        ...c, kind:v('w_ckind'), supply_model:v('w_supply'),
+        initial_supply:parseInt(v('w_isupply'))||0, max_supply:parseInt(v('w_msupply'))||0,
+        revenue_share_pct:parseFloat(v('w_rev'))||0, distribution_channel:v('w_chan')});
+      await this.refresh(); this.wizardStep=4; this.render();
+    }catch(e){ this.toast(e.message,true); }
+  },
+  wstep4(el){
+    const team=this.current.team;
+    el.innerHTML=`<div class="card"><h3>Step 4 — Team &amp; governance</h3>
+      <table style="margin-bottom:14px"><thead><tr><th>Wallet</th><th>Role</th><th>Label</th><th></th></tr></thead>
+      <tbody>${team.map((m,i)=>`<tr><td class="mono">${Charts.esc(m.wallet)}</td><td><span class="badge b-info">${Charts.esc(String(m.role))}</span></td><td>${Charts.esc(m.label)}</td>
+        <td>${m.role!=='owner'?`<button class="btn small danger" onclick="App.removeMember(${i})">remove</button>`:''}</td></tr>`).join('')}</tbody></table>
+      <div class="grid3">
+        <div class="field"><label>Wallet (0x…)</label><input id="w_mwallet"></div>
+        <div class="field"><label>Role</label><select id="w_mrole"><option value="administrator">Administrator</option><option value="operator">Operator</option><option value="auditor">Auditor</option><option value="ai_agent">AI agent</option></select></div>
+        <div class="field"><label>Label</label><input id="w_mlabel" placeholder="Field team lead"></div>
+      </div>
+      <button class="btn ghost" onclick="App.addMember()">+ Add member</button>
+      <button class="btn" style="margin-left:8px" onclick="App.wizardStep=5;App.render()">Continue</button></div>`;
+  },
+  async addMember(){
+    const team=[...this.current.team, {wallet:v('w_mwallet'), did:'', role:v('w_mrole'), label:v('w_mlabel'), scoped_assets:[]}];
+    try{ await Api.put(`/api/v1/ecosystem/projects/${this.current.id}/team`, team); await this.refresh(); this.render(); }
+    catch(e){ this.toast(e.message,true); }
+  },
+  async removeMember(i){
+    const team=this.current.team.filter((_,x)=>x!==i);
+    try{ await Api.put(`/api/v1/ecosystem/projects/${this.current.id}/team`, team); await this.refresh(); this.render(); }
+    catch(e){ this.toast(e.message,true); }
+  },
+  wstep5(el){
+    const inv=this.current.inventory;
+    el.innerHTML=`<div class="card"><h3>Step 5 — Inventory (${inv.assets.length} assets · ${inv.sensors.length} sensors)</h3>
+      <div class="grid2">
+        <div>
+          <h3 style="font-size:12.5px">Bulk import assets (CSV)</h3>
+          <p class="muted" style="font-size:11px;margin-bottom:6px">Columns: id, name, category, sub_type, lat, lon, manufacturer, model, serial_number, commissioning_date, warranty_expiry, ownership, mutability_class, tag_id</p>
+          <textarea id="w_assets_csv" class="csv" placeholder="id,name,category,sub_type,lat,lon&#10;SL-001,Street light 1,Cities,street_light,52.08,4.31"></textarea>
+          <button class="btn small" style="margin-top:8px" onclick="App.importCsv('assets')">Import assets</button>
+        </div>
+        <div>
+          <h3 style="font-size:12.5px">Bulk import sensors (CSV)</h3>
+          <p class="muted" style="font-size:11px;margin-bottom:6px">Columns: id, parent_asset_id, parameter, unit, cadence, readings_per_hour, range_min/max, optimum_min/max, warning_min/max, protocol, endpoint, sharing_policy, write_path</p>
+          <textarea id="w_sensors_csv" class="csv" placeholder="id,parent_asset_id,parameter,unit,cadence,readings_per_hour,optimum_min,optimum_max,warning_min,warning_max&#10;s-001,SL-001,power_draw,W,6min,10,40,90,20,140"></textarea>
+          <button class="btn small" style="margin-top:8px" onclick="App.importCsv('sensors')">Import sensors</button>
+        </div>
+      </div>
+      <div style="margin-top:14px"><button class="btn" onclick="App.wizardStep=6;App.render()">Continue to node plan</button></div></div>`;
+  },
+  async importCsv(kind){
+    const text=v(kind==='assets'?'w_assets_csv':'w_sensors_csv');
+    if(!text.trim()){ this.toast('Paste CSV data first', true); return; }
+    try{
+      const r=await Api.postCsv(`/api/v1/ecosystem/projects/${this.current.id}/inventory/${kind}/import`, text);
+      this.toast(`Imported ${r.imported} ${kind}` + (r.rejected?.length?`, ${r.rejected.length} rejected`:''), r.rejected?.length>0);
+      await this.refresh(); this.render();
+    }catch(e){ this.toast(e.message,true); }
+  },
+  async wstep6(el){
+    el.innerHTML='<div class="empty">Computing recommendation…</div>';
+    try{
+      const plan=await Api.get(`/api/v1/ecosystem/projects/${this.current.id}/node-plan?jurisdictions=1`);
+      el.innerHTML=`<div class="card"><h3>Step 6 — Sovereign node plan</h3>
+        <div class="grid4" style="margin-bottom:14px">
+          <div class="kpi"><div class="v">${Charts.esc(plan.tier)}</div><div class="l">Tier</div></div>
+          <div class="kpi"><div class="v">${plan.node_count}</div><div class="l">Nodes</div></div>
+          <div class="kpi"><div class="v" style="font-size:15px">${Charts.esc(plan.databox_tier)}</div><div class="l">Databox tier</div></div>
+          <div class="kpi"><div class="v" style="font-size:13px">${plan.basis_events_per_hour.toFixed(0)}/h</div><div class="l">Event rate basis</div></div>
+        </div>
+        <p class="muted" style="margin-bottom:10px">${Charts.esc(plan.redundancy)}</p>
+        <table><thead><tr><th>Node</th><th>Roles</th></tr></thead><tbody>
+          ${plan.role_layout.map((roles,i)=>`<tr><td>node-${i+1}</td><td>${roles.map(r=>`<span class="badge b-info" style="margin-right:4px">${r}</span>`).join('')}</td></tr>`).join('')}
+        </tbody></table>
+        <div style="margin-top:14px"><button class="btn" onclick="App.wizardStep=7;App.render()">Accept plan &amp; continue</button></div></div>`;
+    }catch(e){ el.innerHTML=`<div class="card"><div class="empty">${Charts.esc(e.message)}</div></div>`; }
+  },
+  wstep7(el){
+    const pol=this.current.mutability_policy;
+    el.innerHTML=`<div class="card"><h3>Step 7 — Data governance &amp; mutability</h3>
+      <table style="margin-bottom:14px"><thead><tr><th>Data type</th><th>Mutability class</th></tr></thead><tbody>
+      ${Object.entries(pol.classes).map(([k,val])=>`<tr><td>${Charts.esc(k)}</td><td>
+        <select data-poltype="${Charts.esc(k)}">${['Immutable','OwnerErasable','TimeBound','GDPRCompliant','ConditionalErasure'].map(c=>
+          `<option ${val===c?'selected':''}>${c}</option>`).join('')}</select></td></tr>`).join('')}</tbody></table>
+      <div class="field" style="max-width:280px"><label>Telemetry retention (days, TimeBound)</label><input id="w_retention" type="number" value="${pol.telemetry_retention_days}"></div>
+      <button class="btn" onclick="App.saveStep7()">Save &amp; continue</button></div>`;
+  },
+  async saveStep7(){
+    const classes={};
+    document.querySelectorAll('[data-poltype]').forEach(s=>{classes[s.dataset.poltype]=s.value;});
+    try{
+      await Api.put(`/api/v1/ecosystem/projects/${this.current.id}/policy`,
+        {classes, telemetry_retention_days:parseInt(v('w_retention'))||365});
+      await this.refresh(); this.wizardStep=8; this.render();
+    }catch(e){ this.toast(e.message,true); }
+  },
+  wstep8(el){
+    const p=this.current, d=p.definition||{};
+    el.innerHTML=`<div class="card"><h3>Step 8 — Review</h3>
+      <table><tbody>
+        <tr><td class="muted">Project</td><td><b>${Charts.esc(d.name||'')}</b> (${Charts.esc(String(d.archetype||''))})</td></tr>
+        <tr><td class="muted">Identity</td><td>${p.identity?Charts.esc(p.identity.legal_name)+' · '+Charts.esc(p.identity.country):'<span class="badge b-crit">missing</span>'}</td></tr>
+        <tr><td class="muted">Location</td><td>${Charts.esc(d.country||'')} ${Charts.esc(d.region||'')}</td></tr>
+        <tr><td class="muted">Crypto asset</td><td>${Charts.esc(String(p.crypto.kind))}</td></tr>
+        <tr><td class="muted">Team</td><td>${p.team.length} members</td></tr>
+        <tr><td class="muted">Inventory</td><td>${p.inventory.assets.length} assets · ${p.inventory.sensors.length} sensors · ${p.inventory.ai_agents.length} AI agents</td></tr>
+        <tr><td class="muted">Project wallet</td><td class="mono">${p.wallet}</td></tr>
+      </tbody></table>
+      <div style="margin-top:14px"><button class="btn" onclick="App.wizardStep=9;App.render()">Proceed to deploy</button></div></div>`;
+  },
+  wstep9(el){
+    const p=this.current;
+    if(p.status==='live'){
+      el.innerHTML=`<div class="card"><h3>Step 9 — Deployed 🎉</h3>
+        <p>The project is <span class="badge b-ok">LIVE</span>. Genesis anchor: <span class="mono">${Charts.esc(p.genesis_anchor||'pending')}</span></p>
+        <p style="margin-top:8px">Stakeholder gateway: <span class="mono">${Charts.esc(p.stakeholder_url)}/api/v1/ecosystem/stakeholder</span></p>
+        <p style="margin-top:8px">Public card: <a href="/api/v1/ecosystem/public/projects/${p.id}" target="_blank">/api/v1/ecosystem/public/projects/${p.id}</a></p></div>`;
+      return;
+    }
+    el.innerHTML=`<div class="card"><h3>Step 9 — Confirm &amp; deploy</h3>
+      <p class="muted" style="margin-bottom:12px">Deploying freezes the node plan, opens the project's on-chain string on Datachain Rope,
+      anchors the genesis knot and public project card (auto-listing on dcscan.io), and switches ingestion live.</p>
+      <div class="field" style="max-width:420px"><label>Stakeholder dashboard base URL (this node)</label>
+      <input id="w_pub" placeholder="https://project.example.org or leave empty for default"></div>
+      <button class="btn" onclick="App.deploy()">Deploy project</button></div>`;
+  },
+  async deploy(){
+    try{
+      const body={jurisdictions:1, validator:false};
+      const pub=v('w_pub'); if(pub) body.stakeholder_url=pub;
+      await Api.post(`/api/v1/ecosystem/projects/${this.current.id}/deploy`, body);
+      await this.refresh(); this.toast('Project deployed and anchored on-chain.'); this.render();
+    }catch(e){ this.toast(e.message,true); }
+  },
+
+  /* ---------------------------------------------------------- inventory */
+  render_inventory(el){
+    const inv=this.current.inventory;
+    el.innerHTML=`
+      <div class="card"><h3>Assets <span class="badge b-info">${inv.assets.length}</span></h3>
+        <div style="max-height:300px;overflow:auto"><table><thead><tr><th>ID</th><th>Name</th><th>Category</th><th>Type</th><th>Health</th><th>Mutability</th><th>Wallet</th></tr></thead>
+        <tbody>${inv.assets.map(a=>`<tr><td class="mono">${Charts.esc(a.id)}</td><td>${Charts.esc(a.name)}</td><td>${Charts.esc(a.category)}</td><td>${Charts.esc(a.sub_type)}</td>
+          <td><span class="badge ${a.health_score>=80?'b-ok':a.health_score>=50?'b-warn':'b-crit'}">${a.health_score.toFixed(0)}</span></td>
+          <td>${Charts.esc(a.mutability_class)}</td><td class="mono">${a.wallet?a.wallet.slice(0,10)+'…':'—'}</td></tr>`).join('')||'<tr><td colspan="7" class="empty">No assets — use the wizard Step 5 CSV import</td></tr>'}</tbody></table></div></div>
+      <div class="card"><h3>Sensors <span class="badge b-info">${inv.sensors.length}</span></h3>
+        <div style="max-height:300px;overflow:auto"><table><thead><tr><th>ID</th><th>Asset</th><th>Parameter</th><th>Cadence</th><th>Optimum</th><th>Warning</th><th>Protocol</th><th>Sharing</th></tr></thead>
+        <tbody>${inv.sensors.map(s=>`<tr><td class="mono">${Charts.esc(s.id)}</td><td class="mono">${Charts.esc(s.parent_asset_id)}</td><td>${Charts.esc(s.parameter)} (${Charts.esc(s.unit)})</td>
+          <td>${Charts.esc(s.cadence)}</td><td class="mono">${s.optimum?s.optimum.join('–'):'—'}</td><td class="mono">${s.warning?s.warning.join('–'):'—'}</td>
+          <td>${Charts.esc(s.protocol||'—')}</td><td>${Charts.esc(s.sharing_policy||'private')}</td></tr>`).join('')||'<tr><td colspan="8" class="empty">No sensors</td></tr>'}</tbody></table></div></div>
+      <div class="card"><h3>AI agents <span class="badge b-gold">${inv.ai_agents.length}</span></h3>
+        <table><thead><tr><th>ID</th><th>Type</th><th>Provider</th><th>Escalation</th></tr></thead>
+        <tbody>${inv.ai_agents.map(a=>`<tr><td class="mono">${Charts.esc(a.id)}</td><td>${Charts.esc(a.agent_type)}</td><td>${Charts.esc(a.provider||'alteros')}</td><td>${(a.escalation_threshold*100).toFixed(0)}%</td></tr>`).join('')||'<tr><td colspan="4" class="empty">No AI agents registered</td></tr>'}</tbody></table></div>`;
+  },
+
+  /* ---------------------------------------------------------- analytics */
+  render_analytics(el){
+    el.innerHTML=`
+      <div class="card"><h3>Ask the analytics engine</h3>
+        <p class="muted" style="font-size:12px;margin-bottom:10px">Natural-language questions over the project's telemetry. Every figure is computed deterministically
+        (descriptive statistics, trends, anomaly detection, Holt-Winters forecasting, correlations, remaining-useful-life, compliance, data quality) —
+        the AI narrates the numbers, it never invents them.</p>
+        <div class="askbox">
+          <input id="askInput" placeholder="e.g. Which asset is degrading fastest and when will it cross its critical threshold?"
+            onkeydown="if(event.key==='Enter')App.ask()">
+          <button class="btn" onclick="App.ask()">Ask</button>
+        </div>
+        <div id="askResult"></div>
+      </div>
+      <div class="card"><h3>Full analytics dossier</h3>
+        <p class="muted" style="font-size:12px;margin-bottom:10px">The complete deterministic computation over the current window — the grounding behind every AI answer.</p>
+        <button class="btn ghost small" onclick="App.loadDossier()">Compute dossier</button>
+        <div id="dossierBody" style="margin-top:12px"></div>
+      </div>`;
+  },
+  async ask(){
+    const q=v('askInput'); if(!q) return;
+    const box=document.getElementById('askResult');
+    box.innerHTML='<div class="empty">Running the analytics catalogue…</div>';
+    try{
+      const r=await Api.post(`/api/v1/ecosystem/projects/${this.current.id}/ask`,{question:q});
+      box.innerHTML=`<div class="answer">${Charts.esc(r.answer)}</div>
+        <div class="grounding">engine: <code>${Charts.esc(r.engine)}</code> · latency ${r.latency_ms} ms · grounded on ${r.grounding.length} computations:
+        ${r.grounding.slice(0,14).map(g=>`<code>${Charts.esc(g.method)}</code>`).join(' ')}${r.grounding.length>14?' …':''}</div>
+        <div class="charts" id="askCharts" style="margin-top:12px"></div>`;
+      const cbox=document.getElementById('askCharts');
+      (r.charts||[]).forEach(spec=>{
+        const c=document.createElement('div'); c.className='chartbox';
+        c.innerHTML=`<h5>${Charts.esc(spec.title)}</h5><div class="cv"></div>`;
+        cbox.appendChild(c); Charts.render(spec,c.querySelector('.cv'));
+      });
+    }catch(e){ box.innerHTML=`<div class="empty">${Charts.esc(e.message)}</div>`; }
+  },
+  async loadDossier(){
+    const box=document.getElementById('dossierBody');
+    box.innerHTML='<div class="empty">Computing…</div>';
+    try{
+      const d=await Api.get(`/api/v1/ecosystem/projects/${this.current.id}/analytics/dossier?limit=2000`);
+      box.innerHTML=`<p class="muted" style="font-size:12px;margin-bottom:8px">${d.readings_in_scope} readings in scope · ${d.grounding.length} methods computed</p>
+        <div style="max-height:420px;overflow:auto"><table><thead><tr><th>Method</th><th>Result</th></tr></thead><tbody>
+        ${d.grounding.map(g=>`<tr><td class="mono" style="white-space:nowrap">${Charts.esc(g.method)}</td>
+          <td class="mono" style="font-size:10.5px;word-break:break-all">${Charts.esc(JSON.stringify(g.result)).slice(0,400)}</td></tr>`).join('')}
+        </tbody></table></div>`;
+    }catch(e){ box.innerHTML=`<div class="empty">${Charts.esc(e.message)}</div>`; }
+  },
+
+  /* ---------------------------------------------------------- grants */
+  async render_grants(el){
+    el.innerHTML='<div class="empty">Loading grants…</div>';
+    let grants=[];
+    try{ const g=await Api.get(`/api/v1/ecosystem/projects/${this.current.id}/grants`); grants=g.grants||[]; }
+    catch(e){ el.innerHTML=`<div class="card"><div class="empty">${Charts.esc(e.message)}</div></div>`; return; }
+    el.innerHTML=`
+      <div class="card"><h3>Issue a data-access grant</h3>
+        <div class="grid3">
+          <div class="field"><label>Stakeholder class</label><select id="g_class">
+            <option value="investor">Investor</option><option value="regulator">Regulator (Timelocked)</option>
+            <option value="government">Government</option><option value="commercial_buyer">Commercial buyer</option>
+            <option value="public">Public (Timelocked)</option></select></div>
+          <div class="field"><label>Grantee kind</label><select id="g_gkind"><option value="wallet">Wallet</option><option value="did">DID</option><option value="claim_class">Claim class</option><option value="public">Public (*)</option></select></div>
+          <div class="field"><label>Grantee value</label><input id="g_gval" placeholder="0x… / did:dwp:… / *"></div>
+          <div class="field"><label>Facets (comma-sep, empty = all)</label><input id="g_facets" placeholder="readings, diagnoses"></div>
+          <div class="field"><label>Asset IDs (comma-sep, empty = all)</label><input id="g_assets"></div>
+          <div class="field"><label>Expires (days, 0 = never)</label><input id="g_days" type="number" value="0"></div>
+          <div class="field"><label>Price model</label><select id="g_price"><option value="free">Free</option><option value="one_time">One-time</option><option value="subscription">Subscription</option><option value="metered">Metered</option></select></div>
+          <div class="field"><label>Amount</label><input id="g_amount" type="number" step="any" value="0"></div>
+          <div class="field"><label>Currency</label><input id="g_currency" value="FAT"></div>
+        </div>
+        <div class="field"><label>Delivery</label>
+          <label style="display:inline;margin-right:14px"><input type="checkbox" id="g_rest" checked style="width:auto"> REST</label>
+          <label style="display:inline;margin-right:14px"><input type="checkbox" id="g_stream" checked style="width:auto"> Live stream (SSE)</label>
+          <label style="display:inline"><input type="checkbox" id="g_export" style="width:auto"> Export</label></div>
+        <button class="btn" onclick="App.createGrant()">Issue grant</button>
+        <div id="grantResult"></div>
+      </div>
+      <div class="card"><h3>Active grants <span class="badge b-info">${grants.length}</span></h3>
+        <table><thead><tr><th>ID</th><th>Class</th><th>Grantee</th><th>Status</th><th>Calls</th><th>Price</th><th></th></tr></thead><tbody>
+        ${grants.map(g=>`<tr><td class="mono">${Charts.esc(g.id)}</td><td>${Charts.esc(String(g.stakeholder_class))}</td>
+          <td class="mono">${Charts.esc(g.grantee.value).slice(0,18)}</td>
+          <td><span class="badge ${g.status==='active'?'b-ok':g.status==='pending_timelock'?'b-warn':'b-crit'}">${Charts.esc(String(g.status))}</span></td>
+          <td class="mono">${g.calls}</td><td>${Charts.esc(g.price.model)}${g.price.amount?` ${g.price.amount} ${Charts.esc(g.price.currency)}`:''}</td>
+          <td>${g.status!=='revoked'?`<button class="btn small ghost" onclick="App.mintKey('${g.id}')">mint key</button>
+              <button class="btn small danger" onclick="App.revokeGrant('${g.id}')">revoke</button>`:''}</td></tr>`).join('')||'<tr><td colspan="7" class="empty">No grants yet</td></tr>'}
+        </tbody></table></div>`;
+  },
+  async createGrant(){
+    const days=parseInt(v('g_days'))||0;
+    const delivery=[]; if(el('g_rest').checked)delivery.push('rest'); if(el('g_stream').checked)delivery.push('stream'); if(el('g_export').checked)delivery.push('export');
+    try{
+      const g=await Api.post(`/api/v1/ecosystem/projects/${this.current.id}/grants`,{
+        grantee:{kind:v('g_gkind'), value:v('g_gval')||'*'},
+        stakeholder_class:v('g_class'),
+        scope:{facets:v('g_facets').split(',').map(s=>s.trim()).filter(Boolean),
+               asset_ids:v('g_assets').split(',').map(s=>s.trim()).filter(Boolean), categories:[]},
+        starts_at:0, expires_at: days>0? Math.floor(Date.now()/1000)+days*86400 : 0,
+        price:{model:v('g_price'), amount:parseFloat(v('g_amount'))||0, currency:v('g_currency')||'FAT', period:''},
+        delivery});
+      this.toast(g.status==='pending_timelock'?'Grant issued — Timelock pending, effective in 1h.':'Grant issued and active.');
+      this.render();
+    }catch(e){ this.toast(e.message,true); }
+  },
+  async mintKey(gid){
+    try{
+      const r=await Api.post(`/api/v1/ecosystem/grants/${gid}/keys`,{label:'console-minted'});
+      const box=document.getElementById('grantResult');
+      box.innerHTML=`<div class="token-reveal"><b style="color:var(--gold-fg)">API token (shown once — copy now):</b><br>${Charts.esc(r.token)}<br>
+        <span class="muted">Use: <code>Authorization: Bearer ${Charts.esc(r.token.slice(0,14))}…</code> against ${Charts.esc(location.origin)}/api/v1/ecosystem/stakeholder/*</span></div>`;
+      box.scrollIntoView({behavior:'smooth'});
+    }catch(e){ this.toast(e.message,true); }
+  },
+  async revokeGrant(gid){
+    if(!confirm('Revoke this grant? Every API key minted from it dies instantly.')) return;
+    try{ await Api.del(`/api/v1/ecosystem/grants/${gid}`); this.toast('Grant revoked.'); this.render(); }
+    catch(e){ this.toast(e.message,true); }
+  },
+
+  /* ---------------------------------------------------------- on-chain */
+  render_chain(el){
+    const p=this.current;
+    el.innerHTML=`<div class="card"><h3>On-chain anchoring</h3>
+      <table><tbody>
+        <tr><td class="muted" style="width:220px">Project string wallet</td><td class="mono">${p.wallet}
+          <a href="https://dcscan.io/address/${p.wallet}" target="_blank" style="margin-left:8px">view on dcscan ↗</a></td></tr>
+        <tr><td class="muted">Genesis anchor knot</td><td class="mono">${Charts.esc(p.genesis_anchor||'— (anchored at deploy)')}</td></tr>
+        <tr><td class="muted">Public card anchor</td><td class="mono">${Charts.esc(p.registry_anchor||'— (anchored at deploy)')}</td></tr>
+        <tr><td class="muted">Chain</td><td>Datachain Rope · chainId 271828 · <a href="https://erpc.datachain.network" target="_blank">erpc.datachain.network</a></td></tr>
+      </tbody></table>
+      <p class="muted" style="font-size:12px;margin-top:12px">Every diagnosis, approval, grant issuance and revocation is anchored as a knot on the project's string.
+      Telemetry is journaled locally and periodically merkle-anchored. Erasure follows the project's mutability policy via <code>rope_untieKnot</code> —
+      tombstones preserve chain continuity while payloads become cryptographically unrecoverable.</p></div>`;
+  },
+};
+function v(id){return document.getElementById(id)?.value?.trim()||''}
+function el(id){return document.getElementById(id)}
+/* Complete a pending console sign-in the moment the shared drawer
+   reports a connection (wallet picked or Datawallet+ credentials
+   accepted). Only runs when sign-in was explicitly requested, so a
+   session resumed at page load never triggers a surprise signature
+   prompt. */
+window.addEventListener('datachain-wallet:connected', function(e){
+  if(App._signInPending) App.completeSignIn(e.detail);
+});
+
+App.init();
+</script>
+</body>
+</html>

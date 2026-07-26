@@ -1,0 +1,23 @@
+[Unit]
+Description=Rope EVM Follower (rope-engine-driver) - mirrors chain state from the public erpc endpoint into local Reth via the Engine API. Read-only: no quorum keys, does not participate in block production.
+After=network-online.target reth-rope.service
+Wants=network-online.target
+Requires=reth-rope.service
+
+[Service]
+Type=simple
+User=__SERVICE_USER__
+Group=__SERVICE_USER__
+Environment=RUST_LOG=info
+ExecStart=__BIN_DIR__/rope-engine-driver follower \
+  --local-engine-url http://127.0.0.1:8552 \
+  --local-rpc-url http://127.0.0.1:8595 \
+  --jwt-secret-path __DATA_DIR__/reth/data/jwt.hex \
+  --upstream-rpc-url https://erpc.datachain.network \
+  --poll-interval-ms 1000
+Restart=always
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

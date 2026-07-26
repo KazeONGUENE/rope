@@ -42,6 +42,26 @@ services:
   # =============================================================================
   # POSTGRESQL (Local - for Explorer indexing)
   # =============================================================================
+  # M3 (2026-07-25 security audit): the `postgres` -> `dc-explorer`/`rope-indexer`
+  # connection strings below use `sslmode=disable` rather than an ambiguous
+  # unset sslmode. This is a deliberate, verified decision, not an oversight:
+  #   - `postgres` joins ONLY the `rope-network` bridge defined at the bottom
+  #     of this file. No other network is attached to this service, and no
+  #     other compose file in this repo extends this network definition.
+  #   - The host port publish is `127.0.0.1:5432:5432` — loopback-only, never
+  #     reachable from outside this Docker host, so there is no "public
+  #     internet" leg of this connection to protect with TLS.
+  #   - `postgres:16-alpine` ships with `ssl = off` by default and no
+  #     certificate material mounted into this container, so requiring TLS
+  #     here without provisioning certs would simply break every connection
+  #     (a "fail open by breaking availability" anti-pattern, not a real
+  #     security improvement) — provisioning certs for a loopback-only,
+  #     single-tenant bridge network is unjustified complexity per the
+  #     project's minimal-surface-area posture.
+  # If this Postgres is ever exposed beyond the local `rope-network` bridge
+  # (e.g. moved to a multi-tenant Docker host, or the port publish is widened
+  # beyond 127.0.0.1), `sslmode=disable` MUST be revisited and Postgres MUST
+  # be reconfigured with `ssl = on` + real certificates first.
   postgres:
     image: postgres:16-alpine
     container_name: rope-postgres
@@ -99,7 +119,9 @@ services:
         condition: service_healthy
     environment:
       - RUST_LOG=info
-      - DATABASE_URL=postgresql://dcscan:${POSTGRES_PASSWORD}@postgres:5432/dcscan
+      # M3 (2026-07-25 audit): sslmode is explicit, not merely absent — see
+      # the rationale comment on the `postgres:` service above.
+      - DATABASE_URL=postgresql://dcscan:${POSTGRES_PASSWORD}@postgres:5432/dcscan?sslmode=disable
       - NEON_DATABASE_URL=${NEON_DATABASE_URL}
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
     ports:
@@ -130,7 +152,9 @@ services:
         condition: service_healthy
     environment:
       - RUST_LOG=info
-      - DATABASE_URL=postgresql://dcscan:${POSTGRES_PASSWORD}@postgres:5432/dcscan
+      # M3 (2026-07-25 audit): sslmode is explicit, not merely absent — see
+      # the rationale comment on the `postgres:` service above.
+      - DATABASE_URL=postgresql://dcscan:${POSTGRES_PASSWORD}@postgres:5432/dcscan?sslmode=disable
       - NEON_DATABASE_URL=${NEON_DATABASE_URL}
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
       - RPC_URL=http://rope-node:8545

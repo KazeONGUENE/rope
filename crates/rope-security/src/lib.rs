@@ -35,6 +35,33 @@
 //! │              └───────────────────────┘                      │
 //! └─────────────────────────────────────────────────────────────┘
 //! ```
+//!
+//! ## CERBER capability map (2026-07-25 security audit remediation)
+//!
+//! `docs/SECURITY_AUDIT_2026-07-25_FULL_WORKSPACE.md` §5 assessed the
+//! original `rope-agent-runtime::security::cerber` module against a
+//! WATCH/DECEIVE/STRIKE framework and found it **inert in production** —
+//! correct logic, zero real-world effect, because nothing in `rope-node`
+//! or `rope-explorer` ever called it. This crate is where that gap is
+//! closed, and where the two additional capabilities the audit
+//! recommended now live:
+//!
+//! | Capability | Module | Wired into |
+//! |---|---|---|
+//! | **WATCH** — input validation (SQLi/XSS/path-traversal) | [`guard::RequestGuard::validate_input`] | `rope-explorer` write endpoints |
+//! | **WATCH** — blocked-signer / blocked-IP rejection | [`guard::RequestGuard::check_signer`], [`guard::RequestGuard::check_ip`] | `rope-node` RPC dispatch, `rope-explorer` |
+//! | **Boot-time dispatcher-completeness check** (new) | [`dispatcher_completeness::verify`] | `rope-node` startup, fail-closed |
+//! | **Config-drift detector** (new) | [`config_drift::compare`] | `rope-explorer` periodic background task |
+//! | Offline static/dynamic/anomaly scanning (pre-existing) | [`CerberAgent`] | ad hoc / CI, not request-path |
+//!
+//! DECEIVE (honeypot/decoy responses to a detected attacker) and STRIKE
+//! (active countermeasures beyond simple rejection) are intentionally
+//! **not** implemented here yet — WATCH-and-reject is the only
+//! production-safe default for an autonomous component per the audit's
+//! explicit guidance against auto-remediation of ambiguous signals. Any
+//! future DECEIVE/STRIKE capability should be added as its own module
+//! following the same "pure, synchronous, easy to unit test" shape as
+//! [`guard`], [`dispatcher_completeness`], and [`config_drift`].
 
 use async_trait::async_trait;
 use parking_lot::RwLock;
@@ -45,6 +72,9 @@ use std::sync::Arc;
 use thiserror::Error;
 
 pub mod analyzer;
+pub mod config_drift;
+pub mod dispatcher_completeness;
+pub mod guard;
 pub mod monitor;
 pub mod reputation;
 pub mod scanner;
@@ -54,6 +84,13 @@ pub use analyzer::*;
 pub use monitor::*;
 pub use reputation::*;
 pub use scanner::*;
+// `guard`, `dispatcher_completeness`, and `config_drift` are deliberately
+// NOT glob re-exported: their symbol names (`RequestGuard`, `verify`,
+// `compare`, ...) are common enough that a glob export would risk
+// ambiguous-name collisions with `analyzer`/`monitor`/`scanner` as those
+// grow. Callers should use `rope_security::guard::RequestGuard`,
+// `rope_security::dispatcher_completeness::verify`, and
+// `rope_security::config_drift::compare` explicitly.
 
 /// Security severity levels
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]

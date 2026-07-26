@@ -77,6 +77,8 @@
         .standard-native { background: #fef3c7; color: #92400e; }
         .standard-erc3643 { background: #ede9fe; color: #6d28d9; }
         .standard-erc721 { background: #dcfce7; color: #166534; }
+        .origin-badge { display: inline-flex; align-items: center; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 11px; font-weight: 600; white-space: nowrap; background: #f1f5f9; color: #334155; cursor: help; }
+        .origin-native { background: #f8fafc; color: #94a3b8; }
         .sparkline { width: 80px; height: 24px; }
         .pagination { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; border-top: 1px solid var(--gray-200); }
         .pagination-info { font-size: 13px; color: var(--gray-500); }
@@ -137,9 +139,13 @@
                 </div>
                 <div class="nav-item"><a href="#" class="nav-link">Network <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
+                        <a href="/ecosystem" class="dropdown-item">Ecosystem Projects</a>
+                        <a href="/vote" class="dropdown-item" id="nav-governance-voting">Governance &amp; Voting</a>
                         <a href="/defi" class="dropdown-item">DeFi</a>
+                        <a href="/supply" class="dropdown-item">Supply Reconciliation</a>
                         <a href="/network/validators" class="dropdown-item">Validators</a>
                         <a href="/databases" class="dropdown-item">Databases</a>
+                        <a href="/databoxes" class="dropdown-item" id="nav-databox-network">Global Databox Network</a>
                         <a href="/stats" class="dropdown-item">Charts & Stats</a>
                     </div>
                 </div>
@@ -147,8 +153,10 @@
                     <div class="nav-dropdown">
                         <a href="/apis" class="dropdown-item">API Docs</a>
                         <a href="/verify" class="dropdown-item">Verify Contract</a>
+                        <a href="/create-wallet" class="dropdown-item" id="nav-create-wallet">Create Wallet</a>
                         <a href="/faucet" class="dropdown-item">Faucet</a>
                         <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank">GitHub</a>
+                        <a href="/partners" class="dropdown-item">Partners</a>
                         <a href="/contact" class="dropdown-item">Contact</a>
                     </div>
                 </div>
@@ -234,6 +242,7 @@
                             <th>#</th>
                             <th>Token</th>
                             <th>Standard</th>
+                            <th>Origin</th>
                             <th style="text-align: right;">Price</th>
                             <th style="text-align: right;">Change (24H)</th>
                             <th style="text-align: right;">Volume (24H)</th>
@@ -300,7 +309,7 @@
                 <a href="https://datachain.network">Datachain</a>
                 <a href="/apis">API</a>
                 <a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a>
-                <a href="/contact">Contact</a>
+                <a href="/partners">Partners</a><a href="/contact">Contact</a>
             </div>
         </div>
     </footer>
@@ -321,6 +330,20 @@
             else if (std === 'erc3643') cls = 'standard-erc3643';
             else if (std === 'erc721') cls = 'standard-erc721';
             return '<span class="standard-badge ' + cls + '">' + (label || std || 'DCR-20') + '</span>';
+        }
+        // Origin-network badge for bridged tokens (USDC/USDT -> Arbitrum,
+        // EUROD -> Ethereum/XDC legacy flow). Native FAT / WFAT have no
+        // `origin` object and render as "Native".
+        function originBadge(origin) {
+            if (!origin || !origin.originNetwork) {
+                return '<span class="origin-badge origin-native" title="Not bridged \u2014 native to Datachain Rope">Native</span>';
+            }
+            var live = /paused/i.test(origin.bridgeStatus || '') ? false : true;
+            var dot = live ? 'background:#10b981;' : 'background:#f59e0b;';
+            var title = escHtml(origin.bridgeStatus || '');
+            return '<span class="origin-badge" title="' + title + '">' +
+                '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:5px;' + dot + '"></span>' +
+                escHtml(origin.originNetwork) + '</span>';
         }
 
         // --- Tab switching ---
@@ -348,6 +371,7 @@
                 '<td style="font-weight:600;">' + rank + '</td>' +
                 '<td><div class="token-cell"><div class="token-icon" style="background:var(--black);color:white;">' + escHtml(symbol.slice(0,2)) + '</div><div class="token-info"><div class="token-name">' + escHtml(name) + '</div><div class="token-symbol">' + escHtml(symbol) + '</div></div></div></td>' +
                 '<td>' + standardBadge(t.standard, t.standardLabel) + '</td>' +
+                '<td>' + originBadge(t.origin) + '</td>' +
                 '<td style="text-align:right;" class="mono">' + price + '</td>' +
                 '<td style="text-align:right;"><span class="' + changeClass + '">' + changeHtml + '</span></td>' +
                 '<td style="text-align:right;" class="mono">' + vol + '</td>' +
@@ -359,7 +383,7 @@
             document.getElementById('stat-total').textContent = Number(list.length).toLocaleString();
             document.getElementById('tab-count-dcr20').textContent = list.length;
             var tbody = document.getElementById('tokensTable');
-            tbody.innerHTML = list.length ? list.map(function(t, i) { return tokenRow(t, i + 1); }).join('') : '<tr><td colspan="8" style="text-align:center;color:var(--gray-500);padding:3rem;">No DCR-20 tokens found</td></tr>';
+            tbody.innerHTML = list.length ? list.map(function(t, i) { return tokenRow(t, i + 1); }).join('') : '<tr><td colspan="9" style="text-align:center;color:var(--gray-500);padding:3rem;">No DCR-20 tokens found</td></tr>';
             document.querySelector('#dcr20-pagination .pagination-info').textContent = list.length ? 'Showing ' + list.length + ' tokens' : 'No tokens';
         }).catch(function() {
             document.getElementById('tokensTable').innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--gray-500);">Failed to load tokens</td></tr>';
@@ -491,6 +515,7 @@
         });
     </script>
 <script src="/js/dcscan-stats.js"></script>
+    <script src="/js/dcscan-wallet.js?v=20260707b" defer></script>
 </body>
 </html>
 

@@ -20,6 +20,8 @@ thiserror = { workspace = true }
 blake3 = { workspace = true }
 chrono = { workspace = true }
 uuid = { workspace = true }
+once_cell = { workspace = true }
+rayon = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }

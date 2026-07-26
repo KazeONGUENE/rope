@@ -5,7 +5,7 @@
 
 use parking_lot::RwLock;
 use rope_core::clock::LamportClock;
-use rope_core::string::{HybridSignature, PublicKey, RopeString};
+use rope_core::string::{PublicKey, RopeString};
 use rope_core::types::{MutabilityClass, NodeId, StringId};
 use std::sync::Arc;
 use std::time::{Duration, Instant};

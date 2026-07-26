@@ -1,0 +1,18 @@
+{
+  "name": "deploy-kickoff-quipu-canon-v1.2",
+  "version": "1.0.0",
+  "description": "Sister script to ../kickoff-quipu-canon-v1.2/. Spawns one Cursor agent per ecosystem workspace and instructs each agent to discover its own most recent deploy method (deploy*.sh, package.json scripts, Makefile, Dockerfile, vercel/netlify, deploy/, .github/workflows) and use it to push the v1.2 emission code to production. Strict precondition: workspace must already carry the .cursor/quipu-canon-v1.2-emission-shipped.marker from the emission kickoff.",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "kickoff": "tsx deploy-kickoff.ts",
+    "dry-run": "tsx deploy-kickoff.ts --dry-run",
+    "discover-only": "tsx deploy-kickoff.ts --discover-only",
+    "status": "tsx deploy-kickoff.ts --status"
+  },
+  "dependencies": {
+    "@cursor/sdk": "latest",
+    "tsx": "^4.19.2"
+  }
+}

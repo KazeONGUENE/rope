@@ -1,0 +1,20 @@
+[Unit]
+Description=Datachain Rope Node (rope-cli) - serves rope_*/eth_* JSON-RPC (Quipu Canon v1.1/v1.2), joins the Testimony gossip mesh
+After=network-online.target __EVM_DEPENDENCY__
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__SERVICE_USER__
+Group=__SERVICE_USER__
+WorkingDirectory=__INSTALL_DIR__
+Environment="PATH=__BIN_DIR__:/usr/local/bin:/usr/bin:/bin"
+ExecStart=__BIN_DIR__/rope node --config __DATA_DIR__/config/rope-node.toml --network mainnet --mode __ROPE_MODE__
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=datachain-rope-node
+
+[Install]
+WantedBy=multi-user.target

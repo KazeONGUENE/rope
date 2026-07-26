@@ -17,6 +17,10 @@ rope-smartchain = { path = "../rope-smartchain" }
 rope-bridge = { path = "../rope-bridge" }
 rope-iot-gateway = { path = "../rope-iot-gateway" }
 rope-ai-framework = { path = "../rope-ai-framework" }
+# CERBER WATCH capability (2026-07-25 security audit remediation): request
+# guard (input validation, blocked signers/IPs) and boot-time
+# dispatcher-completeness check. See src/build.rs + rpc_auth.rs.
+rope-security = { path = "../rope-security" }
 
 tokio = { workspace = true }
 async-trait = { workspace = true }
@@ -35,6 +39,8 @@ futures = { workspace = true }
 parking_lot = { workspace = true }
 blake3 = { workspace = true }
 hashbrown = { workspace = true }
+# Phase 1.6 — serialise RopeString blobs into the persistent LedgerStore
+bincode = { workspace = true }
 
 # gRPC
 tonic = { workspace = true }
@@ -55,9 +61,20 @@ base64 = "0.22"
 
 # Master-node governance signature verification (added 2026-05-03)
 ed25519-dalek = { workspace = true }
+# Phase-2 V11 closure: signed-payload destructive-RPC verifier.
+# secp256k1 ECDSA-with-recovery for wallet-owned methods + keccak256 for
+# EIP-191 personal_sign wrapping. See rope-node/src/rpc_signature.rs.
+k256 = { workspace = true }
+sha3 = { workspace = true }
+dashmap = { workspace = true }
+rand = { workspace = true }
 
 [build-dependencies]
 tonic-build = { workspace = true }
+# Used by build.rs's dispatcher-completeness source scan (CERBER new
+# capability, 2026-07-25 audit §5.1) to extract every "rope_*"/"eth_*"/etc
+# match-arm literal straight out of rpc_server.rs's own source text.
+regex = "1.10"
 
 [dev-dependencies]
 tempfile = { workspace = true }

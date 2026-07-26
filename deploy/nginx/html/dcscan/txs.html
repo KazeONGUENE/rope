@@ -6,6 +6,7 @@
     <title>Transactions | DC Explorer</title>
     <meta name="description" content="View all transactions on the Datachain Rope network">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="/css/dcscan-header.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -138,37 +139,39 @@
         .direction-out { background: var(--warning-bg); color: var(--warning); }
         .direction-self { background: var(--gray-100); color: var(--gray-500); }
     </style>
+    <link rel="stylesheet" href="/css/dcscan-labels.css">
 </head>
 <body>
     <div class="top-bar">
-        <div class="container top-bar-content">
+        <div class="top-bar-container">
             <div class="top-bar-left">
-                <div class="top-bar-item"><span>DC FAT Price:</span><span class="top-bar-value">$0.00390</span><span style="color: #ef4444; margin-left: 0.25rem;">-2.94%</span></div>
-                <div class="top-bar-item"><span>Gas:</span><span class="top-bar-value">0.001 gwei</span></div>
-                <div class="top-bar-item"><span>Finality:</span><span class="top-bar-value">&lt;5s</span></div>
+                <div class="top-bar-item"><i class="fa-solid fa-coins"></i> DC FAT Price: <span class="top-bar-value" id="topbar-price">—</span><span style="color: #ef4444; margin-left: 0.25rem;" id="topbar-change">—</span></div>
+                <div class="top-bar-item"><i class="fa-solid fa-gas-pump"></i> Gas: <span class="top-bar-value" id="topbar-gas">—</span></div>
+                <div class="top-bar-item"><i class="fa-solid fa-clock"></i> Finality: <span class="top-bar-value" id="topbar-finality">—</span></div>
             </div>
+            <div class="top-bar-right"><button class="theme-toggle"><i class="fa-solid fa-sun"></i></button></div>
         </div>
     </div>
-
     <header>
-        <div class="container header-container">
+        <div class="header-container">
             <a href="/" class="logo">
                 <div class="logo-icon"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 100%; height: 100%; object-fit: contain;"></div>
                 <span class="logo-text"><span>DC</span><span>Explorer</span></span>
             </a>
             <nav class="main-nav">
                 <div class="nav-item">
-                    <a href="#" class="nav-link active">Smartchain <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <a href="#" class="nav-link active">Smartchain <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/strings" class="dropdown-item">View Strings</a>
                         <a href="/txs" class="dropdown-item">Transactions</a>
                         <a href="/txsPending" class="dropdown-item">Pending Txns</a>
+                        <div class="dropdown-divider"></div>
                         <a href="/accounts" class="dropdown-item">Top Accounts</a>
                         <a href="/contracts" class="dropdown-item">Verified Contracts</a>
                     </div>
                 </div>
                 <div class="nav-item">
-                    <a href="#" class="nav-link">AI Agents <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <a href="#" class="nav-link">AI Agents <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/agents" class="dropdown-item">All Agents</a>
                         <a href="/testimonies" class="dropdown-item">Testimonies</a>
@@ -176,34 +179,40 @@
                     </div>
                 </div>
                 <div class="nav-item">
-                    <a href="#" class="nav-link">Tokens <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <a href="#" class="nav-link">Tokens <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
-                        <a href="/tokens" class="dropdown-item">DC-20 Tokens</a>
+                        <a href="/tokens" class="dropdown-item">DCR-20 Tokens</a>
                         <a href="/tokentxns" class="dropdown-item">Token Transfers</a>
                         <a href="/vote" class="dropdown-item">Vote</a>
                     </div>
                 </div>
                 <div class="nav-item">
-                    <a href="#" class="nav-link">Network <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <a href="#" class="nav-link">Network <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
+                        <a href="/ecosystem" class="dropdown-item">Ecosystem Projects</a>
+                        <a href="/vote" class="dropdown-item" id="nav-governance-voting">Governance &amp; Voting</a>
                         <a href="/defi" class="dropdown-item">DeFi</a>
-                        <a href="/validators" class="dropdown-item">Validators</a>
+                        <a href="/supply" class="dropdown-item">Supply Reconciliation</a>
+                        <a href="/network/validators" class="dropdown-item">Validators</a>
                         <a href="/databases" class="dropdown-item">Databases</a>
+                        <a href="/databoxes" class="dropdown-item" id="nav-databox-network">Global Databox Network</a>
                         <a href="/stats" class="dropdown-item">Charts & Stats</a>
                     </div>
                 </div>
                 <div class="nav-item">
-                    <a href="#" class="nav-link">More <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <a href="#" class="nav-link">More <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/apis" class="dropdown-item">API Docs</a>
                         <a href="/verify" class="dropdown-item">Verify Contract</a>
+                        <a href="/create-wallet" class="dropdown-item" id="nav-create-wallet">Create Wallet</a>
                         <a href="/faucet" class="dropdown-item">Faucet</a>
                         <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank">GitHub</a>
+                        <a href="/partners" class="dropdown-item">Partners</a>
                         <a href="/contact" class="dropdown-item">Contact</a>
                     </div>
                 </div>
             </nav>
-            <button class="btn btn-secondary"><i class="fas fa-wallet"></i> Connect</button>
+            <div class="header-actions"><button class="btn btn-secondary"><i class="fa-solid fa-wallet"></i> Connect</button></div>
         </div>
     </header>
 
@@ -221,23 +230,23 @@
         <div class="stats-row">
             <div class="stat-card">
                 <div class="stat-label">Transactions (24H)</div>
-                <div class="stat-value">2,847,391</div>
-                <div class="stat-change positive"><i class="fas fa-arrow-up"></i> 12.4% from yesterday</div>
+                <div class="stat-value" id="stat-txs24h">—</div>
+                <div class="stat-change" id="stat-txs24h-sub" style="color:var(--gray-500);"></div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Pending Transactions</div>
-                <div class="stat-value">1,247</div>
-                <div class="stat-change negative"><i class="fas fa-arrow-down"></i> 3.2% from avg</div>
+                <div class="stat-value" id="stat-pending">—</div>
+                <div class="stat-change" id="stat-pending-sub" style="color:var(--gray-500);"></div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Avg. Transaction Fee (24H)</div>
-                <div class="stat-value">0.00021 FAT</div>
-                <div class="stat-change positive"><i class="fas fa-arrow-down"></i> 8.1% lower</div>
+                <div class="stat-value" id="stat-avgfee">—</div>
+                <div class="stat-change" id="stat-avgfee-sub" style="color:var(--gray-500);"></div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Total Transaction Fee (24H)</div>
-                <div class="stat-value">597.95 FAT</div>
-                <div class="stat-change positive"><i class="fas fa-arrow-up"></i> 5.7% from yesterday</div>
+                <div class="stat-value" id="stat-totalfee">—</div>
+                <div class="stat-change" id="stat-totalfee-sub" style="color:var(--gray-500);"></div>
             </div>
         </div>
 
@@ -266,8 +275,8 @@
 
         <div class="table-card">
             <div class="table-header">
-                <div class="table-title"><i class="fas fa-exchange-alt" style="color: var(--gray-400);"></i> More than 4,892,451 transactions found</div>
-                <div class="table-info">(Showing the last 500k transactions)</div>
+                <div class="table-title" id="txTableTitle"><i class="fas fa-exchange-alt" style="color: var(--gray-400);"></i> Loading…</div>
+                <div class="table-info" id="txTableInfo"></div>
             </div>
             
             <table class="data-table">
@@ -275,7 +284,7 @@
                     <tr>
                         <th>Txn Hash</th>
                         <th>Method</th>
-                        <th>String</th>
+                        <th>Knot</th>
                         <th>Age</th>
                         <th>From</th>
                         <th></th>
@@ -285,103 +294,179 @@
                     </tr>
                 </thead>
                 <tbody id="txTable">
-                    <!-- Dynamic rows will be inserted here -->
                 </tbody>
             </table>
             
             <div class="pagination">
-                <div class="pagination-info">Showing 1 to 25 of 500,000 transactions</div>
-                <div class="pagination-controls">
-                    <button class="page-btn" disabled><i class="fas fa-angle-double-left"></i></button>
-                    <button class="page-btn" disabled><i class="fas fa-angle-left"></i></button>
-                    <button class="page-btn active">1</button>
-                    <button class="page-btn">2</button>
-                    <button class="page-btn">3</button>
-                    <button class="page-btn">4</button>
-                    <button class="page-btn">5</button>
-                    <span style="padding: 0 0.5rem;">...</span>
-                    <button class="page-btn">20000</button>
-                    <button class="page-btn"><i class="fas fa-angle-right"></i></button>
-                    <button class="page-btn"><i class="fas fa-angle-double-right"></i></button>
-                </div>
+                <div class="pagination-info" id="pagInfo">Loading…</div>
+                <div class="pagination-controls" id="pagControls"></div>
             </div>
         </div>
     </main>
 
     <footer>
-        <div class="container footer-content">
+        <div class="footer-container">
             <div class="footer-brand">
-                <img src="/assets/logo.svg" alt="DC Explorer" style="width: 24px; height: 24px;">
+                <div class="logo-icon" style="width: 24px; height: 24px;"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 100%; height: 100%; object-fit: contain;"></div>
                 DC Explorer - Powered by Datachain Rope
             </div>
             <div class="footer-links">
                 <a href="https://datachain.network">Datachain</a>
                 <a href="/apis">API</a>
                 <a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a>
-                <a href="/contact">Contact</a>
+                <a href="/partners">Partners</a><a href="/contact">Contact</a>
             </div>
         </div>
     </footer>
 
+    <script src="/js/dcscan-labels.js"></script>
+    <script src="/js/dcscan-stats.js"></script>
     <script>
-        // Generate sample transactions
-        const methods = [
-            { name: 'Transfer', class: 'method-transfer' },
-            { name: 'Swap', class: 'method-swap' },
-            { name: 'Approve', class: 'method-approve' },
-            { name: 'Mint', class: 'method-mint' },
-            { name: 'Contract', class: 'method-contract' }
-        ];
-        const statuses = ['badge-success', 'badge-success', 'badge-success', 'badge-pending', 'badge-error'];
-        
-        function randomHash() {
-            return '0x' + Array.from({length: 64}, () => Math.floor(Math.random() * 16).toString(16)).join('');
+        var currentPage = 1;
+        var pageSize = 25;
+        var totalTxs = 0;
+
+        function timeAgo(ts) {
+            if (!ts) return '—';
+            var s = Math.max(0, Math.floor(Date.now() / 1000 - ts));
+            if (s < 60) return s + 's ago';
+            if (s < 3600) return Math.floor(s / 60) + 'm ago';
+            if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+            return Math.floor(s / 86400) + 'd ago';
         }
-        
-        function randomAddr() {
-            return '0x' + Array.from({length: 40}, () => Math.floor(Math.random() * 16).toString(16)).join('');
+
+        function detectMethod(tx) {
+            var input = tx.input || '0x';
+            if (input === '0x' || input.length < 10) return { name: 'Transfer', class: 'method-transfer' };
+            var sel = input.slice(0, 10).toLowerCase();
+            if (sel === '0x38ed1739' || sel === '0x8803dbee' || sel === '0x7ff36ab5' || sel === '0x18cbafe5' || sel === '0xfb3bdb41') return { name: 'Swap', class: 'method-swap' };
+            if (sel === '0x095ea7b3') return { name: 'Approve', class: 'method-approve' };
+            if (sel === '0xa9059cbb' || sel === '0x23b872dd') return { name: 'Transfer', class: 'method-transfer' };
+            if (sel === '0x40c10f19') return { name: 'Mint', class: 'method-mint' };
+            if (sel === '0x94218091') return { name: 'Migration', class: 'method-mint' };
+            if (sel === '0xe8e33700' || sel === '0xf305d719') return { name: 'Add Liq', class: 'method-contract' };
+            return { name: 'Contract', class: 'method-contract' };
         }
-        
-        function generateTxRow(i) {
-            const hash = randomHash();
-            const from = randomAddr();
-            const to = randomAddr();
-            const method = methods[Math.floor(Math.random() * methods.length)];
-            const value = (Math.random() * 10000).toFixed(4);
-            const fee = (Math.random() * 0.001).toFixed(6);
-            const string = 1247893 - Math.floor(i / 3);
-            const age = Math.floor(Math.random() * 300) + 's ago';
-            
-            return `
-                <tr>
-                    <td><a href="/tx/${hash}" class="mono truncate" style="display: block; max-width: 120px;">${hash.slice(0, 18)}...</a></td>
-                    <td><span class="method-badge ${method.class}">${method.name}</span></td>
-                    <td><a href="/string/${string}">${string}</a></td>
-                    <td style="color: var(--gray-500);">${age}</td>
-                    <td><a href="/address/${from}" class="mono truncate" style="display: block; max-width: 100px;">${from.slice(0, 12)}...</a></td>
-                    <td><span class="direction-icon direction-out"><i class="fas fa-arrow-right"></i></span></td>
-                    <td><a href="/address/${to}" class="mono truncate" style="display: block; max-width: 100px;">${to.slice(0, 12)}...</a></td>
-                    <td class="mono">${value} FAT</td>
-                    <td class="mono" style="color: var(--gray-500);">${fee}</td>
-                </tr>
-            `;
+
+        function buildTxRow(tx) {
+            var hash = tx.hash || '0x0';
+            var from = tx.from || '0x0';
+            var to = tx.to || '0x0';
+            var method = detectMethod(tx);
+            var rawVal = tx.value || '0 FAT';
+            var value = (typeof rawVal === 'string' && (rawVal.indexOf('FAT') !== -1 || rawVal.indexOf('$') !== -1)) ? rawVal : rawVal.replace(/,/g, '') + ' FAT';
+            if (value.length > 28) value = value.slice(0, 26) + '…';
+            var strNum = tx.string != null ? tx.string : (tx.blockNumber || '—');
+            var age = timeAgo(tx.timestamp);
+            var fee = tx.txnFee || '—';
+            var statusCls = tx.status === 'Failed' ? 'color:#ef4444;' : '';
+            var fromHtml;
+            if (tx.fromHidden && tx.fromLabel) {
+                fromHtml = window.DCScanLabels && window.DCScanLabels.ready()
+                    ? window.DCScanLabels.addrDisplay(null, { label: tx.fromLabel, hidden: true })
+                    : '<span class="addr-label-tag" data-cat="treasury">' + tx.fromLabel + '</span>';
+            } else {
+                fromHtml = window.DCScanLabels && window.DCScanLabels.ready()
+                    ? window.DCScanLabels.addrDisplay(from, { label: tx.fromLabel, short: 6 })
+                    : '<a href="/address/' + from + '" class="mono truncate" style="display:block;max-width:100px;">' + (from.length > 12 ? from.slice(0, 12) + '...' : from) + '</a>';
+            }
+            var toHtml;
+            if (tx.toHidden && tx.toLabel) {
+                toHtml = window.DCScanLabels && window.DCScanLabels.ready()
+                    ? window.DCScanLabels.addrDisplay(null, { label: tx.toLabel, hidden: true })
+                    : '<span class="addr-label-tag" data-cat="treasury">' + tx.toLabel + '</span>';
+            } else {
+                toHtml = window.DCScanLabels && window.DCScanLabels.ready()
+                    ? window.DCScanLabels.addrDisplay(to, { label: tx.toLabel, short: 6 })
+                    : '<a href="/address/' + to + '" class="mono truncate" style="display:block;max-width:100px;">' + (to.length > 12 ? to.slice(0, 12) + '...' : to) + '</a>';
+            }
+            return '<tr>' +
+                '<td><a href="/tx/' + hash + '" class="mono truncate" style="display:block;max-width:120px;">' + (hash.length > 18 ? hash.slice(0, 18) + '...' : hash) + '</a></td>' +
+                '<td><span class="method-badge ' + method.class + '">' + method.name + '</span></td>' +
+                '<td><a href="/string/' + strNum + '">' + strNum + '</a></td>' +
+                '<td style="color:var(--gray-500);">' + age + '</td>' +
+                '<td style="max-width:130px;">' + fromHtml + '</td>' +
+                '<td><span class="direction-icon direction-out"><i class="fas fa-arrow-right"></i></span></td>' +
+                '<td style="max-width:130px;">' + toHtml + '</td>' +
+                '<td class="mono" style="font-size:0.8125rem;' + statusCls + '">' + value + '</td>' +
+                '<td class="mono" style="color:var(--gray-500);font-size:0.8125rem;">' + fee + '</td>' +
+                '</tr>';
         }
-        
-        const tbody = document.getElementById('txTable');
-        let rows = '';
-        for (let i = 0; i < 25; i++) {
-            rows += generateTxRow(i);
-        }
-        tbody.innerHTML = rows;
-        
-        // Pagination click handlers
-        document.querySelectorAll('.page-btn:not(:disabled)').forEach(btn => {
-            btn.addEventListener('click', function() {
-                document.querySelectorAll('.page-btn').forEach(b => b.classList.remove('active'));
-                if (!this.querySelector('i')) this.classList.add('active');
+
+        function renderPagination(page, total) {
+            var totalPages = Math.max(1, Math.ceil(total / pageSize));
+            var ctrl = document.getElementById('pagControls');
+            if (!ctrl) return;
+            var html = '';
+            html += '<button class="page-btn"' + (page <= 1 ? ' disabled' : '') + ' data-page="1"><i class="fas fa-angle-double-left"></i></button>';
+            html += '<button class="page-btn"' + (page <= 1 ? ' disabled' : '') + ' data-page="' + (page - 1) + '"><i class="fas fa-angle-left"></i></button>';
+            var start = Math.max(1, page - 2);
+            var end = Math.min(totalPages, page + 2);
+            for (var i = start; i <= end; i++) {
+                html += '<button class="page-btn' + (i === page ? ' active' : '') + '" data-page="' + i + '">' + i + '</button>';
+            }
+            if (end < totalPages) {
+                html += '<span style="padding:0 0.5rem;">…</span>';
+                html += '<button class="page-btn" data-page="' + totalPages + '">' + totalPages + '</button>';
+            }
+            html += '<button class="page-btn"' + (page >= totalPages ? ' disabled' : '') + ' data-page="' + (page + 1) + '"><i class="fas fa-angle-right"></i></button>';
+            html += '<button class="page-btn"' + (page >= totalPages ? ' disabled' : '') + ' data-page="' + totalPages + '"><i class="fas fa-angle-double-right"></i></button>';
+            ctrl.innerHTML = html;
+            ctrl.querySelectorAll('.page-btn').forEach(function(btn) {
+                if (btn.disabled) return;
+                btn.addEventListener('click', function() {
+                    var p = parseInt(this.getAttribute('data-page'), 10);
+                    if (!isNaN(p) && p !== currentPage) loadPage(p);
+                });
             });
-        });
+        }
+
+        function loadPage(page) {
+            currentPage = page;
+            document.getElementById('txTable').innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--gray-500);"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>';
+            fetch('/api/v1/transactions?page=' + page + '&limit=' + pageSize)
+                .then(function(r) { return r.ok ? r.json() : Promise.reject(r); })
+                .then(function(data) {
+                    var pag = data.pagination || {};
+                    var total = pag.total || 0;
+                    totalTxs = total;
+                    var txs = data.transactions || [];
+                    var tbody = document.getElementById('txTable');
+                    tbody.innerHTML = txs.length ? txs.map(buildTxRow).join('') : '<tr><td colspan="9" style="text-align:center;color:var(--gray-500);">No transactions found</td></tr>';
+                    var titleEl = document.getElementById('txTableTitle');
+                    if (titleEl) titleEl.innerHTML = '<i class="fas fa-exchange-alt" style="color:var(--gray-400);"></i> ' + total.toLocaleString() + ' transactions found';
+                    var pagInfo = document.getElementById('pagInfo');
+                    if (pagInfo) pagInfo.textContent = 'Showing ' + ((page - 1) * pageSize + 1) + ' to ' + Math.min(page * pageSize, total) + ' of ' + total.toLocaleString() + ' transactions';
+                    renderPagination(page, total);
+                })
+                .catch(function() {
+                    document.getElementById('txTable').innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--gray-500);">Failed to load transactions</td></tr>';
+                });
+        }
+
+        function loadStats() {
+            fetch('/api/v1/stats').then(function(r) { return r.ok ? r.json() : {}; }).then(function(s) {
+                var el;
+                el = document.getElementById('stat-txs24h');
+                if (el) el.textContent = s.transactions24h != null ? Number(s.transactions24h).toLocaleString() : '—';
+                el = document.getElementById('stat-txs24h-sub');
+                if (el && s.tps) el.textContent = s.tps + ' TPS';
+
+                el = document.getElementById('stat-pending');
+                if (el) el.textContent = s.pendingTransactions != null ? Number(s.pendingTransactions).toLocaleString() : '0';
+
+                el = document.getElementById('stat-avgfee');
+                if (el) el.textContent = s.avgTxnFee24h || '—';
+
+                el = document.getElementById('stat-totalfee');
+                if (el) el.textContent = s.totalTxnFee24h || '—';
+            }).catch(function() {});
+        }
+
+        loadStats();
+        loadPage(1);
     </script>
+    <script src="/js/dcscan-wallet.js?v=20260707b" defer></script>
 </body>
 </html>
 

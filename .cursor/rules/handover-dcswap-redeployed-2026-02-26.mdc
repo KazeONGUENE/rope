@@ -320,7 +320,7 @@ ssh -p 41722 -i ~/.ssh/DCRope_key ubuntu@92.243.26.189
 
 ```bash
 RPC=https://erpc.datachain.network
-PK=0x659f913ad5595069073bbf69f2a112eb28ffee59e90078e90505a3afcef63a88
+PK=<REDACTED-COMPROMISED-KEY-see-SECURITY_AUDIT_2026-07-25>
 
 # Check FAT price in USDC (1 FAT → ? USDC)
 cast call 0x8ebdd966e9e9af2ec5d02c886b1c4b5ba617e7c4 \

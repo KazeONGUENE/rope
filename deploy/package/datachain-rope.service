@@ -17,5 +17,26 @@ Environment="RUST_LOG=info,rope_network=debug"
 MemoryLimit=4G
 CPUQuota=200%
 
+# Hardening (M6, SECURITY_AUDIT_2026-07-25_FULL_WORKSPACE.md). This template
+# passes an explicit --data-dir, so the write target is unambiguous; the
+# WorkingDirectory (/opt/datachain-rope, the installed binary + configs)
+# only needs to be readable.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/datachain-rope
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RemoveIPC=yes
+
 [Install]
 WantedBy=multi-user.target

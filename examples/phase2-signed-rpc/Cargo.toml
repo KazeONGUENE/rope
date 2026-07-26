@@ -1,0 +1,20 @@
+[package]
+name = "phase2-signed-rpc-example"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "sign_phase2_rpc"
+path = "sign_phase2_rpc.rs"
+
+[dependencies]
+k256 = { version = "0.13", features = ["ecdsa", "sha2", "arithmetic"] }
+sha3 = "0.10"
+serde_json = "1.0"
+hex = "0.4"
+rand = "0.8"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+reqwest = { version = "0.11", features = ["json"] }
+
+[workspace]

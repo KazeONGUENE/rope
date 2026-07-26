@@ -35,6 +35,8 @@ parking_lot = { workspace = true }
 tracing = { workspace = true }
 zeroize = { version = "1.7", features = ["derive"] }
 hex = { workspace = true }
+once_cell = { workspace = true }
+rayon = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }

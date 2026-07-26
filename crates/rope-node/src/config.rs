@@ -114,12 +114,35 @@ pub struct DeployerSettings {
 pub struct EvmBackendSettings {
     /// Enable the EVM backend
     pub enabled: bool,
-    /// Local EVM execution layer's internal HTTP URL (never exposed publicly)
+    /// Primary EVM execution-layer JSON-RPC URL. On a node co-located with
+    /// Reth this is the local `http://127.0.0.1:8595`. On a consensus-only
+    /// node with no local Reth, set this to a reachable public/edge endpoint
+    /// (e.g. `https://erpc.datachain.network`).
     pub url: String,
+    /// Ordered fallback endpoints, tried in sequence when the primary is
+    /// unreachable at the transport level. This makes the EVM-state path
+    /// explicit and self-healing instead of relying on an implicit failover
+    /// heuristic. Empty by default (preserves single-endpoint deployments).
+    #[serde(default)]
+    pub fallback_urls: Vec<String>,
     /// Health check interval (seconds)
     pub health_interval_secs: u64,
     /// Max consecutive health check failures before marking unhealthy
     pub max_failures: u32,
+}
+
+impl EvmBackendSettings {
+    /// Ordered, de-duplicated endpoint list: primary first, then each
+    /// fallback that is not already present. Always non-empty.
+    pub fn endpoint_list(&self) -> Vec<String> {
+        let mut urls = vec![self.url.clone()];
+        for u in &self.fallback_urls {
+            if !urls.contains(u) {
+                urls.push(u.clone());
+            }
+        }
+        urls
+    }
 }
 
 impl Default for EvmBackendSettings {
@@ -128,6 +151,7 @@ impl Default for EvmBackendSettings {
             enabled: true,
             // Production Reth listens on 8595 (was 8548 under Anvil).
             url: "http://127.0.0.1:8595".to_string(),
+            fallback_urls: Vec::new(),
             health_interval_secs: 30,
             max_failures: 5,
         }

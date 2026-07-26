@@ -1,0 +1,23 @@
+{
+  "name": "kickoff-handover-canonical-agents-2026-05-10",
+  "version": "2.0.0",
+  "description": "Schema-v2 dispatcher for the 2026-05-10 canonical-agents handover refresh. Spawns one Cursor agent per ecosystem workspace (10 projects); checks idempotency phase-by-phase (emission vs deploy); enforces a pre-flight gate (disk free, SSH keys, human_setup_required, git remote); pins each project's audited deploy_command; supports a --direct-deploy mode that bypasses the agent layer and runs the audited script directly with built-in production verification. Refactored 2026-05-10 after the tanastok deploy lesson — see LESSONS.md.",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "dry-run": "tsx kickoff.ts --dry-run",
+    "plan-only": "tsx kickoff.ts --plan-only",
+    "emission": "tsx kickoff.ts --emission",
+    "deploy": "tsx kickoff.ts --deploy",
+    "full": "tsx kickoff.ts --full",
+    "direct-deploy": "tsx kickoff.ts --direct-deploy",
+    "force-deploy": "tsx kickoff.ts --deploy --force-deploy",
+    "force": "tsx kickoff.ts --full --force",
+    "status": "tsx kickoff.ts --status"
+  },
+  "dependencies": {
+    "@cursor/sdk": "latest",
+    "tsx": "^4.19.2"
+  }
+}

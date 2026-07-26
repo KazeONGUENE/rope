@@ -21,6 +21,7 @@ pub mod ai_testimony;
 pub mod anchor;
 pub mod finality_engine;
 pub mod testimony;
+pub mod validator_registry;
 pub mod virtual_voting_impl;
 
 // Re-export the full virtual voting implementation
@@ -191,6 +192,9 @@ pub use finality_engine::{
 pub use testimony::{
     FinalityProgress, Testimony, TestimonyCollection, TestimonyCollector, TestimonyConfig,
     TestimonyError, TestimonyMetadata, TestimonySignature,
+};
+pub use validator_registry::{
+    RegistryError, ValidatorRecord, ValidatorRegistry, ValidatorSetSnapshot,
 };
 pub use virtual_voting::{VirtualVote, VirtualVotingState, VoteDecision};
 

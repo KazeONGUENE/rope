@@ -106,9 +106,13 @@
                 </div>
                 <div class="nav-item"><a href="#" class="nav-link">Network <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
                     <div class="nav-dropdown">
+                        <a href="/ecosystem" class="dropdown-item">Ecosystem Projects</a>
+                        <a href="/vote" class="dropdown-item" id="nav-governance-voting">Governance &amp; Voting</a>
                         <a href="/defi" class="dropdown-item">DeFi</a>
+                        <a href="/supply" class="dropdown-item">Supply Reconciliation</a>
                         <a href="/validators" class="dropdown-item">Validators</a>
                         <a href="/databases" class="dropdown-item">Databases</a>
+                        <a href="/databoxes" class="dropdown-item" id="nav-databox-network">Global Databox Network</a>
                         <a href="/stats" class="dropdown-item">Charts & Stats</a>
                     </div>
                 </div>
@@ -116,8 +120,10 @@
                     <div class="nav-dropdown">
                         <a href="/apis" class="dropdown-item">API Docs</a>
                         <a href="/verify" class="dropdown-item">Verify Contract</a>
+                        <a href="/create-wallet" class="dropdown-item" id="nav-create-wallet">Create Wallet</a>
                         <a href="/faucet" class="dropdown-item">Faucet</a>
                         <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank">GitHub</a>
+                        <a href="/partners" class="dropdown-item">Partners</a>
                         <a href="/contact" class="dropdown-item">Contact</a>
                     </div>
                 </div>
@@ -138,17 +144,17 @@
         <div class="form-card">
             <div class="info-box"><i class="fas fa-info-circle"></i><div class="info-box-text">Source code verification ensures transparency. Verified contracts show a green checkmark and allow users to read and interact with the source code directly on DC Explorer.</div></div>
 
-            <form>
+            <form id="verifyForm">
                 <div class="form-section">
                     <h3 class="form-section-title">Contract Details</h3>
                     <div class="form-group">
                         <label class="form-label">Contract Address *</label>
-                        <input type="text" class="form-input" placeholder="0x..." required>
+                        <input type="text" id="vfContractAddress" class="form-input" placeholder="0x..." required>
                         <div class="form-help">Enter the contract address you want to verify</div>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Compiler Type *</label>
-                        <select class="form-select" required>
+                        <select id="vfCompilerType" class="form-select" required>
                             <option>Solidity (Single file)</option>
                             <option>Solidity (Multi-Part files)</option>
                             <option>Solidity (Standard-Json-Input)</option>
@@ -157,7 +163,7 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label">Compiler Version *</label>
-                        <select class="form-select" required>
+                        <select id="vfCompilerVersion" class="form-select" required>
                             <option>v0.8.20+commit.a1b79de6</option>
                             <option>v0.8.19+commit.7dd6d404</option>
                             <option>v0.8.18+commit.87f61d96</option>
@@ -165,7 +171,7 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label">License Type</label>
-                        <select class="form-select">
+                        <select id="vfLicense" class="form-select">
                             <option>MIT</option>
                             <option>Apache-2.0</option>
                             <option>GPL-3.0</option>
@@ -178,7 +184,7 @@
                     <h3 class="form-section-title">Source Code</h3>
                     <div class="form-group">
                         <label class="form-label">Contract Source Code *</label>
-                        <textarea class="form-textarea" placeholder="// SPDX-License-Identifier: MIT
+                        <textarea id="vfSourceCode" class="form-textarea" required placeholder="// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 contract MyContract {
@@ -187,20 +193,85 @@ contract MyContract {
                     </div>
                     <div class="form-group">
                         <label class="form-label">Constructor Arguments (ABI-encoded)</label>
-                        <input type="text" class="form-input" placeholder="Optional: enter if contract was deployed with constructor arguments">
+                        <input type="text" id="vfConstructorArgs" class="form-input" placeholder="Optional: enter if contract was deployed with constructor arguments">
                     </div>
                 </div>
 
+                <div id="vfResult" style="display:none;margin-bottom:1rem;"></div>
+
                 <div class="form-actions">
-                    <button type="button" class="btn btn-secondary">Reset</button>
-                    <button type="submit" class="btn btn-success"><i class="fas fa-check"></i> Verify & Publish</button>
+                    <button type="button" id="vfReset" class="btn btn-secondary">Reset</button>
+                    <button type="submit" id="vfSubmit" class="btn btn-success"><i class="fas fa-check"></i> Verify & Publish</button>
                 </div>
             </form>
         </div>
     </main>
 
-    <footer><div class="footer-content"><div class="footer-brand"><img src="/assets/logo.svg" alt="DC Explorer" style="width:24px;height:24px;"> DC Explorer</div><div class="footer-links"><a href="https://datachain.network">Datachain</a><a href="/apis">API</a><a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a><a href="/contact">Contact</a></div></div></footer>
+    <script>
+    (function () {
+        var form = document.getElementById('verifyForm');
+        var resultBox = document.getElementById('vfResult');
+        var submitBtn = document.getElementById('vfSubmit');
+
+        document.getElementById('vfReset').addEventListener('click', function () {
+            form.reset();
+            resultBox.style.display = 'none';
+        });
+
+        form.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            var address = document.getElementById('vfContractAddress').value.trim();
+            var sourceCode = document.getElementById('vfSourceCode').value.trim();
+            resultBox.style.display = 'block';
+
+            if (!address || !/^0x[a-fA-F0-9]{40}$/.test(address)) {
+                resultBox.innerHTML = '<div class="info-box" style="border-color:#ef4444;background:#fee2e2;color:#991b1b;"><i class="fas fa-exclamation-circle"></i> Please enter a valid contract address (0x + 40 hex characters).</div>';
+                return;
+            }
+            if (!sourceCode) {
+                resultBox.innerHTML = '<div class="info-box" style="border-color:#ef4444;background:#fee2e2;color:#991b1b;"><i class="fas fa-exclamation-circle"></i> Source code is required.</div>';
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting…';
+            resultBox.innerHTML = '<div class="info-box"><i class="fas fa-spinner fa-spin"></i> Checking on-chain bytecode and recording submission…</div>';
+
+            try {
+                var res = await fetch('/api/v1/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contract_address: address,
+                        compiler_type: document.getElementById('vfCompilerType').value,
+                        compiler_version: document.getElementById('vfCompilerVersion').value,
+                        license: document.getElementById('vfLicense').value,
+                        source_code: sourceCode,
+                        constructor_arguments: document.getElementById('vfConstructorArgs').value.trim() || null
+                    })
+                });
+                var data = await res.json();
+                if (res.ok && data.success) {
+                    resultBox.innerHTML = '<div class="info-box" style="border-color:#f59e0b;background:#fef3c7;color:#92400e;"><i class="fas fa-info-circle"></i> <strong>Submission recorded (pending manual review).</strong> ' +
+                        (data.message || '') +
+                        ' This contract is <strong>not</strong> marked as verified — DC Explorer does not yet perform automated compile-and-bytecode-match verification. ' +
+                        '<a href="/address/' + address + '">View address page</a>.</div>';
+                } else {
+                    resultBox.innerHTML = '<div class="info-box" style="border-color:#ef4444;background:#fee2e2;color:#991b1b;"><i class="fas fa-exclamation-circle"></i> ' + (data.error || 'Submission failed.') + '</div>';
+                }
+            } catch (err) {
+                resultBox.innerHTML = '<div class="info-box" style="border-color:#ef4444;background:#fee2e2;color:#991b1b;"><i class="fas fa-exclamation-circle"></i> Network error — please try again.</div>';
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-check"></i> Verify & Publish';
+            }
+        });
+    })();
+    </script>
+
+    <footer><div class="footer-content"><div class="footer-brand"><img src="/assets/logo.svg" alt="DC Explorer" style="width:24px;height:24px;"> DC Explorer</div><div class="footer-links"><a href="https://datachain.network">Datachain</a><a href="/apis">API</a><a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a><a href="/partners">Partners</a><a href="/contact">Contact</a></div></div></footer>
 <script src="/js/dcscan-stats.js"></script>
+    <script src="/js/dcscan-wallet.js?v=20260707b" defer></script>
 </body>
 </html>
 

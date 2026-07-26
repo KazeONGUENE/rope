@@ -150,17 +150,71 @@ impl RopeNode {
             ai_min_confidence: 0.7,
             max_pending_txs: 500,
         };
-        let orchestrator = Arc::new(ConsensusOrchestrator::new(
+        // Quipu Canon v2.0 Phase 2 — load (or generate) the persistent
+        // hybrid consensus signing key and build the committee registry.
+        // This binds the validator identity for the life of the data dir
+        // so testimony signatures verify across restarts, and turns on
+        // real signature verification against the committee roster
+        // (`validator_set.json` in the data dir, when present).
+        // See `validator_keystore.rs`.
+        let validator_identity = crate::validator_keystore::load_or_create(&self.data_dir)?;
+        let validator_registry =
+            crate::validator_keystore::build_registry(&self.data_dir, &validator_identity)?;
+        let orchestrator = Arc::new(ConsensusOrchestrator::new_with_validator(
             orch_config,
             node_id,
             self.evm_backend.clone(),
             self.current_round.clone(),
+            validator_identity.signer.clone(),
+            validator_identity.node_id,
+            validator_registry,
         ));
         self.orchestrator = Some(orchestrator);
 
-        // Initialize personal ledger subsystem
+        // Initialize personal ledger subsystem.
+        //
+        // Quipu Canon v2.0 Phase 1.6: the LedgerStore is RocksDB-backed
+        // by default so personal ledgers (agent wallets, testimonies,
+        // GDPR tombstones) survive process restarts. Opt out with
+        // `ROPE_LEDGER_PERSISTENCE=0` (tests / ephemeral sandboxes);
+        // override the DB location with `ROPE_LEDGER_DB_PATH`.
         let lattice = Arc::new(StringLattice::new());
-        let ledger_store = Arc::new(LedgerStore::new());
+        let persistence_enabled = std::env::var("ROPE_LEDGER_PERSISTENCE")
+            .map(|v| !matches!(v.trim(), "0" | "false" | "no" | "off"))
+            .unwrap_or(true);
+        let ledger_db_path = std::env::var("ROPE_LEDGER_DB_PATH")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|_| self.data_dir.join("ledger_db"));
+        let (ledger_store, recovered_blobs, recovered_tombstones) = if persistence_enabled {
+            match LedgerStore::open_with_recovery(&ledger_db_path) {
+                Ok((store, blobs, tombstones)) => {
+                    tracing::info!(
+                        "Ledger persistence active at {:?} — {} knot blobs, {} tombstones on disk",
+                        ledger_db_path,
+                        blobs.len(),
+                        tombstones.len()
+                    );
+                    (Arc::new(store), blobs, tombstones)
+                }
+                Err(e) => {
+                    // A node that silently loses every ledger on restart is
+                    // worse than one that refuses to start with a clear
+                    // error — fail fast so operators notice.
+                    return Err(anyhow::anyhow!(
+                        "Failed to open persistent ledger store at {:?}: {e}. \
+                         Fix the DB (or set ROPE_LEDGER_PERSISTENCE=0 to \
+                         explicitly accept in-memory operation).",
+                        ledger_db_path
+                    ));
+                }
+            }
+        } else {
+            tracing::warn!(
+                "ROPE_LEDGER_PERSISTENCE=0 — personal ledgers are IN-MEMORY and \
+                 will NOT survive a restart"
+            );
+            (Arc::new(LedgerStore::new()), Vec::new(), Vec::new())
+        };
         let oes_seed: [u8; 32] = {
             let mut s = [0u8; 32];
             s.copy_from_slice(&identity_seed[..32]);
@@ -177,6 +231,9 @@ impl RopeNode {
             creator_key,
             clock_manager,
         ));
+        // Phase 1.6 — replay recovered knots, tombstones, and ledger
+        // descriptors into the fresh lattice + registry.
+        ledger.rehydrate_from_disk(recovered_blobs, recovered_tombstones);
         self.ledger_manager = Some(ledger.clone());
         tracing::info!("Personal ledger subsystem initialized (rope_* RPC methods active)");
 
@@ -187,6 +244,19 @@ impl RopeNode {
         if let Err(e) = self.try_anchor_deployer_attestation(&ledger).await {
             tracing::warn!("Deployer attestation auto-anchor skipped: {}", e);
         }
+
+        // Spawn ecosystem entity-manifest refresh tasks. Pulls
+        // https://tanastok.io/api/v1/tanastok-entity-manifest every 5
+        // minutes and merges into the live label registry consumed by
+        // the rope_listStrings / rope_resolveLabel RPC paths and DCScan.
+        // Honours `ROPE_DISABLE_ENTITY_MANIFEST=1` for offline runs.
+        // See `SPEC_TANASTOK_ENTITY_INTEGRATION_v1.md` Phase 5.
+        crate::entity_manifest::spawn_refresh_task(vec![
+            crate::entity_manifest::ManifestSource::tanastok_default(),
+        ]);
+        tracing::info!(
+            "entity-manifest refresh tasks spawned (Tanastok 5-min cadence)",
+        );
 
         // Initialize IoT Gateway — bridges MQTT/CoAP/HTTP to personal Strings
         if self.config.iot_gateway.enabled {
@@ -501,8 +571,20 @@ impl RopeNode {
     ///                   legacy `[anvil].url` section thanks to the
     ///                   `serde(alias)` on `NodeConfig::evm_backend`)
     async fn init_evm_backend(&mut self) -> Option<tokio::task::JoinHandle<()>> {
-        let evm_url = match std::env::var("EVM_RPC_URL") {
-            Ok(u) => u,
+        // Endpoint resolution order:
+        //   1. `EVM_RPC_URL` env var (canonical) — may itself be a
+        //      comma-separated list of endpoints (primary,fallback1,fallback2).
+        //   2. `ANVIL_URL` env var (deprecated alias, one-shot warning).
+        //   3. `[evm_backend].url` + `[evm_backend].fallback_urls` from TOML.
+        // Env-provided lists take precedence but are always appended with the
+        // configured fallbacks so an operator override never silently drops
+        // the resilient edge endpoints.
+        let mut evm_urls: Vec<String> = match std::env::var("EVM_RPC_URL") {
+            Ok(u) => u
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect(),
             Err(_) => match std::env::var("ANVIL_URL") {
                 Ok(u) => {
                     tracing::warn!(
@@ -511,41 +593,73 @@ impl RopeNode {
                          2026-03-31, see reth-blue-green-ipfs-architecture.mdc.",
                         u
                     );
-                    u
+                    vec![u]
                 }
-                Err(_) => self.config.evm_backend.url.clone(),
+                Err(_) => self.config.evm_backend.endpoint_list(),
             },
         };
 
+        // Always fold in the configured fallbacks (de-duplicated) so that an
+        // env-provided primary still benefits from the resilient edge list.
+        for u in self.config.evm_backend.endpoint_list() {
+            if !evm_urls.contains(&u) {
+                evm_urls.push(u);
+            }
+        }
+        if evm_urls.is_empty() {
+            evm_urls.push("http://127.0.0.1:8595".to_string());
+        }
+
+        let evm_url = evm_urls[0].clone();
+
         let evm_config = EvmBackendConfig {
-            url: evm_url.clone(),
+            urls: evm_urls.clone(),
             expected_chain_id: self.config.node.chain_id,
             ..Default::default()
         };
+        tracing::info!(
+            "EVM backend endpoints ({}): {}",
+            evm_urls.len(),
+            evm_urls.join(", ")
+        );
 
+        // Construct and install the EVM backend UNCONDITIONALLY whenever the
+        // client can be built. The previous flow dropped the backend on any
+        // initial-reachability failure and never tried again — see the
+        // 2026-05-20 BLUE outage postmortem
+        // (.cursor/rules/handover-blue-outage-2026-05-20-postmortem.mdc §2):
+        // rope-node beat reth to the 8595 socket on the post-reboot start,
+        // `initialize()` failed with Connection refused, the backend was set
+        // to None, and rope_knotIndex / eth_blockNumber returned 0x0 for
+        // every subsequent request until the rope-node process was manually
+        // restarted. With this change the backend is created, the health
+        // checker is spawned unconditionally, and the backend self-heals as
+        // soon as reth's RPC port becomes available.
         match EvmBackend::new(evm_config) {
             Ok(backend) => {
                 let backend = Arc::new(backend);
                 match backend.initialize().await {
                     Ok(()) => {
                         tracing::info!("EVM execution-layer backend connected at {}", evm_url);
-                        let health_handle = backend.spawn_health_checker();
-                        self.evm_backend = Some(backend);
-                        Some(health_handle)
                     }
                     Err(e) => {
-                        tracing::info!(
-                            "EVM backend not available at {} ({}). Running native Datachain Rope.",
+                        tracing::warn!(
+                            "EVM backend unreachable at startup at {} ({}). \
+                             Health checker will retry; eth_*/rope_knotIndex will use \
+                             native fallback values until the backend recovers.",
                             evm_url,
                             e
                         );
-                        None
                     }
                 }
+                let health_handle = backend.spawn_health_checker();
+                self.evm_backend = Some(backend);
+                Some(health_handle)
             }
             Err(e) => {
-                tracing::info!(
-                    "EVM backend client not configured ({}). Running native Datachain Rope.",
+                tracing::warn!(
+                    "EVM backend client could not be created ({}). \
+                     eth_* RPC methods will use native fallback values.",
                     e
                 );
                 None
@@ -617,12 +731,23 @@ impl RopeNode {
                     } => {
                         *current_round.write() = round;
 
-                        // Feed anchor into consensus orchestrator for finality processing
-                        if let Some(ref orch) = orchestrator {
+                        // Feed anchor into consensus orchestrator for finality
+                        // processing, and produce this node's signed testimony
+                        // for the anchor (Quipu Canon v2.0 Phase 2). The wire
+                        // bytes are gossiped to the committee below so peers
+                        // can verify the hybrid (Ed25519 + Dilithium3)
+                        // signature against the roster and tally finality.
+                        let testimony_wire = if let Some(ref orch) = orchestrator {
                             orch.on_anchor_finalized(round, anchor_id);
-                        }
+                            Some(orch.attest_and_serialize(
+                                anchor_id,
+                                rope_core::types::AttestationType::Existence,
+                            ))
+                        } else {
+                            None
+                        };
 
-                        // Broadcast anchor to P2P network
+                        // Broadcast anchor + signed testimony to P2P network
                         let publish_result = {
                             let swarm_guard = swarm.read();
                             if let Some(sw) = swarm_guard.as_ref() {
@@ -644,6 +769,14 @@ impl RopeNode {
                                     data: msg.into_bytes(),
                                 })
                                 .await;
+                            if let Some(wire) = testimony_wire {
+                                let _ = cmd_tx
+                                    .send(rope_network::SwarmCommand::Publish {
+                                        topic: "/rope/testimonies/1.0.0".to_string(),
+                                        data: wire,
+                                    })
+                                    .await;
+                            }
                         }
                     }
                     ProductionEvent::ProductionError { round, error } => {
@@ -922,9 +1055,10 @@ impl RopeNode {
         let event_rx = self.network_event_rx.write().take()?;
         let state = self.state.clone();
         let current_round = self.current_round.clone();
+        let orchestrator = self.orchestrator.clone();
 
         Some(tokio::spawn(async move {
-            Self::process_network_events(event_rx, state, current_round).await;
+            Self::process_network_events(event_rx, state, current_round, orchestrator).await;
         }))
     }
 
@@ -933,6 +1067,7 @@ impl RopeNode {
         mut event_rx: broadcast::Receiver<SwarmNetworkEvent>,
         state: Arc<RwLock<NodeState>>,
         current_round: Arc<RwLock<u64>>,
+        orchestrator: Option<Arc<ConsensusOrchestrator>>,
     ) {
         loop {
             // Check if we should stop
@@ -961,8 +1096,14 @@ impl RopeNode {
                                 data.len()
                             );
                             // Process message based on topic
-                            Self::handle_gossip_message(&topic, &data, &source, &current_round)
-                                .await;
+                            Self::handle_gossip_message(
+                                &topic,
+                                &data,
+                                &source,
+                                &current_round,
+                                orchestrator.as_ref(),
+                            )
+                            .await;
                         }
                         SwarmNetworkEvent::DhtRecordFound { key, value } => {
                             tracing::debug!(
@@ -998,6 +1139,7 @@ impl RopeNode {
         data: &[u8],
         source: &libp2p::PeerId,
         current_round: &Arc<RwLock<u64>>,
+        orchestrator: Option<&Arc<ConsensusOrchestrator>>,
     ) {
         match topic {
             "/rope/strings/1.0.0" => {
@@ -1007,7 +1149,39 @@ impl RopeNode {
                 tracing::trace!("Received gossip event from {}", source);
             }
             "/rope/testimonies/1.0.0" => {
-                tracing::trace!("Received testimony from {}", source);
+                // Quipu Canon v2.0 Phase 2: verify the peer testimony's
+                // hybrid signature against the committee registry and fold
+                // it into the finality tally for its target string.
+                match orchestrator {
+                    Some(orch) => match orch.submit_peer_testimony(data) {
+                        Ok(true) => {
+                            tracing::debug!(
+                                "Peer testimony from {} accepted — target string finalized",
+                                source
+                            );
+                        }
+                        Ok(false) => {
+                            tracing::trace!(
+                                "Peer testimony from {} accepted (not yet final)",
+                                source
+                            );
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                "Peer testimony from {} REJECTED: {} ({} bytes)",
+                                source,
+                                e,
+                                data.len()
+                            );
+                        }
+                    },
+                    None => {
+                        tracing::trace!(
+                            "Received testimony from {} but orchestrator not ready",
+                            source
+                        );
+                    }
+                }
             }
             "/rope/anchors/1.0.0" => {
                 // Parse anchor message

@@ -362,6 +362,99 @@ impl StringLattice {
         Ok(id)
     }
 
+    /// Quipu Canon v2.0 Phase 1.6 — restore a string recovered from the
+    /// persistent store at boot time.
+    ///
+    /// Unlike [`Self::add_string`], this path:
+    ///
+    ///   1. Does NOT validate parentage — restored knots may arrive in
+    ///      any order, and a parent may legitimately be absent because
+    ///      it was untied (its position survives as a tombstone via
+    ///      [`Self::restore_tombstone`]).
+    ///   2. Does NOT enter the `pending` queue or the anchor path —
+    ///      restored knots were already accepted by consensus in a
+    ///      previous process lifetime; they are marked finalized
+    ///      directly.
+    ///   3. Regenerates the complement (complements are derived data).
+    ///
+    /// Idempotent: restoring an id that is already live is a no-op.
+    pub fn restore_string(&self, string: RopeString) -> StringId {
+        let id = string.id();
+        let parents = string.parentage().to_vec();
+        let creator_key = string.creator().ed25519;
+
+        {
+            let shard = &self.shards[shard_for_string_id(&id)];
+            let mut strings = shard.strings.write();
+            if strings.contains_key(&id) {
+                return id;
+            }
+            let complement = Complement::generate(&string);
+            let mut complements = shard.complements.write();
+            let mut parents_map = shard.parents.write();
+            strings.insert(id, string);
+            complements.insert(id, complement);
+            parents_map.insert(id, parents.clone());
+        }
+
+        // Rebuild parent -> children edges (skipping the genesis sentinel).
+        let mut parent_buckets: HashMap<usize, Vec<StringId>> = HashMap::new();
+        for parent in &parents {
+            if parent.as_bytes().iter().all(|&b| b == 0) {
+                continue;
+            }
+            parent_buckets
+                .entry(shard_for_string_id(parent))
+                .or_default()
+                .push(*parent);
+        }
+        for (s_idx, parents_in_shard) in parent_buckets {
+            let mut children_map = self.shards[s_idx].children.write();
+            for parent in parents_in_shard {
+                let children = children_map.entry(parent).or_default();
+                if !children.contains(&id) {
+                    children.push(id);
+                }
+            }
+        }
+
+        // Creator index.
+        {
+            let mut creators = self.creator_index[shard_for_creator(&creator_key)].write();
+            let ids = creators.entry(creator_key).or_default();
+            if !ids.contains(&id) {
+                ids.push(id);
+            }
+        }
+
+        // Restored knots are settled history — finalized, not pending.
+        self.finalized_strings.write().insert(id);
+
+        id
+    }
+
+    /// Quipu Canon v2.0 Phase 1.6 — restore an untie-tombstone recovered
+    /// from the persistent store at boot time.
+    ///
+    /// Re-registers the tombstone metadata AND the untied knot's parent
+    /// edges, so `walk_string_with_tombstones` can hop past the
+    /// deliberate absence exactly as it could before the restart. The
+    /// payload itself is gone (cryptographic erasure) — only position,
+    /// audit hash, timestamp, and reason survive, per canon v1.1 §4.2.
+    pub fn restore_tombstone(
+        &self,
+        id: StringId,
+        tombstone: KnotTombstone,
+        parents: Vec<StringId>,
+    ) {
+        let shard = &self.shards[shard_for_string_id(&id)];
+        shard.erased.write().insert(id);
+        shard.tombstones.write().insert(id, tombstone);
+        if !parents.is_empty() {
+            shard.parents.write().insert(id, parents);
+        }
+    }
+
     /// Get a string by ID.
     pub fn get_string(&self, id: &StringId) -> Option<RopeString> {
         let shard = &self.shards[shard_for_string_id(id)];

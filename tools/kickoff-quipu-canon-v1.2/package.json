@@ -1,0 +1,19 @@
+{
+  "name": "kickoff-quipu-canon-v1.2",
+  "version": "1.0.0",
+  "description": "One-command kickoff: spawn one Cursor agent per ecosystem workspace, in parallel, to implement the Quipu Canon v1.2 emission layer per the per-project handover dropped on 2026-05-03.",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "kickoff": "tsx kickoff.ts",
+    "dry-run": "tsx kickoff.ts --dry-run",
+    "status": "tsx kickoff.ts --status"
+  },
+  "dependencies": {
+    "@cursor/sdk": "latest",
+    "tsx": "^4.19.2"
+  }
+}

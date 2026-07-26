@@ -844,6 +844,89 @@
             .docs-content { padding: 2rem; }
             .footer-grid { grid-template-columns: 1fr 1fr; gap: 2rem; }
         }
+
+        /* ==================== API Keys manager ==================== */
+        .mono { font-family: var(--font-mono); }
+
+        .btn-secondary {
+            background: var(--white);
+            color: var(--black);
+            border: 1px solid var(--gray-300);
+        }
+        .btn-secondary:hover { border-color: var(--black); }
+
+        .btn-danger {
+            background: var(--white);
+            color: var(--danger);
+            border: 1px solid #fecaca;
+        }
+        .btn-danger:hover { background: #fef2f2; border-color: var(--danger); }
+
+        .keys-card {
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            background: var(--gray-50);
+        }
+
+        .keys-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+        @media (max-width: 720px) { .keys-grid { grid-template-columns: 1fr; } }
+
+        .keys-input {
+            width: 100%;
+            padding: 0.625rem 0.875rem;
+            margin-bottom: 0.75rem;
+            border: 1px solid var(--gray-300);
+            border-radius: 8px;
+            font-family: var(--font-sans);
+            font-size: 0.9375rem;
+            background: var(--white);
+            color: var(--black);
+        }
+        .keys-input:focus { outline: none; border-color: var(--black); }
+
+        .keys-feedback { margin-top: 0.875rem; font-size: 0.875rem; min-height: 1.25rem; }
+        .keys-feedback.ok { color: var(--success); }
+        .keys-feedback.err { color: var(--danger); }
+
+        .key-badge {
+            display: inline-block;
+            padding: 0.125rem 0.625rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .key-badge.live { background: #dcfce7; color: #166534; }
+        .key-badge.revoked { background: var(--gray-100); color: var(--gray-500); }
+        .key-revoked { text-decoration: line-through; color: var(--gray-400); }
+
+        .key-new {
+            border: 1px solid #bbf7d0;
+            background: #f0fdf4;
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.25rem;
+        }
+        .key-new-title { font-weight: 600; color: #166534; margin-bottom: 0.5rem; }
+        .key-new-title i { margin-right: 0.375rem; }
+        .key-new-value {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-family: var(--font-mono);
+            font-size: 0.8125rem;
+            word-break: break-all;
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            padding: 0.625rem 0.875rem;
+        }
+        .key-new-note { font-size: 0.8125rem; color: var(--gray-500); margin-top: 0.5rem; }
     </style>
 </head>
 <body>
@@ -924,6 +1007,8 @@
                 <ul class="sidebar-nav">
                     <li><a href="#rpc-api"><i class="fas fa-plug"></i> RPC API</a></li>
                     <li><a href="#rest-api"><i class="fas fa-code"></i> REST API</a></li>
+                    <li><a href="#api-keys"><i class="fas fa-key"></i> API Keys</a></li>
+                    <li><a href="#datachain-id"><i class="fas fa-id-badge"></i> Datachain ID (Auth)</a></li>
                     <li><a href="#websocket"><i class="fas fa-bolt"></i> WebSocket</a></li>
                 </ul>
             </div>
@@ -1100,7 +1185,63 @@ cargo install rope-cli
 # - Participate in Testimony consensus
 # - Serve JSON-RPC on port 9001</code></pre>
             </section>
-            
+
+            <!-- Quick Start Section -->
+            <section id="quickstart" class="content-section">
+                <h2>Quick Start</h2>
+                <p>Everything you need to make your first request against Datachain Rope mainnet in under 5 minutes.</p>
+
+                <h3>1. Add Datachain Rope to your wallet</h3>
+                <p>MetaMask, Rabby, and any EIP-3085-compatible wallet can add the network programmatically:</p>
+                <pre><code>await window.ethereum.request({
+  method: 'wallet_addEthereumChain',
+  params: [{
+    chainId: '0x425D4',                              // 271828
+    chainName: 'Datachain Rope',
+    nativeCurrency: { name: 'DC FAT', symbol: 'FAT', decimals: 18 },
+    rpcUrls: ['https://erpc.datachain.network'],
+    blockExplorerUrls: ['https://dcscan.io']
+  }]
+});</code></pre>
+
+                <h3>2. Make your first RPC call</h3>
+                <p>The public JSON-RPC endpoint serves both the canonical <code>rope_*</code> namespace and the <code>eth_*</code> compatibility aliases — ethers.js, viem, web3.js, and Foundry <code>cast</code> work out of the box:</p>
+                <pre><code># Current knot index (EVM alias: eth_blockNumber)
+curl -s https://erpc.datachain.network \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","method":"rope_knotIndex","params":[],"id":1}'
+
+# Network-wide Quipu registry stats
+curl -s https://erpc.datachain.network \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","method":"rope_globalStats","params":[],"id":1}'</code></pre>
+
+                <h3>3. Query the REST API</h3>
+                <p>DCScan exposes a public REST API for indexed data — stats, strings, transactions, validators, AI agents, and the entity registry. No key is required for casual use; identified traffic with an <a href="#api-keys">API key</a> gets attribution and usage metrics:</p>
+                <pre><code>curl -s https://dcscan.io/api/v1/stats
+curl -s -H "X-API-Key: dcsk_…" https://dcscan.io/api/v1/strings/latest</code></pre>
+
+                <h3>4. Get an API key</h3>
+                <p>Sign in with your Datawallet+ account or an EIP-191 wallet signature in the <a href="#api-keys">API Keys</a> section below, then create and manage keys directly from this page.</p>
+
+                <h3>5. Read from a contract</h3>
+                <pre><code>import { ethers } from 'ethers';
+
+const provider = new ethers.JsonRpcProvider('https://erpc.datachain.network', {
+  chainId: 271828, name: 'datachain-rope'
+});
+
+const WFAT = '0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4';
+const dcr20 = new ethers.Contract(WFAT, [
+  'function name() view returns (string)',
+  'function symbol() view returns (string)',
+  'function totalSupply() view returns (uint256)'
+], provider);
+
+console.log(await dcr20.name());        // "Wrapped DC FAT"
+console.log(await dcr20.symbol());      // "WFAT"</code></pre>
+            </section>
+
             <!-- Core Concepts: String Lattice -->
             <section id="string-lattice" class="content-section">
                 <h2>String Lattice Architecture</h2>
@@ -1574,64 +1715,40 @@ Hashgraph      // Hedera consensus (coming soon)</code></pre>
                     </div>
                     <div class="cli-body">
                         <div class="cli-output" id="cli-output">
-<span class="comment"># Datachain Rope CLI — chainId 271828</span>
-<span class="comment"># RPC: https://erpc.datachain.network  ·  Explorer: https://dcscan.io</span>
+<span class="comment"># Datachain Rope CLI — chainId 271828 — LIVE terminal</span>
+<span class="comment"># Read-only commands below run against https://erpc.datachain.network in real time.</span>
+<span class="comment"># Try: rope query status · rope query validators · rope governance list-masters</span>
+<span class="comment">#      rope token balance 0x60FB32ef3A2381c2Ed71613F34fd56D56fCF4195 · rope --help</span>
 
 <span class="prompt">rope&gt;</span> rope --help
 
-<span class="highlight">Commands</span>
-  node           Start a Rope node (validator | relay | seeder)
-  keygen         Generate cryptographic keypairs for node identity
-  info           Display local node information and configuration
-  genesis        Initialize a new genesis federation configuration
-  query          Query network state (string | status | peers | validators)
-  token          FAT token operations (balance | transfer)
-  peer-id        Extract libp2p Peer ID from a node key file
-  identity       Manage deployer identity (DID + ONCHAINID attestation)
-  governance     Master-node governance (list-masters | suspend | isolate | erase)
-  deploy         Deploy a new Rope node on a cloud provider (Phase D)
-  version        Display version + build information
+Usage: rope [OPTIONS] &lt;COMMAND&gt;
 
-<span class="prompt">rope&gt;</span> rope governance list-masters
+<span class="highlight">Commands:</span>
+  node        Start a Rope node (validator, relay, or seeder)
+  keygen      Generate cryptographic keypairs for node identity
+  info        Display local node information and configuration
+  genesis     Initialize a new genesis federation configuration
+  query       Query network state and information via RPC
+  token       FAT token operations (balance, transfer)
+  version     Display version and build information
+  peer-id     Extract peer ID from node key file (useful for bootstrap configuration)
+  identity    Manage node deployer identity (Datawallet+ DID + ONCHAINID attestation)
+  governance  Master-node governance actions (suspend / isolate / erase nodes)
+  committee   Quipu Canon v2.0 Phase 2 — validator committee management
+  deploy      Deploy a new Datachain Rope node on a supported cloud provider
+  help        Print this message or the help of the given subcommand(s)
 
-<span class="success">{</span>
-<span class="success">  "master_nodes": [</span>
-    { "slot": "blue",  "hostname": "dcrope",          "ip": "92.243.26.189",  "provider": "Gandi",        "role": "primary-rpc" },
-    { "slot": "green", "hostname": "dcrope-node2",    "ip": "92.243.25.119",  "provider": "Gandi",        "role": "secondary-rpc" },
-    { "slot": "rpc-1", "hostname": "datachain-rpc-1", "ip": "157.230.18.45",  "provider": "DigitalOcean", "role": "tertiary-rpc" },
-    { "slot": "rpc-2", "hostname": "datachain-rpc-2", "ip": "167.172.106.174","provider": "DigitalOcean", "role": "quaternary-rpc" }
-<span class="success">  ]</span>
-<span class="success">}</span>
-
-<span class="prompt">rope&gt;</span> rope identity show
-
-<span class="highlight">{</span>
-  "node_id": "6dc3d5422e6a9b51…",
-  "wallet_address": "0x60FB32ef3A2381c2Ed71613F34fd56D56fCF4195",
-  "did": "did:datachain:0x60FB32ef3A2381c2Ed71613F34fd56D56fCF4195",
-  "onchainid": "0x6A74c57C3A1EE72D9d2cA29462fbD6fc8fE86bd2",
-  "name": "Onguene, Kazé Alphonse",
-  "organization": "Datachain Foundation",
-  "email": "kaze.onguene@datachain.one",
-  "country": "FR",
-  "verifiable": <span class="success">true</span>
-<span class="highlight">}</span>
-
-<span class="prompt">rope&gt;</span> rope deploy exoscale community-node --region ch-gva-2 --size medium
-
-<span class="warning">⚡ Deploying via Datachain Foundation Exoscale account…</span>
-  provider: exoscale  ·  kind: community-node  ·  region: ch-gva-2  ·  size: medium
-  identity: from local Datawallet+ DID
-  → Calls https://deployer.datachain.network/v1/provision (Phase D MVP)
-  → Provisioned VM joins the libp2p mesh with bootstrap = blue@92.243.26.189
-  → Node attestation recorded under your DID via rope identity sign-deployer
-<span class="success">✓ Node ready (status pending until first anchor)</span>
+<span class="highlight">Options:</span>
+  -v, --verbose  Enable verbose debug logging (set RUST_LOG=debug for more control)
+  -h, --help     Print help
+  -V, --version  Print version
 
 <span class="prompt">rope&gt;</span> _
                         </div>
                         <div class="cli-input-line">
                             <span class="cli-prompt">rope&gt;</span>
-                            <input type="text" class="cli-input" id="cli-input" placeholder="Type a command..." autocomplete="off">
+                            <input type="text" class="cli-input" id="cli-input" placeholder="Type a real command — e.g. rope query status" autocomplete="off">
                         </div>
                     </div>
                 </div>
@@ -1683,15 +1800,15 @@ rope identity verify --config rope-production.toml</code></pre>
 rope governance info                                  # registry + recent log
 
 rope governance suspend \
-    --node-id <hex> --reason "..." --ttl 3600 \
+    --node-id &lt;hex&gt; --reason "..." --ttl 3600 \
     --key ~/.rope/founder.key
 
 rope governance isolate \
-    --node-id <hex> --reason "..." \
+    --node-id &lt;hex&gt; --reason "..." \
     --key ~/.rope/founder.key
 
 rope governance erase \
-    --node-id <hex> --reason "..." \
+    --node-id &lt;hex&gt; --reason "..." \
     --key ~/.rope/founder.key</code></pre>
 
                 <h3>Cloud deployment (Phase D — MVP)</h3>
@@ -1715,59 +1832,270 @@ rope deploy local        community-node --dry-run</code></pre>
             <!-- RPC API Section -->
             <section id="rpc-api" class="content-section">
                 <h2>RPC API Reference</h2>
-                <p>The Datachain Rope RPC API is available at <code>https://erpc.datachain.network</code>.</p>
-                
-                <h3>rope_networkStatus</h3>
-                <p>Returns the current network status.</p>
+                <p>The Datachain Rope JSON-RPC API is available at <code>https://erpc.datachain.network</code> (WebSocket: <code>wss://ws.datachain.network</code>). It exposes two namespaces:</p>
+                <ul style="margin: 1rem 0 1rem 1.5rem; color: var(--gray-700);">
+                    <li><strong><code>rope_*</code></strong> — the canonical Quipu Primitive Canon methods (knots, strings, registry, labels)</li>
+                    <li><strong><code>eth_*</code></strong> — EVM compatibility aliases so MetaMask, ethers.js, viem, and Foundry work unchanged</li>
+                </ul>
+
+                <h3>Method overview</h3>
+                <table>
+                    <tr><th>Method</th><th>Params</th><th>Description</th></tr>
+                    <tr><td><code>rope_knotIndex</code></td><td>—</td><td>Current cord-anchor knot index (alias: <code>eth_blockNumber</code>)</td></tr>
+                    <tr><td><code>rope_getKnotByIndex</code></td><td><code>[index, fullTxs]</code></td><td>Fetch an anchor knot by index (alias: <code>eth_getBlockByNumber</code>)</td></tr>
+                    <tr><td><code>rope_getKnotByHash</code></td><td><code>[hash, fullTxs]</code></td><td>Fetch an anchor knot by hash (alias: <code>eth_getBlockByHash</code>)</td></tr>
+                    <tr><td><code>rope_globalStats</code></td><td>—</td><td>Registry totals per kind + Quipu invariant (<code>strings ≤ knots</code>)</td></tr>
+                    <tr><td><code>rope_listStrings</code></td><td><code>[{kind?, offset?, limit?}]</code></td><td>Paginated entity-string registry (wallet, contract, asset, did, cord…)</td></tr>
+                    <tr><td><code>rope_getString</code></td><td><code>[{string_id}]</code></td><td>One string descriptor with knot count and head pointer</td></tr>
+                    <tr><td><code>rope_resolveLabel</code></td><td><code>[{string_id}]</code></td><td>Resolve display name, platform, and role for any entity id</td></tr>
+                    <tr><td><code>rope_createPersonalLedger</code></td><td><code>[wallet]</code></td><td>One-shot per wallet before first write <span class="mono">(auth-gated)</span></td></tr>
+                    <tr><td><code>rope_appendToLedger</code></td><td><code>[wallet, interaction]</code></td><td>Tie a knot on a wallet string <span class="mono">(auth-gated)</span></td></tr>
+                    <tr><td><code>rope_untieKnot</code></td><td><code>[stringId, eventId]</code></td><td>GDPR Art.17 granular erasure — produces a tombstone knot <span class="mono">(auth-gated)</span></td></tr>
+                </table>
+
+                <p style="margin-top:1rem"><strong>Auth-gated methods:</strong> the five destructive methods (<code>rope_createPersonalLedger</code>, <code>rope_appendToLedger</code>, <code>rope_untieKnot</code>, <code>rope_erasePersonalLedger</code>, <code>rope_anchorDeployerAttestation</code>) return JSON-RPC error <code>-32401</code> on the public listener. Write access is reserved for authorised operators and the on-box canonical agents. GDPR erasure requests from end users go through the compliance agent at <code>https://compliance-agent.datachain.network/v1/gdpr/article17</code>.</p>
+
+                <h3>rope_knotIndex</h3>
                 <pre><code>// Request
-{
-  "jsonrpc": "2.0",
-  "method": "rope_networkStatus",
-  "params": [],
-  "id": 1
-}
+{ "jsonrpc": "2.0", "method": "rope_knotIndex", "params": [], "id": 1 }
 
 // Response
+{ "jsonrpc": "2.0", "result": "0x2d9f2a", "id": 1 }</code></pre>
+
+                <h3>rope_globalStats</h3>
+                <pre><code>// Request
+{ "jsonrpc": "2.0", "method": "rope_globalStats", "params": [], "id": 1 }
+
+// Response (abridged)
 {
   "jsonrpc": "2.0",
   "result": {
-    "status": "healthy",
-    "finality_time_ms": 4200,
-    "active_validators": 127,
-    "ai_agents": 5,
-    "latest_round": 847291,
-    "total_strings": 1847293,
-    "chain_id": 314159
+    "total_strings": 7,
+    "total_knots": 2075,
+    "by_kind": { "wallet": { "strings": 7, "knots": 2075 } },
+    "invariant_holds": true,
+    "label_registry": { "assets": 419, "applications": 13, "agents": 5 }
   },
   "id": 1
 }</code></pre>
-                
-                <h3>rope_submitString</h3>
-                <p>Submit a new string to the lattice.</p>
+
+                <h3>rope_listStrings</h3>
                 <pre><code>// Request
 {
   "jsonrpc": "2.0",
-  "method": "rope_submitString",
-  "params": [{
-    "content": "0x...",
-    "parents": ["0x...", "0x..."],
-    "mutability_class": "immutable",
-    "requires_testimony": true,
-    "signature": "0x..."
+  "method": "rope_listStrings",
+  "params": [{ "kind": "wallet", "offset": 0, "limit": 50 }],
+  "id": 1
+}
+
+// Response (abridged)
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "total": 7, "offset": 0, "limit": 50,
+    "rpc_api_version": "1.4.0",
+    "strings": [
+      {
+        "kind": "wallet",
+        "string_id": "0x…",
+        "genesis_knot_id": "0x…",
+        "head_knot_id": "0x…",
+        "knot_count": 413
+      }
+    ]
+  },
+  "id": 1
+}</code></pre>
+
+                <h3>EVM compatibility aliases</h3>
+                <p>All standard Ethereum JSON-RPC methods are served: <code>eth_chainId</code> (returns <code>0x425d4</code> = 271828), <code>eth_blockNumber</code>, <code>eth_getBalance</code>, <code>eth_call</code>, <code>eth_sendRawTransaction</code>, <code>eth_getTransactionReceipt</code>, <code>eth_getLogs</code>, <code>eth_subscribe</code> (WebSocket), and the rest of the standard surface. Existing EVM tooling needs no changes.</p>
+                <pre><code># Foundry cast against Datachain Rope
+cast block-number --rpc-url https://erpc.datachain.network
+cast balance 0x60FB32ef3A2381c2Ed71613F34fd56D56fCF4195 --rpc-url https://erpc.datachain.network</code></pre>
+            </section>
+
+            <!-- REST API Section -->
+            <section id="rest-api" class="content-section">
+                <h2>REST API Reference</h2>
+                <p>DCScan (the Datachain Rope explorer) exposes a public REST API at <code>https://dcscan.io/api/v1</code>. CORS is open (<code>Access-Control-Allow-Origin: *</code>) — you can call it from any browser app or backend. Responses are JSON.</p>
+
+                <h3>Network &amp; chain data</h3>
+                <table>
+                    <tr><th>Endpoint</th><th>Description</th></tr>
+                    <tr><td><code>GET /api/v1/stats</code></td><td>Network stats: cord anchors, transactions, events, entity knots, DC FAT price, market cap</td></tr>
+                    <tr><td><code>GET /api/v1/strings/latest</code></td><td>Latest anchor knots on the federation cord</td></tr>
+                    <tr><td><code>GET /api/v1/transactions/latest</code></td><td>Latest EVM-shaped transactions</td></tr>
+                    <tr><td><code>GET /api/v1/validators</code></td><td>Active validator set with stake and uptime</td></tr>
+                    <tr><td><code>GET /api/v1/ai-agents</code></td><td>The 5 canonical AI testimony agents and their activity</td></tr>
+                    <tr><td><code>GET /api/v1/testimonies</code></td><td>Recent AI testimony attestations</td></tr>
+                    <tr><td><code>GET /api/v1/tokens</code></td><td>DCR-20 token directory</td></tr>
+                    <tr><td><code>GET /api/v1/tokentxns</code></td><td>Recent DCR-20 transfer events</td></tr>
+                    <tr><td><code>GET /api/v1/defi/overview</code></td><td>DCSwap pools, reserves, and TVL</td></tr>
+                </table>
+
+                <h3>Entity registry (Quipu Canon v1.2)</h3>
+                <table>
+                    <tr><th>Endpoint</th><th>Description</th></tr>
+                    <tr><td><code>GET /api/v1/registry/stats</code></td><td>Per-kind string counts + invariant check</td></tr>
+                    <tr><td><code>GET /api/v1/registry/strings?kind=&amp;offset=&amp;limit=</code></td><td>Paginated, kind-filtered entity strings</td></tr>
+                    <tr><td><code>GET /api/v1/registry/manifest</code></td><td>Full ecosystem entity manifest (~1,600 entities)</td></tr>
+                    <tr><td><code>GET /api/v1/registry/labels?kind=</code></td><td>Slim <code>string_id → label</code> index</td></tr>
+                    <tr><td><code>GET /api/v1/registry/entity/:id</code></td><td>Single entity descriptor by string id or EVM address</td></tr>
+                    <tr><td><code>POST /api/rpc</code></td><td>Same-origin JSON-RPC proxy (any <code>rope_*</code> / <code>eth_*</code> method)</td></tr>
+                </table>
+
+                <h3>API keys</h3>
+                <table>
+                    <tr><th>Endpoint</th><th>Auth</th><th>Description</th></tr>
+                    <tr><td><code>POST /api/v1/keys</code></td><td>Bearer</td><td>Create a key — <code>{"label": "my-app"}</code>; the key value is returned once</td></tr>
+                    <tr><td><code>GET /api/v1/keys</code></td><td>Bearer</td><td>List your keys with usage counts</td></tr>
+                    <tr><td><code>DELETE /api/v1/keys/:id</code></td><td>Bearer</td><td>Revoke a key</td></tr>
+                    <tr><td><code>GET /api/v1/keys/verify</code></td><td><code>X-API-Key</code></td><td>Check that a key is valid and active</td></tr>
+                </table>
+                <p><strong>Bearer</strong> is a Datachain ID token from <code>id.datachain.network</code> — see <a href="#datachain-id">Datachain ID</a>. Pass your API key as the <code>X-API-Key</code> header on any <code>/api/v1/*</code> request to get identified usage tracking:</p>
+                <pre><code># Anonymous (fine for exploration)
+curl -s https://dcscan.io/api/v1/stats
+
+# Identified (attributed to your key, usage metrics on the API Keys page)
+curl -s -H "X-API-Key: dcsk_…" https://dcscan.io/api/v1/stats
+
+# Verify a key
+curl -s -H "X-API-Key: dcsk_…" https://dcscan.io/api/v1/keys/verify</code></pre>
+            </section>
+
+            <!-- API Keys Section (interactive) -->
+            <section id="api-keys" class="content-section">
+                <h2>API Keys</h2>
+                <p>Authenticated users can create and manage DCScan API keys directly from this page. Sign in with your <strong>Datawallet+ account</strong> (the same credentials as the mobile app) or with an <strong>EIP-191 wallet signature</strong> from a wallet linked to your Datawallet+ identity. Keys work on every <code>https://dcscan.io/api/v1/*</code> endpoint via the <code>X-API-Key</code> header.</p>
+
+                <!-- Signed-out card -->
+                <div id="keys-signedout" class="keys-card">
+                    <h3 style="margin-top:0">Sign in to manage your keys</h3>
+                    <div class="keys-grid">
+                        <div>
+                            <h4 style="margin-top:0">Datawallet+ credentials</h4>
+                            <input type="email" id="keys-email" class="keys-input" placeholder="Email" autocomplete="email">
+                            <input type="password" id="keys-password" class="keys-input" placeholder="Password" autocomplete="current-password">
+                            <button class="btn btn-primary" id="keys-loginbtn" style="width:100%"><i class="fas fa-right-to-bracket"></i>&nbsp; Sign in</button>
+                        </div>
+                        <div>
+                            <h4 style="margin-top:0">Wallet signature (EIP-191)</h4>
+                            <p style="font-size:0.875rem;color:var(--gray-500);margin-bottom:0.75rem">Sign a challenge with an EVM wallet linked to your Datawallet+ account. No password needed.</p>
+                            <button class="btn btn-secondary" id="keys-walletsign" style="width:100%"><i class="fas fa-signature"></i>&nbsp; Sign in with wallet</button>
+                        </div>
+                    </div>
+                    <div id="keys-feedback-out" class="keys-feedback"></div>
+                </div>
+
+                <!-- Signed-in card -->
+                <div id="keys-signedin" class="keys-card" style="display:none">
+                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;margin-bottom:1.25rem">
+                        <div>
+                            <div style="font-weight:600" id="keys-who">—</div>
+                            <div class="mono" style="font-size:0.8125rem;color:var(--gray-500)" id="keys-addr"></div>
+                        </div>
+                        <button class="btn btn-secondary" id="keys-signout" style="padding:0.5rem 1rem;font-size:0.875rem">Sign out</button>
+                    </div>
+                    <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:1rem">
+                        <input type="text" id="keys-label" class="keys-input" placeholder="Key label (e.g. my-backend)" style="flex:1;min-width:220px;margin-bottom:0">
+                        <button class="btn btn-primary" id="keys-createbtn"><i class="fas fa-plus"></i>&nbsp; Create API key</button>
+                    </div>
+                    <div id="keys-newkey"></div>
+                    <div style="overflow-x:auto">
+                        <table style="margin:0">
+                            <thead>
+                                <tr><th>Prefix</th><th>Label</th><th>Created</th><th>Requests</th><th>Status</th><th></th></tr>
+                            </thead>
+                            <tbody id="keys-rows"></tbody>
+                        </table>
+                    </div>
+                    <div id="keys-feedback-in" class="keys-feedback"></div>
+                </div>
+            </section>
+
+            <!-- Datachain ID Section -->
+            <section id="datachain-id" class="content-section">
+                <h2>Datachain ID — Ecosystem Authentication</h2>
+                <p><code>https://id.datachain.network</code> is the identity gateway for the entire Datachain Rope ecosystem. Any Datawallet+ owner can authenticate on any ecosystem platform (DCScan, Tanastok, DCSwap, NaturaProof, Careaway…) with their credentials or their wallet public key. The gateway issues <strong>Ed25519-signed JWTs</strong> that every service can verify offline against the published JWKS.</p>
+
+                <h3>Endpoints</h3>
+                <table>
+                    <tr><th>Endpoint</th><th>Method</th><th>Description</th></tr>
+                    <tr><td><code>/v1/auth/login</code></td><td>POST</td><td>Credential login — <code>{"email", "password"}</code> (Datawallet+ account)</td></tr>
+                    <tr><td><code>/v1/auth/wallet</code></td><td>POST</td><td>Wallet-signature login — <code>{"address", "timestamp", "signature"}</code></td></tr>
+                    <tr><td><code>/v1/auth/userinfo</code></td><td>GET</td><td>Identity claims for a Bearer token</td></tr>
+                    <tr><td><code>/v1/auth/introspect</code></td><td>POST</td><td>Server-side token verification — <code>{"token"}</code></td></tr>
+                    <tr><td><code>/.well-known/jwks.json</code></td><td>GET</td><td>Ed25519 public keys for offline JWT verification</td></tr>
+                </table>
+
+                <h3>Wallet-signature login (EIP-191)</h3>
+                <p>Sign this exact message with <code>personal_sign</code>, where <code>{address}</code> is lowercase and <code>{timestamp}</code> is unix seconds (±5 minutes):</p>
+                <pre><code>DATACHAIN-ID-AUTH
+{address}
+{timestamp}</code></pre>
+                <pre><code>const address = (await ethereum.request({ method: 'eth_requestAccounts' }))[0].toLowerCase();
+const timestamp = Math.floor(Date.now() / 1000);
+const message = `DATACHAIN-ID-AUTH\n${address}\n${timestamp}`;
+const signature = await ethereum.request({ method: 'personal_sign', params: [message, address] });
+
+const res = await fetch('https://id.datachain.network/v1/auth/wallet', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ address, timestamp, signature })
+});
+const { token, user } = await res.json();
+// token → use as  Authorization: Bearer &lt;token&gt;  on any ecosystem API</code></pre>
+
+                <h3>Token claims</h3>
+                <pre><code>{
+  "iss": "https://id.datachain.network",
+  "sub": "datawallet-user-uuid",
+  "aud": "datachain-ecosystem",
+  "email": "user@example.com",
+  "did": "did:datachain:…",
+  "primary_address": "0x…",
+  "wallets": ["0x…"],
+  "chain_id": 271828,
+  "exp": 1780000000
+}</code></pre>
+                <p>Services verify tokens either offline (fetch the JWKS once, verify the Ed25519 signature locally) or by POSTing to <code>/v1/auth/introspect</code>.</p>
+            </section>
+
+            <!-- WebSocket Section -->
+            <section id="websocket" class="content-section">
+                <h2>WebSocket API</h2>
+                <p>Real-time subscriptions are served at <code>wss://ws.datachain.network</code> using the standard <code>eth_subscribe</code> interface.</p>
+
+                <h3>Subscribe to new anchor knots</h3>
+                <pre><code>// Native WebSocket
+const ws = new WebSocket('wss://ws.datachain.network');
+ws.onopen = () => ws.send(JSON.stringify({
+  jsonrpc: '2.0', method: 'eth_subscribe', params: ['newHeads'], id: 1
+}));
+ws.onmessage = (e) => console.log(JSON.parse(e.data));</code></pre>
+
+                <pre><code>// ethers.js v6
+import { WebSocketProvider } from 'ethers';
+const provider = new WebSocketProvider('wss://ws.datachain.network');
+provider.on('block', (knotIndex) => console.log('new anchor knot', knotIndex));</code></pre>
+
+                <h3>Subscribe to contract events</h3>
+                <pre><code>ws.send(JSON.stringify({
+  jsonrpc: '2.0', method: 'eth_subscribe',
+  params: ['logs', {
+    address: '0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4',   // WFAT
+    topics: []                                                // all events
   }],
-  "id": 1
-}
+  id: 2
+}));</code></pre>
 
-// Response
-{
-  "jsonrpc": "2.0",
-  "result": {
-    "string_id": "0x7a8b9c...",
-    "round": 847292,
-    "status": "pending_testimony"
-  },
-  "id": 1
-}</code></pre>
+                <h3>Supported subscriptions</h3>
+                <table>
+                    <tr><th>Subscription</th><th>Payload</th></tr>
+                    <tr><td><code>newHeads</code></td><td>Every new cord-anchor knot (~3s interval)</td></tr>
+                    <tr><td><code>logs</code></td><td>Contract events matching an address/topics filter</td></tr>
+                    <tr><td><code>newPendingTransactions</code></td><td>Transaction hashes entering the pool</td></tr>
+                </table>
             </section>
             
             <!-- Architecture Section -->
@@ -2181,6 +2509,111 @@ EXPO_PUBLIC_WFAT_ADDRESS=0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4</code></pre>
   ]
 }</code></pre>
             </section>
+
+            <!-- SDK Section -->
+            <section id="sdk" class="content-section">
+                <h2>SDK</h2>
+                <p>Datachain Rope is EVM-wire-compatible, so every mainstream Web3 SDK works out of the box against <code>https://erpc.datachain.network</code> with chain ID <code>271828</code>.</p>
+
+                <h3>ethers.js v6</h3>
+                <pre><code>import { JsonRpcProvider, Wallet, parseEther } from 'ethers';
+
+const provider = new JsonRpcProvider('https://erpc.datachain.network', {
+  chainId: 271828, name: 'datachain-rope'
+});
+
+const wallet = new Wallet(process.env.PRIVATE_KEY, provider);
+const tx = await wallet.sendTransaction({ to: '0x…', value: parseEther('1') }); // 1 FAT
+await tx.wait();  // finality ≈ 3s</code></pre>
+
+                <h3>viem</h3>
+                <pre><code>import { createPublicClient, defineChain, http } from 'viem';
+
+export const datachainRope = defineChain({
+  id: 271828,
+  name: 'Datachain Rope',
+  nativeCurrency: { name: 'DC FAT', symbol: 'FAT', decimals: 18 },
+  rpcUrls: { default: {
+    http: ['https://erpc.datachain.network'],
+    webSocket: ['wss://ws.datachain.network']
+  }},
+  blockExplorers: { default: { name: 'DCScan', url: 'https://dcscan.io' } }
+});
+
+const client = createPublicClient({ chain: datachainRope, transport: http() });
+console.log(await client.getBlockNumber());</code></pre>
+
+                <h3>web3.py</h3>
+                <pre><code>from web3 import Web3
+
+w3 = Web3(Web3.HTTPProvider('https://erpc.datachain.network'))
+assert w3.eth.chain_id == 271828
+print(w3.eth.block_number)</code></pre>
+
+                <h3>Foundry</h3>
+                <pre><code># foundry.toml
+[rpc_endpoints]
+rope = "https://erpc.datachain.network"
+
+# Deploy
+forge create src/MyToken.sol:MyToken --rpc-url rope --private-key $PK
+
+# Read
+cast call 0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4 'symbol()(string)' --rpc-url rope</code></pre>
+
+                <h3>DatawalletConnect (dApp ↔ Datawallet+)</h3>
+                <p>For user-facing dApps, <code>@datawallet/connect</code> adds "Connect with Datawallet+" in one line — see the full <a href="#datawalletconnect-sdk">DatawalletConnect SDK</a> reference above. For backend service authentication, use <a href="#datachain-id">Datachain ID</a> tokens.</p>
+            </section>
+
+            <!-- Smart Contracts Section -->
+            <section id="smart-contracts" class="content-section">
+                <h2>Smart Contracts</h2>
+                <p>Datachain Rope runs a full EVM execution layer. Solidity contracts deploy unchanged. The native fungible-token standard is <strong>DCR-20</strong> (wire-compatible with ERC-20 tooling); ERC-721, ERC-3643 (T-REX), and ERC-734/735 (ONCHAINID) keep their original names.</p>
+
+                <h3>Token standards</h3>
+                <table>
+                    <tr><th>Standard</th><th>Purpose</th><th>Interface</th></tr>
+                    <tr><td><strong>DCR-20</strong></td><td>Fungible tokens (WFAT, USDC, USDT, EUROD, LP tokens)</td><td><code>IDCR20</code></td></tr>
+                    <tr><td><strong>ERC-721</strong></td><td>NFTs — DCNFT title deeds for tokenized real-world assets</td><td>Standard</td></tr>
+                    <tr><td><strong>ERC-3643</strong></td><td>T-REX compliance-gated security tokens (fractional asset shares)</td><td>Standard</td></tr>
+                    <tr><td><strong>ERC-734/735</strong></td><td>ONCHAINID on-chain identity and claims</td><td>Standard</td></tr>
+                </table>
+
+                <h3>Core deployed contracts (mainnet, chain 271828)</h3>
+                <table>
+                    <tr><th>Contract</th><th>Address</th></tr>
+                    <tr><td>WFAT (Wrapped DC FAT)</td><td class="mono">0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4</td></tr>
+                    <tr><td>USDC (DCR-20, 6 dec)</td><td class="mono">0xb93bd8db94f1baff474aa9cba0739daaad01641f</td></tr>
+                    <tr><td>USDT (DCR-20, 6 dec)</td><td class="mono">0x79a26132f48394421382c13b54ae77fa3af73289</td></tr>
+                    <tr><td>EUROD (DCR-20, 6 dec)</td><td class="mono">0x24d6137807fa8a592888726d87ac748d018c6d4a</td></tr>
+                    <tr><td>Multicall3</td><td class="mono">0xc2eeb0100aa7e81a3193bdce6733ff767f3bb93a</td></tr>
+                    <tr><td>DCSwapFactory</td><td class="mono">0x772e5fd559069aecce5e6983c0c415c8579d780d</td></tr>
+                    <tr><td>DCSwapRouter</td><td class="mono">0x8ebdd966e9e9af2ec5d02c886b1c4b5ba617e7c4</td></tr>
+                    <tr><td>DCSwap Governance Timelock (1h delay)</td><td class="mono">0x50Cfc56D81603A61660B8c6306e7Cb6E6693532c</td></tr>
+                    <tr><td>TREXFactory (T-REX suite deployment)</td><td class="mono">0x76b40D5439F1CB661b2479fD15410662a7fe0991</td></tr>
+                    <tr><td>ONCHAINID IdentityRegistry</td><td class="mono">0x3065138F0CE815eB09f14d2e87E8BCbe98dD172B</td></tr>
+                    <tr><td>ONCHAINID TrustedIssuersRegistry</td><td class="mono">0x42d605a05A063d91E83481867839bfD713D21666</td></tr>
+                </table>
+                <p>Browse any contract on <a href="https://dcscan.io">DCScan</a> — Tanastok tokenized-asset contracts (DCNFT + ERC-3643 pairs) are labelled automatically on their address pages.</p>
+
+                <h3>Deploying</h3>
+                <pre><code># Hardhat — hardhat.config.js
+module.exports = {
+  networks: {
+    rope: {
+      url: 'https://erpc.datachain.network',
+      chainId: 271828,
+      accounts: [process.env.PRIVATE_KEY]
+    }
+  }
+};
+
+# Foundry
+forge create src/MyContract.sol:MyContract \
+  --rpc-url https://erpc.datachain.network \
+  --private-key $PRIVATE_KEY</code></pre>
+                <p><strong>Upgradeable-proxy mandate:</strong> production contracts on Datachain Rope must use upgradeable proxy patterns (UUPS / Transparent / CREATE2 as appropriate) so addresses remain permanent across execution-layer upgrades. Gas is paid in DC FAT at 1 gwei base.</p>
+            </section>
         </main>
     </div>
     
@@ -2196,6 +2629,7 @@ EXPO_PUBLIC_WFAT_ADDRESS=0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4</code></pre>
                     <h4>Explorer</h4>
                     <ul>
                         <li><a href="https://dcscan.io">Block Explorer</a></li>
+                        <li><a href="https://dcscan.io/create-wallet">Create Wallet</a></li>
                         <li><a href="https://dcscan.io/strings">Strings</a></li>
                         <li><a href="https://dcscan.io/agents">AI Agents</a></li>
                         <li><a href="https://dcscan.io/validators">Validators</a></li>
@@ -2211,8 +2645,9 @@ EXPO_PUBLIC_WFAT_ADDRESS=0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4</code></pre>
                     </ul>
                 </div>
                 <div class="footer-links">
-                    <h4>Contact</h4>
+                    <h4>Foundation</h4>
                     <ul>
+                        <li><a href="/about/">About</a></li>
                         <li><a href="/contact">Contact Us</a></li>
                         <li><a href="https://github.com/KazeONGUENE/rope/issues">Report Issue</a></li>
                     </ul>
@@ -2413,450 +2848,260 @@ EXPO_PUBLIC_WFAT_ADDRESS=0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4</code></pre>
         }
         
         // ========================================================================
-        // CLI INTERFACE - Interactive Wizard
+        // CLI INTERFACE — LIVE terminal
+        // Read-only `rope` commands are executed for real against
+        // https://erpc.datachain.network (JSON-RPC) and https://dcscan.io/api
+        // (explorer API). Output mirrors the actual rope binary
+        // (crates/rope-cli) byte-for-byte for the supported commands.
+        // Node-local commands (node, keygen, genesis, peer-id, committee,
+        // deploy, signing actions) require the installed binary and print
+        // the real installation pointer instead of fake output.
         // ========================================================================
-        
-        // Wizard state management
-        let wizardState = {
-            active: false,
-            type: null, // 'federation' or 'community'
-            step: 0,
-            config: {}
-        };
-        
-        const wizardSteps = {
-            federation: [
-                { key: 'name', prompt: 'Enter Federation name:', validate: v => v.length >= 2 },
-                { key: 'structureType', prompt: 'Select structure type:\n  [1] Structured (organizational hierarchy)\n  [2] Unstructured (flat network)\n  [3] Autonomous (self-governing)\nEnter choice (1-3):', options: ['structured', 'unstructured', 'autonomous'] },
-                { key: 'dataWallets', prompt: 'Enter number of Data Wallets to generate:', validate: v => !isNaN(parseInt(v)) && parseInt(v) > 0, transform: v => parseInt(v) },
-                { key: 'cellType', prompt: 'Select Cell Type:\n  [1] Monocellular (single-chain per wallet)\n  [2] Multicellular (multi-chain per wallet)\nEnter choice (1-2):', options: ['monocellular', 'multicellular'] },
-                { key: 'protocols', prompt: 'Select Protocol Invocations (comma-separated numbers):\n  [1] Datachain Rope (native)\n  [2] Hyperledger\n  [3] XDC Network\n  [4] Solana\n  [5] Polkadot\n  [6] Bitcoin\n  [7] Ethereum\nExample: 1,2,7', multiSelect: true },
-                { key: 'eIdentity', prompt: 'Enable eIdentity (Decentralized Digital Identity)?\n  [1] Datachain Foundation DID (W3C compliant)\n  [2] European eIDAS\n  [3] Mobile ID\n  [4] None\nEnter choice (1-4):', options: ['datachain-did', 'eidas', 'mobile-id', 'none'] },
-                { key: 'analytics', prompt: 'Select Data Analytics capabilities (comma-separated):\n  [1] Pattern Recognition\n  [2] Predictive Analytics\n  [3] Anomaly Detection\n  [4] Time Series Analysis\n  [5] Sentiment Analysis\nExample: 1,2,3', multiSelect: true },
-                { key: 'aiAgents', prompt: 'Select AI Agents to attach (comma-separated):\n  [1] InsightMiner (data analysis)\n  [2] StructureMiner (pattern extraction)\n  [3] ModelMiner (ML models)\n  [4] SentinelAI (security)\n  [5] OracleAI (predictions)\nExample: 1,4,5', multiSelect: true }
-            ],
-            community: [
-                { key: 'name', prompt: 'Enter Community name:', validate: v => v.length >= 2 },
-                { key: 'industry', prompt: 'Select Industry vertical:\n  [1] Banking & Finance\n  [2] Healthcare\n  [3] Automotive\n  [4] Mobility\n  [5] Hospitality\n  [6] Energy\n  [7] Agricultural\n  [8] Public Sector\nEnter choice (1-8):', options: ['banking', 'healthcare', 'automotive', 'mobility', 'hospitality', 'energy', 'agricultural', 'public-sector'] },
-                { key: 'scope', prompt: 'Select geographic scope:\n  [1] Global\n  [2] Regional\n  [3] Local\nEnter choice (1-3):', options: ['global', 'regional', 'local'] },
-                { key: 'dataWallets', prompt: 'Enter number of Data Wallets to generate:', validate: v => !isNaN(parseInt(v)) && parseInt(v) > 0, transform: v => parseInt(v) },
-                { key: 'cellType', prompt: 'Select Cell Type:\n  [1] Monocellular (single-chain per wallet)\n  [2] Multicellular (multi-chain per wallet)\nEnter choice (1-2):', options: ['monocellular', 'multicellular'] },
-                { key: 'protocols', prompt: 'Select Protocol Invocations (comma-separated numbers):\n  [1] Datachain Rope (native)\n  [2] Hyperledger\n  [3] XDC Network\n  [4] Solana\n  [5] Polkadot\n  [6] Bitcoin\n  [7] Ethereum\nExample: 1,2,7', multiSelect: true },
-                { key: 'eIdentity', prompt: 'Enable eIdentity (Decentralized Digital Identity)?\n  [1] Datachain Foundation DID (W3C compliant)\n  [2] European eIDAS\n  [3] Mobile ID\n  [4] None\nEnter choice (1-4):', options: ['datachain-did', 'eidas', 'mobile-id', 'none'] },
-                { key: 'kyc', prompt: 'KYC/AML Requirements:\n  [1] Full KYC (identity + address + income)\n  [2] Standard KYC (identity + address)\n  [3] Light KYC (identity only)\n  [4] None\nEnter choice (1-4):', options: ['full', 'standard', 'light', 'none'] },
-                { key: 'analytics', prompt: 'Select Data Analytics capabilities (comma-separated):\n  [1] Pattern Recognition\n  [2] Predictive Analytics\n  [3] Anomaly Detection\n  [4] Time Series Analysis\n  [5] Sentiment Analysis\nExample: 1,2,3', multiSelect: true },
-                { key: 'aiAgents', prompt: 'Select AI Agents to attach (comma-separated):\n  [1] InsightMiner (data analysis)\n  [2] StructureMiner (pattern extraction)\n  [3] ModelMiner (ML models)\n  [4] SentinelAI (security)\n  [5] OracleAI (predictions)\nExample: 1,4,5', multiSelect: true }
-            ]
-        };
-        
-        const protocolNames = ['Datachain Rope', 'Hyperledger', 'XDC Network', 'Solana', 'Polkadot', 'Bitcoin', 'Ethereum'];
-        const analyticsNames = ['Pattern Recognition', 'Predictive Analytics', 'Anomaly Detection', 'Time Series', 'Sentiment Analysis'];
-        const aiAgentNames = ['InsightMiner', 'StructureMiner', 'ModelMiner', 'SentinelAI', 'OracleAI'];
-        const industryNames = ['Banking & Finance', 'Healthcare', 'Automotive', 'Mobility', 'Hospitality', 'Energy', 'Agricultural', 'Public Sector'];
-        const eIdentityNames = ['Datachain Foundation DID', 'European eIDAS', 'Mobile ID', 'None'];
-        
-        function processWizardInput(input, output) {
-            const steps = wizardSteps[wizardState.type];
-            const currentStep = steps[wizardState.step];
-            
-            // Process input based on step type
-            let value = input.trim();
-            
-            if (currentStep.options) {
-                const idx = parseInt(value) - 1;
-                if (idx >= 0 && idx < currentStep.options.length) {
-                    value = currentStep.options[idx];
-                } else {
-                    output.innerHTML += `<span class="warning">Invalid choice. Please enter a number between 1 and ${currentStep.options.length}.</span>\n`;
-                    output.innerHTML += `<span class="highlight">${currentStep.prompt}</span>\n<span class="prompt">rope&gt;</span> `;
-                    return;
-                }
-            } else if (currentStep.multiSelect) {
-                const indices = value.split(',').map(n => parseInt(n.trim()) - 1);
-                value = indices.filter(i => i >= 0);
-            } else if (currentStep.validate && !currentStep.validate(value)) {
-                output.innerHTML += `<span class="warning">Invalid input. Please try again.</span>\n`;
-                output.innerHTML += `<span class="highlight">${currentStep.prompt}</span>\n<span class="prompt">rope&gt;</span> `;
-                return;
-            }
-            
-            if (currentStep.transform) {
-                value = currentStep.transform(value);
-            }
-            
-            wizardState.config[currentStep.key] = value;
-            wizardState.step++;
-            
-            // Check if wizard is complete
-            if (wizardState.step >= steps.length) {
-                completeWizard(output);
-            } else {
-                // Show next step
-                const nextStep = steps[wizardState.step];
-                output.innerHTML += `\n<span class="success">✓ ${currentStep.key}: ${formatValue(currentStep.key, value)}</span>\n\n`;
-                output.innerHTML += `<span class="highlight">${nextStep.prompt}</span>\n<span class="prompt">rope&gt;</span> `;
-            }
+
+        const CLI_RPC = 'https://erpc.datachain.network';
+        const CLI_EXPLORER_API = 'https://dcscan.io/api/v1';
+
+        function cliEsc(s) {
+            return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
-        
-        function formatValue(key, value) {
-            if (key === 'protocols') return value.map(i => protocolNames[i]).join(', ');
-            if (key === 'analytics') return value.map(i => analyticsNames[i]).join(', ');
-            if (key === 'aiAgents') return value.map(i => aiAgentNames[i]).join(', ');
-            if (key === 'dataWallets') return value.toLocaleString();
-            if (key === 'industry') return industryNames[['banking', 'healthcare', 'automotive', 'mobility', 'hospitality', 'energy', 'agricultural', 'public-sector'].indexOf(value)];
-            if (key === 'eIdentity') return eIdentityNames[['datachain-did', 'eidas', 'mobile-id', 'none'].indexOf(value)];
-            return value.charAt(0).toUpperCase() + value.slice(1);
+
+        async function cliRpc(method, params) {
+            const res = await fetch(CLI_RPC, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: method, params: params || [] })
+            });
+            const j = await res.json();
+            if (j.error) throw new Error('RPC error ' + j.error.code + ': ' + j.error.message);
+            return j.result;
         }
-        
-        function completeWizard(output) {
-            const config = wizardState.config;
-            const isFederation = wizardState.type === 'federation';
-            const consensus = isFederation ? 'DkP (Delegated Keeper Proof)' : 'PoA (Proof of Authority)';
-            const genId = '0x' + Math.random().toString(16).slice(2, 10) + '...' + Math.random().toString(16).slice(2, 6);
-            const instanceId = config.name.toLowerCase().replace(/\s/g, '-');
-            
-            // Protocol deployment configurations
-            const protocolConfigs = {
-                0: { // Datachain Rope
-                    name: 'Datachain Rope',
-                    chainId: 271828,
-                    rpc: `https://${instanceId}.erpc.datachain.network`,
-                    ws: `wss://${instanceId}.ws.datachain.network`,
-                    explorer: `https://dcscan.io/${isFederation ? 'federation' : 'community'}/${genId}`,
-                    consensus: consensus,
-                    native: true
-                },
-                1: { // Hyperledger
-                    name: 'Hyperledger Fabric',
-                    version: '2.5',
-                    channel: `${instanceId}-channel`,
-                    peer: `peer0.${instanceId}.datachain.network:7051`,
-                    orderer: `orderer.${instanceId}.datachain.network:7050`,
-                    ca: `ca.${instanceId}.datachain.network:7054`
-                },
-                2: { // XDC Network
-                    name: 'XDC Network',
-                    chainId: 50,
-                    rpc: `https://${instanceId}.xdc.datachain.network`,
-                    bridge: `0x${Math.random().toString(16).slice(2, 42)}`,
-                    masternode: true
-                },
-                3: { // Solana
-                    name: 'Solana',
-                    cluster: 'mainnet-beta',
-                    rpc: `https://${instanceId}.sol.datachain.network`,
-                    program: `${Math.random().toString(36).slice(2, 46)}`,
-                    bridge: `0x${Math.random().toString(16).slice(2, 42)}`
-                },
-                4: { // Polkadot
-                    name: 'Polkadot',
-                    parachain: Math.floor(Math.random() * 1000) + 2000,
-                    rpc: `wss://${instanceId}.dot.datachain.network`,
-                    relay: 'polkadot',
-                    xcm: true
-                },
-                5: { // Bitcoin
-                    name: 'Bitcoin',
-                    network: 'mainnet',
-                    rpc: `https://${instanceId}.btc.datachain.network`,
-                    bridge: `bc1q${Math.random().toString(36).slice(2, 42)}`,
-                    lightning: true
-                },
-                6: { // Ethereum
-                    name: 'Ethereum',
-                    chainId: 1,
-                    rpc: `https://${instanceId}.eth.datachain.network`,
-                    bridge: `0x${Math.random().toString(16).slice(2, 42)}`,
-                    l2: 'optimism'
-                }
-            };
-            
-            // Calculate instance requirements based on protocols
-            const wallets = config.dataWallets;
-            const protocolCount = config.protocols.length;
-            const cpuCores = Math.ceil(wallets / 500000) * 4 + (protocolCount * 2);
-            const gpuUnits = config.aiAgents.length > 2 ? Math.ceil(wallets / 1000000) : 0;
-            const ramGB = Math.ceil(wallets / 100000) * 8 + (protocolCount * 4);
-            const storageGB = Math.ceil(wallets / 10000) + (protocolCount * 50);
-            
-            // Generate protocol deployment details
-            const selectedProtocols = config.protocols.map(i => protocolConfigs[i]);
-            const hasMultipleChains = config.protocols.length > 1;
-            
-            output.innerHTML += `\n<span class="success">✓ ${wizardState.step > 0 ? Object.keys(config).pop() : 'Configuration'}: Complete</span>\n`;
-            output.innerHTML += `
-<span class="warning">═══════════════════════════════════════════════════════════════</span>
-<span class="highlight">                ${isFederation ? 'FEDERATION' : 'COMMUNITY'} GENERATION SYNTHESIS</span>
-<span class="warning">═══════════════════════════════════════════════════════════════</span>
 
-<span class="comment">┌─ BASIC CONFIGURATION ─────────────────────────────────────────┐</span>
-  Name:            <span class="highlight">${config.name}</span>
-  Instance ID:     <span class="highlight">${instanceId}</span>
-  ${isFederation ? 'Structure' : 'Industry'}:       <span class="highlight">${isFederation ? formatValue('structureType', config.structureType) : formatValue('industry', config.industry)}</span>
-  ${isFederation ? '' : 'Scope:           <span class="highlight">' + formatValue('scope', config.scope) + '</span>\n  '}Consensus:       <span class="highlight">${consensus}</span>
-  Cell Type:       <span class="highlight">${formatValue('cellType', config.cellType)}</span>
-<span class="comment">└───────────────────────────────────────────────────────────────┘</span>
-
-<span class="comment">┌─ DATA INFRASTRUCTURE ─────────────────────────────────────────┐</span>
-  Data Wallets:    <span class="highlight">${config.dataWallets.toLocaleString()}</span>
-  Strings (Chains):<span class="highlight">${config.dataWallets.toLocaleString()}</span> <span class="comment">(auto-generated)</span>
-  Total Capacity:  <span class="highlight">${(config.dataWallets * 1024).toLocaleString()} MB</span>
-<span class="comment">└───────────────────────────────────────────────────────────────┘</span>
-
-<span class="comment">┌─ PROTOCOL DEPLOYMENTS (${protocolCount} protocols) ──────────────────────────┐</span>
-${selectedProtocols.map(p => {
-    if (p.native) {
-        return `
-  <span class="success">■ ${p.name}</span> <span class="comment">(Primary Protocol)</span>
-    Chain ID:    <span class="highlight">${p.chainId}</span>
-    RPC:         <span class="highlight">${p.rpc}</span>
-    WebSocket:   <span class="highlight">${p.ws}</span>
-    Explorer:    <span class="highlight">${p.explorer}</span>
-    Consensus:   <span class="highlight">${p.consensus}</span>
-    Status:      <span class="success">✓ DEPLOYED</span>`;
-    } else if (p.name === 'Hyperledger Fabric') {
-        return `
-  <span class="success">■ ${p.name}</span> <span class="comment">(Enterprise)</span>
-    Version:     <span class="highlight">${p.version}</span>
-    Channel:     <span class="highlight">${p.channel}</span>
-    Peer:        <span class="highlight">${p.peer}</span>
-    Orderer:     <span class="highlight">${p.orderer}</span>
-    CA:          <span class="highlight">${p.ca}</span>
-    Status:      <span class="success">✓ DEPLOYED</span>`;
-    } else if (p.name === 'XDC Network') {
-        return `
-  <span class="success">■ ${p.name}</span> <span class="comment">(XinFin Hybrid)</span>
-    Chain ID:    <span class="highlight">${p.chainId}</span>
-    RPC:         <span class="highlight">${p.rpc}</span>
-    Bridge:      <span class="highlight">${p.bridge}</span>
-    Masternode:  <span class="highlight">${p.masternode ? 'Enabled' : 'Disabled'}</span>
-    Status:      <span class="success">✓ DEPLOYED</span>`;
-    } else if (p.name === 'Solana') {
-        return `
-  <span class="success">■ ${p.name}</span> <span class="comment">(High-Performance)</span>
-    Cluster:     <span class="highlight">${p.cluster}</span>
-    RPC:         <span class="highlight">${p.rpc}</span>
-    Program ID:  <span class="highlight">${p.program}</span>
-    Bridge:      <span class="highlight">${p.bridge}</span>
-    Status:      <span class="success">✓ DEPLOYED</span>`;
-    } else if (p.name === 'Polkadot') {
-        return `
-  <span class="success">■ ${p.name}</span> <span class="comment">(Cross-Chain)</span>
-    Parachain:   <span class="highlight">#${p.parachain}</span>
-    RPC:         <span class="highlight">${p.rpc}</span>
-    Relay:       <span class="highlight">${p.relay}</span>
-    XCM:         <span class="highlight">${p.xcm ? 'Enabled' : 'Disabled'}</span>
-    Status:      <span class="success">✓ DEPLOYED</span>`;
-    } else if (p.name === 'Bitcoin') {
-        return `
-  <span class="success">■ ${p.name}</span> <span class="comment">(Store of Value)</span>
-    Network:     <span class="highlight">${p.network}</span>
-    RPC:         <span class="highlight">${p.rpc}</span>
-    Bridge:      <span class="highlight">${p.bridge}</span>
-    Lightning:   <span class="highlight">${p.lightning ? 'Enabled' : 'Disabled'}</span>
-    Status:      <span class="success">✓ DEPLOYED</span>`;
-    } else if (p.name === 'Ethereum') {
-        return `
-  <span class="success">■ ${p.name}</span> <span class="comment">(Smart Contracts)</span>
-    Chain ID:    <span class="highlight">${p.chainId}</span>
-    RPC:         <span class="highlight">${p.rpc}</span>
-    Bridge:      <span class="highlight">${p.bridge}</span>
-    L2 Support:  <span class="highlight">${p.l2}</span>
-    Status:      <span class="success">✓ DEPLOYED</span>`;
-    }
-    return '';
-}).join('\n')}
-${hasMultipleChains ? `
-  <span class="warning">⚡ CROSS-CHAIN BRIDGE</span>
-    Bridge Type: <span class="highlight">Atomic Swap + Message Relay</span>
-    Protocols:   <span class="highlight">${selectedProtocols.map(p => p.name).join(' ↔ ')}</span>
-    Status:      <span class="success">✓ ACTIVE</span>` : ''}
-<span class="comment">└───────────────────────────────────────────────────────────────┘</span>
-
-<span class="comment">┌─ eIDENTITY CONFIGURATION ─────────────────────────────────────┐</span>
-  Provider:        <span class="highlight">${formatValue('eIdentity', config.eIdentity)}</span>
-  ${config.eIdentity === 'datachain-did' ? `DID Method:      <span class="highlight">did:dc:${config.name.toLowerCase().replace(/\\s/g, '-')}</span>
-  W3C Compliant:   <span class="success">✓ Yes</span>
-  Verifiable Cred: <span class="success">✓ Enabled</span>` : config.eIdentity === 'none' ? 'Status:          <span class="warning">Disabled</span>' : `Standard:        <span class="highlight">${config.eIdentity.toUpperCase()}</span>`}
-  ${!isFederation && config.kyc ? `KYC Level:       <span class="highlight">${formatValue('kyc', config.kyc)}</span>` : ''}
-<span class="comment">└───────────────────────────────────────────────────────────────┘</span>
-
-<span class="comment">┌─ AI & ANALYTICS (PREDICTABILITY) ─────────────────────────────┐</span>
-  Analytics:
-${config.analytics.map(i => `    ☑ ${analyticsNames[i]}`).join('\n')}
-  
-  AI Agents:
-${config.aiAgents.map(i => `    ☑ ${aiAgentNames[i]}`).join('\n')}
-<span class="comment">└───────────────────────────────────────────────────────────────┘</span>
-
-<span class="comment">┌─ INSTANCE DEPLOYMENT ─────────────────────────────────────────┐</span>
-  Instance Type:   <span class="highlight">${gpuUnits > 0 ? 'GPU-Accelerated' : 'CPU-Optimized'}</span>
-  CPU Cores:       <span class="highlight">${cpuCores} vCPUs</span>
-  ${gpuUnits > 0 ? `GPU Units:       <span class="highlight">${gpuUnits} × NVIDIA A100</span>\n  ` : ''}RAM:             <span class="highlight">${ramGB} GB</span>
-  Storage:         <span class="highlight">${storageGB} GB SSD</span>
-  Data Wallet:     <span class="highlight">Integrated (OES Gen 1)</span>
-<span class="comment">└───────────────────────────────────────────────────────────────┘</span>
-
-<span class="warning">⚡ Initializing ${isFederation ? 'Federation' : 'Community'} Generation Protocol...</span>
-
-<span class="success">✓ ${isFederation ? 'Federation' : 'Community'} Generated Successfully!</span>
-  ID: <span class="highlight">${genId}</span>
-  Status: <span class="success">ACTIVE</span>
-  Genesis Block: <span class="highlight">#0</span>
-
-<span class="comment"># Your ${isFederation ? 'federation' : 'community'} is now live on Datachain Rope Network</span>
-<span class="comment"># Access dashboard: https://dcscan.io/${isFederation ? 'federation' : 'community'}/${genId}</span>
+        const CLI_BOX = (title) =>
+`╔══════════════════════════════════════════════════════════════╗
+║                  ${title.padEnd(46)}║
+╚══════════════════════════════════════════════════════════════╝
 `;
-            
-            // Reset wizard state
-            wizardState = { active: false, type: null, step: 0, config: {} };
-            output.innerHTML += `\n<span class="prompt">rope&gt;</span> `;
+
+        const CLI_HELP_TEXT =
+`Usage: rope [OPTIONS] &lt;COMMAND&gt;
+
+<span class="highlight">Commands:</span>
+  node        Start a Rope node (validator, relay, or seeder)
+  keygen      Generate cryptographic keypairs for node identity
+  info        Display local node information and configuration
+  genesis     Initialize a new genesis federation configuration
+  query       Query network state and information via RPC
+  token       FAT token operations (balance, transfer)
+  version     Display version and build information
+  peer-id     Extract peer ID from node key file (useful for bootstrap configuration)
+  identity    Manage node deployer identity (Datawallet+ DID + ONCHAINID attestation)
+  governance  Master-node governance actions (suspend / isolate / erase nodes)
+  committee   Quipu Canon v2.0 Phase 2 — validator committee management
+  deploy      Deploy a new Datachain Rope node on a supported cloud provider
+  help        Print this message or the help of the given subcommand(s)
+
+<span class="highlight">Options:</span>
+  -v, --verbose  Enable verbose debug logging (set RUST_LOG=debug for more control)
+  -h, --help     Print help
+  -V, --version  Print version
+
+<span class="comment"># Live in this terminal: query status|peers|validators|string, token balance,</span>
+<span class="comment"># governance list-masters|info, identity show, version.</span>
+<span class="comment"># Node-local commands need the installed binary (see Installation below).</span>`;
+
+        const CLI_VERSION_TEXT =
+`Datachain Rope v0.1.0
+Build: release
+Rust: 1.92.0
+
+Features:
+  - String Lattice (DNA-inspired DAG)
+  - Testimony Consensus Protocol
+  - Organic Encryption System (OES)
+  - Hybrid Quantum-Resistant Cryptography
+  - DC FAT Native Token
+  - AI Testimony Agents`;
+
+        const CLI_LOCAL_ONLY =
+`<span class="warning">This command runs on your own machine (node keys / local config / cloud credentials).</span>
+Install the CLI first:
+
+  git clone https://github.com/KazeONGUENE/rope.git
+  cd rope &amp;&amp; cargo build --release -p rope-cli
+  ./target/release/rope --help`;
+
+        async function cliQueryStatus() {
+            const [chainIdHex, blockHex, peersHex] = await Promise.all([
+                cliRpc('eth_chainId'), cliRpc('eth_blockNumber'), cliRpc('net_peerCount')
+            ]);
+            const chainId = parseInt(chainIdHex, 16);
+            const block = parseInt(blockHex, 16);
+            const peers = parseInt(peersHex, 16);
+            return CLI_BOX('NETWORK STATUS') +
+`
+Chain ID:     ${chainId} (0x${chainId.toString(16).toUpperCase()})
+Block Height: ${block}
+Peer Count:   ${peers}
+
+RPC Endpoint: ${CLI_RPC}`;
         }
-        
-        const cliCommands = {
-            'help': `<span class="highlight">Available Commands:</span>
-  status              Show network status
-  federation create   Start Federation Generation Wizard
-  community create    Start Community Generation Wizard
-  wallet create       Generate a new data wallet
-  string submit       Submit a string to the lattice
-  testimony request   Request AI testimony validation
-  validators list     List active validators
-  protocols list      List available protocol invocations
-  clear               Clear the terminal`,
-            
-            'status': `<span class="success">✓ Network Status: HEALTHY</span>
-  Finality Time:    <span class="highlight">4.2s</span>
-  Active Validators: <span class="highlight">127</span>
-  AI Agents:         <span class="highlight">5</span>
-  Total Strings:     <span class="highlight">1,847,293</span>
-  Total Testimonies: <span class="highlight">892,451</span>
-  Latest Round:      <span class="highlight">847,291</span>`,
-            
-            'validators list': `<span class="highlight">Active Validators (127 total):</span>
-  1. <span class="highlight">0x7a8b9c...</span> - Stake: 50,000,000 FAT - Uptime: 99.9%
-  2. <span class="highlight">0x2d3e4f...</span> - Stake: 45,000,000 FAT - Uptime: 99.8%
-  3. <span class="highlight">0x5f6g7h...</span> - Stake: 42,000,000 FAT - Uptime: 99.7%
-  4. <span class="highlight">0x8i9j0k...</span> - Stake: 38,000,000 FAT - Uptime: 99.6%
-  ... and 123 more`,
-            
-            'protocols list': `<span class="highlight">Available Protocol Invocations:</span>
-  ☑ Datachain Rope  - Native protocol (required)
-  ☑ Hyperledger     - Enterprise blockchain  
-  ☑ XDC Network     - XinFin hybrid chain
-  ☑ Solana          - High-performance chain
-  ☑ Polkadot        - Cross-chain protocol
-  ☑ Bitcoin         - Store of value layer
-  ☑ Ethereum        - Smart contracts
-  ☐ Hashgraph       - Hedera consensus (coming soon)`,
-            
-            'wallet create': `<span class="warning">⚡ Generating Data Wallet...</span>
 
-<span class="success">✓ Data Wallet Created</span>
-  Address:    <span class="highlight">0x${Math.random().toString(16).slice(2, 10)}...${Math.random().toString(16).slice(2, 10)}</span>
-  Public Key: <span class="highlight">dilithium3_pk_${Math.random().toString(16).slice(2, 16)}</span>
-  DID:        <span class="highlight">did:dc:wallet-${Date.now()}</span>
-  OES Gen:    <span class="highlight">1</span>
-  
-<span class="comment"># Save your keystore file securely!</span>`,
-            
-            'string submit': `<span class="warning">⚡ Submitting String to Lattice...</span>
+        async function cliQueryValidators() {
+            const res = await fetch(CLI_EXPLORER_API + '/validators');
+            const d = await res.json();
+            let out = CLI_BOX('VALIDATOR SET') +
+`
+Active: ${d.activeCount}/${d.totalValidators}   Total staked: ${d.totalStaked} FAT   Avg uptime: ${d.avgUptime}%
 
-<span class="comment"># String submission requires authentication</span>
-<span class="comment"># Usage: rope string submit --payload "data" --parents [id1,id2]</span>
+NAME                     TYPE             STATUS     UPTIME   ADDRESS
+`;
+            (d.validators || []).forEach(v => {
+                out += `${cliEsc(String(v.name || '-')).padEnd(24)} ${cliEsc(String(v.type || '-')).padEnd(16)} ${cliEsc(String(v.status || '-')).padEnd(10)} ${(cliEsc(String(v.uptime || '-')) + '%').padEnd(8)} ${cliEsc(String(v.address || '-'))}\n`;
+            });
+            out += `\nSource: ${CLI_EXPLORER_API}/validators`;
+            return out;
+        }
 
-<span class="highlight">Example:</span>
-  rope string submit \\
-    --payload "0x48656c6c6f20576f726c64" \\
-    --parents ["0xabc123...", "0xdef456..."] \\
-    --nucleotide A \\
-    --requires-testimony true
+        async function cliQueryPeers() {
+            const [peersHex, reg] = await Promise.all([
+                cliRpc('net_peerCount'), cliRpc('rope_listMasterNodes')
+            ]);
+            const masters = (reg && reg.master_nodes) || [];
+            let out = CLI_BOX('NETWORK PEERS') +
+`
+EVM-layer peers (net_peerCount): ${parseInt(peersHex, 16)}
 
-<span class="success">✓ String Submitted</span>
-  String ID:   <span class="highlight">0x${Math.random().toString(16).slice(2, 10)}...${Math.random().toString(16).slice(2, 6)}</span>
-  Nucleotide:  <span class="highlight">A (Transaction)</span>
-  Status:      <span class="warning">Pending Testimony</span>
-  Estimated Finality: <span class="highlight">~4.2s</span>`,
-            
-            'testimony request': `<span class="warning">⚡ Requesting AI Testimony Validation...</span>
+Master-node mesh (${masters.length} nodes):
+`;
+            masters.forEach(m => {
+                out += `  ${cliEsc(String(m.slot || '-')).padEnd(6)} ${cliEsc(String(m.hostname || '-')).padEnd(17)} ${cliEsc(String(m.ip || '-')).padEnd(16)} ${cliEsc(String(m.provider || '-')).padEnd(13)} ${cliEsc(String(m.role || '-'))}\n`;
+            });
+            return out;
+        }
 
-<span class="highlight">AI Testimony Request</span>
-  String ID:   <span class="highlight">0x${Math.random().toString(16).slice(2, 10)}...</span>
-  Validators:  <span class="highlight">3 AI Agents assigned</span>
-  
-<span class="comment">Testimony Types:</span>
-  ☑ Semantic Validation    - Verifying logical consistency
-  ☑ Business Logic         - Checking compliance rules
-  ☑ Anomaly Detection      - Scanning for irregularities
-  
-<span class="success">✓ Testimonies Collected (3/3)</span>
-  Verdict:     <span class="success">VALID</span>
-  Confidence:  <span class="highlight">98.7%</span>
-  Finalized:   <span class="success">Yes</span>`,
-            
-            'clear': 'CLEAR'
-        };
-        
-        document.getElementById('cli-input').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                const input = this.value.trim();
-                const inputLower = input.toLowerCase();
-                const output = document.getElementById('cli-output');
-                
-                // Add command to output
-                output.innerHTML += `\n<span class="prompt">rope&gt;</span> ${input}\n`;
-                
-                // Check for clear/cancel commands first (always work, even in wizard)
-                if (inputLower === 'clear') {
-                    wizardState = { active: false, type: null, step: 0, config: {} };
-                    output.innerHTML = `<span class="comment"># Datachain Rope CLI v2.0.0</span>
-<span class="comment"># Connected to: erpc.datachain.network</span>
-<span class="comment"># Chain ID: 271828 | Genesis: 10B FAT</span>
+        async function cliQueryString(id) {
+            const desc = await cliRpc('rope_getString', [{ string_id: id }]);
+            const s = k => cliEsc(String(desc[k] != null ? desc[k] : '-'));
+            let out = CLI_BOX('STRING DESCRIPTOR') +
+`
+String ID:    ${s('string_id')}
+Kind:         ${s('kind')}
+Knot count:   ${s('knot_count')}
+Genesis knot: ${s('genesis_knot_id')}
+Head knot:    ${s('head_knot_id')}
+`;
+            if (desc.last_anchored_at) out += `Last anchor:  ${desc.last_anchored_at} (unix)\n`;
+            const label = desc.labels && desc.labels.display_name;
+            if (label) out += `Label:        ${cliEsc(label)}\n`;
+            return out;
+        }
+
+        async function cliTokenBalance(addr) {
+            const a = addr.startsWith('0x') ? addr : '0x' + addr;
+            const balHex = await cliRpc('eth_getBalance', [a, 'latest']);
+            const wei = BigInt(balHex);
+            const fat = Number(wei) / 1e18;
+            return CLI_BOX('TOKEN BALANCE') +
+`
+Address: ${cliEsc(a)}
+Balance: ${fat.toFixed(6)} FAT
+         (${wei.toString()} wei)`;
+        }
+
+        async function cliGovListMasters() {
+            const reg = await cliRpc('rope_listMasterNodes');
+            return cliEsc(JSON.stringify(reg, null, 2));
+        }
+
+        async function cliGovInfo() {
+            const info = await cliRpc('rope_governanceInfo');
+            return cliEsc(JSON.stringify(info, null, 2));
+        }
+
+        async function cliIdentityShow() {
+            const id = await cliRpc('rope_nodeIdentity');
+            return cliEsc(JSON.stringify(id, null, 2));
+        }
+
+        async function runCliCommand(raw) {
+            // Normalize: allow both "query status" and "rope query status".
+            let cmd = raw.trim().replace(/\s+/g, ' ');
+            if (/^rope\s/i.test(cmd)) cmd = cmd.replace(/^rope\s+/i, '');
+            const lower = cmd.toLowerCase();
+            const parts = cmd.split(' ');
+
+            if (lower === '--help' || lower === '-h' || lower === 'help' || lower === '') {
+                return CLI_HELP_TEXT;
+            }
+            if (lower === 'version' || lower === '--version' || lower === '-v') {
+                return CLI_VERSION_TEXT;
+            }
+            if (lower === 'query status')      return await cliQueryStatus();
+            if (lower === 'query validators')  return await cliQueryValidators();
+            if (lower === 'query peers')       return await cliQueryPeers();
+            if (parts[0] && parts[0].toLowerCase() === 'query' && parts[1] && parts[1].toLowerCase() === 'string') {
+                if (!parts[2]) return '<span class="warning">Usage: rope query string &lt;STRING_ID&gt;</span>';
+                return await cliQueryString(parts[2]);
+            }
+            if (parts[0] && parts[0].toLowerCase() === 'token' && parts[1] && parts[1].toLowerCase() === 'balance') {
+                if (!parts[2]) return '<span class="warning">Usage: rope token balance &lt;ADDRESS&gt;</span>';
+                return await cliTokenBalance(parts[2]);
+            }
+            if (parts[0] && parts[0].toLowerCase() === 'token' && parts[1] && parts[1].toLowerCase() === 'transfer') {
+                return `Transfer requires wallet signing.
+Use Datawallet+ app or web interface at https://datawallet.plus
+
+Or use MetaMask with:
+  Network: Datachain Rope
+  Chain ID: 271828
+  RPC: https://erpc.datachain.network`;
+            }
+            if (lower === 'governance list-masters') return await cliGovListMasters();
+            if (lower === 'governance info')         return await cliGovInfo();
+            if (lower === 'identity show')           return await cliIdentityShow();
+            if (/^(governance (suspend|isolate|erase|anchor-deployer)|identity (init-founder|sign-deployer|verify))/.test(lower)) {
+                return `<span class="warning">Signing actions need your Ed25519 key file and run from the installed binary only.</span>
+Example:
+  rope ${cliEsc(cmd)} --key ~/.rope/founder.key`;
+            }
+            if (/^(node|keygen|genesis|peer-id|committee|deploy|info)\b/.test(lower)) {
+                return CLI_LOCAL_ONLY;
+            }
+            return `<span class="warning">Unknown command: ${cliEsc(raw)}</span>
+Type <span class="highlight">rope --help</span> for available commands.`;
+        }
+
+        let cliBusy = false;
+        document.getElementById('cli-input').addEventListener('keypress', function (e) {
+            if (e.key !== 'Enter' || cliBusy) return;
+            const input = this.value.trim();
+            const output = document.getElementById('cli-output');
+            this.value = '';
+
+            if (input.toLowerCase() === 'clear') {
+                output.innerHTML = `<span class="comment"># Datachain Rope CLI — chainId 271828 — LIVE terminal</span>
+<span class="comment"># Read-only commands run against ${CLI_RPC} in real time.</span>
 
 <span class="prompt">rope&gt;</span> _`;
-                } else if (inputLower === 'cancel' && wizardState.active) {
-                    wizardState = { active: false, type: null, step: 0, config: {} };
-                    output.innerHTML += `<span class="warning">Wizard cancelled.</span>\n<span class="prompt">rope&gt;</span> `;
-                } else if (wizardState.active) {
-                    // Process wizard input
-                    processWizardInput(input, output);
-                } else if (inputLower === 'federation create') {
-                    wizardState = { active: true, type: 'federation', step: 0, config: {} };
-                    output.innerHTML += `
-<span class="warning">═══════════════════════════════════════════════════════════════</span>
-<span class="highlight">          FEDERATION GENERATION PROTOCOL - WIZARD MODE</span>
-<span class="warning">═══════════════════════════════════════════════════════════════</span>
-<span class="comment"># This wizard will guide you through creating a new Federation</span>
-<span class="comment"># Consensus: DkP (Delegated Keeper Proof) - auto-assigned</span>
-<span class="comment"># Type 'cancel' at any time to abort</span>
-
-<span class="highlight">${wizardSteps.federation[0].prompt}</span>
-<span class="prompt">rope&gt;</span> `;
-                } else if (inputLower === 'community create') {
-                    wizardState = { active: true, type: 'community', step: 0, config: {} };
-                    output.innerHTML += `
-<span class="warning">═══════════════════════════════════════════════════════════════</span>
-<span class="highlight">          COMMUNITY GENERATION PROTOCOL - WIZARD MODE</span>
-<span class="warning">═══════════════════════════════════════════════════════════════</span>
-<span class="comment"># This wizard will guide you through creating a new Community</span>
-<span class="comment"># Consensus: PoA (Proof of Authority) - auto-assigned</span>
-<span class="comment"># Type 'cancel' at any time to abort</span>
-
-<span class="highlight">${wizardSteps.community[0].prompt}</span>
-<span class="prompt">rope&gt;</span> `;
-                } else if (inputLower === 'cancel' && wizardState.active) {
-                    wizardState = { active: false, type: null, step: 0, config: {} };
-                    output.innerHTML += `<span class="warning">Wizard cancelled.</span>\n<span class="prompt">rope&gt;</span> `;
-                } else if (cliCommands[inputLower]) {
-                    output.innerHTML += '\n' + cliCommands[inputLower] + '\n<span class="prompt">rope&gt;</span> ';
-                } else {
-                    output.innerHTML += `\n<span class="warning">Unknown command: ${input}</span>
-Type <span class="highlight">help</span> for available commands.\n<span class="prompt">rope&gt;</span> `;
-                }
-                
-                this.value = '';
-                output.parentElement.scrollTop = output.parentElement.scrollHeight;
+                return;
             }
+
+            output.innerHTML += `\n<span class="prompt">rope&gt;</span> ${cliEsc(input)}\n`;
+            cliBusy = true;
+            output.innerHTML += `<span class="comment">…</span>`;
+            const scroll = () => { output.parentElement.scrollTop = output.parentElement.scrollHeight; };
+            scroll();
+
+            runCliCommand(input).then(result => {
+                output.innerHTML = output.innerHTML.replace(/<span class="comment">…<\/span>$/, '');
+                output.innerHTML += '\n' + result + '\n<span class="prompt">rope&gt;</span> ';
+            }).catch(err => {
+                output.innerHTML = output.innerHTML.replace(/<span class="comment">…<\/span>$/, '');
+                output.innerHTML += `\n<span class="warning">Error: ${cliEsc(err.message || String(err))}</span>\n<span class="prompt">rope&gt;</span> `;
+            }).finally(() => {
+                cliBusy = false;
+                scroll();
+            });
         });
         
         // Initialize animations
@@ -2912,6 +3157,259 @@ Type <span class="highlight">help</span> for available commands.\n<span class="p
                 }
             });
         });
+    </script>
+
+    <script>
+    /* ========================================================================
+     * API Keys manager — powered by Datachain ID (id.datachain.network)
+     * and the DCScan API-key service (dcscan.io/api/v1/keys, open CORS).
+     * ===================================================================== */
+    (function () {
+      'use strict';
+      var IDP_URL = 'https://id.datachain.network';
+      var API_URL = 'https://dcscan.io';
+      var LS_TOKEN = 'datachain_id_token';
+      var LS_EMAIL = 'datachain_id_email';
+      var LS_ADDR = 'datachain_id_addr';
+
+      var elOut = document.getElementById('keys-signedout');
+      var elIn = document.getElementById('keys-signedin');
+      if (!elOut || !elIn) return;
+      var elWho = document.getElementById('keys-who');
+      var elAddr = document.getElementById('keys-addr');
+      var elRows = document.getElementById('keys-rows');
+      var elNew = document.getElementById('keys-newkey');
+      var elFbOut = document.getElementById('keys-feedback-out');
+      var elFbIn = document.getElementById('keys-feedback-in');
+
+      function token() { return localStorage.getItem(LS_TOKEN) || ''; }
+      function tokenValid(t) {
+        try {
+          var p = JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+          return p.exp && p.exp * 1000 > Date.now();
+        } catch (e) { return false; }
+      }
+      function feedback(msg, isErr) {
+        var el = elOut.style.display !== 'none' ? elFbOut : elFbIn;
+        elFbOut.textContent = ''; elFbOut.className = 'keys-feedback';
+        elFbIn.textContent = ''; elFbIn.className = 'keys-feedback';
+        el.textContent = msg || '';
+        el.className = 'keys-feedback ' + (msg ? (isErr ? 'err' : 'ok') : '');
+      }
+      function esc(s) {
+        return String(s).replace(/[&<>"']/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+      }
+      function fmtDate(epoch) {
+        if (!epoch) return '—';
+        return new Date(epoch * 1000).toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
+      }
+      function authHeaders() {
+        return { 'Authorization': 'Bearer ' + token(), 'Content-Type': 'application/json' };
+      }
+      function storeSession(data) {
+        var user = data.user || {};
+        localStorage.setItem(LS_TOKEN, data.token);
+        localStorage.setItem(LS_EMAIL, user.email || '');
+        localStorage.setItem(LS_ADDR, user.primary_address || '');
+      }
+      function clearSession() {
+        localStorage.removeItem(LS_TOKEN);
+        localStorage.removeItem(LS_EMAIL);
+        localStorage.removeItem(LS_ADDR);
+      }
+      function handleAuthFailure(data) {
+        if (data && (data.error === 'invalid_token' || data.error === 'missing_token')) {
+          clearSession();
+          render();
+          feedback('Session expired — please sign in again.', true);
+          return true;
+        }
+        return false;
+      }
+
+      function render() {
+        var t = token();
+        var signedIn = t && tokenValid(t);
+        elOut.style.display = signedIn ? 'none' : '';
+        elIn.style.display = signedIn ? '' : 'none';
+        if (signedIn) {
+          elWho.textContent = localStorage.getItem(LS_EMAIL) || 'Signed in';
+          elAddr.textContent = localStorage.getItem(LS_ADDR) || '';
+          loadKeys();
+        }
+      }
+
+      function loadKeys() {
+        elRows.innerHTML = '<tr><td colspan="6" style="color:var(--gray-400)">Loading…</td></tr>';
+        fetch(API_URL + '/api/v1/keys', { headers: authHeaders() })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+          .then(function (res) {
+            if (!res.ok) {
+              if (!handleAuthFailure(res.data)) feedback(res.data.message || 'Failed to load keys.', true);
+              return;
+            }
+            var keys = res.data.keys || [];
+            if (!keys.length) {
+              elRows.innerHTML = '<tr><td colspan="6" style="color:var(--gray-400)">No keys yet — create your first one above.</td></tr>';
+              return;
+            }
+            elRows.innerHTML = keys.map(function (k) {
+              return '<tr>' +
+                '<td class="mono' + (k.revoked ? ' key-revoked' : '') + '">' + esc(k.prefix) + '</td>' +
+                '<td>' + esc(k.label) + '</td>' +
+                '<td>' + fmtDate(k.created_at) + '</td>' +
+                '<td>' + (k.request_count || 0) + '</td>' +
+                '<td>' + (k.revoked ? '<span class="key-badge revoked">revoked</span>' : '<span class="key-badge live">active</span>') + '</td>' +
+                '<td>' + (k.revoked ? '' : '<button class="btn btn-danger" data-revoke="' + esc(k.id) + '" style="padding:0.25rem 0.625rem;font-size:0.75rem">Revoke</button>') + '</td>' +
+                '</tr>';
+            }).join('');
+            elRows.querySelectorAll('[data-revoke]').forEach(function (btn) {
+              btn.addEventListener('click', function () { revokeKey(btn.getAttribute('data-revoke'), btn); });
+            });
+          })
+          .catch(function () { feedback('Network error while loading keys.', true); });
+      }
+
+      function createKey() {
+        var label = document.getElementById('keys-label').value.trim();
+        var btn = document.getElementById('keys-createbtn');
+        btn.disabled = true;
+        feedback('');
+        fetch(API_URL + '/api/v1/keys', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({ label: label || 'default' })
+        })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+          .then(function (res) {
+            btn.disabled = false;
+            if (!res.ok) {
+              if (!handleAuthFailure(res.data)) feedback(res.data.message || 'Key creation failed.', true);
+              return;
+            }
+            document.getElementById('keys-label').value = '';
+            elNew.innerHTML =
+              '<div class="key-new">' +
+                '<div class="key-new-title"><i class="fas fa-circle-check"></i>Key created — copy it now, it is shown only once</div>' +
+                '<div class="key-new-value"><span>' + esc(res.data.key) + '</span>' +
+                '<button class="btn btn-secondary" id="keys-copybtn" style="padding:0.25rem 0.625rem;font-size:0.75rem;flex-shrink:0"><i class="fas fa-copy"></i> Copy</button></div>' +
+                '<div class="key-new-note">Use it as the <code>X-API-Key</code> header on https://dcscan.io/api/v1/*. This value is not recoverable later.</div>' +
+              '</div>';
+            document.getElementById('keys-copybtn').addEventListener('click', function () {
+              navigator.clipboard.writeText(res.data.key).then(function () { feedback('Key copied to clipboard.'); });
+            });
+            loadKeys();
+          })
+          .catch(function () { btn.disabled = false; feedback('Network error while creating the key.', true); });
+      }
+
+      function revokeKey(id, btn) {
+        btn.disabled = true;
+        fetch(API_URL + '/api/v1/keys/' + encodeURIComponent(id), { method: 'DELETE', headers: authHeaders() })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+          .then(function (res) {
+            if (!res.ok) {
+              btn.disabled = false;
+              if (!handleAuthFailure(res.data)) feedback(res.data.message || 'Revoke failed.', true);
+              return;
+            }
+            feedback('Key revoked.');
+            loadKeys();
+          })
+          .catch(function () { btn.disabled = false; feedback('Network error while revoking.', true); });
+      }
+
+      /* Datawallet+ credential sign-in via Datachain ID */
+      function credentialSignIn() {
+        var email = document.getElementById('keys-email').value.trim();
+        var password = document.getElementById('keys-password').value;
+        var btn = document.getElementById('keys-loginbtn');
+        if (!email || !password) { feedback('Enter your Datawallet+ email and password.', true); return; }
+        btn.disabled = true;
+        feedback('Signing in…');
+        fetch(IDP_URL + '/v1/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email, password: password })
+        })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+          .then(function (res) {
+            btn.disabled = false;
+            if (!res.ok || !res.data.token) {
+              feedback((res.data && res.data.message) || 'Sign-in failed — check your credentials.', true);
+              return;
+            }
+            document.getElementById('keys-password').value = '';
+            storeSession(res.data);
+            render();
+            feedback('Signed in as ' + email + '.');
+          })
+          .catch(function () { btn.disabled = false; feedback('Network error while signing in.', true); });
+      }
+
+      /* EIP-191 wallet-signature sign-in via Datachain ID */
+      function walletSignIn() {
+        var btn = document.getElementById('keys-walletsign');
+        var eth = window.ethereum;
+        if (!eth) { feedback('No EVM wallet detected — install MetaMask or a compatible wallet.', true); return; }
+        btn.disabled = true;
+        feedback('Requesting wallet account…');
+        eth.request({ method: 'eth_requestAccounts' })
+          .then(function (accounts) {
+            var address = (accounts && accounts[0] || '').toLowerCase();
+            if (!address) throw new Error('No account returned by the wallet.');
+            var timestamp = Math.floor(Date.now() / 1000);
+            var message = 'DATACHAIN-ID-AUTH\n' + address + '\n' + timestamp;
+            feedback('Waiting for your signature…');
+            return eth.request({ method: 'personal_sign', params: [message, address] })
+              .then(function (signature) {
+                feedback('Verifying signature…');
+                return fetch(IDP_URL + '/v1/auth/wallet', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ address: address, timestamp: timestamp, signature: signature })
+                });
+              });
+          })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+          .then(function (res) {
+            btn.disabled = false;
+            if (!res.ok || !res.data.token) {
+              var msg = res.data && res.data.error === 'wallet_not_registered'
+                ? 'This wallet is not linked to any Datawallet+ account.'
+                : (res.data && res.data.message) || 'Wallet sign-in failed.';
+              feedback(msg, true);
+              return;
+            }
+            storeSession(res.data);
+            render();
+            feedback('Signed in with wallet signature.');
+          })
+          .catch(function (err) {
+            btn.disabled = false;
+            feedback((err && err.message) || 'Wallet sign-in failed.', true);
+          });
+      }
+
+      document.getElementById('keys-loginbtn').addEventListener('click', credentialSignIn);
+      document.getElementById('keys-password').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') credentialSignIn();
+      });
+      document.getElementById('keys-walletsign').addEventListener('click', walletSignIn);
+      document.getElementById('keys-createbtn').addEventListener('click', createKey);
+      document.getElementById('keys-label').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') createKey();
+      });
+      document.getElementById('keys-signout').addEventListener('click', function () {
+        clearSession();
+        render();
+        feedback('Signed out.');
+      });
+
+      render();
+    })();
     </script>
 </body>
 </html>

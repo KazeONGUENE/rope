@@ -65,8 +65,18 @@ RUN mkdir -p /home/indexer/data \
     && mkdir -p /home/indexer/config
 
 # Environment variables
+#
+# M3 (2026-07-25 security audit): DATABASE_URL previously defaulted to the
+# literal credential `dcscan:password`. That is a real, guessable password
+# baked into a public image layer, not a placeholder — anyone who pulls this
+# image (or inspects its layers) learns a working-looking Postgres password.
+# There is intentionally NO default DATABASE_URL below. `docker-compose.yml`
+# always supplies the real value via `environment:` (see the `rope-indexer`
+# service, which injects `${POSTGRES_PASSWORD}` from the deploy-time secret),
+# so this is not a functional regression. If this image is ever run without
+# that override, the indexer MUST fail fast on an empty/missing DATABASE_URL
+# rather than silently connecting with a shipped weak credential.
 ENV RUST_LOG=info
-ENV DATABASE_URL=postgresql://dcscan:password@postgres:5432/dcscan
 ENV REDIS_URL=redis://redis:6379
 ENV RPC_URL=http://rope-node:8545
 ENV WS_URL=ws://rope-node:8546

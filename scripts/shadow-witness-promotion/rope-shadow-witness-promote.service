@@ -1,0 +1,16 @@
+[Unit]
+Description=rope-shadow-witness — auto-promotion to BLUE+GREEN at canary T+7d
+Documentation=https://github.com/Datachain-Foundation/datachain-rope/tree/main/datachain-rope/scripts/shadow-witness-promotion
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/usr/local/bin/promote-shadow-witness.sh
+ConditionPathExists=!/etc/rope-shadow-witness/promotion-disabled
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/local/bin/promote-shadow-witness.sh
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=3h

@@ -1,0 +1,72 @@
+---
+description: dcscan.io static frontend lives in deploy/nginx/html/dcscan, NOT crates/rope-explorer/static — read before editing any dcscan.io HTML/CSS/JS
+globs: ["crates/rope-explorer/static/**", "deploy/nginx/html/dcscan/**", "deploy/deploy-static.sh", "deploy/deploy-explorer.sh"]
+alwaysApply: true
+---
+
+# dcscan.io static frontend: two trees exist, only one is live
+
+**Date:** 2026-07-24
+**Discovered by:** DCSwap AI Agent, while fixing a "Legacy DC Remaining not decreasing" bug reported by a user.
+
+## The gotcha
+
+There are **two separate static-file trees** in this repo that both look like "the dcscan.io frontend":
+
+1. `deploy/nginx/html/dcscan/` — **this is what's actually live.** The `rope-nginx`
+   Docker container mounts this directory (`/opt/datachain-rope/code/deploy/nginx/html/dcscan`
+   on the server) and serves every HTML page (`/`, `/supply`, `/txs`, `/address/*`,
+   `/token/*`, ...) straight off disk via `try_files`. Nginx only proxies `/api/*`
+   to the dc-explorer Rust binary — it never touches the other tree for HTML.
+
+2. `crates/rope-explorer/static/` — used only by dc-explorer's own bundled/fallback
+   static server (`DCSCAN_STATIC` env var / `ServeDir`). dc-explorer *is* running
+   in production (bound to `127.0.0.1:3001`) and *will* happily serve this tree if
+   you curl it directly on that port — which makes edits here feel like they
+   "worked" during testing. But the public site never reaches this tree because
+   nginx intercepts every request before it gets to dc-explorer, except `/api/*`.
+
+**If you edit `crates/rope-explorer/static/*.html` expecting it to change
+`https://dcscan.io`, it will not.** This exact mistake shipped a broken fix
+silently for an unknown period (discovered 2026-07-24): a "Legacy DC Remaining"
+calculation fix and a migration-tx categorization fix were both made only in
+`crates/rope-explorer/static/`, verified against `curl localhost:3001` (looked
+correct), but never appeared on `dcscan.io` until someone checked with a real
+browser/production curl.
+
+## Making this worse: the two trees had already diverged for months
+
+Production's `deploy/nginx/html/dcscan/` had accumulated pages/assets that were
+**never committed to git** (`agents/index.html`, `contact/index.html`,
+`api/index.html`, `assets/world-map.jpg`, etc. — presumably added via direct
+server edits or an out-of-band rsync at some point). Meanwhile git's history for
+that path stopped at old commits (RopeAgent production, vote modal, D3.js
+charts), while all the newer Quipu Canon work landed in
+`crates/rope-explorer/static/` instead — a tree nginx doesn't serve.
+
+This was reconciled on 2026-07-24 by pulling the live server state back into
+`deploy/nginx/html/dcscan/` in git (`rsync -avz --delete rope-vps:.../dcscan/
+deploy/nginx/html/dcscan/`), so the working tree now matches production. If you
+run `git status` and see a pile of changes under `deploy/nginx/html/dcscan/`
+that you didn't make, that's this reconciliation — review and commit it, don't
+discard it.
+
+## Going forward
+
+- **Editing a dcscan.io page? Edit `deploy/nginx/html/dcscan/`, not
+  `crates/rope-explorer/static/`.** If a page exists in both, they've diverged —
+  treat `deploy/nginx/html/dcscan/` as the one that matters for production and
+  update `crates/rope-explorer/static/` too only for consistency, not as the fix.
+- **Deploy static-only changes with `./deploy/deploy-static.sh --dry-run` then
+  `--apply`.** It rsyncs `deploy/nginx/html/dcscan/` to the server and reloads
+  the `rope-nginx` container — no Rust rebuild needed, no risk of clobbering
+  production-only files that aren't in git (unlike a naive `rsync --delete` of
+  the whole `deploy/` tree from a stale local checkout).
+- **Never trust `curl localhost:3001` alone as proof a dcscan.io fix is live.**
+  Always confirm against `curl https://dcscan.io/...` (or through
+  `docker exec rope-nginx curl http://localhost/...`) since that's the actual
+  request path a user's browser takes.
+- Longer-term cleanup worth doing (not done yet, flagging for whoever picks
+  this up): decide on ONE canonical tree and delete/redirect the other, or make
+  `deploy/nginx/html/dcscan/` a generated copy of `crates/rope-explorer/static/`
+  built at deploy time, so this can't diverge again.

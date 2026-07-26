@@ -203,6 +203,22 @@ enum Commands {
         quantum: bool,
     },
 
+    /// Create or inspect a non-custodial Datachain Rope EVM wallet
+    ///
+    /// Datachain Rope (chain 271828) is EVM-compatible, so a standard
+    /// secp256k1 keypair works out of the box — the same kind of key used
+    /// by Ethereum, MetaMask, and Datawallet+. This is entirely offline:
+    /// no network call is ever made and no key material leaves this
+    /// process, matching the non-custodial posture of the web tool at
+    /// https://dcscan.io/create-wallet.
+    ///
+    /// Examples:
+    ///   rope wallet new                     Print a fresh address + private key
+    ///   rope wallet new -o ~/.rope/wallet    Also save key files to disk
+    ///   rope wallet address <PRIVATE_KEY>    Derive the address for a key you already have
+    #[command(subcommand)]
+    Wallet(WalletAction),
+
     /// Display local node information and configuration
     ///
     /// Examples:
@@ -299,6 +315,18 @@ enum Commands {
         action: GovernanceCommands,
     },
 
+    /// Quipu Canon v2.0 Phase 2 — validator committee management
+    ///
+    /// Workflow to build the committee roster (`validator_set.json`):
+    ///   1. On each node:  rope committee identity -d /opt/datachain-rope/data > node-N.identity.json
+    ///   2. On the operator workstation:
+    ///      rope committee build -o validator_set.json node-1.identity.json node-2.identity.json ...
+    ///   3. Ship the SAME validator_set.json to every node's data dir and restart.
+    Committee {
+        #[command(subcommand)]
+        action: CommitteeCommands,
+    },
+
     /// Deploy a new Datachain Rope node on a supported cloud provider
     ///
     /// Examples:
@@ -332,6 +360,28 @@ enum Commands {
         /// Dry run — print what would be provisioned without calling the cloud API
         #[arg(long)]
         dry_run: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum WalletAction {
+    /// Generate a brand-new non-custodial secp256k1 keypair + EIP-55 address
+    New {
+        /// Directory to also save `address.txt` and `private-key.txt` to.
+        /// If omitted, the key is printed to stdout only and nothing touches disk.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Skip the interactive safety warning (for scripts/CI)
+        #[arg(long)]
+        yes: bool,
+    },
+
+    /// Derive the Datachain Rope address for a private key you already hold
+    Address {
+        /// 32-byte hex private key, with or without the 0x prefix. Never
+        /// logged or written anywhere by this command — used in-memory only.
+        private_key: String,
     },
 }
 
@@ -479,6 +529,44 @@ enum GovernanceCommands {
 }
 
 #[derive(Subcommand)]
+enum CommitteeCommands {
+    /// Print this node's consensus identity (creates the validator key
+    /// in the data dir if it does not exist yet)
+    ///
+    /// Example: rope committee identity -d /opt/datachain-rope/data > node-1.identity.json
+    Identity {
+        /// Node data directory (where validator_key.bin lives)
+        #[arg(short, long, default_value = "~/.rope")]
+        data_dir: PathBuf,
+    },
+
+    /// Assemble a committee roster (validator_set.json) from N identity files
+    ///
+    /// Each input file is the JSON printed by `rope committee identity`.
+    /// The output is a ValidatorSetSnapshot that every node loads from
+    /// its data dir at startup.
+    ///
+    /// Example: rope committee build -o validator_set.json node-*.identity.json
+    Build {
+        /// Output roster path
+        #[arg(short, long, default_value = "validator_set.json")]
+        output: PathBuf,
+
+        /// Identity JSON files (one per validator)
+        #[arg(required = true)]
+        identities: Vec<PathBuf>,
+    },
+
+    /// Summarize an existing roster file
+    ///
+    /// Example: rope committee show validator_set.json
+    Show {
+        /// Roster path
+        roster: PathBuf,
+    },
+}
+
+#[derive(Subcommand)]
 enum QueryCommands {
     /// Lookup a string in the lattice by its ID
     ///
@@ -540,13 +628,17 @@ fn init_logging(verbose: bool) {
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"))
     };
 
+    // Logs go to stderr so commands that print machine-readable JSON to
+    // stdout (e.g. `rope committee identity > node.identity.json`) stay
+    // pipe-safe.
     tracing_subscriber::registry()
         .with(env_filter)
         .with(
             tracing_subscriber::fmt::layer()
                 .with_target(true)
                 .with_thread_ids(false)
-                .with_file(false),
+                .with_file(false)
+                .with_writer(std::io::stderr),
         )
         .init();
 }
@@ -560,6 +652,77 @@ fn expand_path(path: &PathBuf) -> PathBuf {
         }
     }
     path.clone()
+}
+
+/// EIP-55 mixed-case checksum encoding of a lowercase hex address (without
+/// the `0x` prefix). Matches the algorithm used by ethers.js, MetaMask, and
+/// `DATAWALLET+ReactNative/src/lib/WalletCrypto.ts` so addresses generated
+/// here render identically everywhere else in the ecosystem.
+fn eip55_checksum(address_lower_hex: &str) -> String {
+    use sha3::{Digest, Keccak256};
+    let mut hasher = Keccak256::new();
+    hasher.update(address_lower_hex.as_bytes());
+    let hash = hasher.finalize();
+    let mut out = String::with_capacity(42);
+    out.push_str("0x");
+    for (i, c) in address_lower_hex.chars().enumerate() {
+        if c.is_ascii_digit() {
+            out.push(c);
+            continue;
+        }
+        let byte = hash[i / 2];
+        let nibble = if i % 2 == 0 { byte >> 4 } else { byte & 0x0f };
+        if nibble >= 8 {
+            out.push(c.to_ascii_uppercase());
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// Derive the keccak256/EIP-55 Datachain Rope (EVM-compatible) address from a
+/// secp256k1 verifying key, per the standard Ethereum address derivation:
+/// keccak256(uncompressed_pubkey[1..])[12..32].
+fn rope_address_from_verifying_key(vk: &k256::ecdsa::VerifyingKey) -> String {
+    use sha3::{Digest, Keccak256};
+    let uncompressed = vk.to_encoded_point(false);
+    let pk_bytes = uncompressed.as_bytes(); // 65 bytes: 0x04 || X || Y
+    let mut hasher = Keccak256::new();
+    hasher.update(&pk_bytes[1..]);
+    let hash = hasher.finalize();
+    let addr_lower = hex::encode(&hash[12..32]);
+    eip55_checksum(&addr_lower)
+}
+
+/// Generate a brand-new, cryptographically random secp256k1 keypair entirely
+/// in-process (CSPRNG via OS entropy). Returns `(private_key_hex, address)`.
+/// No network call, no disk write — callers decide whether to persist it.
+fn generate_rope_wallet() -> (String, String) {
+    use k256::ecdsa::SigningKey;
+    use rand::rngs::OsRng;
+
+    let signing_key = SigningKey::random(&mut OsRng);
+    let verifying_key = signing_key.verifying_key();
+    let address = rope_address_from_verifying_key(verifying_key);
+    let private_key_hex = format!("0x{}", hex::encode(signing_key.to_bytes()));
+    (private_key_hex, address)
+}
+
+/// Derive the Datachain Rope address for a private key the caller already
+/// holds, without generating anything new.
+fn rope_address_from_private_key(private_key_hex: &str) -> anyhow::Result<String> {
+    use k256::ecdsa::SigningKey;
+
+    let trimmed = private_key_hex.trim().trim_start_matches("0x");
+    let bytes = hex::decode(trimmed)
+        .map_err(|e| anyhow::anyhow!("private key must be 64 hex characters: {e}"))?;
+    if bytes.len() != 32 {
+        anyhow::bail!("private key must decode to exactly 32 bytes, got {}", bytes.len());
+    }
+    let signing_key = SigningKey::from_slice(&bytes)
+        .map_err(|e| anyhow::anyhow!("not a valid secp256k1 private key: {e}"))?;
+    Ok(rope_address_from_verifying_key(signing_key.verifying_key()))
 }
 
 #[tokio::main]
@@ -646,6 +809,63 @@ async fn main() -> anyhow::Result<()> {
             println!("Public key: {:?}", pub_key_path);
         }
 
+        Commands::Wallet(action) => match action {
+            WalletAction::New { output, yes } => {
+                if !yes {
+                    eprintln!("WARNING: this generates a real secp256k1 private key for");
+                    eprintln!("Datachain Rope (chain 271828). It is created locally in this");
+                    eprintln!("process only — no network call is made and nothing is sent");
+                    eprintln!("anywhere. Nobody, including the Datachain Foundation, can");
+                    eprintln!("recover this key if you lose it. Anyone who obtains it can");
+                    eprintln!("spend everything the address ever holds. Press Ctrl+C now to");
+                    eprintln!("abort, or Enter to continue.");
+                    let mut discard = String::new();
+                    std::io::stdin().read_line(&mut discard).ok();
+                }
+
+                let (private_key_hex, address) = generate_rope_wallet();
+
+                println!("Datachain Rope wallet generated (chain 271828):");
+                println!("  Address:     {}", address);
+                println!("  Private key: {}", private_key_hex);
+                println!();
+                println!("Import the private key above into Datawallet+ or MetaMask to");
+                println!("start using this address. Add Datachain Rope manually if needed:");
+                println!("  Chain ID:   271828 (0x425d4)");
+                println!("  RPC URL:    https://erpc.datachain.network");
+                println!("  Explorer:   https://dcscan.io");
+                println!("  Currency:   DC FAT (18 decimals)");
+
+                if let Some(dir) = output {
+                    let dir = expand_path(&dir);
+                    std::fs::create_dir_all(&dir)?;
+                    let addr_path = dir.join("address.txt");
+                    let key_path = dir.join("private-key.txt");
+                    std::fs::write(&addr_path, format!("{address}\n"))?;
+                    #[cfg(unix)]
+                    {
+                        use std::os::unix::fs::PermissionsExt;
+                        std::fs::write(&key_path, format!("{private_key_hex}\n"))?;
+                        std::fs::set_permissions(&key_path, std::fs::Permissions::from_mode(0o600))?;
+                    }
+                    #[cfg(not(unix))]
+                    {
+                        std::fs::write(&key_path, format!("{private_key_hex}\n"))?;
+                    }
+                    println!();
+                    println!("Saved:");
+                    println!("  {:?} (public — safe to share)", addr_path);
+                    println!("  {:?} (SECRET — do not share, do not commit to git)", key_path);
+                }
+            }
+
+            WalletAction::Address { private_key } => {
+                let address = rope_address_from_private_key(&private_key)
+                    .map_err(|e| anyhow::anyhow!("invalid private key: {e}"))?;
+                println!("{address}");
+            }
+        },
+
         Commands::Info { data_dir } => {
             let data_dir = expand_path(&data_dir);
 
@@ -705,9 +925,51 @@ async fn main() -> anyhow::Result<()> {
 
             match query {
                 QueryCommands::String { id } => {
-                    println!("Querying string: {}", id);
-                    println!("String query not yet available via JSON-RPC");
-                    println!("Use the native Rope API for string queries");
+                    // Quipu Canon v1.2 — rope_getString accepts { string_id } (kind
+                    // defaults to wallet) or a bare wallet address.
+                    let params = vec![serde_json::json!({ "string_id": id })];
+                    match rpc.call("rope_getString", params).await {
+                        Ok(desc) => {
+                            println!("╔══════════════════════════════════════════════════════════════╗");
+                            println!("║                  STRING DESCRIPTOR                           ║");
+                            println!("╚══════════════════════════════════════════════════════════════╝");
+                            println!();
+                            let s = |k: &str| {
+                                desc.get(k)
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("-")
+                                    .to_string()
+                            };
+                            let n =
+                                |k: &str| desc.get(k).and_then(|v| v.as_u64()).unwrap_or(0);
+                            println!("String ID:    {}", s("string_id"));
+                            println!("Kind:         {}", s("kind"));
+                            println!("Knot count:   {}", n("knot_count"));
+                            println!("Genesis knot: {}", s("genesis_knot_id"));
+                            println!("Head knot:    {}", s("head_knot_id"));
+                            if let Some(ts) = desc.get("last_anchored_at").and_then(|v| v.as_u64())
+                            {
+                                println!("Last anchor:  {} (unix)", ts);
+                            }
+                            if let Some(label) = desc
+                                .get("labels")
+                                .and_then(|l| l.get("display_name"))
+                                .and_then(|v| v.as_str())
+                            {
+                                println!("Label:        {}", label);
+                            }
+                            println!();
+                            println!(
+                                "Full descriptor:\n{}",
+                                serde_json::to_string_pretty(&desc)?
+                            );
+                        }
+                        Err(e) => {
+                            eprintln!("String not found or RPC error: {}", e);
+                            eprintln!("Expected a v1.2 string_id (0x… hex) or wallet address.");
+                            std::process::exit(1);
+                        }
+                    }
                 }
                 QueryCommands::Status => {
                     println!("╔══════════════════════════════════════════════════════════════╗");
@@ -734,22 +996,95 @@ async fn main() -> anyhow::Result<()> {
                     println!("RPC Endpoint: {}", DEFAULT_RPC_ENDPOINT);
                 }
                 QueryCommands::Peers => {
-                    println!("Connected Peers:");
+                    println!("╔══════════════════════════════════════════════════════════════╗");
+                    println!("║                  NETWORK PEERS                               ║");
+                    println!("╚══════════════════════════════════════════════════════════════╝");
+                    println!();
                     match rpc.get_peer_count().await {
-                        Ok(count) => {
-                            println!("Total connected peers: {}", count);
-                            println!("");
-                            println!("(Detailed peer list requires native Rope API)");
+                        Ok(count) => println!("EVM-layer peers (net_peerCount): {}", count),
+                        Err(e) => println!("EVM-layer peers: error - {}", e),
+                    }
+                    println!();
+                    // The consensus mesh is described by the master-node registry.
+                    match rpc.call("rope_listMasterNodes", vec![]).await {
+                        Ok(reg) => {
+                            let masters = reg
+                                .get("master_nodes")
+                                .and_then(|v| v.as_array())
+                                .cloned()
+                                .unwrap_or_default();
+                            println!("Master-node mesh ({} nodes):", masters.len());
+                            for m in &masters {
+                                let g = |k: &str| {
+                                    m.get(k).and_then(|v| v.as_str()).unwrap_or("-").to_string()
+                                };
+                                println!(
+                                    "  {:<6} {:<17} {:<16} {:<13} {}",
+                                    g("slot"),
+                                    g("hostname"),
+                                    g("ip"),
+                                    g("provider"),
+                                    g("role")
+                                );
+                            }
                         }
-                        Err(e) => println!("Error getting peer count: {}", e),
+                        Err(e) => println!("Master-node registry: error - {}", e),
                     }
                 }
                 QueryCommands::Validators => {
-                    println!("Validator Set:");
-                    println!("(Validator queries require native Rope API)");
-                    println!("");
-                    println!("Datachain Rope uses 21 rotating validators");
-                    println!("See https://dcscan.io/validators for current set");
+                    // The validator/witness set is served by the DCScan explorer API,
+                    // which merges the knot-witness registry with the canonical
+                    // AI testimony agents.
+                    let url = "https://dcscan.io/api/v1/validators";
+                    let http = reqwest::Client::new();
+                    let resp: serde_json::Value = http
+                        .get(url)
+                        .timeout(std::time::Duration::from_secs(20))
+                        .send()
+                        .await?
+                        .json()
+                        .await?;
+
+                    println!("╔══════════════════════════════════════════════════════════════╗");
+                    println!("║                  VALIDATOR SET                               ║");
+                    println!("╚══════════════════════════════════════════════════════════════╝");
+                    println!();
+                    let active = resp.get("activeCount").and_then(|v| v.as_u64()).unwrap_or(0);
+                    let total = resp
+                        .get("totalValidators")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0);
+                    let staked = resp
+                        .get("totalStaked")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("-");
+                    let uptime = resp.get("avgUptime").and_then(|v| v.as_str()).unwrap_or("-");
+                    println!(
+                        "Active: {}/{}   Total staked: {} FAT   Avg uptime: {}%",
+                        active, total, staked, uptime
+                    );
+                    println!();
+                    if let Some(list) = resp.get("validators").and_then(|v| v.as_array()) {
+                        println!(
+                            "{:<24} {:<16} {:<10} {:<8} {}",
+                            "NAME", "TYPE", "STATUS", "UPTIME", "ADDRESS"
+                        );
+                        for v in list {
+                            let g = |k: &str| {
+                                v.get(k).and_then(|x| x.as_str()).unwrap_or("-").to_string()
+                            };
+                            println!(
+                                "{:<24} {:<16} {:<10} {:<8} {}",
+                                g("name"),
+                                g("type"),
+                                g("status"),
+                                format!("{}%", g("uptime")),
+                                g("address")
+                            );
+                        }
+                    }
+                    println!();
+                    println!("Source: {}", url);
                 }
             }
         }
@@ -862,6 +1197,7 @@ async fn main() -> anyhow::Result<()> {
 
         Commands::Identity { action } => identity::run(action).await?,
         Commands::Governance { action } => governance::run(action).await?,
+        Commands::Committee { action } => committee::run(action)?,
         Commands::Deploy {
             provider,
             kind,
@@ -1221,6 +1557,139 @@ mod identity {
         let mut s = String::new();
         write(v, &mut s);
         s
+    }
+}
+
+mod committee {
+    //! Quipu Canon v2.0 Phase 2 — committee roster tooling.
+    //!
+    //! Builds the operator-distributed `validator_set.json` from per-node
+    //! consensus identities. See `rope_node::validator_keystore` for how
+    //! nodes load the roster at startup.
+
+    use super::{expand_path, CommitteeCommands};
+    use anyhow::{anyhow, Context};
+    use rope_consensus::{ValidatorRecord, ValidatorRegistry, ValidatorSetSnapshot};
+    use rope_crypto::hybrid::HybridPublicKey;
+    use serde::{Deserialize, Serialize};
+    use std::path::Path;
+
+    /// The JSON shape printed by `rope committee identity` and consumed
+    /// by `rope committee build`.
+    #[derive(Serialize, Deserialize)]
+    struct IdentityFile {
+        node_id: String,
+        public_key: String,
+        #[serde(default = "default_weight")]
+        weight: u64,
+    }
+
+    fn default_weight() -> u64 {
+        1
+    }
+
+    pub fn run(action: CommitteeCommands) -> anyhow::Result<()> {
+        match action {
+            CommitteeCommands::Identity { data_dir } => identity(&expand_path(&data_dir)),
+            CommitteeCommands::Build { output, identities } => {
+                build(&expand_path(&output), &identities)
+            }
+            CommitteeCommands::Show { roster } => show(&expand_path(&roster)),
+        }
+    }
+
+    fn identity(data_dir: &Path) -> anyhow::Result<()> {
+        let id = rope_node::validator_keystore::load_or_create(data_dir)?;
+        let file = IdentityFile {
+            node_id: format!("0x{}", hex::encode(id.node_id.as_bytes())),
+            public_key: format!("0x{}", hex::encode(id.public_key.to_bytes())),
+            weight: 1,
+        };
+        println!("{}", serde_json::to_string_pretty(&file)?);
+        Ok(())
+    }
+
+    fn build(output: &Path, identities: &[std::path::PathBuf]) -> anyhow::Result<()> {
+        let mut records = Vec::with_capacity(identities.len());
+        for path in identities {
+            let text = std::fs::read_to_string(path)
+                .with_context(|| format!("reading {}", path.display()))?;
+            let file: IdentityFile = serde_json::from_str(&text)
+                .with_context(|| format!("parsing {} as identity JSON", path.display()))?;
+
+            let pk_bytes = hex::decode(file.public_key.trim_start_matches("0x"))
+                .with_context(|| format!("{}: public_key is not valid hex", path.display()))?;
+            let public_key = HybridPublicKey::from_bytes(&pk_bytes)
+                .map_err(|e| anyhow!("{}: invalid hybrid public key: {e}", path.display()))?;
+
+            let claimed = hex::decode(file.node_id.trim_start_matches("0x"))
+                .with_context(|| format!("{}: node_id is not valid hex", path.display()))?;
+            let derived = public_key.node_id();
+            if claimed.as_slice() != derived.as_slice() {
+                return Err(anyhow!(
+                    "{}: node_id does not match blake3(ed25519 pubkey) — refusing tampered identity",
+                    path.display()
+                ));
+            }
+
+            records.push(ValidatorRecord {
+                node_id: rope_core::types::NodeId::new(derived),
+                public_key,
+                weight: file.weight.max(1),
+                active: true,
+            });
+        }
+
+        // Deduplicate by node_id (last occurrence wins) and validate the
+        // whole set through a real registry so build-time errors match
+        // node startup behaviour exactly.
+        let registry = ValidatorRegistry::new();
+        for rec in &records {
+            registry
+                .register_weighted(rec.node_id, rec.public_key.clone(), rec.weight)
+                .map_err(|e| anyhow!("roster validation failed: {e}"))?;
+        }
+        let snapshot: ValidatorSetSnapshot = registry.snapshot();
+
+        let n = snapshot.validators.len();
+        let f = if n == 0 { 0 } else { (n - 1) / 3 };
+        std::fs::write(output, serde_json::to_string_pretty(&snapshot)?)
+            .with_context(|| format!("writing {}", output.display()))?;
+        println!(
+            "Wrote {} — {} validator(s), Byzantine tolerance f={}, finality quorum 2f+1={}",
+            output.display(),
+            n,
+            f,
+            2 * f + 1
+        );
+        println!("Ship this file to every node's data dir as validator_set.json and restart.");
+        Ok(())
+    }
+
+    fn show(roster: &Path) -> anyhow::Result<()> {
+        let text = std::fs::read_to_string(roster)
+            .with_context(|| format!("reading {}", roster.display()))?;
+        let snapshot: ValidatorSetSnapshot = serde_json::from_str(&text)
+            .with_context(|| format!("parsing {} as ValidatorSetSnapshot", roster.display()))?;
+        let n = snapshot.validators.iter().filter(|v| v.active).count();
+        let f = if n == 0 { 0 } else { (n - 1) / 3 };
+        println!(
+            "{}: {} validator(s) ({} active), f={}, quorum={}",
+            roster.display(),
+            snapshot.validators.len(),
+            n,
+            f,
+            2 * f + 1
+        );
+        for v in &snapshot.validators {
+            println!(
+                "  0x{}  weight={}  active={}",
+                hex::encode(v.node_id.as_bytes()),
+                v.weight,
+                v.active
+            );
+        }
+        Ok(())
     }
 }
 

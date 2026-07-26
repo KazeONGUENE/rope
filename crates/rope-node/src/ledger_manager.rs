@@ -54,6 +54,10 @@ pub struct LedgerManager {
     store: Arc<LedgerStore>,
     lifecycle: Arc<LedgerLifecycleManager>,
     oes: Arc<OESManager>,
+    /// Held for forthcoming attestation paths (per-node provenance on
+    /// new ledger entries). Currently retained but not yet read; do not
+    /// remove without clearing the deployer-attestation TODO.
+    #[allow(dead_code)]
     node_id: NodeId,
     creator_key: PublicKey,
     clock: Arc<ClockManager>,
@@ -200,6 +204,127 @@ impl LedgerManager {
         &self.key_cache
     }
 
+    /// Quipu Canon v2.0 Phase 1.6 — rebuild the in-process lattice and
+    /// string registry from the persistent store at node boot.
+    ///
+    /// Call exactly once, immediately after construction, when the
+    /// `LedgerStore` was opened via `LedgerStore::open_with_recovery`.
+    /// The three inputs are:
+    ///
+    ///   1. `string_blobs` — every serialised `RopeString` recovered
+    ///      from the `strings` CF; deserialised and re-inserted into
+    ///      the lattice via the validation-free restore path.
+    ///   2. `tombstones` — every canon v1.1 §4.2 untie-tombstone; the
+    ///      parent edges they carry re-enable hop-past-tombstone walks.
+    ///   3. The store's own descriptor/chain mirrors (already recovered
+    ///      by `LedgerStore::open_with_recovery`) — used to rebuild the
+    ///      `StringRegistry` with original timestamps and counts.
+    ///
+    /// Returns `(strings_restored, tombstones_restored, ledgers_restored)`.
+    pub fn rehydrate_from_disk(
+        &self,
+        string_blobs: Vec<([u8; 32], Vec<u8>)>,
+        tombstones: Vec<([u8; 32], rope_storage::StoredTombstone)>,
+    ) -> (usize, usize, usize) {
+        use rope_core::personal_ledger::LedgerDescriptor;
+
+        let mut strings_restored = 0usize;
+        for (sid, blob) in string_blobs {
+            match bincode::deserialize::<rope_core::string::RopeString>(&blob) {
+                Ok(string) => {
+                    let restored_id = self.lattice.restore_string(string);
+                    if restored_id.as_bytes() != &sid {
+                        // The blob's content-derived id no longer matches the
+                        // key it was stored under — flag loudly, this means
+                        // on-disk tampering or a serialisation format drift.
+                        tracing::error!(
+                            "ledger rehydrate: restored string id mismatch \
+                             (key={}, recomputed={}) — investigate the ledger DB",
+                            hex::encode(sid),
+                            restored_id.to_hex()
+                        );
+                    } else {
+                        strings_restored += 1;
+                    }
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "ledger rehydrate: undecodable string blob {} ({}) — skipped",
+                        hex::encode(sid),
+                        e
+                    );
+                }
+            }
+        }
+
+        let mut tombstones_restored = 0usize;
+        for (sid, stored) in tombstones {
+            let parents = stored
+                .parents
+                .iter()
+                .map(|p| StringId::new(*p))
+                .collect::<Vec<_>>();
+            self.lattice.restore_tombstone(
+                StringId::new(sid),
+                rope_core::lattice::KnotTombstone {
+                    untied_at: stored.untied_at,
+                    audit_hash: stored.audit_hash,
+                    reason: stored.reason,
+                },
+                parents,
+            );
+            tombstones_restored += 1;
+        }
+
+        // Rebuild the registry from the store's recovered descriptor +
+        // chain mirrors. All persisted ledgers are wallet-kind today
+        // (the store keys by wallet address); other kinds re-register
+        // through their own emitters.
+        let mut ledgers_restored = 0usize;
+        for wallet in self.store.all_wallets() {
+            let Some(stored) = self.store.get_descriptor(&wallet) else {
+                continue;
+            };
+            let chain: Vec<StringId> = self
+                .store
+                .get_chain(&wallet)
+                .into_iter()
+                .map(StringId::new)
+                .collect();
+            let descriptor = LedgerDescriptor {
+                kind: rope_core::personal_ledger::StringKind::Wallet,
+                wallet_address: stored.wallet_address.clone(),
+                genesis_string_id: StringId::new(stored.genesis_string_id),
+                head_string_id: StringId::new(stored.head_string_id),
+                entry_count: stored.entry_count,
+                total_size_bytes: stored.total_size_bytes,
+                oes_generation_at_creation: stored.oes_generation_at_creation,
+                current_oes_generation: stored.current_oes_generation,
+                created_at: stored.created_at,
+                last_appended_at: stored.last_appended_at,
+                is_deleted: stored.is_deleted,
+                deleted_at: stored.deleted_at,
+                piece_count: 0,
+                replication_factor: stored.replication_factor,
+            };
+            if self.registry.restore_string_state(descriptor, &chain) {
+                ledgers_restored += 1;
+            }
+        }
+
+        if strings_restored + tombstones_restored + ledgers_restored > 0 {
+            tracing::info!(
+                "Ledger rehydration complete: {} knots, {} tombstones, {} ledgers \
+                 restored from disk (Quipu Canon v2.0 Phase 1.6)",
+                strings_restored,
+                tombstones_restored,
+                ledgers_restored
+            );
+        }
+
+        (strings_restored, tombstones_restored, ledgers_restored)
+    }
+
     /// Create a new personal ledger for a wallet.
     ///
     /// 1. Derive OES ledger key for this wallet
@@ -240,10 +365,16 @@ impl LedgerManager {
         )
         .map_err(|e| e.to_string())?;
 
+        // Phase 1.6 — serialise the knot payload for the persistent
+        // store BEFORE the lattice consumes the string.
+        let genesis_blob = bincode::serialize(&genesis_string)
+            .map_err(|e| format!("genesis blob serialization: {}", e))?;
+
         let genesis_id = self
             .lattice
             .add_string(genesis_string)
             .map_err(|e| e.to_string())?;
+        self.store.put_string_blob(*genesis_id.as_bytes(), genesis_blob);
 
         let desc = self
             .registry
@@ -270,6 +401,12 @@ impl LedgerManager {
 
         self.lifecycle
             .record_creation(wallet_bytes, *genesis_id.as_bytes(), generation);
+
+        // Phase 1.6 — the RPC success reply implies the ledger exists
+        // across restarts. Block (bounded) until the creation batch is
+        // fsync'd. No-op in in-memory mode.
+        self.store
+            .await_all_durable(std::time::Duration::from_secs(5));
 
         tracing::info!(
             "Created personal ledger for wallet {} — genesis {}",
@@ -368,10 +505,16 @@ impl LedgerManager {
         )
         .map_err(|e| e.to_string())?;
 
+        // Phase 1.6 — serialise the knot payload for the persistent
+        // store BEFORE the lattice consumes the string.
+        let knot_blob = bincode::serialize(&new_string)
+            .map_err(|e| format!("knot blob serialization: {}", e))?;
+
         let new_id = self
             .lattice
             .add_string(new_string)
             .map_err(|e| e.to_string())?;
+        self.store.put_string_blob(*new_id.as_bytes(), knot_blob);
 
         let slicing = slice_encrypted_content(&envelope_bytes, self.config.piece_size);
         let piece_count = slicing.pieces.len() as u32;
@@ -381,6 +524,17 @@ impl LedgerManager {
             .map_err(|e| e.to_string())?;
         self.store
             .append_to_chain(&wallet_bytes, *new_id.as_bytes());
+        // Phase 1.6 — keep the persisted descriptor in lockstep with the
+        // registry so recovery restores accurate head/entry-count/
+        // last-appended values, not the creation-time snapshot.
+        if let Some(mut stored) = self.store.get_descriptor(&wallet_bytes) {
+            stored.head_string_id = *new_id.as_bytes();
+            stored.entry_count += 1;
+            stored.total_size_bytes += encrypted_size;
+            stored.current_oes_generation = generation;
+            stored.last_appended_at = chrono::Utc::now().timestamp();
+            self.store.put_descriptor(&wallet_bytes, stored);
+        }
 
         self.lifecycle.record_append(
             wallet_bytes,
@@ -389,6 +543,11 @@ impl LedgerManager {
             encrypted_size,
             piece_count,
         );
+
+        // Phase 1.6 — the RPC success reply implies the knot survives a
+        // restart. Bounded durability wait; no-op in in-memory mode.
+        self.store
+            .await_all_durable(std::time::Duration::from_secs(5));
 
         tracing::debug!(
             "Appended to ledger {} — entry {} ({} pieces, {} bytes encrypted)",
@@ -627,6 +786,10 @@ impl LedgerManager {
         for id in &chain {
             if self.lattice.mark_erased(*id).is_ok() {
                 erased_count += 1;
+                // Phase 1.6 — cryptographic erasure must reach disk too:
+                // delete the persisted knot payload so it cannot be
+                // resurrected by a restart.
+                self.store.delete_string_blob(*id.as_bytes());
             }
         }
 
@@ -634,6 +797,10 @@ impl LedgerManager {
             .mark_deleted(&wallet_bytes)
             .map_err(|e| e.to_string())?;
         self.store.mark_deleted(&wallet_bytes);
+        // Phase 1.6 — GDPR erasure is only real once the blob deletions
+        // are fsync'd. Bounded wait; no-op in in-memory mode.
+        self.store
+            .await_all_durable(std::time::Duration::from_secs(5));
 
         // Quipu Canon v2.0 Phase 1.4 — drop every cached OES key for
         // this wallet. The Arc<LedgerKey> values zeroize on drop, so
@@ -751,11 +918,36 @@ impl LedgerManager {
             ));
         }
 
+        // Phase 1.6 — capture the knot's parent edges BEFORE the payload
+        // is destroyed. The persisted tombstone carries them so a
+        // post-restart lattice can still hop past the deliberate absence.
+        let knot_parents: Vec<[u8; 32]> = self
+            .lattice
+            .get_string(&knot_id)
+            .map(|s| s.parentage().iter().map(|p| *p.as_bytes()).collect())
+            .unwrap_or_default();
+
         // Perform the cryptographic erasure + tombstone recording.
         let tombstone = self
             .lattice
             .mark_knot_untied(knot_id, reason)
             .map_err(|e| format!("mark_knot_untied failed: {}", e))?;
+
+        // Phase 1.6 — mirror the erasure + tombstone to disk in the same
+        // flush wave, then block (bounded) until fsync'd. GDPR Art. 17
+        // is only satisfied once the payload cannot survive a restart.
+        self.store.delete_string_blob(*knot_id.as_bytes());
+        self.store.put_tombstone(
+            *knot_id.as_bytes(),
+            rope_storage::StoredTombstone {
+                untied_at: tombstone.untied_at,
+                audit_hash: tombstone.audit_hash,
+                reason: tombstone.reason.clone(),
+                parents: knot_parents,
+            },
+        );
+        self.store
+            .await_all_durable(std::time::Duration::from_secs(5));
 
         // Recompute counts after the untying for the response.
         let entries_after = self
@@ -920,6 +1112,29 @@ mod tests {
         let creator_key = PublicKey::from_ed25519([2u8; 32]);
         let clock = Arc::new(ClockManager::new(node_id));
         LedgerManager::new(lattice, store, oes, node_id, creator_key, clock)
+    }
+
+    /// Phase 1.6 — build a manager on a persistent store at `path`,
+    /// replaying whatever the store recovered from disk. Mirrors the
+    /// production boot path in `node.rs`.
+    fn make_persistent_manager(path: &std::path::Path) -> LedgerManager {
+        let (store, blobs, tombstones) =
+            LedgerStore::open_with_recovery(path).expect("open persistent ledger store");
+        let lattice = Arc::new(StringLattice::new());
+        let oes = Arc::new(OESManager::genesis(&[0u8; 32]));
+        let node_id = NodeId::new([1u8; 32]);
+        let creator_key = PublicKey::from_ed25519([2u8; 32]);
+        let clock = Arc::new(ClockManager::new(node_id));
+        let manager = LedgerManager::new(
+            lattice,
+            Arc::new(store),
+            oes,
+            node_id,
+            creator_key,
+            clock,
+        );
+        manager.rehydrate_from_disk(blobs, tombstones);
+        manager
     }
 
     /// Smoke test: sequential create + 2 appends finish in well under a second.
@@ -1122,5 +1337,184 @@ mod tests {
             NUM_WALLETS,
             "head-lock pool must hold exactly one Arc per wallet"
         );
+    }
+
+    /// Quipu Canon v2.0 Phase 1.6 — the headline guarantee: a ledger
+    /// created and appended to before a "restart" (drop + reopen of the
+    /// persistent store) is fully readable afterwards, including
+    /// decryptable payloads (OES keys are derived from the identity
+    /// seed, which is itself persistent in production).
+    #[test]
+    fn ledgers_survive_restart() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("ledger_db");
+        let wallet_hex = "0x000000000000000000000000000000000000c001";
+
+        // ----- first process lifetime -----
+        {
+            let manager = make_persistent_manager(&db_path);
+            manager.create_ledger(wallet_hex).unwrap();
+            manager
+                .append_to_ledger(wallet_hex, make_test_interaction(1))
+                .unwrap();
+            manager
+                .append_to_ledger(wallet_hex, make_test_interaction(2))
+                .unwrap();
+            assert!(
+                manager
+                    .store
+                    .await_all_durable(std::time::Duration::from_secs(10)),
+                "writes must fsync before the simulated crash"
+            );
+        } // manager dropped == process died
+
+        // ----- second process lifetime -----
+        let manager = make_persistent_manager(&db_path);
+        let wallet_bytes = WalletAddress::from_hex(wallet_hex)
+            .unwrap()
+            .as_bytes()
+            .to_vec();
+        let desc = manager
+            .registry
+            .get_descriptor(&wallet_bytes)
+            .expect("descriptor must survive restart");
+        assert_eq!(desc.entry_count, 3, "1 genesis + 2 appends after restart");
+        assert!(!desc.is_deleted);
+
+        // The chain must walk end-to-end through the restored lattice.
+        let chain = manager.lattice.walk_ledger_chain(&desc.head_string_id);
+        assert_eq!(chain.len(), 3, "full chain must be walkable after restart");
+
+        // Payloads must decrypt — OES generation-0 keys re-derive
+        // identically from the same identity seed.
+        let repatriated = manager.repatriate_ledger(wallet_hex, true).unwrap();
+        assert_eq!(repatriated.total_entries, 3);
+        for entry in repatriated.entries.iter().skip(1) {
+            let plain = entry
+                .decrypted_content
+                .as_ref()
+                .expect("appended entries must decrypt after restart");
+            let text = String::from_utf8_lossy(plain);
+            assert!(
+                text.contains("IdentityClaim") && text.contains("\"seq\""),
+                "decrypted payload must round-trip, got: {text}"
+            );
+        }
+
+        // And the ledger must still accept new appends post-restart.
+        manager
+            .append_to_ledger(wallet_hex, make_test_interaction(3))
+            .unwrap();
+        let desc = manager.registry.get_descriptor(&wallet_bytes).unwrap();
+        assert_eq!(desc.entry_count, 4);
+    }
+
+    /// Phase 1.6 — GDPR untie survives restart: the tombstone is still
+    /// present, the payload is still gone (cryptographic erasure holds
+    /// on disk), and the string remains walkable past the absence.
+    #[test]
+    fn untie_tombstone_survives_restart_and_payload_stays_dead() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("ledger_db");
+        let wallet_hex = "0x000000000000000000000000000000000000c002";
+
+        let untied_knot_hex;
+        {
+            let manager = make_persistent_manager(&db_path);
+            manager.create_ledger(wallet_hex).unwrap();
+            let victim = manager
+                .append_to_ledger(wallet_hex, make_test_interaction(10))
+                .unwrap();
+            manager
+                .append_to_ledger(wallet_hex, make_test_interaction(11))
+                .unwrap();
+            manager
+                .untie_knot(wallet_hex, &victim.string_id, "gdpr-art17-test")
+                .unwrap();
+            untied_knot_hex = victim.string_id;
+            assert!(manager
+                .store
+                .await_all_durable(std::time::Duration::from_secs(10)));
+        }
+
+        let manager = make_persistent_manager(&db_path);
+
+        // The tombstone survives and the walk hops past it.
+        let (_genesis, entries) = manager.walk_string_with_tombstones(wallet_hex).unwrap();
+        assert_eq!(entries.len(), 3, "genesis + tombstone + live knot");
+        let tombstones: Vec<_> = entries.iter().filter(|e| e.is_tombstone()).collect();
+        assert_eq!(tombstones.len(), 1, "exactly one tombstone after restart");
+        assert_eq!(
+            tombstones[0].string_id().to_hex(),
+            untied_knot_hex,
+            "the tombstone must sit at the untied knot's position"
+        );
+
+        // Cryptographic erasure holds: the payload is not in the lattice…
+        let untied_id = StringId::from_hex(&untied_knot_hex).unwrap();
+        assert!(
+            manager.lattice.get_string(&untied_id).is_none(),
+            "untied knot payload must NOT reappear after restart"
+        );
+        // …and repatriation never returns the untied knot's payload.
+        let repatriated = manager.repatriate_ledger(wallet_hex, true).unwrap();
+        assert!(
+            repatriated
+                .entries
+                .iter()
+                .all(|e| e.string_id != untied_knot_hex),
+            "the untied knot's payload must never be repatriated"
+        );
+
+        // Double-untie is still refused (idempotency guard persisted).
+        let err = manager
+            .untie_knot(wallet_hex, &untied_knot_hex, "again")
+            .unwrap_err();
+        assert!(err.contains("already untied"), "got: {err}");
+    }
+
+    /// Phase 1.6 — whole-ledger erasure survives restart: the descriptor
+    /// stays flagged deleted and no payload blob is resurrected.
+    #[test]
+    fn erased_ledger_stays_erased_after_restart() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("ledger_db");
+        let wallet_hex = "0x000000000000000000000000000000000000c003";
+
+        {
+            let manager = make_persistent_manager(&db_path);
+            manager.create_ledger(wallet_hex).unwrap();
+            manager
+                .append_to_ledger(wallet_hex, make_test_interaction(20))
+                .unwrap();
+            manager
+                .erase_ledger(wallet_hex, DeletionReason::GdprArticle17)
+                .unwrap();
+            assert!(manager
+                .store
+                .await_all_durable(std::time::Duration::from_secs(10)));
+        }
+
+        let manager = make_persistent_manager(&db_path);
+        let wallet_bytes = WalletAddress::from_hex(wallet_hex)
+            .unwrap()
+            .as_bytes()
+            .to_vec();
+        let desc = manager
+            .registry
+            .get_descriptor(&wallet_bytes)
+            .expect("deleted descriptor must survive restart as an audit record");
+        assert!(desc.is_deleted, "is_deleted flag must persist");
+        assert!(
+            manager.repatriate_ledger(wallet_hex, false).is_err(),
+            "repatriating an erased ledger must fail after restart"
+        );
+        // No payload blob may have been resurrected into the lattice.
+        for sid in manager.store.get_chain(&wallet_bytes) {
+            assert!(
+                manager.lattice.get_string(&StringId::new(sid)).is_none(),
+                "erased knot payload must NOT reappear after restart"
+            );
+        }
     }
 }

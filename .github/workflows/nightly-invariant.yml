@@ -1,0 +1,144 @@
+# Nightly Quipu Canon v1.2 invariant check
+#
+# Asserts that the live Datachain Rope mainnet honours the canonical
+# string-registry invariant `count(strings) ≤ count(knots)` (Quipu
+# Primitive Canon v1.2, see .cursor/rules/quipu-canon-v1.2-string-registry.mdc).
+#
+# Tanastok already runs an equivalent check from the issuer side; this
+# job mirrors it from the rope-node side so both halves of the canon
+# are externally observable. Failure pages the on-call.
+#
+# Schedule:    nightly at 03:17 UTC (low-traffic window for the public RPC)
+# Endpoint:    https://erpc.datachain.network (public mainnet)
+# Method:      rope_globalStats → { invariant_holds, total_strings, total_knots }
+# Pass when:   invariant_holds === true AND total_strings <= total_knots
+# Fail action: workflow exits 1; create a GitHub issue with the bad payload
+
+name: Nightly Quipu Canon Invariant
+
+on:
+  schedule:
+    # 03:17 UTC every day (offset to avoid the top-of-hour cron stampede).
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+    inputs:
+      rpc_url:
+        description: 'Datachain Rope RPC endpoint to probe (default: production mainnet)'
+        required: false
+        default: 'https://erpc.datachain.network'
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check-invariant:
+    name: Probe rope_globalStats.invariant_holds
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      RPC_URL: ${{ github.event.inputs.rpc_url || 'https://erpc.datachain.network' }}
+
+    steps:
+      - name: Probe rope_globalStats
+        id: probe
+        run: |
+          set -euo pipefail
+          echo "Probing $RPC_URL for rope_globalStats…"
+          payload='{"jsonrpc":"2.0","id":1,"method":"rope_globalStats","params":[]}'
+          # Retry up to 3 times to absorb transient 5xx; back off 5/10s.
+          for i in 1 2 3; do
+            if curl -sS --max-time 30 \
+                 -H 'content-type: application/json' \
+                 -X POST \
+                 -d "$payload" \
+                 "$RPC_URL" > /tmp/stats.json; then
+              break
+            fi
+            echo "Attempt $i failed, retrying…"
+            sleep $((5 * i))
+          done
+
+          cat /tmp/stats.json
+          echo
+
+          # Extract the canonical fields. `jq` is available on ubuntu-latest.
+          err=$(jq -r '.error.message // ""' /tmp/stats.json)
+          if [ -n "$err" ]; then
+            echo "::error::RPC error: $err"
+            echo "fail_reason=rpc_error" >> "$GITHUB_OUTPUT"
+            echo "rpc_error=$err" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          ih=$(jq -r '.result.invariant_holds' /tmp/stats.json)
+          ts=$(jq -r '.result.total_strings // 0' /tmp/stats.json)
+          tk=$(jq -r '.result.total_knots // 0' /tmp/stats.json)
+
+          echo "invariant_holds=$ih" >> "$GITHUB_OUTPUT"
+          echo "total_strings=$ts" >> "$GITHUB_OUTPUT"
+          echo "total_knots=$tk" >> "$GITHUB_OUTPUT"
+
+          # Hard checks
+          if [ "$ih" != "true" ]; then
+            echo "::error::Quipu Canon v1.2 invariant_holds is FALSE on $RPC_URL"
+            echo "fail_reason=invariant_false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          if [ "$ts" -gt "$tk" ]; then
+            echo "::error::total_strings ($ts) > total_knots ($tk) on $RPC_URL"
+            echo "fail_reason=count_mismatch" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "✅ invariant_holds=true, strings=$ts, knots=$tk (strings ≤ knots)"
+
+      - name: Open canon-violation issue on failure
+        if: failure() && github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        env:
+          PROBE_RPC: ${{ env.RPC_URL }}
+          PROBE_REASON: ${{ steps.probe.outputs.fail_reason }}
+          PROBE_RPC_ERR: ${{ steps.probe.outputs.rpc_error }}
+          PROBE_STRINGS: ${{ steps.probe.outputs.total_strings }}
+          PROBE_KNOTS: ${{ steps.probe.outputs.total_knots }}
+          PROBE_IH: ${{ steps.probe.outputs.invariant_holds }}
+        with:
+          script: |
+            const title = '🚨 Quipu Canon v1.2 invariant violation on ' + process.env.PROBE_RPC;
+            const body = [
+              '`rope_globalStats.invariant_holds` failed the nightly canon check.',
+              '',
+              '| Field | Value |',
+              '|---|---|',
+              `| RPC | \`${process.env.PROBE_RPC}\` |`,
+              `| Reason | \`${process.env.PROBE_REASON || 'unknown'}\` |`,
+              `| invariant_holds | \`${process.env.PROBE_IH || '—'}\` |`,
+              `| total_strings | \`${process.env.PROBE_STRINGS || '—'}\` |`,
+              `| total_knots | \`${process.env.PROBE_KNOTS || '—'}\` |`,
+              `| rpc_error | \`${process.env.PROBE_RPC_ERR || '—'}\` |`,
+              '',
+              'Canon reference: `.cursor/rules/quipu-canon-v1.2-string-registry.mdc` §1 invariant.',
+              '',
+              'Action items:',
+              '1. Check rope-node logs on `rope-vps` (`92.243.26.189`) for `personal_ledger` or `string_registry` errors.',
+              '2. Confirm `crates/rope-core/src/personal_ledger.rs::StringRegistry` integrity.',
+              '3. If a recent ecosystem-side emitter (Tanastok / DCSwap) injected a string without a genesis knot, roll back the offending change and re-run this workflow with `workflow_dispatch`.',
+            ].join('\n');
+            const labels = ['canon-violation', 'priority-high', 'rope-node'];
+            // De-dupe: only one open canon-violation issue at a time.
+            const { data: existing } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'open', labels: 'canon-violation',
+            });
+            if (existing.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title, body, labels,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: existing[0].number,
+                body: 'Recurred at ' + new Date().toISOString() + ':\n\n' + body,
+              });
+            }

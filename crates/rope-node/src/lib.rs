@@ -13,6 +13,8 @@
 pub mod agent_runner;
 pub mod config;
 pub mod consensus_orchestrator;
+pub mod entity_labels;
+pub mod entity_manifest;
 pub mod evm_backend;
 pub mod genesis;
 pub mod governance;
@@ -20,8 +22,12 @@ pub mod ledger_manager;
 pub mod metrics;
 pub mod node;
 pub mod oes_key_cache;
+pub mod rpc_auth;
 pub mod rpc_server;
+pub mod rpc_signature;
 pub mod string_producer;
+pub mod dag_ledger;
+pub mod validator_keystore;
 
 /// Backwards-compatibility re-export for the legacy module path
 /// `rope_node::anvil_backend`. The module was renamed `evm_backend`

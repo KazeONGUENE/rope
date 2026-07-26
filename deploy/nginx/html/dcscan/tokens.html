@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DC-20 Tokens | DC Explorer</title>
-    <meta name="description" content="Browse DC-20 tokens on Datachain Rope">
+    <title>DCR-20 Tokens | DC Explorer</title>
+    <meta name="description" content="Browse DCR-20 tokens on Datachain Rope">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="/css/dcscan-header.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -69,8 +70,15 @@
         .token-info { }
         .token-name { font-weight: 600; margin-bottom: 0.125rem; }
         .token-symbol { font-size: 12px; color: var(--gray-500); }
-        .change-positive { color: #ef4444; }
+        .change-positive { color: var(--success); }
         .change-negative { color: var(--error); }
+        .standard-badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+        .standard-dcr20 { background: #dbeafe; color: #1d4ed8; }
+        .standard-native { background: #fef3c7; color: #92400e; }
+        .standard-erc3643 { background: #ede9fe; color: #6d28d9; }
+        .standard-erc721 { background: #dcfce7; color: #166534; }
+        .origin-badge { display: inline-flex; align-items: center; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 11px; font-weight: 600; white-space: nowrap; background: #f1f5f9; color: #334155; cursor: help; }
+        .origin-native { background: #f8fafc; color: #94a3b8; }
         .sparkline { width: 80px; height: 24px; }
         .pagination { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; border-top: 1px solid var(--gray-200); }
         .pagination-info { font-size: 13px; color: var(--gray-500); }
@@ -89,192 +97,425 @@
 </head>
 <body>
     <div class="top-bar">
-        <div class="container top-bar-content">
+        <div class="top-bar-container">
             <div class="top-bar-left">
-                <div class="top-bar-item"><span>DC FAT Price:</span><span class="top-bar-value">$0.00390</span><span style="color: #ef4444; margin-left: 0.25rem;">-2.94%</span></div>
-                <div class="top-bar-item"><span>Gas:</span><span class="top-bar-value">0.001 gwei</span></div>
+                <div class="top-bar-item"><i class="fa-solid fa-coins"></i> DC FAT Price: <span class="top-bar-value">$0.00390</span><span style="color: #ef4444; margin-left: 0.25rem;">-2.94%</span></div>
+                <div class="top-bar-item"><i class="fa-solid fa-gas-pump"></i> Gas: <span class="top-bar-value">0.001 gwei</span></div>
+                <div class="top-bar-item"><i class="fa-solid fa-clock"></i> Finality: <span class="top-bar-value">&lt;5s</span></div>
             </div>
+            <div class="top-bar-right"><button class="theme-toggle"><i class="fa-solid fa-sun"></i></button></div>
         </div>
     </div>
     <header>
-        <div class="container header-container">
+        <div class="header-container">
             <a href="/" class="logo">
                 <div class="logo-icon"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 100%; height: 100%; object-fit: contain;"></div>
                 <span class="logo-text"><span>DC</span><span>Explorer</span></span>
             </a>
             <nav class="main-nav">
-                <div class="nav-item"><a href="#" class="nav-link">Smartchain <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link">Smartchain <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/strings" class="dropdown-item">View Strings</a>
                         <a href="/txs" class="dropdown-item">Transactions</a>
                         <a href="/txsPending" class="dropdown-item">Pending Txns</a>
+                        <div class="dropdown-divider"></div>
                         <a href="/accounts" class="dropdown-item">Top Accounts</a>
                         <a href="/contracts" class="dropdown-item">Verified Contracts</a>
                     </div>
                 </div>
-                <div class="nav-item"><a href="#" class="nav-link">AI Agents <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link">AI Agents <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/agents" class="dropdown-item">All Agents</a>
                         <a href="/testimonies" class="dropdown-item">Testimonies</a>
                         <a href="/validations" class="dropdown-item">Validators</a>
                     </div>
                 </div>
-                <div class="nav-item"><a href="#" class="nav-link active">Tokens <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link active">Tokens <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
-                        <a href="/tokens" class="dropdown-item">DC-20 Tokens</a>
+                        <a href="/tokens" class="dropdown-item">DCR-20 Tokens</a>
                         <a href="/tokentxns" class="dropdown-item">Token Transfers</a>
                         <a href="/vote" class="dropdown-item">Vote</a>
                     </div>
                 </div>
-                <div class="nav-item"><a href="#" class="nav-link">Network <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link">Network <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
+                        <a href="/ecosystem" class="dropdown-item">Ecosystem Projects</a>
+                        <a href="/vote" class="dropdown-item" id="nav-governance-voting">Governance &amp; Voting</a>
                         <a href="/defi" class="dropdown-item">DeFi</a>
-                        <a href="/validators" class="dropdown-item">Validators</a>
+                        <a href="/supply" class="dropdown-item">Supply Reconciliation</a>
+                        <a href="/network/validators" class="dropdown-item">Validators</a>
                         <a href="/databases" class="dropdown-item">Databases</a>
+                        <a href="/databoxes" class="dropdown-item" id="nav-databox-network">Global Databox Network</a>
                         <a href="/stats" class="dropdown-item">Charts & Stats</a>
                     </div>
                 </div>
-                <div class="nav-item"><a href="#" class="nav-link">More <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link">More <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/apis" class="dropdown-item">API Docs</a>
                         <a href="/verify" class="dropdown-item">Verify Contract</a>
+                        <a href="/create-wallet" class="dropdown-item" id="nav-create-wallet">Create Wallet</a>
                         <a href="/faucet" class="dropdown-item">Faucet</a>
                         <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank">GitHub</a>
+                        <a href="/partners" class="dropdown-item">Partners</a>
                         <a href="/contact" class="dropdown-item">Contact</a>
                     </div>
                 </div>
             </nav>
-            <button class="btn btn-secondary"><i class="fas fa-wallet"></i> Connect</button>
+            <div class="header-actions"><button class="btn btn-secondary"><i class="fa-solid fa-wallet"></i> Connect</button></div>
         </div>
     </header>
 
     <div class="page-header">
         <div class="container">
-            <div class="page-breadcrumb"><a href="/">Home</a> <i class="fas fa-chevron-right" style="font-size: 8px;"></i> <span>DC-20 Tokens</span></div>
-            <h1 class="page-title">Token Tracker (DC-20)</h1>
-            <p class="page-subtitle">DC-20 tokens created on the Datachain Rope network</p>
+            <div class="page-breadcrumb"><a href="/">Home</a> <i class="fas fa-chevron-right" style="font-size: 8px;"></i> <span>Tokens &amp; Assets</span></div>
+            <h1 class="page-title">Token &amp; Asset Tracker</h1>
+            <p class="page-subtitle">All tokens, crypto assets, and tokenized real-world assets on Datachain Rope</p>
         </div>
     </div>
 
     <main class="container">
         <div class="stats-row">
             <div class="stat-card">
-                <div class="stat-label">Total Tokens</div>
-                <div class="stat-value">2,847</div>
+                <div class="stat-label">DCR-20 Tokens</div>
+                <div class="stat-value" id="stat-total">—</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Total Market Cap</div>
-                <div class="stat-value">$847.2M</div>
+                <div class="stat-label">Tokenized Assets</div>
+                <div class="stat-value" id="stat-tanastok">—</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">24H Volume</div>
-                <div class="stat-value">$24.7M</div>
+                <div class="stat-label">Total Valuation (RWA)</div>
+                <div class="stat-value" id="stat-rwa-value">—</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Unique Holders</div>
-                <div class="stat-value">847,291</div>
+                <div class="stat-label">Asset Types</div>
+                <div class="stat-value" id="stat-asset-types">—</div>
             </div>
         </div>
 
-        <div class="filters-bar">
-            <select class="filter-select">
-                <option>All Tokens</option>
-                <option>Verified Only</option>
-                <option>DeFi Tokens</option>
-                <option>Gaming Tokens</option>
-                <option>Governance</option>
-            </select>
-            <input type="text" class="filter-input" placeholder="Search by token name, symbol, or address...">
-            <button class="filter-btn"><i class="fas fa-search"></i> Search</button>
-        </div>
+        <style>
+            .token-tabs { display: flex; gap: 0; border-bottom: 2px solid var(--gray-200); margin-bottom: 0; }
+            .token-tab { padding: 12px 20px; font-size: 0.875rem; font-weight: 600; color: var(--gray-500); background: none; border: none; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.15s; font-family: var(--font-sans); }
+            .token-tab:hover { color: var(--gray-800); }
+            .token-tab.active { color: var(--black); border-bottom-color: var(--black); }
+            .token-tab .tab-count { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 20px; padding: 0 6px; border-radius: 10px; font-size: 11px; font-weight: 700; margin-left: 6px; }
+            .token-tab .tab-count.dcr20 { background: #dbeafe; color: #1d4ed8; }
+            .token-tab .tab-count.rwa { background: #dcfce7; color: #166534; }
+            .token-tab-content { display: none; }
+            .token-tab-content.active { display: block; }
+            .asset-icon-cell { display: flex; align-items: center; gap: 0.625rem; }
+            .asset-type-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+            .asset-type-icon.gold { background: #fef3c7; color: #92400e; }
+            .asset-type-icon.forestry { background: #dcfce7; color: #166534; }
+            .asset-type-icon.realestate { background: #dbeafe; color: #1d4ed8; }
+            .asset-type-icon.diamond { background: #f3e8ff; color: #6b21a8; }
+            .asset-type-icon.oil { background: #27272a; color: #fbbf24; }
+            .asset-type-icon.vehicle { background: #18181b; color: #f1f5f9; }
+            .asset-type-icon.watch { background: #18181b; color: #f1f5f9; }
+            .asset-type-icon.cultural { background: #fef3c7; color: #78350f; }
+            .asset-type-icon.crypto { background: #dbeafe; color: #1d4ed8; }
+            .asset-type-icon.default { background: var(--gray-100); color: var(--gray-600); }
+            .asset-name { font-weight: 600; font-size: 13px; margin-bottom: 1px; }
+            .asset-sub { font-size: 11px; color: var(--gray-500); }
+            .verified-dot { color: #22c55e; margin-left: 4px; font-size: 12px; }
+            .contract-pair { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+            .contract-chip { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; font-family: var(--font-mono); }
+            .contract-chip.dcnft { background: #dcfce7; color: #166534; }
+            .contract-chip.erc3643 { background: #dbeafe; color: #1e40af; }
+            .asset-search { padding: 0.5rem 0.75rem; border: 1px solid var(--gray-200); border-radius: var(--radius-md); font-size: 13px; flex: 1; min-width: 200px; font-family: var(--font-sans); }
+        </style>
 
         <div class="table-card">
-            <div class="table-header">
-                <div class="table-title"><i class="fas fa-coins" style="color: var(--warning);"></i> DC-20 Tokens</div>
-                <div style="font-size: 13px; color: var(--gray-500);">Showing tokens with OK or Neutral reputation</div>
+            <div class="token-tabs" id="token-tabs">
+                <button type="button" class="token-tab active" data-tab="dcr20"><i class="fas fa-coins" style="margin-right:5px;color:var(--warning);"></i> DCR-20 Tokens <span class="tab-count dcr20" id="tab-count-dcr20">—</span></button>
+                <button type="button" class="token-tab" data-tab="tanastok"><i class="fas fa-stamp" style="margin-right:5px;color:#059669;"></i> Tokenized Assets (Tanastok) <span class="tab-count rwa" id="tab-count-tanastok">—</span></button>
             </div>
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Token</th>
-                        <th style="text-align: right;">Price</th>
-                        <th style="text-align: right;">Change (24H)</th>
-                        <th style="text-align: right;">Volume (24H)</th>
-                        <th style="text-align: right;">Market Cap</th>
-                        <th style="text-align: right;">Holders</th>
-                    </tr>
-                </thead>
-                <tbody id="tokensTable"></tbody>
-            </table>
-            <div class="pagination">
-                <div class="pagination-info">Showing 1 to 25 of 2,847 tokens</div>
-                <div class="pagination-controls">
-                    <button class="page-btn" disabled><i class="fas fa-angle-left"></i></button>
-                    <button class="page-btn active">1</button>
-                    <button class="page-btn">2</button>
-                    <button class="page-btn">3</button>
-                    <button class="page-btn"><i class="fas fa-angle-right"></i></button>
+
+            <div id="tab-dcr20" class="token-tab-content active">
+                <div class="table-header">
+                    <div class="table-title">DCR-20 Fungible Tokens</div>
+                    <div style="font-size: 13px; color: var(--gray-500);">On-chain fungible tokens</div>
+                </div>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Token</th>
+                            <th>Standard</th>
+                            <th>Origin</th>
+                            <th style="text-align: right;">Price</th>
+                            <th style="text-align: right;">Change (24H)</th>
+                            <th style="text-align: right;">Volume (24H)</th>
+                            <th style="text-align: right;">Market Cap</th>
+                            <th style="text-align: right;">Holders</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tokensTable"></tbody>
+                </table>
+                <div class="pagination" id="dcr20-pagination">
+                    <div class="pagination-info">Loading...</div>
+                </div>
+            </div>
+
+            <div id="tab-tanastok" class="token-tab-content">
+                <div class="table-header" style="flex-wrap:wrap;gap:0.75rem;">
+                    <div class="table-title"><i class="fas fa-stamp" style="color:#059669;margin-right:5px;"></i> Tanastok Tokenized Assets</div>
+                    <div style="display:flex;align-items:center;gap:0.75rem;flex:1;justify-content:flex-end;">
+                        <select class="filter-select" id="tanastok-type-filter">
+                            <option value="">All Types</option>
+                            <option value="GOLD_MINE">Gold Mines</option>
+                            <option value="FORESTRY">Forestry</option>
+                            <option value="RARE_EARTH">Rare Earth</option>
+                            <option value="REAL_ESTATE">Real Estate</option>
+                            <option value="OIL_FIELD">Oil Fields</option>
+                            <option value="DIAMOND">Diamonds</option>
+                            <option value="CULTURAL_HERITAGE">Cultural Heritage</option>
+                            <option value="LUXURY_VEHICLE">Luxury Vehicles</option>
+                            <option value="WATCH">Watches</option>
+                            <option value="AGRICULTURAL">Agricultural</option>
+                            <option value="INFRASTRUCTURE">Infrastructure</option>
+                            <option value="CRYPTOCURRENCY">Crypto</option>
+                        </select>
+                        <input type="text" class="asset-search" id="tanastok-search" placeholder="Search by asset name, location, or symbol...">
+                    </div>
+                </div>
+                <table class="data-table" id="tanastok-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Asset</th>
+                            <th>Type</th>
+                            <th>Contracts</th>
+                            <th style="text-align: right;">Valuation</th>
+                            <th style="text-align: right;">Shares</th>
+                            <th style="text-align: right;">Price/Share</th>
+                            <th style="text-align: center;">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tanastokTable"></tbody>
+                </table>
+                <div class="pagination" id="tanastok-pagination">
+                    <div class="pagination-info">Loading...</div>
+                    <div class="pagination-controls" id="tanastok-pages"></div>
                 </div>
             </div>
         </div>
     </main>
 
     <footer>
-        <div class="container footer-content">
-            <div class="footer-brand"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 24px; height: 24px;"> DC Explorer - Powered by Datachain Rope</div>
+        <div class="footer-container">
+            <div class="footer-brand"><div class="logo-icon" style="width: 24px; height: 24px;"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 100%; height: 100%; object-fit: contain;"></div> DC Explorer - Powered by Datachain Rope</div>
             <div class="footer-links">
                 <a href="https://datachain.network">Datachain</a>
                 <a href="/apis">API</a>
                 <a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a>
-                <a href="/contact">Contact</a>
+                <a href="/partners">Partners</a><a href="/contact">Contact</a>
             </div>
         </div>
     </footer>
 
     <script>
-        const tokens = [
-            { name: 'Wrapped FAT', symbol: 'WFAT', price: 0.0847, change: 2.4, volume: 12500000, mcap: 450000000, holders: 287492, color: '#3b82f6' },
-            { name: 'TanastokX', symbol: 'TNSX', price: 0.142, change: -1.2, volume: 4200000, mcap: 89000000, holders: 124891, color: '#8b5cf6' },
-            { name: 'DataGold', symbol: 'DGLD', price: 0.0892, change: 5.7, volume: 3100000, mcap: 67000000, holders: 89247, color: '#f59e0b' },
-            { name: 'ChainLink Rope', symbol: 'CLRP', price: 0.0534, change: -0.8, volume: 2800000, mcap: 54000000, holders: 67821, color: '#22c55e' },
-            { name: 'RopeSwap', symbol: 'RSWP', price: 0.0234, change: 12.4, volume: 1900000, mcap: 34000000, holders: 45892, color: '#ec4899' },
-            { name: 'Staked FAT', symbol: 'sFAT', price: 0.0891, change: 2.1, volume: 1500000, mcap: 28000000, holders: 34521, color: '#06b6d4' },
-            { name: 'DataDAO', symbol: 'DDAO', price: 0.0124, change: -3.4, volume: 890000, mcap: 12000000, holders: 23891, color: '#ef4444' },
-            { name: 'RopeNFT', symbol: 'RNFT', price: 0.0067, change: 8.9, volume: 670000, mcap: 8900000, holders: 18247, color: '#a855f7' },
-            { name: 'InsuraChain', symbol: 'INSC', price: 0.0045, change: 1.2, volume: 450000, mcap: 5600000, holders: 12892, color: '#14b8a6' },
-            { name: 'DataBridge', symbol: 'DBRG', price: 0.0023, change: -5.2, volume: 320000, mcap: 3400000, holders: 8921, color: '#f97316' }
-        ];
-
-        function randomAddr() { return '0x' + Array.from({length: 40}, () => Math.floor(Math.random() * 16).toString(16)).join(''); }
-        
-        function generateTokenRow(token, rank) {
-            const changeClass = token.change >= 0 ? 'change-positive' : 'change-negative';
-            const changeIcon = token.change >= 0 ? 'fa-caret-up' : 'fa-caret-down';
-            const addr = randomAddr();
-            
-            return `<tr onclick="window.location='/token/${addr}'">
-                <td style="font-weight: 600;">${rank}</td>
-                <td>
-                    <div class="token-cell">
-                        <div class="token-icon" style="background: var(--black); color: white;">${token.symbol.slice(0, 2)}</div>
-                        <div class="token-info">
-                            <div class="token-name">${token.name}</div>
-                            <div class="token-symbol">${token.symbol}</div>
-                        </div>
-                    </div>
-                </td>
-                <td style="text-align: right;" class="mono">$${token.price.toFixed(4)}<br><span style="font-size: 11px; color: var(--gray-500);">${(token.price / 0.0847).toFixed(4)} FAT</span></td>
-                <td style="text-align: right;" class="${changeClass}"><i class="fas ${changeIcon}"></i> ${Math.abs(token.change).toFixed(2)}%</td>
-                <td style="text-align: right;" class="mono">$${(token.volume / 1000000).toFixed(2)}M</td>
-                <td style="text-align: right;" class="mono">$${(token.mcap / 1000000).toFixed(1)}M</td>
-                <td style="text-align: right;" class="mono">${token.holders.toLocaleString()}</td>
-            </tr>`;
+        function escHtml(s) { if (!s) return ''; var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+        function fmtUsd(n) {
+            if (n >= 1e12) return '$' + (n / 1e12).toFixed(2) + 'T';
+            if (n >= 1e9) return '$' + (n / 1e9).toFixed(2) + 'B';
+            if (n >= 1e6) return '$' + (n / 1e6).toFixed(2) + 'M';
+            if (n >= 1e3) return '$' + (n / 1e3).toFixed(2) + 'K';
+            return '$' + Number(n).toFixed(2);
         }
-        
-        const tbody = document.getElementById('tokensTable');
-        tbody.innerHTML = tokens.map((t, i) => generateTokenRow(t, i + 1)).join('');
+        function shortAddr(a) { return a ? a.slice(0,6) + '\u2026' + a.slice(-4) : '\u2014'; }
+        function standardBadge(std, label) {
+            var cls = 'standard-dcr20';
+            if (std === 'native') cls = 'standard-native';
+            else if (std === 'erc3643') cls = 'standard-erc3643';
+            else if (std === 'erc721') cls = 'standard-erc721';
+            return '<span class="standard-badge ' + cls + '">' + (label || std || 'DCR-20') + '</span>';
+        }
+        // Origin-network badge for bridged tokens (USDC/USDT -> Arbitrum,
+        // EUROD -> Ethereum/XDC legacy flow). Native FAT / WFAT have no
+        // `origin` object and render as "Native".
+        function originBadge(origin) {
+            if (!origin || !origin.originNetwork) {
+                return '<span class="origin-badge origin-native" title="Not bridged \u2014 native to Datachain Rope">Native</span>';
+            }
+            var live = /paused/i.test(origin.bridgeStatus || '') ? false : true;
+            var dot = live ? 'background:#10b981;' : 'background:#f59e0b;';
+            var title = escHtml(origin.bridgeStatus || '');
+            return '<span class="origin-badge" title="' + title + '">' +
+                '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:5px;' + dot + '"></span>' +
+                escHtml(origin.originNetwork) + '</span>';
+        }
+
+        // --- Tab switching ---
+        document.getElementById('token-tabs').addEventListener('click', function(e) {
+            var tab = e.target.closest('.token-tab');
+            if (!tab || !tab.dataset.tab) return;
+            document.querySelectorAll('.token-tab').forEach(function(t) { t.classList.remove('active'); });
+            document.querySelectorAll('.token-tab-content').forEach(function(c) { c.classList.remove('active'); });
+            tab.classList.add('active');
+            document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+        });
+
+        // --- DCR-20 Tokens ---
+        function tokenRow(t, rank) {
+            var addr = t.address || '0x0';
+            var name = t.name || 'Token';
+            var symbol = t.symbol || 'TKN';
+            var price = t.price != null && t.price > 0 ? '$' + Number(t.price).toFixed(t.price < 0.01 ? 6 : 4) : '\u2014';
+            var changeClass = t.change != null ? (t.change >= 0 ? 'change-positive' : 'change-negative') : '';
+            var changeHtml = t.change != null ? '<i class="fas ' + (t.change >= 0 ? 'fa-caret-up' : 'fa-caret-down') + '"></i> ' + Math.abs(Number(t.change)).toFixed(2) + '%' : '\u2014';
+            var vol = t.volume != null && t.volume > 0 ? fmtUsd(t.volume) : '\u2014';
+            var mcap = (t.mcap != null || t.marketCap != null) && Number(t.mcap || t.marketCap) > 0 ? fmtUsd(Number(t.mcap || t.marketCap)) : '\u2014';
+            var holders = (t.holders != null) ? Number(t.holders).toLocaleString() : '\u2014';
+            return '<tr onclick="window.location=\'/token/' + addr + '\'">' +
+                '<td style="font-weight:600;">' + rank + '</td>' +
+                '<td><div class="token-cell"><div class="token-icon" style="background:var(--black);color:white;">' + escHtml(symbol.slice(0,2)) + '</div><div class="token-info"><div class="token-name">' + escHtml(name) + '</div><div class="token-symbol">' + escHtml(symbol) + '</div></div></div></td>' +
+                '<td>' + standardBadge(t.standard, t.standardLabel) + '</td>' +
+                '<td>' + originBadge(t.origin) + '</td>' +
+                '<td style="text-align:right;" class="mono">' + price + '</td>' +
+                '<td style="text-align:right;"><span class="' + changeClass + '">' + changeHtml + '</span></td>' +
+                '<td style="text-align:right;" class="mono">' + vol + '</td>' +
+                '<td style="text-align:right;" class="mono">' + mcap + '</td>' +
+                '<td style="text-align:right;" class="mono">' + holders + '</td></tr>';
+        }
+        fetch('/api/v1/tokens').then(function(r) { return r.ok ? r.json() : {}; }).then(function(data) {
+            var list = data.tokens || [];
+            document.getElementById('stat-total').textContent = Number(list.length).toLocaleString();
+            document.getElementById('tab-count-dcr20').textContent = list.length;
+            var tbody = document.getElementById('tokensTable');
+            tbody.innerHTML = list.length ? list.map(function(t, i) { return tokenRow(t, i + 1); }).join('') : '<tr><td colspan="9" style="text-align:center;color:var(--gray-500);padding:3rem;">No DCR-20 tokens found</td></tr>';
+            document.querySelector('#dcr20-pagination .pagination-info').textContent = list.length ? 'Showing ' + list.length + ' tokens' : 'No tokens';
+        }).catch(function() {
+            document.getElementById('tokensTable').innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--gray-500);">Failed to load tokens</td></tr>';
+        });
+
+        // --- Tanastok Tokenized Assets ---
+        var allAssets = [];
+        var filteredAssets = [];
+        var tanastokPage = 1;
+        var tanastokPageSize = 25;
+
+        var typeIcons = {
+            'GOLD_MINE': { icon: 'fa-mountain', cls: 'gold' },
+            'FORESTRY': { icon: 'fa-tree', cls: 'forestry' },
+            'RARE_EARTH': { icon: 'fa-atom', cls: 'default' },
+            'REAL_ESTATE': { icon: 'fa-building', cls: 'realestate' },
+            'OIL_FIELD': { icon: 'fa-oil-well', cls: 'oil' },
+            'DIAMOND': { icon: 'fa-gem', cls: 'diamond' },
+            'CULTURAL_HERITAGE': { icon: 'fa-landmark', cls: 'cultural' },
+            'LUXURY_VEHICLE': { icon: 'fa-car', cls: 'vehicle' },
+            'WATCH': { icon: 'fa-clock', cls: 'watch' },
+            'AGRICULTURAL': { icon: 'fa-seedling', cls: 'forestry' },
+            'INFRASTRUCTURE': { icon: 'fa-road', cls: 'default' },
+            'CRYPTOCURRENCY': { icon: 'fa-bitcoin-sign', cls: 'crypto' }
+        };
+        function typeName(t) { return (t || '').replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); }); }
+
+        function assetRow(a, rank) {
+            var ti = typeIcons[a.assetType] || { icon: 'fa-cube', cls: 'default' };
+            var dcnftAddr = a.dcnft && a.dcnft.contractAddress;
+            var ercAddr = a.erc3643 && a.erc3643.contractAddress;
+            var val = a.value != null ? fmtUsd(Number(a.value)) : '\u2014';
+            var shares = a.totalShares != null ? Number(a.totalShares).toLocaleString() : '\u2014';
+            var pps = a.pricePerShare != null ? fmtUsd(Number(a.pricePerShare)) : '\u2014';
+            var sym = (a.erc3643 && a.erc3643.tokenSymbol) || '';
+            var loc = a.location || '';
+            var verified = a.isVerified ? '<i class="fas fa-check-circle verified-dot" title="Verified"></i>' : '';
+            var statusHtml = a.condition ? '<span class="standard-badge standard-dcr20">' + escHtml(a.condition) + '</span>' : '\u2014';
+
+            var contracts = '<div class="contract-pair">';
+            if (dcnftAddr) contracts += '<a href="/address/' + dcnftAddr + '" class="contract-chip dcnft" title="' + escHtml(dcnftAddr) + '"><i class="fas fa-file-code"></i> DCNFT ' + shortAddr(dcnftAddr) + '</a>';
+            if (ercAddr) contracts += '<a href="/address/' + ercAddr + '" class="contract-chip erc3643" title="' + escHtml(ercAddr) + '"><i class="fas fa-shield-halved"></i> ERC-3643 ' + shortAddr(ercAddr) + '</a>';
+            contracts += '</div>';
+
+            var nameHtml = '<div class="asset-icon-cell">' +
+                '<div class="asset-type-icon ' + ti.cls + '"><i class="fas ' + ti.icon + '"></i></div>' +
+                '<div><div class="asset-name">' + escHtml(a.name || 'Asset') + verified + '</div>' +
+                '<div class="asset-sub">' + (sym ? escHtml(sym) + ' \u00b7 ' : '') + escHtml(loc) + '</div></div></div>';
+
+            var href = dcnftAddr ? '/address/' + dcnftAddr : (ercAddr ? '/address/' + ercAddr : '#');
+            return '<tr onclick="window.location=\'' + href + '\'" style="cursor:pointer;">' +
+                '<td style="font-weight:600;color:var(--gray-400);">' + rank + '</td>' +
+                '<td>' + nameHtml + '</td>' +
+                '<td><span class="standard-badge standard-erc721" style="font-size:10px;">' + escHtml(typeName(a.assetType)) + '</span></td>' +
+                '<td>' + contracts + '</td>' +
+                '<td style="text-align:right;font-weight:600;" class="mono">' + val + '</td>' +
+                '<td style="text-align:right;" class="mono">' + shares + '</td>' +
+                '<td style="text-align:right;" class="mono">' + pps + '</td>' +
+                '<td style="text-align:center;">' + statusHtml + '</td></tr>';
+        }
+
+        function renderTanastokPage() {
+            var start = (tanastokPage - 1) * tanastokPageSize;
+            var page = filteredAssets.slice(start, start + tanastokPageSize);
+            var tbody = document.getElementById('tanastokTable');
+            if (!page.length) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--gray-500);padding:3rem;">No assets match your filter</td></tr>';
+            } else {
+                tbody.innerHTML = page.map(function(a, i) { return assetRow(a, start + i + 1); }).join('');
+            }
+            var totalPages = Math.ceil(filteredAssets.length / tanastokPageSize) || 1;
+            document.querySelector('#tanastok-pagination .pagination-info').textContent =
+                'Showing ' + (start + 1) + ' to ' + Math.min(start + tanastokPageSize, filteredAssets.length) + ' of ' + filteredAssets.length + ' assets';
+            var pagesEl = document.getElementById('tanastok-pages');
+            var btns = '';
+            btns += '<button class="page-btn" ' + (tanastokPage <= 1 ? 'disabled' : '') + ' data-p="' + (tanastokPage - 1) + '"><i class="fas fa-angle-left"></i></button>';
+            var lo = Math.max(1, tanastokPage - 2), hi = Math.min(totalPages, tanastokPage + 2);
+            for (var p = lo; p <= hi; p++) {
+                btns += '<button class="page-btn' + (p === tanastokPage ? ' active' : '') + '" data-p="' + p + '">' + p + '</button>';
+            }
+            btns += '<button class="page-btn" ' + (tanastokPage >= totalPages ? 'disabled' : '') + ' data-p="' + (tanastokPage + 1) + '"><i class="fas fa-angle-right"></i></button>';
+            pagesEl.innerHTML = btns;
+        }
+        document.getElementById('tanastok-pages').addEventListener('click', function(e) {
+            var btn = e.target.closest('[data-p]');
+            if (btn && !btn.disabled) { tanastokPage = parseInt(btn.dataset.p); renderTanastokPage(); }
+        });
+
+        function applyTanastokFilters() {
+            var typeFilter = document.getElementById('tanastok-type-filter').value;
+            var search = document.getElementById('tanastok-search').value.toLowerCase().trim();
+            filteredAssets = allAssets.filter(function(a) {
+                if (typeFilter && a.assetType !== typeFilter) return false;
+                if (search) {
+                    var haystack = ((a.name || '') + ' ' + (a.location || '') + ' ' + ((a.erc3643 && a.erc3643.tokenSymbol) || '') + ' ' + (a.assetType || '') + ' ' + (a.brandName || '')).toLowerCase();
+                    if (haystack.indexOf(search) === -1) return false;
+                }
+                return true;
+            });
+            tanastokPage = 1;
+            renderTanastokPage();
+        }
+        document.getElementById('tanastok-type-filter').addEventListener('change', applyTanastokFilters);
+        var searchTimeout;
+        document.getElementById('tanastok-search').addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(applyTanastokFilters, 300);
+        });
+
+        fetch('/api/v1/tanastok/assets').then(function(r) { return r.ok ? r.json() : {}; }).then(function(data) {
+            allAssets = data.assets || [];
+            filteredAssets = allAssets.slice();
+
+            document.getElementById('stat-tanastok').textContent = allAssets.length.toLocaleString();
+            document.getElementById('tab-count-tanastok').textContent = allAssets.length;
+
+            var totalVal = 0;
+            var types = {};
+            allAssets.forEach(function(a) {
+                if (a.value) totalVal += Number(a.value);
+                if (a.assetType) types[a.assetType] = true;
+            });
+            document.getElementById('stat-rwa-value').textContent = fmtUsd(totalVal);
+            document.getElementById('stat-asset-types').textContent = Object.keys(types).length;
+
+            renderTanastokPage();
+        }).catch(function() {
+            document.getElementById('tanastokTable').innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--gray-500);">Failed to load tokenized assets</td></tr>';
+        });
     </script>
+<script src="/js/dcscan-stats.js"></script>
+    <script src="/js/dcscan-wallet.js?v=20260707b" defer></script>
 </body>
 </html>
 

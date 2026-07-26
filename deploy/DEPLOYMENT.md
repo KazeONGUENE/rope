@@ -94,10 +94,17 @@ nano .env
 
 Fill in:
 ```env
-POSTGRES_PASSWORD=<generate_strong_password>
-REDIS_PASSWORD=<generate_strong_password>
-NEON_DATABASE_URL=postgresql://neondb_owner:npg_Gr7mLYdpaI9S@ep-noisy-sun-a9xwa3gc-pooler.gwc.azure.neon.tech/neondb?sslmode=require&channel_binding=require
+POSTGRES_PASSWORD=<generate with: openssl rand -base64 32>
+REDIS_PASSWORD=<generate with: openssl rand -base64 32>
+# Use a least-privilege application role, never the *_owner role.
+NEON_DATABASE_URL=postgresql://<app_role>:<password>@<your-neon-host>/<db>?sslmode=require&channel_binding=require
 ```
+
+> **2026-07-25 security note:** an earlier revision of this document
+> committed a live Neon `*_owner` connection string in plaintext. That
+> credential must be treated as compromised — rotate the Neon password and
+> switch to a scoped application role. See
+> `docs/SECURITY_AUDIT_2026-07-25_FULL_WORKSPACE.md` finding C3.
 
 ### Step 5: Deploy
 

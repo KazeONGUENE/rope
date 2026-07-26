@@ -12,6 +12,7 @@ path = "src/main.rs"
 
 [dependencies]
 rope-node = { path = "../rope-node" }
+rope-consensus = { path = "../rope-consensus" }
 rope-core = { path = "../rope-core" }
 rope-crypto = { path = "../rope-crypto" }
 rope-deployer = { path = "../rope-deployer" }
@@ -36,3 +37,7 @@ ed25519-dalek = { workspace = true }
 chrono = { workspace = true }
 uuid = { workspace = true }
 rand = { workspace = true }
+
+# Non-custodial EVM wallet keygen for `rope wallet new` (added 2026-07-23)
+k256 = { workspace = true }
+sha3 = { workspace = true }

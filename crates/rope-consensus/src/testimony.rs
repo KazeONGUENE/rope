@@ -20,11 +20,15 @@
 //! Requires 2f+1 testimonies where f = (n-1)/3 Byzantine validators.
 //! For n=21 validators, need 15 testimonies (f=6).
 
+use crate::validator_registry::ValidatorRegistry;
 use parking_lot::RwLock;
 use rope_core::clock::LamportClock;
 use rope_core::types::{AttestationType, NodeId, StringId};
+use rope_crypto::batch::{BatchVerifyItem, BatchVerifyOutcome};
+use rope_crypto::hybrid::{HybridSignature, HybridSigner, HybridVerifier};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Testimony - Validator attestation confirming string validity
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -145,6 +149,30 @@ impl Testimony {
     pub fn set_signature(&mut self, ed25519: Vec<u8>, dilithium: Vec<u8>) {
         self.signature.ed25519 = ed25519;
         self.signature.dilithium = dilithium;
+    }
+
+    /// Sign this testimony with a validator's hybrid keypair.
+    ///
+    /// Produces an Ed25519 + CRYSTALS-Dilithium3 signature over
+    /// [`signing_data`](Self::signing_data). The `validator_id` MUST
+    /// correspond to the signer's key (`NodeId == blake3(ed25519_pub)`);
+    /// the collector re-derives the key from the registry keyed by
+    /// `validator_id`, so signing with the wrong key produces a
+    /// testimony that fails verification.
+    pub fn sign_with(&mut self, signer: &HybridSigner) {
+        let data = self.signing_data();
+        let sig = signer.sign(&data);
+        self.signature.ed25519 = sig.ed25519_sig;
+        self.signature.dilithium = sig.dilithium_sig;
+    }
+
+    /// Reconstruct the crypto-layer [`HybridSignature`] from this
+    /// testimony's stored signature bytes, for verification.
+    pub fn hybrid_signature(&self) -> HybridSignature {
+        HybridSignature {
+            ed25519_sig: self.signature.ed25519.clone(),
+            dilithium_sig: self.signature.dilithium.clone(),
+        }
     }
 
     // ========================================================================
@@ -401,8 +429,17 @@ pub struct TestimonyCollector {
     /// Collections by string ID
     collections: RwLock<HashMap<StringId, TestimonyCollection>>,
 
-    /// Known validators
+    /// Known validators (node ids). Kept for the finality-quorum size
+    /// and duplicate/unknown checks. When a `registry` is attached, its
+    /// active set is the authoritative validator universe; this list is
+    /// kept in sync as validators register.
     validators: RwLock<Vec<NodeId>>,
+
+    /// Validator public-key registry, used for real signature
+    /// verification. When `None`, the collector runs in the legacy
+    /// "trust signed testimonies" mode (only permitted when
+    /// `config.verify_signatures == false`).
+    registry: Option<Arc<ValidatorRegistry>>,
 
     /// Configuration
     config: TestimonyConfig,
@@ -432,13 +469,44 @@ impl Default for TestimonyConfig {
 }
 
 impl TestimonyCollector {
-    /// Create new collector
+    /// Create new collector without a key registry.
+    ///
+    /// If `config.verify_signatures` is `true` this collector will
+    /// reject every testimony with [`TestimonyError::MissingRegistry`]
+    /// on the first submission that requires verification — callers
+    /// that want signature enforcement MUST use
+    /// [`with_registry`](Self::with_registry).
     pub fn new(config: TestimonyConfig) -> Self {
         Self {
             collections: RwLock::new(HashMap::new()),
             validators: RwLock::new(Vec::new()),
+            registry: None,
             config,
         }
+    }
+
+    /// Create a collector backed by a validator key registry, enabling
+    /// real hybrid-signature verification.
+    pub fn with_registry(config: TestimonyConfig, registry: Arc<ValidatorRegistry>) -> Self {
+        Self {
+            collections: RwLock::new(HashMap::new()),
+            validators: RwLock::new(registry.active_validators()),
+            registry: Some(registry),
+            config,
+        }
+    }
+
+    /// Attach (or replace) the validator registry after construction.
+    pub fn set_registry(&mut self, registry: Arc<ValidatorRegistry>) {
+        {
+            let mut v = self.validators.write();
+            for id in registry.active_validators() {
+                if !v.iter().any(|x| x.as_bytes() == id.as_bytes()) {
+                    v.push(id);
+                }
+            }
+        }
+        self.registry = Some(registry);
     }
 
     /// Register a validator
@@ -471,26 +539,201 @@ impl TestimonyCollector {
         Ok(finality)
     }
 
-    /// Validate a testimony
+    /// Validate a testimony.
+    ///
+    /// Enforces, in order:
+    /// 1. The validator is a known member of the committee.
+    /// 2. If `verify_signatures`, the testimony carries a signature.
+    /// 3. If `verify_signatures`, the hybrid signature verifies against
+    ///    the validator's registered public key over `signing_data()`.
+    ///    A missing registry while `verify_signatures == true` is a
+    ///    hard configuration error, not a silent pass.
     fn validate_testimony(&self, testimony: &Testimony) -> Result<(), TestimonyError> {
-        // Check validator is known
-        let validators = self.validators.read();
-        if !validators
-            .iter()
-            .any(|v| v.as_bytes() == testimony.validator_id.as_bytes())
+        // Check validator is known.
         {
-            return Err(TestimonyError::UnknownValidator);
+            let validators = self.validators.read();
+            if !validators
+                .iter()
+                .any(|v| v.as_bytes() == testimony.validator_id.as_bytes())
+            {
+                return Err(TestimonyError::UnknownValidator);
+            }
         }
 
-        // Check signature if required
-        if self.config.verify_signatures && !testimony.is_signed() {
+        if !self.config.verify_signatures {
+            return Ok(());
+        }
+
+        // Signature must be present.
+        if !testimony.is_signed() {
             return Err(TestimonyError::MissingSignature);
         }
 
-        // Signature verification would happen here with rope-crypto
-        // For now, we trust signed testimonies
+        // A registry is mandatory for real verification. Refuse to
+        // silently trust an unverifiable signature.
+        let registry = self
+            .registry
+            .as_ref()
+            .ok_or(TestimonyError::MissingRegistry)?;
 
-        Ok(())
+        // The registering validator must be active.
+        if !registry.is_active(&testimony.validator_id) {
+            return Err(TestimonyError::UnknownValidator);
+        }
+
+        let public_key = registry
+            .public_key(&testimony.validator_id)
+            .ok_or(TestimonyError::UnknownValidator)?;
+
+        let sig = testimony.hybrid_signature();
+        let data = testimony.signing_data();
+        match HybridVerifier::verify(&public_key, &data, &sig) {
+            Ok(true) => Ok(()),
+            Ok(false) => Err(TestimonyError::InvalidSignature),
+            Err(e) => {
+                tracing::warn!(
+                    validator = ?testimony.validator_id,
+                    "testimony signature verification errored: {e}"
+                );
+                Err(TestimonyError::InvalidSignature)
+            }
+        }
+    }
+
+    /// Submit and verify a batch of testimonies in one call, using
+    /// rayon-parallel batch signature verification (Phase 2.C).
+    ///
+    /// This is the high-throughput entry point the consensus
+    /// orchestrator uses when many testimonies for (possibly many)
+    /// strings arrive together — e.g. an anchor round collecting the
+    /// committee's attestations. Verification of the whole batch runs
+    /// in parallel across the rayon pool with a process-wide parsed
+    /// public-key cache.
+    ///
+    /// Returns, for each input testimony (parallel to the input slice),
+    /// `Ok(true)` if it was accepted AND its target string reached
+    /// finality as a result, `Ok(false)` if accepted but not yet
+    /// final, and `Err(..)` if it was rejected (unknown validator,
+    /// missing/invalid signature, etc). Rejected testimonies are NOT
+    /// added to any collection.
+    pub fn submit_testimonies_batch(
+        &self,
+        testimonies: Vec<Testimony>,
+    ) -> Vec<Result<bool, TestimonyError>> {
+        if testimonies.is_empty() {
+            return Vec::new();
+        }
+
+        // Pre-flight non-crypto checks + resolve each validator's key.
+        // `precheck[i]` is Ok(public_key_or_none) when the testimony is
+        // structurally acceptable, Err(..) when it must be rejected
+        // before any crypto work.
+        let verify_sigs = self.config.verify_signatures;
+        let mut prechecked: Vec<Result<Option<rope_crypto::hybrid::HybridPublicKey>, TestimonyError>> =
+            Vec::with_capacity(testimonies.len());
+
+        {
+            let validators = self.validators.read();
+            for t in &testimonies {
+                let known = validators
+                    .iter()
+                    .any(|v| v.as_bytes() == t.validator_id.as_bytes());
+                if !known {
+                    prechecked.push(Err(TestimonyError::UnknownValidator));
+                    continue;
+                }
+                if !verify_sigs {
+                    prechecked.push(Ok(None));
+                    continue;
+                }
+                if !t.is_signed() {
+                    prechecked.push(Err(TestimonyError::MissingSignature));
+                    continue;
+                }
+                match &self.registry {
+                    None => prechecked.push(Err(TestimonyError::MissingRegistry)),
+                    Some(reg) => {
+                        if !reg.is_active(&t.validator_id) {
+                            prechecked.push(Err(TestimonyError::UnknownValidator));
+                        } else if let Some(pk) = reg.public_key(&t.validator_id) {
+                            prechecked.push(Ok(Some(pk)));
+                        } else {
+                            prechecked.push(Err(TestimonyError::UnknownValidator));
+                        }
+                    }
+                }
+            }
+        }
+
+        // Build the crypto batch for those that passed pre-flight and
+        // require verification. We must keep the owned messages,
+        // signatures and public keys alive for the borrow-based
+        // BatchVerifyItem API.
+        let mut owned_msgs: Vec<Vec<u8>> = Vec::new();
+        let mut owned_sigs: Vec<HybridSignature> = Vec::new();
+        let mut owned_pks: Vec<rope_crypto::hybrid::HybridPublicKey> = Vec::new();
+        // Map batch index -> testimony index.
+        let mut batch_to_testimony: Vec<usize> = Vec::new();
+
+        for (i, pc) in prechecked.iter().enumerate() {
+            if let Ok(Some(pk)) = pc {
+                owned_msgs.push(testimonies[i].signing_data());
+                owned_sigs.push(testimonies[i].hybrid_signature());
+                owned_pks.push(pk.clone());
+                batch_to_testimony.push(i);
+            }
+        }
+
+        let mut batch_results: Vec<bool> = Vec::new();
+        if !owned_msgs.is_empty() {
+            let items: Vec<BatchVerifyItem<'_>> = (0..owned_msgs.len())
+                .map(|k| {
+                    BatchVerifyItem::new(&owned_pks[k], &owned_msgs[k], &owned_sigs[k])
+                })
+                .collect();
+            match HybridVerifier::verify_batch(&items) {
+                Ok(BatchVerifyOutcome { results, .. }) => batch_results = results,
+                Err(e) => {
+                    tracing::error!("batch verification failed: {e}");
+                    // On a batch-level error we cannot attribute per-item
+                    // fault; reject every item that was in the batch.
+                    batch_results = vec![false; owned_msgs.len()];
+                }
+            }
+        }
+
+        // Fold crypto results back onto the per-testimony verdict.
+        let mut sig_ok: Vec<Result<(), TestimonyError>> = prechecked
+            .iter()
+            .map(|pc| match pc {
+                Ok(_) => Ok(()),
+                Err(e) => Err(e.clone()),
+            })
+            .collect();
+        for (k, &ti) in batch_to_testimony.iter().enumerate() {
+            if !batch_results[k] {
+                sig_ok[ti] = Err(TestimonyError::InvalidSignature);
+            }
+        }
+
+        // Insert accepted testimonies and compute finality.
+        let validators_count = self.validators.read().len();
+        let mut collections = self.collections.write();
+        let mut out: Vec<Result<bool, TestimonyError>> = Vec::with_capacity(testimonies.len());
+        for (i, t) in testimonies.into_iter().enumerate() {
+            match &sig_ok[i] {
+                Err(e) => out.push(Err(e.clone())),
+                Ok(()) => {
+                    let collection = collections
+                        .entry(t.target_string_id)
+                        .or_insert_with(|| TestimonyCollection::new(t.target_string_id));
+                    collection.add(t);
+                    let finality = collection.check_finality(validators_count);
+                    out.push(Ok(finality));
+                }
+            }
+        }
+        out
     }
 
     /// Get collection for a string
@@ -568,6 +811,10 @@ pub enum TestimonyError {
     UnknownValidator,
     MissingSignature,
     InvalidSignature,
+    /// `verify_signatures` is enabled but no validator key registry is
+    /// attached — the collector cannot verify and refuses to silently
+    /// trust the testimony.
+    MissingRegistry,
     DuplicateTestimony,
     ExpiredTestimony,
     InvalidAttestationType,
@@ -580,6 +827,9 @@ impl std::fmt::Display for TestimonyError {
             TestimonyError::UnknownValidator => write!(f, "Unknown validator"),
             TestimonyError::MissingSignature => write!(f, "Missing signature"),
             TestimonyError::InvalidSignature => write!(f, "Invalid signature"),
+            TestimonyError::MissingRegistry => {
+                write!(f, "signature verification enabled but no validator registry attached")
+            }
             TestimonyError::DuplicateTestimony => write!(f, "Duplicate testimony"),
             TestimonyError::ExpiredTestimony => write!(f, "Expired testimony"),
             TestimonyError::InvalidAttestationType => write!(f, "Invalid attestation type"),
@@ -679,6 +929,183 @@ mod tests {
 
         // Now should have finality
         assert!(collection.check_finality(21));
+    }
+
+    #[test]
+    fn signed_testimony_verifies_against_registry() {
+        use crate::validator_registry::ValidatorRegistry;
+        use rope_crypto::hybrid::HybridSigner;
+
+        let registry = Arc::new(ValidatorRegistry::new());
+        let (signer, pk) = HybridSigner::generate();
+        let validator_id = NodeId::new(pk.node_id());
+        registry.register(validator_id, pk).unwrap();
+
+        let collector =
+            TestimonyCollector::with_registry(TestimonyConfig::default(), registry.clone());
+
+        let string_id = StringId::from_content(b"real-sig string");
+        let timestamp = LamportClock::new(validator_id);
+        let mut testimony = Testimony::new(
+            string_id,
+            validator_id,
+            AttestationType::Existence,
+            timestamp,
+            7,
+        );
+        testimony.sign_with(&signer);
+        assert!(testimony.is_signed());
+
+        // A genuinely signed testimony from a registered validator is
+        // accepted (single validator => finality with 2f+1 = 1).
+        let res = collector.submit_testimony(testimony);
+        assert!(res.is_ok(), "expected accept, got {res:?}");
+    }
+
+    #[test]
+    fn forged_testimony_is_rejected() {
+        use crate::validator_registry::ValidatorRegistry;
+        use rope_crypto::hybrid::HybridSigner;
+
+        let registry = Arc::new(ValidatorRegistry::new());
+        let (_signer, pk) = HybridSigner::generate();
+        let validator_id = NodeId::new(pk.node_id());
+        registry.register(validator_id, pk).unwrap();
+
+        // Attacker signs with a DIFFERENT key but claims the victim's id.
+        let (attacker_signer, _attacker_pk) = HybridSigner::generate();
+
+        let collector =
+            TestimonyCollector::with_registry(TestimonyConfig::default(), registry);
+
+        let string_id = StringId::from_content(b"forged string");
+        let timestamp = LamportClock::new(validator_id);
+        let mut testimony = Testimony::new(
+            string_id,
+            validator_id,
+            AttestationType::Existence,
+            timestamp,
+            7,
+        );
+        testimony.sign_with(&attacker_signer);
+
+        let res = collector.submit_testimony(testimony);
+        assert!(
+            matches!(res, Err(TestimonyError::InvalidSignature)),
+            "forged testimony must be rejected, got {res:?}"
+        );
+    }
+
+    #[test]
+    fn batch_submit_verifies_and_finalizes() {
+        use crate::validator_registry::ValidatorRegistry;
+        use rope_crypto::hybrid::HybridSigner;
+
+        // 4 validators; f=(4-1)/3=1; threshold=2f+1=3.
+        let registry = Arc::new(ValidatorRegistry::new());
+        let mut signers = Vec::new();
+        let mut ids = Vec::new();
+        for _ in 0..4 {
+            let (s, pk) = HybridSigner::generate();
+            let id = NodeId::new(pk.node_id());
+            registry.register(id, pk).unwrap();
+            signers.push(s);
+            ids.push(id);
+        }
+
+        let collector =
+            TestimonyCollector::with_registry(TestimonyConfig::default(), registry);
+
+        let string_id = StringId::from_content(b"batch string");
+        let mut batch = Vec::new();
+        for i in 0..3 {
+            let ts = LamportClock::new(ids[i]);
+            let mut t = Testimony::new(
+                string_id,
+                ids[i],
+                AttestationType::Existence,
+                ts,
+                1,
+            );
+            t.sign_with(&signers[i]);
+            batch.push(t);
+        }
+
+        let results = collector.submit_testimonies_batch(batch);
+        assert_eq!(results.len(), 3);
+        for r in &results {
+            assert!(r.is_ok(), "each item must be accepted: {r:?}");
+        }
+        // The 3rd testimony reaches the 2f+1=3 threshold.
+        assert_eq!(*results.last().unwrap().as_ref().unwrap(), true);
+        assert!(collector.is_finalized(&string_id));
+    }
+
+    #[test]
+    fn batch_submit_isolates_forged_item() {
+        use crate::validator_registry::ValidatorRegistry;
+        use rope_crypto::hybrid::HybridSigner;
+
+        let registry = Arc::new(ValidatorRegistry::new());
+        let mut signers = Vec::new();
+        let mut ids = Vec::new();
+        for _ in 0..4 {
+            let (s, pk) = HybridSigner::generate();
+            let id = NodeId::new(pk.node_id());
+            registry.register(id, pk).unwrap();
+            signers.push(s);
+            ids.push(id);
+        }
+        let (attacker, _) = HybridSigner::generate();
+
+        let collector =
+            TestimonyCollector::with_registry(TestimonyConfig::default(), registry);
+        let string_id = StringId::from_content(b"batch mix");
+
+        let mut batch = Vec::new();
+        // item 0 valid, item 1 forged, item 2 valid
+        for i in 0..3 {
+            let ts = LamportClock::new(ids[i]);
+            let mut t = Testimony::new(
+                string_id,
+                ids[i],
+                AttestationType::Existence,
+                ts,
+                1,
+            );
+            if i == 1 {
+                t.sign_with(&attacker);
+            } else {
+                t.sign_with(&signers[i]);
+            }
+            batch.push(t);
+        }
+
+        let results = collector.submit_testimonies_batch(batch);
+        assert!(results[0].is_ok());
+        assert!(matches!(results[1], Err(TestimonyError::InvalidSignature)));
+        assert!(results[2].is_ok());
+    }
+
+    #[test]
+    fn verify_enabled_without_registry_is_hard_error() {
+        // Default config has verify_signatures = true; new() has no
+        // registry, so any signature-requiring submit must fail closed.
+        let collector = TestimonyCollector::new(TestimonyConfig::default());
+        let validator_id = NodeId::new([9u8; 32]);
+        collector.register_validator(validator_id);
+        let string_id = StringId::from_content(b"no registry");
+        let ts = LamportClock::new(validator_id);
+        let mut t = Testimony::new(
+            string_id,
+            validator_id,
+            AttestationType::Existence,
+            ts,
+            1,
+        );
+        t.set_signature(vec![1u8; 64], vec![2u8; 3309]);
+        let res = collector.submit_testimony(t);
+        assert!(matches!(res, Err(TestimonyError::MissingRegistry)));
     }
 
     #[test]

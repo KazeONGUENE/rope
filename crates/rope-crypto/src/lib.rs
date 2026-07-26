@@ -17,6 +17,8 @@
 //! | Hashing | BLAKE3 | 256-bit |
 //! | Key Exchange | X25519 + Kyber768 | 256-bit + NIST PQ-3 |
 
+pub mod batch;
+pub mod offload;
 pub mod error;
 pub mod hash;
 pub mod hybrid;
@@ -24,6 +26,7 @@ pub mod keys;
 pub mod ledger_encryption;
 pub mod oes;
 
+pub use batch::*;
 pub use error::*;
 pub use hash::*;
 pub use hybrid::*;

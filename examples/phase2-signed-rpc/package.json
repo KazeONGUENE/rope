@@ -1,0 +1,18 @@
+{
+  "name": "phase2-signed-rpc-example",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Reference TS client for Datachain Rope Phase-2 signed destructive RPC.",
+  "type": "module",
+  "scripts": {
+    "start": "ts-node sign-phase2-rpc.ts"
+  },
+  "dependencies": {
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  }
+}

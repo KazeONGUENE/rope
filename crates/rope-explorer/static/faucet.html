@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Testnet Faucet | DC Explorer</title>
+    <title>Faucet | DC Explorer</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
@@ -109,9 +109,13 @@
                 </div>
                 <div class="nav-item"><a href="#" class="nav-link">Network <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
                     <div class="nav-dropdown">
+                        <a href="/ecosystem" class="dropdown-item">Ecosystem Projects</a>
+                        <a href="/vote" class="dropdown-item" id="nav-governance-voting">Governance &amp; Voting</a>
                         <a href="/defi" class="dropdown-item">DeFi</a>
+                        <a href="/supply" class="dropdown-item">Supply Reconciliation</a>
                         <a href="/validators" class="dropdown-item">Validators</a>
                         <a href="/databases" class="dropdown-item">Databases</a>
+                        <a href="/databoxes" class="dropdown-item" id="nav-databox-network">Global Databox Network</a>
                         <a href="/stats" class="dropdown-item">Charts & Stats</a>
                     </div>
                 </div>
@@ -119,8 +123,10 @@
                     <div class="nav-dropdown">
                         <a href="/apis" class="dropdown-item">API Docs</a>
                         <a href="/verify" class="dropdown-item">Verify Contract</a>
+                        <a href="/create-wallet" class="dropdown-item" id="nav-create-wallet">Create Wallet</a>
                         <a href="/faucet" class="dropdown-item">Faucet</a>
                         <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank">GitHub</a>
+                        <a href="/partners" class="dropdown-item">Partners</a>
                         <a href="/contact" class="dropdown-item">Contact</a>
                     </div>
                 </div>
@@ -131,67 +137,30 @@
 
     <main>
         <div class="hero">
-            <div class="hero-icon"><i class="fas fa-faucet"></i></div>
-            <h1 class="hero-title">Testnet Faucet</h1>
-            <p class="hero-subtitle">Get free testnet FAT tokens to build and test on Datachain Rope</p>
+            <div class="hero-icon"><i class="fas fa-circle-info"></i></div>
+            <h1 class="hero-title">No Faucet on Mainnet</h1>
+            <p class="hero-subtitle">Datachain Rope (chain ID 271828) is a live mainnet — DC FAT is a real, economically-valued asset, not a testnet token</p>
         </div>
 
         <div class="container">
             <div class="faucet-card">
-                <form>
-                    <div class="form-group">
-                        <label class="form-label">Your Wallet Address</label>
-                        <input type="text" class="form-input" placeholder="0x..." required>
-                        <div class="form-help">Enter your Datachain Rope testnet address</div>
-                    </div>
-
-                    <label class="form-label">Select Amount</label>
-                    <div class="amount-selector">
-                        <div class="amount-option" onclick="selectAmount(this)">
-                            <div class="amount-value">10</div>
-                            <div class="amount-label">FAT</div>
-                        </div>
-                        <div class="amount-option selected" onclick="selectAmount(this)">
-                            <div class="amount-value">50</div>
-                            <div class="amount-label">FAT</div>
-                        </div>
-                        <div class="amount-option" onclick="selectAmount(this)">
-                            <div class="amount-value">100</div>
-                            <div class="amount-label">FAT</div>
-                        </div>
-                    </div>
-
-                    <button type="submit" class="submit-btn"><i class="fas fa-paper-plane"></i> Request Tokens</button>
-                </form>
-
-                <div class="info-section">
-                    <h3 class="info-title"><i class="fas fa-info-circle" style="color: var(--info);"></i> How it works</h3>
+                <div class="info-section" style="margin-top: 0; padding-top: 0; border-top: none;">
+                    <h3 class="info-title"><i class="fas fa-triangle-exclamation" style="color: var(--warning);"></i> Why there is no faucet here</h3>
                     <ul class="info-list">
-                        <li><i class="fas fa-check"></i> Testnet tokens have no real value and are for testing only</li>
-                        <li><i class="fas fa-check"></i> Each address can request tokens once per 24 hours</li>
-                        <li><i class="fas fa-check"></i> Tokens are sent within seconds</li>
-                        <li><i class="fas fa-check"></i> Use them to deploy contracts and test transactions</li>
+                        <li><i class="fas fa-xmark" style="color: #ef4444;"></i> Datachain Rope is production mainnet, not a testnet — DC FAT has real market value (see live price on <a href="https://dcscan.io/supply">the supply page</a>)</li>
+                        <li><i class="fas fa-xmark" style="color: #ef4444;"></i> A page that dispensed free mainnet FAT on request would be a direct treasury-drain / abuse vector, so this explorer does not implement or fake one</li>
+                        <li><i class="fas fa-check" style="color: var(--success);"></i> To get FAT for gas, acquire it on <a href="https://dcswap.net">DCSwap</a> or bridge it from a supported chain</li>
+                        <li><i class="fas fa-check" style="color: var(--success);"></i> To build and test contracts, deploy against the live mainnet RPC (<code>https://erpc.datachain.network</code>) using a small, real amount of FAT — see the <a href="/apis">API docs</a></li>
                     </ul>
                 </div>
-            </div>
-
-            <div class="stats-row">
-                <div class="stat-item"><div class="stat-value" id="stat-tokens-distributed">—</div><div class="stat-label">Tokens Distributed</div></div>
-                <div class="stat-item"><div class="stat-value" id="stat-requests-today">—</div><div class="stat-label">Requests Today</div></div>
-                <div class="stat-item"><div class="stat-value" id="stat-unique-users">—</div><div class="stat-label">Unique Users</div></div>
             </div>
         </div>
     </main>
 
     <footer>Powered by <a href="https://datachain.network">Datachain Rope</a> · <a href="/apis">API</a> · <a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a></footer>
 
-    <script>
-        function selectAmount(el) {
-            document.querySelectorAll('.amount-option').forEach(o => o.classList.remove('selected'));
-            el.classList.add('selected');
-        }
-    </script>
 <script src="/js/dcscan-stats.js"></script>
+    <script src="/js/dcscan-wallet.js?v=20260707b" defer></script>
 </body>
 </html>
 

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>View Strings | DC Explorer</title>
+    <title>View Strings (Knots) | DC Explorer</title>
     <meta name="description" content="Browse all strings on the Datachain Rope network">
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -140,12 +140,16 @@
             display: flex;
             align-items: center;
             gap: 0.375rem;
-            padding: 0.5rem 0.75rem;
-            font-size: 14px;
+            padding: 0.5rem 0.875rem;
+            color: var(--gray-600);
             font-weight: 500;
-            color: var(--gray-700);
+            font-size: 13px;
             border-radius: var(--radius-md);
             transition: all 0.15s;
+        }
+
+        .nav-link i {
+            font-size: 11px;
         }
         
         .nav-link:hover {
@@ -154,8 +158,8 @@
         }
         
         .nav-link.active {
-            background: var(--gray-900);
-            color: var(--white);
+            background: var(--gray-100);
+            color: var(--black);
         }
         
         .dropdown {
@@ -192,20 +196,34 @@
             color: var(--black);
         }
         
-        .connect-btn {
-            background: var(--black);
-            color: var(--white);
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.375rem;
             padding: 0.5rem 1rem;
+            font-size: 13px;
+            font-weight: 600;
             border-radius: var(--radius-md);
-            font-weight: 500;
-            font-size: 14px;
             border: none;
             cursor: pointer;
+            transition: all 0.15s;
+            font-family: inherit;
         }
-        
-        .connect-btn:hover {
-            background: var(--gray-800);
-            color: var(--white);
+
+        .btn-secondary {
+            background: var(--gray-100);
+            color: var(--gray-700);
+        }
+
+        .btn-secondary:hover {
+            background: var(--gray-200);
         }
         
         /* Page Content */
@@ -469,58 +487,63 @@
             <nav class="main-nav">
                 <div class="nav-item">
                     <a href="#" class="nav-link active">
-                        <i class="fas fa-cube"></i> Smartchain
-                        <i class="fas fa-chevron-down" style="font-size: 10px;"></i>
+                        Smartchain
+                        <i class="fa-solid fa-chevron-down"></i>
                     </a>
                     <div class="dropdown">
-                        <a href="/blockchain/strings" class="dropdown-link">View Strings</a>
-                        <a href="/blockchain/transactions" class="dropdown-link">Transactions</a>
-                        <a href="/blockchain/pending" class="dropdown-link">Pending Transactions</a>
-                        <a href="/blockchain/accounts" class="dropdown-link">Top Accounts</a>
-                        <a href="/blockchain/contracts" class="dropdown-link">Verified Contracts</a>
+                        <a href="/strings" class="dropdown-link">View Strings</a>
+                        <a href="/txs" class="dropdown-link">Transactions</a>
+                        <a href="/txsPending" class="dropdown-link">Pending Txns</a>
+                        <a href="/accounts" class="dropdown-link">Top Accounts</a>
+                        <a href="/contracts" class="dropdown-link">Verified Contracts</a>
                     </div>
                 </div>
                 <div class="nav-item">
                     <a href="#" class="nav-link">
-                        <i class="fas fa-robot"></i> AI Agents
-                        <i class="fas fa-chevron-down" style="font-size: 10px;"></i>
+                        AI Agents
+                        <i class="fa-solid fa-chevron-down"></i>
                     </a>
                     <div class="dropdown">
                         <a href="/agents" class="dropdown-link">All Agents</a>
-                        <a href="/agents/testimonies" class="dropdown-link">Testimonies</a>
-                        <a href="/agents/validators" class="dropdown-link">Validators</a>
+                        <a href="/testimonies" class="dropdown-link">Testimonies</a>
+                        <a href="/validators" class="dropdown-link">Validators</a>
                     </div>
                 </div>
                 <div class="nav-item">
                     <a href="#" class="nav-link">
-                        <i class="fas fa-coins"></i> Tokens
-                        <i class="fas fa-chevron-down" style="font-size: 10px;"></i>
+                        Tokens
+                        <i class="fa-solid fa-chevron-down"></i>
                     </a>
                     <div class="dropdown">
-                        <a href="/tokens" class="dropdown-link">DC-20 Tokens</a>
-                        <a href="/tokens/transfers" class="dropdown-link">Token Transfers</a>
-                        <a href="/tokens/vote" class="dropdown-link">Vote</a>
+                        <a href="/tokens" class="dropdown-link">DCR-20 Tokens</a>
+                        <a href="/tokentxns" class="dropdown-link">Token Transfers</a>
+                        <a href="/vote" class="dropdown-link">Vote</a>
                     </div>
                 </div>
                 <div class="nav-item">
                     <a href="#" class="nav-link">
-                        <i class="fas fa-network-wired"></i> Network
-                        <i class="fas fa-chevron-down" style="font-size: 10px;"></i>
+                        Network
+                        <i class="fa-solid fa-chevron-down"></i>
                     </a>
                     <div class="dropdown">
-                        <a href="/network/validators" class="dropdown-link">Validators</a>
-                        <a href="/network/databoxes" class="dropdown-link">Databoxes</a>
-                        <a href="/network/stats" class="dropdown-link">Charts & Stats</a>
+                        <a href="/ecosystem" class="dropdown-link">Ecosystem Projects</a>
+                        <a href="/vote" class="dropdown-link" id="nav-governance-voting">Governance &amp; Voting</a>
+                        <a href="/defi" class="dropdown-link">DeFi</a>
+                        <a href="/validators" class="dropdown-link">Validators</a>
+                        <a href="/databases" class="dropdown-link">Databases</a>
+                        <a href="/databoxes" class="dropdown-link" id="nav-databox-network">Global Databox Network</a>
+                        <a href="/stats" class="dropdown-link">Charts & Stats</a>
                     </div>
                 </div>
                 <div class="nav-item">
                     <a href="#" class="nav-link">
-                        <i class="fas fa-ellipsis-h"></i> More
-                        <i class="fas fa-chevron-down" style="font-size: 10px;"></i>
+                        More
+                        <i class="fa-solid fa-chevron-down"></i>
                     </a>
                     <div class="dropdown">
-                        <a href="/api" class="dropdown-link">API Documentation</a>
+                        <a href="/apis" class="dropdown-link">API Docs</a>
                         <a href="/verify" class="dropdown-link">Verify Contract</a>
+                        <a href="/create-wallet" class="dropdown-link" id="nav-create-wallet">Create Wallet</a>
                         <a href="/faucet" class="dropdown-link">Faucet</a>
                         <a href="https://github.com/KazeONGUENE/rope" class="dropdown-link" target="_blank">GitHub</a>
                         <a href="/contact" class="dropdown-link">Contact</a>
@@ -528,9 +551,7 @@
                 </div>
             </nav>
             
-            <button class="connect-btn">
-                <i class="fas fa-wallet"></i> Connect
-            </button>
+            <div class="header-actions"><button class="btn btn-secondary"><i class="fa-solid fa-wallet"></i> Connect</button></div>
         </div>
     </header>
 
@@ -543,7 +564,7 @@
                 <span>/</span>
                 <span>Strings</span>
             </div>
-            <h1 class="page-title">Strings</h1>
+            <h1 class="page-title">Strings (Knots) <span style="font-size:11px;font-weight:600;color:#0f766e;background:#ccfbf1;padding:3px 10px;border-radius:999px;letter-spacing:0.3px;text-transform:uppercase;vertical-align:middle;margin-left:8px;"><i class="fas fa-scroll"></i> Quipu Canon v1.1</span></h1>
             <p class="page-description">Browse all strings on the Datachain Rope network</p>
         </div>
     </div>
@@ -577,7 +598,7 @@
                                 <th>Gas Used</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="stringsTable">
                             <tr>
                                 <td><a href="#" class="string-number">1247893</a></td>
                                 <td><span class="status final"><i class="fas fa-check-circle"></i> Final</span></td>
@@ -687,10 +708,27 @@
             <div class="footer-links">
                 <a href="/api">Datachain API</a>
                 <a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a>
-                <a href="/contact">Contact</a>
+                <a href="/partners">Partners</a><a href="/contact">Contact</a>
             </div>
         </div>
     </footer>
+    <script>
+        (function() {
+            function timeAgo(ts) { if (!ts) return '—'; var s = Math.max(0, Math.floor(Date.now()/1000 - ts)); if (s < 60) return s + ' secs ago'; if (s < 3600) return Math.floor(s/60) + ' mins ago'; return Math.floor(s/3600) + ' hrs ago'; }
+            fetch('/api/v1/strings?page=1&limit=25').then(function(r) { return r.ok ? r.json() : {}; }).then(function(data) {
+                var list = data.strings || [];
+                var tbody = document.getElementById('stringsTable');
+                if (!tbody) return;
+                var html = list.length ? list.map(function(blk) {
+                    var num = blk.number != null ? blk.number : '—'; var hash = blk.hash || '0x0'; var txns = blk.transactions != null ? blk.transactions : 0; var validator = blk.validator || '0x0'; var gas = blk.gasUsed != null ? Number(blk.gasUsed).toLocaleString() : '—'; var ts = blk.timestamp; var age = timeAgo(ts);
+                    return '<tr><td><a href="/string/' + num + '" class="string-number">' + num + '</a></td><td><span class="status final"><i class="fas fa-check-circle"></i> Final</span></td><td class="time">' + age + '</td><td>' + txns + '</td><td class="hash">' + (validator.length > 10 ? validator.slice(0,6)+'...'+validator.slice(-4) : validator) + '</td><td>' + gas + '</td></tr>';
+                }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--gray-500);">No blocks</td></tr>';
+                tbody.innerHTML = html;
+            }).catch(function() {});
+        })();
+    </script>
+<script src="/js/dcscan-stats.js"></script>
+    <script src="/js/dcscan-wallet.js?v=20260707b" defer></script>
 </body>
 </html>
 
