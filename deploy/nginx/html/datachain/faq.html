@@ -1,0 +1,811 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Datachain Rope &amp; Ecosystem - FAQ (EN / FR)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0B0B0C;        /* black */
+  --charcoal:#232327;   /* dark grey */
+  --slate:#6B6B70;      /* grey */
+  --mist:#E4E4E7;       /* light grey */
+  --paper:#FFFFFF;      /* white */
+  --paper-2:#F6F6F7;    /* off white */
+  --display:'Space Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --body:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;
+  background:var(--paper-2);
+  color:var(--charcoal);
+  font-family:var(--body);
+  font-size:16px;
+  line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1180px;margin:0 auto;padding:0 28px}
+
+/* ---------- COVER ---------- */
+.cover{background:var(--ink);color:var(--paper);padding:74px 0 64px}
+.cover .eyebrow{
+  font-family:var(--mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--slate);margin:0 0 26px
+}
+.cover h1{
+  font-family:var(--display);font-weight:700;line-height:1.04;letter-spacing:-.02em;
+  font-size:clamp(34px,6vw,62px);margin:0 0 6px
+}
+.cover h1 .fr-title{display:block;color:#9a9aa0;font-weight:500;font-size:clamp(20px,3.4vw,34px);margin-top:10px}
+.cover .lede{max-width:640px;color:#c9c9cd;font-size:18px;margin:24px 0 36px}
+.badge-row{display:flex;flex-wrap:wrap;gap:10px}
+.badge{
+  font-family:var(--mono);font-size:12px;letter-spacing:.08em;
+  border:1px solid #3a3a40;color:#d6d6da;padding:8px 13px;border-radius:2px
+}
+.badge.solid{background:var(--paper);color:var(--ink);border-color:var(--paper)}
+
+/* the cord motif descending from the cover */
+.cord-hero{display:flex;align-items:center;gap:14px;margin-top:40px;color:var(--slate);font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase}
+.cord-hero svg{display:block}
+
+/* ---------- TOOLBAR ---------- */
+.toolbar{
+  position:sticky;top:0;z-index:50;background:var(--ink);
+  border-top:1px solid #2c2c31;border-bottom:1px solid #2c2c31
+}
+.toolbar .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-top:11px;padding-bottom:11px}
+.toolbar .label{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--slate)}
+.seg{display:inline-flex;border:1px solid #3a3a40;border-radius:3px;overflow:hidden}
+.seg button{
+  font-family:var(--mono);font-size:12px;letter-spacing:.08em;
+  background:transparent;color:#c2c2c7;border:0;padding:8px 15px;cursor:pointer;transition:background .15s,color .15s
+}
+.seg button + button{border-left:1px solid #3a3a40}
+.seg button[aria-pressed="true"]{background:var(--paper);color:var(--ink)}
+.seg button:focus-visible{outline:2px solid #fff;outline-offset:-2px}
+
+/* ---------- PARTS ---------- */
+main{padding:18px 0 0}
+.part{padding:54px 0 8px;border-top:1px solid var(--mist)}
+.part:first-child{border-top:0}
+.part-head{display:flex;align-items:flex-start;gap:22px;margin-bottom:30px}
+.part-num{
+  font-family:var(--display);font-weight:700;font-size:54px;line-height:.9;letter-spacing:-.02em;
+  color:transparent;-webkit-text-stroke:1.4px var(--slate);text-stroke:1.4px var(--slate);flex:0 0 auto
+}
+.part-titles{padding-top:4px}
+.part-titles h2{font-family:var(--display);font-weight:600;font-size:clamp(22px,3.2vw,30px);letter-spacing:-.01em;color:var(--ink);margin:0}
+.part-titles .fr{display:block;color:var(--slate);font-weight:500;font-size:clamp(15px,2vw,18px);margin-top:3px}
+
+/* platform sub-header inside the platforms part */
+.platform-head{margin:46px 0 22px;padding-left:40px}
+.platform-head h3{font-family:var(--display);font-weight:600;font-size:21px;color:var(--ink);margin:0;letter-spacing:-.01em}
+.platform-head .url{font-family:var(--mono);font-size:12px;color:var(--slate);letter-spacing:.04em}
+.platform-head .fr{display:block;color:var(--slate);font-weight:400;font-size:14px;margin-top:2px}
+
+/* ---------- CORD + KNOTS ---------- */
+.qa-list{position:relative;padding-left:40px}
+.qa-list::before{content:"";position:absolute;left:11px;top:6px;bottom:6px;width:1px;background:var(--mist)}
+.knot{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:34px;padding:22px 0;border-bottom:1px solid var(--mist)}
+.knot:last-child{border-bottom:0}
+.knot::before{
+  content:"";position:absolute;left:-29px;top:26px;width:11px;height:11px;border-radius:50%;
+  background:var(--paper);border:2.5px solid var(--ink)
+}
+.lang-col{min-width:0}
+.lang-col h4{font-family:var(--display);font-weight:600;font-size:17px;color:var(--ink);margin:0 0 9px;letter-spacing:-.01em}
+.lang-col p{margin:0 0 11px}
+.lang-col p:last-child{margin-bottom:0}
+.lang-col ul{margin:0 0 11px;padding-left:18px}
+.lang-col li{margin:0 0 5px}
+.lang-tag{
+  display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--slate);border:1px solid var(--mist);border-radius:2px;padding:2px 7px;margin-bottom:11px
+}
+code,.tok{font-family:var(--mono);font-size:.88em;background:var(--paper);border:1px solid var(--mist);border-radius:3px;padding:1px 5px;color:var(--charcoal)}
+strong{color:var(--ink);font-weight:600}
+.lang-col .fr-body{color:var(--charcoal)}
+
+/* language toggle behaviour */
+body.show-both .lang-tag{display:inline-block}
+body.show-en .knot{grid-template-columns:1fr}
+body.show-en .lang-col.fr{display:none}
+body.show-en .lang-tag{display:none}
+body.show-fr .knot{grid-template-columns:1fr}
+body.show-fr .lang-col.en{display:none}
+body.show-fr .lang-tag{display:none}
+
+/* ---------- CLOSING ---------- */
+.closing{background:var(--ink);color:var(--paper);margin-top:60px;padding:60px 0}
+.closing h2{font-family:var(--display);font-weight:600;font-size:26px;margin:0 0 8px}
+.closing .fr{color:#9a9aa0;font-weight:500;font-size:18px}
+.contact-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin:34px 0 30px}
+.contact-grid .item .k{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--slate);margin-bottom:6px}
+.contact-grid .item .v{font-size:17px;color:var(--paper)}
+.closing .fine{color:var(--slate);font-size:13px;border-top:1px solid #2c2c31;padding-top:22px;max-width:760px}
+
+/* ---------- RESPONSIVE ---------- */
+@media (max-width:760px){
+  .knot{grid-template-columns:1fr;gap:6px}
+  body.show-both .knot .lang-col.fr{padding-top:10px;border-top:1px dashed var(--mist)}
+  .part-head{gap:14px}
+  .part-num{font-size:40px}
+  .contact-grid{grid-template-columns:1fr}
+  .toolbar .label{display:none}
+  .platform-head,.qa-list{padding-left:30px}
+  .knot::before{left:-23px}
+  .qa-list::before{left:8px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* ---------- PRINT ---------- */
+@media print{
+  body{background:#fff}
+  .toolbar{display:none}
+  .cover,.closing{background:#fff;color:#000;-webkit-print-color-adjust:exact}
+  .cover h1,.closing h2,.contact-grid .item .v{color:#000}
+  .cover .lede,.cover h1 .fr-title,.closing .fr{color:#444}
+  body.show-en .lang-col.fr,body.show-fr .lang-col.en{display:block!important}
+  .knot{grid-template-columns:1fr 1fr!important;break-inside:avoid}
+  .lang-tag{display:inline-block!important}
+}
+</style>
+</head>
+<body class="show-both">
+
+<!-- ============ COVER ============ -->
+<header class="cover">
+  <div class="wrap">
+    <p class="eyebrow">Datachain Foundation SAS &nbsp;·&nbsp; Paris &nbsp;·&nbsp; Lausanne</p>
+    <h1>
+      Datachain Rope &amp; the Ecosystem
+      <span class="fr-title">Datachain Rope et l'écosystème : FAQ</span>
+    </h1>
+    <p class="lede">
+      A vertically integrated Layer 0 SmartChain for the real economy, regulated business, and data sovereignty.
+      Questions and answers in English and French.
+    </p>
+    <div class="badge-row">
+      <span class="badge solid">CHAIN ID 271828</span>
+      <span class="badge">MAINNET LIVE</span>
+      <span class="badge">POST-QUANTUM</span>
+      <span class="badge">EVM-COMPATIBLE</span>
+      <span class="badge">GDPR-NATIVE</span>
+    </div>
+    <div class="cord-hero">
+      <svg width="220" height="22" viewBox="0 0 220 22" aria-hidden="true">
+        <line x1="0" y1="11" x2="220" y2="11" stroke="#3a3a40" stroke-width="1"/>
+        <circle cx="24" cy="11" r="4" fill="none" stroke="#d6d6da" stroke-width="2"/>
+        <circle cx="78" cy="11" r="4" fill="none" stroke="#d6d6da" stroke-width="2"/>
+        <circle cx="132" cy="11" r="4" fill="none" stroke="#d6d6da" stroke-width="2"/>
+        <circle cx="186" cy="11" r="4" fill="none" stroke="#d6d6da" stroke-width="2"/>
+      </svg>
+      <span>knots on a string / des nœuds sur un fil</span>
+    </div>
+  </div>
+</header>
+
+<!-- ============ TOOLBAR ============ -->
+<div class="toolbar">
+  <div class="wrap">
+    <span class="label">Language / Langue</span>
+    <div class="seg" role="group" aria-label="Language selector">
+      <button id="btn-en" aria-pressed="false" onclick="setLang('en')">EN</button>
+      <button id="btn-both" aria-pressed="true" onclick="setLang('both')">EN + FR</button>
+      <button id="btn-fr" aria-pressed="false" onclick="setLang('fr')">FR</button>
+    </div>
+  </div>
+</div>
+
+<main>
+<div class="wrap">
+
+  <!-- ============ PART 01 : OVERVIEW ============ -->
+  <section class="part">
+    <div class="part-head">
+      <div class="part-num">01</div>
+      <div class="part-titles">
+        <h2>The big picture<span class="fr">Vue d'ensemble</span></h2>
+      </div>
+    </div>
+    <div class="qa-list">
+
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>What is Datachain?</h4>
+          <p>Datachain delivers a vertically integrated SmartChain designed for trust-scarce markets. The Datachain Rope, Datawallet+ (sovereign identity, GDPR erasure), and Tanastok (ERC-3643 RWA tokenization, ONCHAINID KYC) are powering the future of ownership and economy. Around this core sits a set of applied platforms for healthcare, commerce, liquidity, and sovereign hardware.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Qu'est-ce que Datachain ?</h4>
+          <p class="fr-body">Datachain propose une SmartChain verticalement intégrée, conçue pour les marchés à faible confiance. Le Datachain Rope, Datawallet+ (identité souveraine, effacement RGPD) et Tanastok (tokenisation d'actifs réels en ERC-3643, KYC ONCHAINID) construisent l'avenir de la propriété et de l'économie. Autour de ce socle gravite un ensemble de plateformes appliquées : santé, commerce, liquidité et matériel souverain.</p>
+        </div>
+      </article>
+
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>What is a "SmartChain", and how is it different from a blockchain?</h4>
+          <p>Datachain Rope is a Layer 0 SmartChain built natively for the real economy, regulated business, and data sovereignty, not for speculation. The difference is architectural, not cosmetic. A traditional public blockchain commits, at the substrate level, to fungible blocks of fungible transactions submitted by anonymous parties into a single shared chain. Datachain Rope instead commits to a per-entity sovereign ledger model where each wallet, contract, asset, or identity owns its own thread of events. Compliance is not a layer added after deployment, it is embedded in the protocol's DNA.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Qu'est-ce qu'une « SmartChain », et en quoi diffère-t-elle d'une blockchain ?</h4>
+          <p class="fr-body">Datachain Rope est une SmartChain de niveau 0 conçue nativement pour l'économie réelle, l'entreprise régulée et la souveraineté des données, et non pour la spéculation. La différence est architecturale, pas cosmétique. Une blockchain publique classique s'engage, au niveau du substrat, envers des blocs fongibles de transactions fongibles soumises par des parties anonymes dans une chaîne partagée unique. Datachain Rope s'engage au contraire envers un modèle de registre souverain par entité, où chaque portefeuille, contrat, actif ou identité possède son propre fil d'événements. La conformité n'est pas une couche ajoutée après le déploiement : elle est inscrite dans l'ADN du protocole.</p>
+        </div>
+      </article>
+
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>Who builds and maintains the ecosystem?</h4>
+          <p>Datachain Foundation SAS, headquartered in Paris with a Swiss hub at EPFL Innovation Park in Lausanne. The Foundation builds and maintains all of the platforms described in this document.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Qui construit et maintient l'écosystème ?</h4>
+          <p class="fr-body">Datachain Foundation SAS, dont le siège est à Paris, avec un hub suisse à l'EPFL Innovation Park de Lausanne. La Fondation construit et maintient l'ensemble des plateformes décrites dans ce document.</p>
+        </div>
+      </article>
+
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>Where do I start?</h4>
+          <p>Most users start with Datawallet+ (your sovereign identity and asset wallet), then connect to whichever platform fits their need: Tanastok for tokenized real-world assets, CareAway for healthcare, Mapstore for commerce, DCSwap for liquidity, and Databox if you want to run your own sovereign node.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Par où commencer ?</h4>
+          <p class="fr-body">La plupart des utilisateurs commencent par Datawallet+ (votre portefeuille d'identité et d'actifs souverain), puis se connectent à la plateforme adaptée à leur besoin : Tanastok pour les actifs réels tokenisés, CareAway pour la santé, Mapstore pour le commerce, DCSwap pour la liquidité, et Databox pour exploiter votre propre nœud souverain.</p>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- ============ PART 02 : THE PROTOCOL ============ -->
+  <section class="part">
+    <div class="part-head">
+      <div class="part-num">02</div>
+      <div class="part-titles">
+        <h2>Datachain Rope, the protocol <span class="url" style="font-family:var(--mono);font-size:13px;color:var(--slate)">datachain.network</span><span class="fr">Datachain Rope, le protocole</span></h2>
+      </div>
+    </div>
+    <div class="qa-list">
+
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>What is Datachain Rope?</h4>
+          <p>Datachain Rope is a public, permissionless, EVM-compatible SmartChain. The mainnet is live with Chain ID <span class="tok">271828</span>. It replaces the block, chain, miner, fork vocabulary of the Bitcoin and Ethereum tradition with a knot, string, cord, witness vocabulary, and the replacement is structural, not stylistic.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Qu'est-ce que Datachain Rope ?</h4>
+          <p class="fr-body">Datachain Rope est une SmartChain publique, sans permission et compatible EVM. Le réseau principal est en production sous le Chain ID <span class="tok">271828</span>. Il remplace le vocabulaire bloc, chaîne, mineur, fourche de la tradition Bitcoin et Ethereum par un vocabulaire nœud, fil, cordon, témoin, et ce remplacement est structurel, pas stylistique.</p>
+        </div>
+      </article>
+
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>Why the name "Rope", and why Chain ID 271828?</h4>
+          <p>The architecture draws its lineage from the Andean quipu (khipu), a knotted-cord information system that was position-addressable, typed, signed, hierarchically aggregated, replicated, and granularly erasable. Those are precisely the operative properties of a modern distributed ledger. Chain ID <span class="tok">271828</span> is taken from the mathematical constant e, the base of the natural logarithm and the continuous growth rate, a deliberate signal that the network's value model is organic rather than industrial.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Pourquoi le nom « Rope », et pourquoi le Chain ID 271828 ?</h4>
+          <p class="fr-body">L'architecture tire sa lignée du quipu andin (khipu), un système d'information à cordons noués qui était adressable par position, typé, signé, agrégé hiérarchiquement, répliqué et granulairement effaçable. Ce sont précisément les propriétés opératoires d'un registre distribué moderne. Le Chain ID <span class="tok">271828</span> reprend la constante mathématique e, base du logarithme népérien et taux de croissance continue : un signal délibéré que le modèle de valeur du réseau est organique plutôt qu'industriel.</p>
+        </div>
+      </article>
+
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>What are knots, strings, cords, and witnesses?</h4>
+          <ul>
+            <li>A <strong>knot</strong> is the minimal information event, tied at a specific position on a specific string, signed under post-quantum cryptography, individually addressable and erasable.</li>
+            <li>A <strong>string</strong> is the per-entity, append-only sequence of knots belonging to one wallet, contract, asset, decentralized identity, or to the federation cord itself. No shared container, no anonymous pool of fungible records.</li>
+            <li>The <strong>cord</strong> is the global, federation-level structure that aggregates the knot summaries of every string roughly every three seconds.</li>
+            <li>A <strong>witness</strong> is the modern post-quantum equivalent of the Inca cord-keeper (quipucamayoq): a node operator who vouches for events under reputational stake through the Testimony consensus protocol.</li>
+          </ul>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Que sont les nœuds, fils, cordons et témoins ?</h4>
+          <ul class="fr-body">
+            <li>Un <strong>nœud</strong> est l'événement informationnel minimal, noué à une position précise sur un fil précis, signé sous cryptographie post-quantique, individuellement adressable et effaçable.</li>
+            <li>Un <strong>fil</strong> est la séquence par entité, en ajout-seul, des nœuds appartenant à un portefeuille, un contrat, un actif, une identité décentralisée, ou au cordon de fédération lui-même. Aucun conteneur partagé, aucun amas anonyme d'enregistrements fongibles.</li>
+            <li>Le <strong>cordon</strong> est la structure globale, au niveau de la fédération, qui agrège les résumés de nœuds de chaque fil toutes les trois secondes environ.</li>
+            <li>Un <strong>témoin</strong> est l'équivalent post-quantique moderne du gardien de cordons inca (quipucamayoq) : un opérateur de nœud qui se porte garant des événements sous mise réputationnelle, via le protocole de consensus de Témoignage.</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>Is it EVM-compatible? Do my existing tools work?</h4>
+          <p>Yes. EVM tooling compatibility is preserved indefinitely. Every <span class="tok">rope_*</span> method has an <span class="tok">eth_*</span> alias, so MetaMask, ethers.js, hardhat, foundry, and viem work without modification. ERC-721, ERC-3643 (T-REX), ERC-734/735 (ONCHAINID), and EIP-2612 are preserved by name and ABI. The only fork is on the fungible axis, where DCR-20 replaces ERC-20 as the native standard while remaining byte-compatible with ERC-20 tooling.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Est-elle compatible EVM ? Mes outils existants fonctionnent-ils ?</h4>
+          <p class="fr-body">Oui. La compatibilité avec l'outillage EVM est préservée indéfiniment. Chaque méthode <span class="tok">rope_*</span> possède un alias <span class="tok">eth_*</span> : MetaMask, ethers.js, hardhat, foundry et viem fonctionnent sans modification. ERC-721, ERC-3643 (T-REX), ERC-734/735 (ONCHAINID) et EIP-2612 sont préservés par nom et par ABI. La seule fourche porte sur l'axe fongible, où DCR-20 remplace ERC-20 comme standard natif tout en restant compatible au niveau octet avec l'outillage ERC-20.</p>
+        </div>
+      </article>
+
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>What is the current state of the network?</h4>
+          <p>The mainnet is live. It runs across a multi-region, multi-cloud failover mesh with a bifurcated execution stack (rope-node for cord-native consensus, Reth for EVM compatibility). The network has processed more than 2 million transactions, with block height above 630,000 and a small bootstrap validator set growing toward a target of 21 or more validators.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Quel est l'état actuel du réseau ?</h4>
+          <p class="fr-body">Le réseau principal est en production. Il fonctionne sur un maillage de basculement multi-régions et multi-clouds, avec une pile d'exécution bifurquée (rope-node pour le consensus natif au cordon, Reth pour la compatibilité EVM). Le réseau a traité plus de 2 millions de transactions, avec une hauteur de bloc supérieure à 630 000 et un petit ensemble de validateurs d'amorçage qui croît vers une cible de 21 validateurs ou plus.</p>
+        </div>
+      </article>
+
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>How fast is it?</h4>
+          <p>The current sustained production ceiling is roughly 1,500 to 4,000 knots per second. Phase 1 engineering benchmarks have demonstrated up to 51,800 knots per second per node, a 33.6x improvement, and the Quipu Canon v2.0 roadmap targets five million knots per second through sharded lattices, batched signatures, and a knot DAG. Throughput is an engineering matter, not a substrate limitation.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Quelle est sa rapidité ?</h4>
+          <p class="fr-body">Le plafond soutenu actuel en production est d'environ 1 500 à 4 000 nœuds par seconde. Les bancs d'essai d'ingénierie de la Phase 1 ont démontré jusqu'à 51 800 nœuds par seconde et par nœud, soit une amélioration de 33,6 fois, et la feuille de route Quipu Canon v2.0 vise cinq millions de nœuds par seconde via des treillis fragmentés, des signatures en batch et un DAG de nœuds. Le débit est une question d'ingénierie, pas une limite du substrat.</p>
+        </div>
+      </article>
+
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>How do I explore the chain or connect to it?</h4>
+          <ul>
+            <li>Public RPC endpoint: <span class="tok">erpc.datachain.network</span></li>
+            <li>Block (knot) explorer: <span class="tok">dcscan.io</span></li>
+            <li>Foundation site and contact: <span class="tok">datachain.one</span></li>
+          </ul>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Comment explorer la chaîne ou m'y connecter ?</h4>
+          <ul class="fr-body">
+            <li>Point d'accès RPC public : <span class="tok">erpc.datachain.network</span></li>
+            <li>Explorateur de blocs (nœuds) : <span class="tok">dcscan.io</span></li>
+            <li>Site et contact de la Fondation : <span class="tok">datachain.one</span></li>
+          </ul>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- ============ PART 03 : COMPLIANCE ============ -->
+  <section class="part">
+    <div class="part-head">
+      <div class="part-num">03</div>
+      <div class="part-titles">
+        <h2>Compliance, privacy &amp; security<span class="fr">Conformité, confidentialité et sécurité</span></h2>
+      </div>
+    </div>
+    <div class="qa-list">
+
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>How does it handle the right to be forgotten (GDPR Article 17)?</h4>
+          <p>Through <span class="tok">rope_untieKnot</span>, a native substrate primitive with no equivalent on block-lineage chains. When invoked, it atomically destroys the per-knot encryption key shred under the Organic Encryption System (OES), rendering the payload mathematically un-decryptable by any party including the Foundation, the validators, and the user. It preserves the position as a tombstone knot carrying the timestamp, the authorization proof, the legal basis, and the original event type. The erasure is anchored on the federation cord and is irreversible by construction.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Comment gère-t-elle le droit à l'oubli (Article 17 RGPD) ?</h4>
+          <p class="fr-body">Via <span class="tok">rope_untieKnot</span>, une primitive native du substrat sans équivalent sur les chaînes à lignée de bloc. Lorsqu'elle est invoquée, elle détruit atomiquement l'éclat de clé de chiffrement par nœud sous le Système de Chiffrement Organique (OES), rendant la charge utile mathématiquement indéchiffrable par quiconque, y compris la Fondation, les validateurs et l'utilisateur. Elle préserve la position sous forme de nœud pierre tombale portant l'horodatage, la preuve d'autorisation, la base juridique et le type d'événement d'origine. L'effacement est ancré sur le cordon de fédération et irréversible par construction.</p>
+        </div>
+      </article>
+
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>Is this legally recognized as Article 17 compliance?</h4>
+          <p>The Foundation does not overclaim. The Court of Justice of the EU has not issued a definitive ruling on substrate-level cryptographic erasure, and some authorities (notably CNIL in France and BfDI in Germany) have expressed reservations about blockchain-native erasure. The claim is architectural: <span class="tok">rope_untieKnot</span> is the strongest substrate-level realization of Article 17 currently engineered on a public SmartChain, it satisfies the technical conditions identified by the Article 29 Working Party for effective key-destruction-based erasure, and it is materially closer to compliance than any application-layer workaround on a block-chained ledger.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Est-ce reconnu juridiquement comme conforme à l'Article 17 ?</h4>
+          <p class="fr-body">La Fondation ne surévalue pas sa position. La Cour de justice de l'Union européenne n'a pas rendu de décision définitive sur l'effacement cryptographique au niveau du substrat, et certaines autorités (notamment la CNIL en France et le BfDI en Allemagne) ont exprimé des réserves sur les mécanismes d'effacement natifs à la blockchain. La revendication est architecturale : <span class="tok">rope_untieKnot</span> est la plus forte réalisation, au niveau du substrat, de l'Article 17 actuellement conçue sur une SmartChain publique ; elle satisfait les conditions techniques identifiées par le Groupe de travail Article 29 pour un effacement efficace par destruction de clé, et elle est matériellement plus proche de la conformité que tout contournement applicatif sur un registre à blocs chaînés.</p>
+        </div>
+      </article>
+
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>Does erasing a knot reverse a financial transfer?</h4>
+          <p>No. <span class="tok">rope_untieKnot</span> cryptographically erases the personal-data payload of a knot. It does not undo an underlying balance change. Financial reversal is a separate, explicit counter-transfer authorized by the parties and recorded as its own knot. Erasure is a data-protection primitive, reversal is a contractual one.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>L'effacement d'un nœud annule-t-il un transfert financier ?</h4>
+          <p class="fr-body">Non. <span class="tok">rope_untieKnot</span> efface cryptographiquement la charge utile de données personnelles d'un nœud. Il n'annule pas le changement de solde sous-jacent. Le renversement financier est un contre-transfert explicite et distinct, autorisé par les parties et enregistré comme son propre nœud. L'effacement est une primitive de protection des données, le renversement une primitive contractuelle.</p>
+        </div>
+      </article>
+
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>Is the network quantum-safe?</h4>
+          <p>Yes, at genesis. Every knot is signed with ML-DSA-65 (CRYSTALS-Dilithium 3, NIST FIPS 204) by default, with SLH-DSA (SPHINCS+, FIPS 205) permitted as a hash-only fallback. This places Datachain Rope ahead of production proof-of-work and proof-of-stake chains, which have published post-quantum migration roadmaps but have not yet executed them.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Le réseau est-il résistant au quantique ?</h4>
+          <p class="fr-body">Oui, dès la genèse. Chaque nœud est signé par défaut avec ML-DSA-65 (CRYSTALS-Dilithium 3, NIST FIPS 204), avec SLH-DSA (SPHINCS+, FIPS 205) permis comme repli basé uniquement sur le hachage. Cela place Datachain Rope en avance sur les chaînes en production à preuve de travail et à preuve d'enjeu, qui ont publié des feuilles de route de migration post-quantique mais ne les ont pas encore exécutées.</p>
+        </div>
+      </article>
+
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>What is the Organic Encryption System (OES)?</h4>
+          <p>OES is the layered cryptographic architecture behind granular erasure. It binds each string to a post-quantum keypair, encrypts each knot under an ephemeral per-knot key, splits that key into shards across the witness pool using threshold secret sharing, and destroys all shards on erasure. The name signals the principle: keys are biographical, not eternal. They are born, used, and can be deliberately and irreversibly retired.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Qu'est-ce que le Système de Chiffrement Organique (OES) ?</h4>
+          <p class="fr-body">L'OES est l'architecture cryptographique en couches derrière l'effacement granulaire. Il lie chaque fil à une paire de clés post-quantique, chiffre chaque nœud sous une clé éphémère par nœud, divise cette clé en éclats répartis dans le pool de témoins par partage de secret à seuil, et détruit tous les éclats lors de l'effacement. Le nom en signale le principe : les clés sont biographiques, non éternelles. Elles naissent, servent, et peuvent être retirées de manière délibérée et irréversible.</p>
+        </div>
+      </article>
+
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>What is Testimony consensus?</h4>
+          <p>Instead of mining or single-stake validation, witnesses specialize by category (transfer-witness, attestation-witness, oracle-witness, compliance-witness, and so on) and earn reputational stake per category over time. This resists a class of attacks that single-stake proof-of-stake systems face: acquiring majority stake in one category does not grant authority over another. The economic metaphor is stewardship rather than extraction.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Qu'est-ce que le consensus de Témoignage ?</h4>
+          <p class="fr-body">Au lieu du minage ou d'une validation à mise unique, les témoins se spécialisent par catégorie (témoin de transfert, d'attestation, d'oracle, de conformité, etc.) et accumulent une mise réputationnelle par catégorie au fil du temps. Cela résiste à une classe d'attaques propres aux systèmes à preuve d'enjeu à mise unique : acquérir une mise majoritaire dans une catégorie ne confère pas d'autorité sur une autre. La métaphore économique est l'intendance plutôt que l'extraction.</p>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- ============ PART 04 : DC FAT ============ -->
+  <section class="part">
+    <div class="part-head">
+      <div class="part-num">04</div>
+      <div class="part-titles">
+        <h2>DC FAT, token &amp; tokenomics<span class="fr">DC FAT, jeton et tokenomics</span></h2>
+      </div>
+    </div>
+    <div class="qa-list">
+
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>What is DC FAT?</h4>
+          <p>DC FAT (Datachain Foundation Asset Token) is the native fungible utility token of Datachain Rope, issued under the DCR-20 standard. It underpins staking, witness rewards, and ecosystem operations.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Qu'est-ce que le DC FAT ?</h4>
+          <p class="fr-body">Le DC FAT (Datachain Foundation Asset Token) est le jeton utilitaire fongible natif de Datachain Rope, émis sous le standard DCR-20. Il sous-tend le staking, les récompenses des témoins et les opérations de l'écosystème.</p>
+        </div>
+      </article>
+
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>What are the supply mechanics?</h4>
+          <p>The genesis supply is 10 billion DC FAT, distributed at mainnet launch across founding, ecosystem, green-fund, treasury, validator, and pre-genesis credit allocations. Emission follows a four-year halving schedule with an asymptotic ceiling of roughly 18 billion and an emission floor of 1 million per year. There was no ICO and no public sale. New tokens are created through anchor emission, the modern analogue of Inca tribute aggregation.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Quelle est la mécanique d'offre ?</h4>
+          <p class="fr-body">L'offre de genèse est de 10 milliards de DC FAT, distribuée au lancement du réseau principal entre les allocations fondatrices, d'écosystème, de fonds vert, de trésorerie, de validateurs et de crédits pré-genèse. L'émission suit un calendrier de halving sur quatre ans, avec un plafond asymptotique d'environ 18 milliards et un plancher d'émission de 1 million par an. Il n'y a eu ni ICO ni vente publique. Les nouveaux jetons sont créés par émission d'ancrage, l'analogue moderne de l'agrégation du tribut inca.</p>
+        </div>
+      </article>
+
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>How are emissions distributed?</h4>
+          <p>Per anchor: proposer 30 percent, testimony pool 45 percent (validators across the network), node operators 20 percent, and federation / community 5 percent.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Comment les émissions sont-elles réparties ?</h4>
+          <p class="fr-body">Par ancrage : proposeur 30 pour cent, pool de témoignage 45 pour cent (validateurs à travers le réseau), opérateurs de nœuds 20 pour cent, et fédération / communauté 5 pour cent.</p>
+        </div>
+      </article>
+
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>Is DC FAT a speculative asset?</h4>
+          <p>The design intent is the opposite. Yields are presented as revenue-backed, and the mechanics are non-inflationary and non-custodial. Speculation on personal-data records is architecturally discouraged because identity claims, biodiversity attestations, asset deeds, and personal histories live on sovereign strings, not as fungible tradable blocks. The token is dual-network deployable, aligning stakeholder interests across the ecosystem. None of this is investment advice.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Le DC FAT est-il un actif spéculatif ?</h4>
+          <p class="fr-body">L'intention de conception est l'inverse. Les rendements sont présentés comme adossés aux revenus, et la mécanique est non inflationniste et non custodiale. La spéculation sur les enregistrements de données personnelles est architecturalement découragée, car les revendications d'identité, les attestations de biodiversité, les actes d'actifs et les histoires personnelles vivent sur des fils souverains, et non comme des blocs fongibles échangeables. Le jeton est déployable sur double réseau, alignant les intérêts des parties prenantes de l'écosystème. Rien de ceci ne constitue un conseil en investissement.</p>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- ============ PART 05 : PLATFORMS ============ -->
+  <section class="part">
+    <div class="part-head">
+      <div class="part-num">05</div>
+      <div class="part-titles">
+        <h2>The ecosystem platforms<span class="fr">Les plateformes de l'écosystème</span></h2>
+      </div>
+    </div>
+
+    <!-- Datawallet+ -->
+    <div class="platform-head">
+      <h3>Datawallet+ <span class="url">datawallet.plus</span></h3>
+      <span class="fr">Identité et actifs souverains</span>
+    </div>
+    <div class="qa-list">
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>What is Datawallet+?</h4>
+          <p>Datawallet+ is the sovereign data and identity wallet of the ecosystem, and the modern realization of the cord-carrier: the keeper of the post-quantum key material for your strings. The wallet does not contain your strings (they live on the network), it is what makes them signable, walkable, untie-able, and eventually inheritable.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Qu'est-ce que Datawallet+ ?</h4>
+          <p class="fr-body">Datawallet+ est le portefeuille de données et d'identité souverain de l'écosystème, et la réalisation moderne du porteur de cordon : le gardien du matériel de clé post-quantique de vos fils. Le portefeuille ne contient pas vos fils (ils vivent sur le réseau) : il les rend signables, parcourables, dénouables et, à terme, transmissibles par héritage.</p>
+        </div>
+      </article>
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>What can I do inside it?</h4>
+          <ul>
+            <li>Hold your <strong>ONCHAINID</strong> sovereign identity, anchored on Datachain Rope.</li>
+            <li>Maintain your personal <strong>Quipu ledger</strong> (a per-wallet string of knots).</li>
+            <li>Trigger granular <strong>GDPR Article 17</strong> erasure via <span class="tok">rope_untieKnot</span> and the live compliance agent.</li>
+            <li>Manage your native <strong>DC FAT</strong>, DCR-20 tokens, staking, and DCSwap integration.</li>
+            <li>Connect to Tanastok, NaturaProof, CareAway, and the wider ecosystem.</li>
+          </ul>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Que puis-je y faire ?</h4>
+          <ul class="fr-body">
+            <li>Détenir votre identité souveraine <strong>ONCHAINID</strong>, ancrée sur Datachain Rope.</li>
+            <li>Maintenir votre <strong>registre Quipu</strong> personnel (un fil de nœuds par portefeuille).</li>
+            <li>Déclencher l'effacement granulaire <strong>Article 17 RGPD</strong> via <span class="tok">rope_untieKnot</span> et l'agent de conformité en production.</li>
+            <li>Gérer vos <strong>DC FAT</strong> natifs, jetons DCR-20, le staking et l'intégration DCSwap.</li>
+            <li>Vous connecter à Tanastok, NaturaProof, CareAway et au reste de l'écosystème.</li>
+          </ul>
+        </div>
+      </article>
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>Where can I get it, and why is the App Store release taking longer?</h4>
+          <p>Datawallet+ is available today via Apple TestFlight with the full feature set, and on the Google Play internal testing track on request. Apple classified the in-wallet swap and trade functionality as a regulated cryptocurrency exchange service, which requires exchange licenses or registrations for every storefront. Rather than ship a swap-less wallet, the Foundation is securing the required permissions (MiCA readiness in the EU, VASP registrations, and equivalents) and preparing a storefront-restricted build so the public rollout can begin in waves. TestFlight remains the official way to use it on iOS in the meantime.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Où l'obtenir, et pourquoi la sortie App Store prend-elle plus de temps ?</h4>
+          <p class="fr-body">Datawallet+ est disponible aujourd'hui via Apple TestFlight avec l'ensemble des fonctionnalités, et sur le canal de test interne Google Play sur demande. Apple a classé la fonctionnalité d'échange intégrée au portefeuille comme un service d'échange de cryptomonnaies régulé, ce qui exige des licences ou enregistrements d'échange pour chaque boutique nationale. Plutôt que de livrer un portefeuille sans swap, la Fondation obtient les autorisations requises (préparation MiCA dans l'UE, enregistrements VASP et équivalents) et prépare une version restreinte par boutique afin que le déploiement public commence par vagues. TestFlight reste, entre-temps, la voie officielle sur iOS.</p>
+        </div>
+      </article>
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>Will my identity and records be inheritable?</h4>
+          <p>That is the design trajectory. Authenticated, multi-generational inheritance is the architectural target of the Canon's forthcoming v1.3 revision, landing as <span class="tok">event_type = inheritance</span>. Until it ships, multi-generational transmission proceeds under existing key-rotation primitives.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Mon identité et mes enregistrements seront-ils transmissibles ?</h4>
+          <p class="fr-body">C'est la trajectoire de conception. L'héritage authentifié et multigénérationnel est la cible architecturale de la prochaine révision v1.3 du Canon, sous la forme <span class="tok">event_type = inheritance</span>. En attendant son déploiement, la transmission multigénérationnelle s'effectue via les primitives existantes de rotation de clés.</p>
+        </div>
+      </article>
+    </div>
+
+    <!-- Tanastok -->
+    <div class="platform-head">
+      <h3>Tanastok <span class="url">tanastok.io</span></h3>
+      <span class="fr">Tokenisation d'actifs réels (RWA)</span>
+    </div>
+    <div class="qa-list">
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>What is Tanastok?</h4>
+          <p>Tanastok is the ecosystem's real-world asset (RWA) tokenization platform. It issues regulated tokens on Datachain Rope, pairing an ERC-721 deed (DCNFT) with ERC-3643 (T-REX) security-token shares, with ONCHAINID providing KYC and compliance awareness.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Qu'est-ce que Tanastok ?</h4>
+          <p class="fr-body">Tanastok est la plateforme de tokenisation d'actifs réels (RWA) de l'écosystème. Elle émet des jetons régulés sur Datachain Rope, associant un acte ERC-721 (DCNFT) à des parts en jeton de sécurité ERC-3643 (T-REX), ONCHAINID assurant le KYC et la conscience de la conformité.</p>
+        </div>
+      </article>
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>What can be tokenized, and how many assets are live?</h4>
+          <p>Tanastok has pre-listed more than 198 real-world assets. The dual-contract model (ERC-721 DCNFT deed plus ERC-3643 T-REX shares) supports a wide range of asset classes, from property and luxury authentication to environmental and biodiversity instruments.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Que peut-on tokeniser, et combien d'actifs sont actifs ?</h4>
+          <p class="fr-body">Tanastok a pré-référencé plus de 198 actifs réels. Le modèle à double contrat (acte DCNFT ERC-721 plus parts T-REX ERC-3643) prend en charge un large éventail de classes d'actifs, de l'immobilier et de l'authentification du luxe aux instruments environnementaux et de biodiversité.</p>
+        </div>
+      </article>
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>Why ERC-3643 rather than a standard token, and how does compliance work?</h4>
+          <p>ERC-3643 (T-REX) is the regulated security-token standard, embedding permissioning and compliance checks at the token level, which is essential for assets whose holders must be identity-verified. Each asset is a sovereign string: ONCHAINID enforces KYC, transfers respect ERC-3643 permission rules, and the personal-data dimensions of records remain erasable through <span class="tok">rope_untieKnot</span> without disturbing balances or unrelated attestations on the same string.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Pourquoi ERC-3643 plutôt qu'un jeton standard, et comment fonctionne la conformité ?</h4>
+          <p class="fr-body">ERC-3643 (T-REX) est le standard de jeton de sécurité régulé, intégrant le permissionnement et les contrôles de conformité au niveau du jeton, ce qui est essentiel pour des actifs dont les détenteurs doivent être vérifiés. Chaque actif est un fil souverain : ONCHAINID applique le KYC, les transferts respectent les règles de permission ERC-3643, et les dimensions de données personnelles restent effaçables via <span class="tok">rope_untieKnot</span> sans perturber les soldes ni les attestations non liées du même fil.</p>
+        </div>
+      </article>
+    </div>
+
+    <!-- CareAway -->
+    <div class="platform-head">
+      <h3>CareAway <span class="url">careaway.co</span></h3>
+      <span class="fr">Santé et données patient souveraines</span>
+    </div>
+    <div class="qa-list">
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>What is CareAway?</h4>
+          <p>CareAway Health Connect is the ecosystem's healthcare platform, integrated with Datawallet+ Connect. It pairs a large healthcare-actor directory with clinical workflows and a sovereign, GDPR-compliant data layer.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Qu'est-ce que CareAway ?</h4>
+          <p class="fr-body">CareAway Health Connect est la plateforme de santé de l'écosystème, intégrée à Datawallet+ Connect. Elle associe un vaste annuaire d'acteurs de santé à des parcours cliniques et à une couche de données souveraine et conforme au RGPD.</p>
+        </div>
+      </article>
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>What does it offer, and why does healthcare need a SmartChain?</h4>
+          <p>It offers a healthcare-actor directory, clinical workflows with sovereign patient data, substrate-level GDPR Article 17 erasure for medical records, Stripe Live and Stripe Connect Express payment rails, and the DC FAT digital-credit system. A medical history is exactly the kind of record that must be named, owned, accountable, and erasable rather than anonymous, fungible, and immutable, which the cord lineage fits far better than block-lineage chains.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Que propose-t-elle, et pourquoi la santé a-t-elle besoin d'une SmartChain ?</h4>
+          <p class="fr-body">Elle propose un annuaire d'acteurs de santé, des parcours cliniques avec données patient souveraines, un effacement RGPD Article 17 au niveau du substrat pour les dossiers médicaux, des rails de paiement Stripe Live et Stripe Connect Express, et le système de crédits numériques DC FAT. Un dossier médical est précisément le type d'enregistrement qui doit être nommé, possédé, redevable et effaçable plutôt qu'anonyme, fongible et immuable : la lignée du cordon y répond bien mieux que les chaînes à lignée de bloc.</p>
+        </div>
+      </article>
+    </div>
+
+    <!-- Mapstore -->
+    <div class="platform-head">
+      <h3>Mapstore <span class="url">mapstore.net</span></h3>
+      <span class="fr">Commerce et découverte</span>
+    </div>
+    <div class="qa-list">
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>What is Mapstore, and how does search work?</h4>
+          <p>Mapstore is the ecosystem's commerce and discovery platform. It uses a hybrid retrieval model that combines first-party merchant inventory with broader place and product recall, then merges and re-ranks results so that specific queries return complete, relevant matches rather than a single thin result. A merchant-card enrichment pipeline adds depth to each listing.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Qu'est-ce que Mapstore, et comment fonctionne la recherche ?</h4>
+          <p class="fr-body">Mapstore est la plateforme de commerce et de découverte de l'écosystème. Elle utilise un modèle de récupération hybride qui combine l'inventaire marchand de première partie avec un rappel plus large de lieux et de produits, puis fusionne et reclasse les résultats afin que les requêtes précises renvoient des correspondances complètes et pertinentes plutôt qu'un unique résultat ténu. Un pipeline d'enrichissement de fiches marchands ajoute de la profondeur à chaque annonce.</p>
+        </div>
+      </article>
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>How does Mapstore relate to the rest of the ecosystem?</h4>
+          <p>Merchant identity, provenance, and on-chain traceability are anchored on Datachain Rope, and payments and credits can flow through the shared DC FAT and Datawallet+ rails.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Comment Mapstore s'articule-t-elle avec le reste de l'écosystème ?</h4>
+          <p class="fr-body">L'identité marchande, la provenance et la traçabilité en chaîne sont ancrées sur Datachain Rope, et les paiements comme les crédits peuvent transiter par les rails partagés DC FAT et Datawallet+.</p>
+        </div>
+      </article>
+    </div>
+
+    <!-- DCSwap -->
+    <div class="platform-head">
+      <h3>DCSwap <span class="url">dcswap.net</span></h3>
+      <span class="fr">Liquidité et échange</span>
+    </div>
+    <div class="qa-list">
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>What is DCSwap, and what can I swap?</h4>
+          <p>DCSwap is the ecosystem's native liquidity and swap layer on Datachain Rope. It pools liquidity for DC FAT and DCR-20 assets and is integrated directly into Datawallet+, supporting swapping and trading from within the wallet. This is the same in-wallet functionality that triggered Apple's exchange-service classification, which is why the Foundation is completing the relevant licensing before the public App Store release.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Qu'est-ce que DCSwap, et que puis-je échanger ?</h4>
+          <p class="fr-body">DCSwap est la couche native de liquidité et d'échange de l'écosystème sur Datachain Rope. Elle mutualise la liquidité des actifs DC FAT et DCR-20 et s'intègre directement à Datawallet+, permettant l'échange et la négociation depuis le portefeuille. C'est cette même fonctionnalité intégrée qui a déclenché la classification d'Apple en service d'échange, raison pour laquelle la Fondation finalise les licences nécessaires avant la sortie publique sur l'App Store.</p>
+        </div>
+      </article>
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>Is it non-custodial?</h4>
+          <p>Yes. The architecture is non-custodial, consistent with the ecosystem's principle that you own your own cryptographic thread and your own assets.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Est-elle non custodiale ?</h4>
+          <p class="fr-body">Oui. L'architecture est non custodiale, conformément au principe de l'écosystème selon lequel vous possédez votre propre fil cryptographique et vos propres actifs.</p>
+        </div>
+      </article>
+    </div>
+
+    <!-- Databox -->
+    <div class="platform-head">
+      <h3>Databox <span class="url">databox.network</span></h3>
+      <span class="fr">Nœud matériel souverain</span>
+    </div>
+    <div class="qa-list">
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>What is Databox, and what configurations are available?</h4>
+          <p>Databox is the sovereign hardware node of the ecosystem: a physical device that lets an organization or individual run a Datachain Rope node and hold their own strings on their own hardware, built on RISC-V / OpenPOWER architecture. It is offered in five tiers, up to a Sovereign Edition, with both subscription and outright-purchase pricing. For acceleration workloads, the AMD Instinct MI300X is the primary recommended GPU.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Qu'est-ce que Databox, et quelles configurations sont disponibles ?</h4>
+          <p class="fr-body">Databox est le nœud matériel souverain de l'écosystème : un appareil physique qui permet à une organisation ou à un particulier d'exploiter un nœud Datachain Rope et de détenir ses propres fils sur son propre matériel, bâti sur une architecture RISC-V / OpenPOWER. Il est proposé en cinq paliers, jusqu'à une Sovereign Edition, avec une tarification par abonnement ou à l'achat. Pour les charges d'accélération, l'AMD Instinct MI300X est le GPU principal recommandé.</p>
+        </div>
+      </article>
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>Why run my own node?</h4>
+          <p>Running a Databox is the most complete expression of data sovereignty in the ecosystem. It lets you act as a witness, hold your strings on hardware you control, and participate directly in the network's stewardship economy rather than depending on third-party custody.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Pourquoi exploiter mon propre nœud ?</h4>
+          <p class="fr-body">Exploiter un Databox est l'expression la plus complète de la souveraineté des données dans l'écosystème. Cela vous permet d'agir comme témoin, de détenir vos fils sur un matériel que vous contrôlez, et de participer directement à l'économie d'intendance du réseau plutôt que de dépendre d'une garde tierce.</p>
+        </div>
+      </article>
+    </div>
+
+  </section>
+
+  <!-- ============ PART 06 : PRACTICAL ============ -->
+  <section class="part">
+    <div class="part-head">
+      <div class="part-num">06</div>
+      <div class="part-titles">
+        <h2>Practical questions<span class="fr">Questions pratiques</span></h2>
+      </div>
+    </div>
+    <div class="qa-list">
+
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>Do I need to learn the knot / string / cord vocabulary to use the ecosystem?</h4>
+          <p>No. If you only need EVM compatibility, the <span class="tok">eth_*</span> aliases and standard Ethereum tooling work unchanged, and you never need the cord vocabulary. The cord-native primitives (sovereign threads, granular erasure, witness reputation) are an additional surface, available on the same chain and the same wallet for users who need them.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Dois-je apprendre le vocabulaire nœud / fil / cordon pour utiliser l'écosystème ?</h4>
+          <p class="fr-body">Non. Si vous n'avez besoin que de la compatibilité EVM, les alias <span class="tok">eth_*</span> et l'outillage Ethereum standard fonctionnent sans changement, et le vocabulaire du cordon ne vous est jamais nécessaire. Les primitives natives au cordon (fils souverains, effacement granulaire, réputation des témoins) constituent une surface additionnelle, disponible sur la même chaîne et le même portefeuille pour qui en a besoin.</p>
+        </div>
+      </article>
+
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>Is the ecosystem only for Europe?</h4>
+          <p>No. While the compliance design centers on GDPR and EU frameworks (MiCA, the AI Act, DORA), the erasure model also maps to CCPA, LGPD, PIPL, POPIA, and the African Union Data Policy Framework. The federation architecture is designed for inter-jurisdictional deployments, with ambitions across Switzerland, the DACH region, and the wider world.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>L'écosystème est-il réservé à l'Europe ?</h4>
+          <p class="fr-body">Non. Bien que la conception de conformité s'articule autour du RGPD et des cadres de l'UE (MiCA, règlement sur l'IA, DORA), le modèle d'effacement se transpose aussi au CCPA, à la LGPD, à la PIPL, à la POPIA et au Cadre de politique des données de l'Union africaine. L'architecture de fédération est conçue pour des déploiements inter-juridictionnels, avec des ambitions en Suisse, dans la région DACH et dans le monde entier.</p>
+        </div>
+      </article>
+
+      <article class="knot">
+        <div class="lang-col en"><span class="lang-tag">EN</span>
+          <h4>How can I get involved or build on Datachain Rope?</h4>
+          <p>Deploy Solidity contracts as you would on any EVM chain, connect through the public RPC, and explore activity on DCScan. Developers who need sovereign threads, granular erasure, or post-quantum signatures can use the <span class="tok">rope_*</span> methods directly. For partnerships, licensing, regulatory collaboration, or beta access, contact the Foundation directly.</p>
+        </div>
+        <div class="lang-col fr"><span class="lang-tag">FR</span>
+          <h4>Comment m'impliquer ou construire sur Datachain Rope ?</h4>
+          <p class="fr-body">Déployez des contrats Solidity comme sur n'importe quelle chaîne EVM, connectez-vous via le RPC public et explorez l'activité sur DCScan. Les développeurs qui ont besoin de fils souverains, d'effacement granulaire ou de signatures post-quantiques peuvent utiliser directement les méthodes <span class="tok">rope_*</span>. Pour les partenariats, les licences, la collaboration réglementaire ou un accès bêta, contactez directement la Fondation.</p>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+</div>
+</main>
+
+<!-- ============ CLOSING ============ -->
+<footer class="closing">
+  <div class="wrap">
+    <h2>Contact Datachain Foundation<span class="fr">Contacter Datachain Foundation</span></h2>
+    <div class="contact-grid">
+      <div class="item"><div class="k">Website / Site</div><div class="v">www.datachain.one</div></div>
+      <div class="item"><div class="k">Email</div><div class="v">contact@datachain.one</div></div>
+      <div class="item"><div class="k">Phone / Téléphone</div><div class="v">+33 1 42 59 71 14</div></div>
+    </div>
+    <p class="fine">
+      Datachain Foundation SAS &nbsp;·&nbsp; Mainnet Chain ID 271828 &nbsp;·&nbsp; Paris &amp; Lausanne.
+      This FAQ is informational and does not constitute legal, financial, or investment advice.
+      <br>
+      Cette FAQ est informative et ne constitue pas un conseil juridique, financier ou en investissement.
+    </p>
+  </div>
+</footer>
+
+<script>
+function setLang(mode){
+  var body=document.body;
+  body.classList.remove('show-en','show-fr','show-both');
+  body.classList.add('show-'+mode);
+  document.getElementById('btn-en').setAttribute('aria-pressed', mode==='en');
+  document.getElementById('btn-both').setAttribute('aria-pressed', mode==='both');
+  document.getElementById('btn-fr').setAttribute('aria-pressed', mode==='fr');
+  document.documentElement.lang = (mode==='fr') ? 'fr' : 'en';
+}
+</script>
+</body>
+</html>

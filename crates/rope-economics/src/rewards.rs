@@ -15,6 +15,75 @@ use crate::staking::ValidatorStake;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// M10 (2026-07-25 security audit): apply a floating-point multiplier
+/// (e.g. a performance score, typically in
+/// `[MIN_PERFORMANCE_MULTIPLIER, MAX_PERFORMANCE_MULTIPLIER]` =
+/// `[0.3, 2.0]`) to a large `u128` token amount **without ever routing
+/// the large amount itself through `f64`**.
+///
+/// `f64` has a 52-bit mantissa. Any `u128` amount at or above `2^53`
+/// (~9.007e15) silently loses low-order bits the instant it is cast
+/// `as f64` — and every anchor-reward-scale amount in this module is
+/// well above that threshold once FAT's 18-decimal wei scaling is
+/// applied (e.g. ~66.6 FAT at genesis is ~6.66e19 wei). The previous
+/// pattern, `(base_reward as f64 * multiplier) as u128`, therefore
+/// rounds the reward itself through a lossy float round-trip on every
+/// call. IEEE-754 basic arithmetic is deterministic per the standard,
+/// but relying on that determinism holding bit-for-bit across every
+/// architecture / compiler / optimization-level combination a future
+/// validator binary might be built with (e.g. FMA fusion, x87 extended
+/// precision on 32-bit targets) is exactly the kind of foot-gun a
+/// multi-validator consensus system must not depend on for values that
+/// end up minted on-chain.
+///
+/// The multiplier itself is always small (bounded in practice to
+/// `[0.0, 100.0]` by the clamp below), so converting *it* — not the
+/// large amount — through `f64` loses nothing meaningful: this function
+/// fixed-points the multiplier to parts-per-billion and performs the
+/// actual token-scale multiplication in pure `u128`, which is exact and
+/// platform-independent.
+///
+/// `RewardCalculator` is not yet wired into the live consensus/anchor
+/// path (see `crates/rope-node` — no call site references it as of
+/// this fix), so this change carries zero risk of altering any
+/// already-anchored, already-observed reward amount; it hardens the
+/// arithmetic before this module's outputs are ever consensus-critical.
+pub fn apply_multiplier_ppb(base: u128, multiplier: f64) -> u128 {
+    const PPB: u128 = 1_000_000_000;
+    // Defensive clamp: NaN/negative/infinite multipliers (e.g. from a
+    // future misconfigured `PerformanceScore`) must never be able to
+    // mint an unbounded amount or wrap around via a negative-as-unsigned
+    // cast. 100.0 is a generous ceiling — no defined multiplier in this
+    // crate today exceeds `MAX_PERFORMANCE_MULTIPLIER` (2.0).
+    let clamped = if multiplier.is_finite() {
+        multiplier.clamp(0.0, 100.0)
+    } else {
+        0.0
+    };
+    // `clamped * PPB` is at most 100.0 * 1e9 = 1e11, which fits exactly
+    // in an f64's 52-bit mantissa (max exact integer ~9.007e15) — no
+    // precision is lost converting the *multiplier*, only the *amount*
+    // is protected from ever being cast through f64.
+    let multiplier_ppb = (clamped * PPB as f64).round() as u128;
+    base.saturating_mul(multiplier_ppb) / PPB
+}
+
+/// M10: same rationale as [`apply_multiplier_ppb`], for the common case
+/// of applying a proportional weight ratio (`numerator / denominator`,
+/// both small `f64` weights such as `sqrt(storage_tb)`) to a large
+/// `u128` pool amount. The ratio is computed and clamped to `[0.0, 1.0]`
+/// in `f64` (cheap, exact enough for a weighting ratio) before the
+/// actual pool-scale multiplication happens in pure `u128` via
+/// [`apply_multiplier_ppb`].
+pub fn apply_ratio_ppb(base: u128, numerator: f64, denominator: f64) -> u128 {
+    if !numerator.is_finite() || !denominator.is_finite() || numerator < 0.0 || denominator <= 0.0
+    {
+        return 0;
+    }
+    let ratio = (numerator / denominator).clamp(0.0, 1.0);
+    apply_multiplier_ppb(base, ratio)
+}
+
 /// Validator reward for an epoch
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ValidatorReward {
@@ -146,7 +215,10 @@ impl RewardCalculator {
         // Apply performance multiplier
         let multiplier = self.get_performance_multiplier(&validator_id);
 
-        (base_reward as f64 * multiplier) as u128
+        // M10 (2026-07-25 audit): integer fixed-point multiply — see
+        // `apply_multiplier_ppb` doc comment for why this replaced a
+        // direct `(base_reward as f64 * multiplier) as u128` cast.
+        apply_multiplier_ppb(base_reward, multiplier)
     }
 
     /// Calculate testimony reward share for a validator
@@ -170,7 +242,8 @@ impl RewardCalculator {
         // Apply performance multiplier
         let multiplier = self.get_performance_multiplier(&validator_id);
 
-        (share as f64 * multiplier) as u128
+        // M10: see `apply_multiplier_ppb` doc comment.
+        apply_multiplier_ppb(share, multiplier)
     }
 
     /// Calculate node operator reward
@@ -196,23 +269,15 @@ impl RewardCalculator {
         let total_weight = storage_weight + bandwidth_weight + regen_weight;
 
         // Simple proportional distribution (in real system, would be based on all nodes)
-        let storage_rewards = if total_weight > 0.0 {
-            (pool as f64 * storage_weight / total_weight / 100.0) as u128
-        } else {
-            0
-        };
-
-        let bandwidth_rewards = if total_weight > 0.0 {
-            (pool as f64 * bandwidth_weight / total_weight / 100.0) as u128
-        } else {
-            0
-        };
-
-        let regeneration_rewards = if total_weight > 0.0 {
-            (pool as f64 * regen_weight / total_weight / 100.0) as u128
-        } else {
-            0
-        };
+        // M10 (2026-07-25 audit): `apply_ratio_ppb` computes the small
+        // weight ratio in f64 (safe — these are all small sqrt() values)
+        // and then multiplies the large `pool` amount in pure u128,
+        // instead of casting `pool` itself through f64. The trailing
+        // `/ 100` reproduces the original code's extra 1% scale-down
+        // exactly, applied to the now-exact integer result.
+        let storage_rewards = apply_ratio_ppb(pool, storage_weight, total_weight) / 100;
+        let bandwidth_rewards = apply_ratio_ppb(pool, bandwidth_weight, total_weight) / 100;
+        let regeneration_rewards = apply_ratio_ppb(pool, regen_weight, total_weight) / 100;
 
         NodeReward {
             node_id,
@@ -278,7 +343,8 @@ impl RewardCalculator {
         // Apply performance multiplier
         let multiplier = self.get_performance_multiplier(&validator_id);
 
-        (base_share as f64 * multiplier) as u128
+        // M10: see `apply_multiplier_ppb` doc comment.
+        apply_multiplier_ppb(base_share, multiplier)
     }
 
     /// Calculate epoch rewards for all participants
@@ -363,7 +429,8 @@ impl AnchorRewardDistribution {
             .get(&proposer_id)
             .map(|s| s.multiplier())
             .unwrap_or(1.0);
-        let proposer_reward = (anchor_reward.proposer_share as f64 * proposer_multiplier) as u128;
+        // M10 (2026-07-25 audit): see `apply_multiplier_ppb` doc comment.
+        let proposer_reward = apply_multiplier_ppb(anchor_reward.proposer_share, proposer_multiplier);
 
         // Calculate testimony rewards
         let total_testimonies: u64 = testimony_validators.iter().map(|(_, c)| c).sum();
@@ -379,7 +446,8 @@ impl AnchorRewardDistribution {
                     .get(id)
                     .map(|s| s.multiplier())
                     .unwrap_or(1.0);
-                (*id, (share as f64 * multiplier) as u128)
+                // M10: see `apply_multiplier_ppb` doc comment.
+                (*id, apply_multiplier_ppb(share, multiplier))
             })
             .collect();
 
@@ -449,5 +517,71 @@ mod tests {
         // 75% of 500M = 375M for validators
         // 375M / 100M total stake = 375% APY
         assert!(apy > 100.0);
+    }
+
+    /// M10 (2026-07-25 audit) regression: `apply_multiplier_ppb` must not
+    /// lose precision on amounts well above `f64`'s 2^53 exact-integer
+    /// ceiling, unlike the `(x as f64 * m) as u128` pattern it replaced.
+    #[test]
+    fn test_apply_multiplier_ppb_no_precision_loss_on_large_amounts() {
+        // 66.6 FAT at 18 decimals ~= 6.66e19 — comfortably above 2^53
+        // (~9.007e15), the exact-integer ceiling for f64.
+        let base = 500_000_000u128 * ONE_FAT / 7_500_000;
+        assert!(base > (1u128 << 53), "test amount must exceed f64's exact-integer range");
+
+        // multiplier = 1.0 must be an exact no-op — the old float path
+        // could round this to base ± several thousand wei purely from
+        // the u128 -> f64 -> u128 round-trip.
+        assert_eq!(apply_multiplier_ppb(base, 1.0), base);
+
+        // multiplier = 0.0 must zero out exactly.
+        assert_eq!(apply_multiplier_ppb(base, 0.0), 0);
+
+        // multiplier = 2.0 (MAX_PERFORMANCE_MULTIPLIER) must double exactly.
+        assert_eq!(apply_multiplier_ppb(base, 2.0), base * 2);
+
+        // A representative fractional multiplier (1.15) should match the
+        // exact rational result to within 1 part-per-billion granularity,
+        // not drift by the thousands-of-wei margin a lossy f64 round-trip
+        // of `base` itself would introduce.
+        let result = apply_multiplier_ppb(base, 1.15);
+        let expected = base * 115 / 100;
+        let diff = result.abs_diff(expected);
+        assert!(
+            diff <= base / 1_000_000_000 + 1,
+            "fixed-point result {result} drifted too far from exact {expected} (diff {diff})"
+        );
+    }
+
+    /// M10 regression: defensive clamping on NaN/negative/infinite inputs
+    /// — a future misconfigured `PerformanceScore` must never be able to
+    /// mint an unbounded amount or wrap around via a negative-as-unsigned
+    /// cast through this helper.
+    #[test]
+    fn test_apply_multiplier_ppb_rejects_degenerate_inputs() {
+        let base = 1_000_000u128 * ONE_FAT;
+        // Non-finite inputs (NaN, +/-Infinity) fail the `is_finite()`
+        // guard entirely and are treated as 0.0, not merely clamped —
+        // there is no sane finite ceiling to substitute for "infinity".
+        assert_eq!(apply_multiplier_ppb(base, f64::NAN), 0);
+        assert_eq!(apply_multiplier_ppb(base, f64::INFINITY), 0);
+        assert_eq!(apply_multiplier_ppb(base, f64::NEG_INFINITY), 0);
+        // A finite-but-absurd multiplier is clamped to the 100.0 ceiling
+        // rather than rejected outright.
+        assert_eq!(apply_multiplier_ppb(base, 1_000_000.0), base * 100);
+        assert_eq!(apply_multiplier_ppb(base, -5.0), 0);
+    }
+
+    /// M10 regression: `apply_ratio_ppb` must reject a zero/negative/NaN
+    /// denominator (the `total_weight == 0.0` case in
+    /// `calculate_node_reward`) by returning 0, not panicking or dividing
+    /// by zero.
+    #[test]
+    fn test_apply_ratio_ppb_degenerate_denominator() {
+        let base = 1_000_000u128 * ONE_FAT;
+        assert_eq!(apply_ratio_ppb(base, 1.0, 0.0), 0);
+        assert_eq!(apply_ratio_ppb(base, 1.0, f64::NAN), 0);
+        assert_eq!(apply_ratio_ppb(base, f64::NAN, 1.0), 0);
+        assert_eq!(apply_ratio_ppb(base, 1.0, 1.0), base);
     }
 }

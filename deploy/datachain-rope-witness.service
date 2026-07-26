@@ -27,5 +27,25 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=datachain-rope-witness
 
+# Hardening (M6, SECURITY_AUDIT_2026-07-25_FULL_WORKSPACE.md) — same
+# rationale as datachain-rope.service: no --data-dir flag is passed, so
+# rope-cli's default ~/.rope (/home/ubuntu/.rope) is the only write target.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+ReadWritePaths=/home/ubuntu/.rope
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RemoveIPC=yes
+
 [Install]
 WantedBy=multi-user.target

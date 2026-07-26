@@ -30,20 +30,50 @@ pub mod lattice_db {
     use parking_lot::RwLock;
     use std::collections::HashMap;
 
+    /// M1 (2026-07-25 audit): default cap on the number of live entries this
+    /// in-memory store will hold before it starts evicting to make room for
+    /// new inserts. 2M entries * (32-byte key + typically-small knot blob) is
+    /// a bounded, sane ceiling for a placeholder store; RocksDB-backed
+    /// `ledger_db::LedgerStore` is the real production path (see module
+    /// docs) and is not subject to this cap.
+    pub const DEFAULT_MAX_LATTICE_ENTRIES: usize = 2_000_000;
+
     /// Simple in-memory lattice storage (RocksDB will replace this in production)
+    ///
+    /// Bounded: once `max_entries` live keys are held, further `put`s for a
+    /// *new* key evict one existing entry first (O(1) arbitrary-victim
+    /// eviction — this store has no access-recency tracking, so it cannot
+    /// offer true LRU without extra bookkeeping; a random/arbitrary victim
+    /// is a standard, well-understood bounded-cache eviction policy and is
+    /// sufficient to close the unbounded-memory-growth exposure). Updates to
+    /// an *existing* key never trigger eviction.
     pub struct LatticeStore {
         data: RwLock<HashMap<[u8; 32], Vec<u8>>>,
+        max_entries: usize,
     }
 
     impl LatticeStore {
         pub fn new() -> Self {
+            Self::with_capacity(DEFAULT_MAX_LATTICE_ENTRIES)
+        }
+
+        /// Construct with an explicit entry cap. `max_entries` is clamped to
+        /// at least 1 so the store is never accidentally unusable.
+        pub fn with_capacity(max_entries: usize) -> Self {
             Self {
                 data: RwLock::new(HashMap::new()),
+                max_entries: max_entries.max(1),
             }
         }
 
         pub fn put(&self, key: [u8; 32], value: Vec<u8>) {
-            self.data.write().insert(key, value);
+            let mut data = self.data.write();
+            if !data.contains_key(&key) && data.len() >= self.max_entries {
+                if let Some(victim) = data.keys().next().copied() {
+                    data.remove(&victim);
+                }
+            }
+            data.insert(key, value);
         }
 
         pub fn get(&self, key: &[u8; 32]) -> Option<Vec<u8>> {
@@ -56,6 +86,20 @@ pub mod lattice_db {
 
         pub fn contains(&self, key: &[u8; 32]) -> bool {
             self.data.read().contains_key(key)
+        }
+
+        /// Current number of live entries.
+        pub fn len(&self) -> usize {
+            self.data.read().len()
+        }
+
+        pub fn is_empty(&self) -> bool {
+            self.data.read().is_empty()
+        }
+
+        /// The configured entry cap.
+        pub fn capacity(&self) -> usize {
+            self.max_entries
         }
     }
 
@@ -72,20 +116,41 @@ pub mod complement_db {
     use parking_lot::RwLock;
     use std::collections::HashMap;
 
-    /// Complement storage with separate encryption context
+    /// M1 (2026-07-25 audit): see `lattice_db::DEFAULT_MAX_LATTICE_ENTRIES`
+    /// for the rationale. Complement payloads are typically small (key
+    /// shreds / OES material), so the default cap is generous.
+    pub const DEFAULT_MAX_COMPLEMENT_ENTRIES: usize = 2_000_000;
+
+    /// Complement storage with separate encryption context.
+    ///
+    /// Bounded the same way as `LatticeStore`: at capacity, inserting a new
+    /// key evicts one arbitrary existing entry first. Updates to an
+    /// existing key never evict.
     pub struct ComplementStore {
         data: RwLock<HashMap<[u8; 32], Vec<u8>>>,
+        max_entries: usize,
     }
 
     impl ComplementStore {
         pub fn new() -> Self {
+            Self::with_capacity(DEFAULT_MAX_COMPLEMENT_ENTRIES)
+        }
+
+        pub fn with_capacity(max_entries: usize) -> Self {
             Self {
                 data: RwLock::new(HashMap::new()),
+                max_entries: max_entries.max(1),
             }
         }
 
         pub fn store_complement(&self, string_id: [u8; 32], complement_data: Vec<u8>) {
-            self.data.write().insert(string_id, complement_data);
+            let mut data = self.data.write();
+            if !data.contains_key(&string_id) && data.len() >= self.max_entries {
+                if let Some(victim) = data.keys().next().copied() {
+                    data.remove(&victim);
+                }
+            }
+            data.insert(string_id, complement_data);
         }
 
         pub fn get_complement(&self, string_id: &[u8; 32]) -> Option<Vec<u8>> {
@@ -94,6 +159,18 @@ pub mod complement_db {
 
         pub fn erase_complement(&self, string_id: &[u8; 32]) -> bool {
             self.data.write().remove(string_id).is_some()
+        }
+
+        pub fn len(&self) -> usize {
+            self.data.read().len()
+        }
+
+        pub fn is_empty(&self) -> bool {
+            self.data.read().is_empty()
+        }
+
+        pub fn capacity(&self) -> usize {
+            self.max_entries
         }
     }
 
@@ -110,22 +187,44 @@ pub mod state_db {
     use parking_lot::RwLock;
     use std::collections::HashMap;
 
-    /// State persistence for OES and federation
+    /// M1 (2026-07-25 audit): OES/federation state entries are keyed by
+    /// node/federation id (bounded by real-world node counts), so a much
+    /// smaller cap than the lattice/complement stores is appropriate —
+    /// still generous enough to never bind legitimate operation.
+    pub const DEFAULT_MAX_STATE_ENTRIES: usize = 100_000;
+
+    /// State persistence for OES and federation.
+    ///
+    /// Both maps are bounded independently: at capacity, inserting a new
+    /// key evicts one arbitrary existing entry from that map first. Updates
+    /// to an existing key never evict.
     pub struct StateStore {
         oes_states: RwLock<HashMap<String, Vec<u8>>>,
         federation_states: RwLock<HashMap<String, Vec<u8>>>,
+        max_entries: usize,
     }
 
     impl StateStore {
         pub fn new() -> Self {
+            Self::with_capacity(DEFAULT_MAX_STATE_ENTRIES)
+        }
+
+        pub fn with_capacity(max_entries: usize) -> Self {
             Self {
                 oes_states: RwLock::new(HashMap::new()),
                 federation_states: RwLock::new(HashMap::new()),
+                max_entries: max_entries.max(1),
             }
         }
 
         pub fn save_oes_state(&self, node_id: &str, state: Vec<u8>) {
-            self.oes_states.write().insert(node_id.to_string(), state);
+            let mut map = self.oes_states.write();
+            if !map.contains_key(node_id) && map.len() >= self.max_entries {
+                if let Some(victim) = map.keys().next().cloned() {
+                    map.remove(&victim);
+                }
+            }
+            map.insert(node_id.to_string(), state);
         }
 
         pub fn load_oes_state(&self, node_id: &str) -> Option<Vec<u8>> {
@@ -133,13 +232,29 @@ pub mod state_db {
         }
 
         pub fn save_federation_state(&self, fed_id: &str, state: Vec<u8>) {
-            self.federation_states
-                .write()
-                .insert(fed_id.to_string(), state);
+            let mut map = self.federation_states.write();
+            if !map.contains_key(fed_id) && map.len() >= self.max_entries {
+                if let Some(victim) = map.keys().next().cloned() {
+                    map.remove(&victim);
+                }
+            }
+            map.insert(fed_id.to_string(), state);
         }
 
         pub fn load_federation_state(&self, fed_id: &str) -> Option<Vec<u8>> {
             self.federation_states.read().get(fed_id).cloned()
+        }
+
+        pub fn oes_state_count(&self) -> usize {
+            self.oes_states.read().len()
+        }
+
+        pub fn federation_state_count(&self) -> usize {
+            self.federation_states.read().len()
+        }
+
+        pub fn capacity(&self) -> usize {
+            self.max_entries
         }
     }
 
@@ -584,6 +699,54 @@ mod tests {
             let key = [5u8; 32];
             assert!(!store.contains(&key));
         }
+
+        /// M1 (2026-07-25 audit): the store must never grow past its
+        /// configured cap, no matter how many distinct keys are inserted.
+        #[test]
+        fn test_lattice_store_bounded_eviction() {
+            let store = LatticeStore::with_capacity(10);
+            for i in 0u32..1000 {
+                let mut key = [0u8; 32];
+                key[0..4].copy_from_slice(&i.to_be_bytes());
+                store.put(key, vec![1, 2, 3]);
+                assert!(
+                    store.len() <= 10,
+                    "store grew past its cap of 10 (len={})",
+                    store.len()
+                );
+            }
+            assert_eq!(store.capacity(), 10);
+        }
+
+        /// Updating an already-present key must never trigger eviction —
+        /// only *new* keys competing for a full store should evict.
+        #[test]
+        fn test_lattice_store_update_does_not_evict() {
+            let store = LatticeStore::with_capacity(4);
+            let keys: Vec<[u8; 32]> = (0u8..4)
+                .map(|i| {
+                    let mut k = [0u8; 32];
+                    k[0] = i;
+                    k
+                })
+                .collect();
+            for k in &keys {
+                store.put(*k, vec![0]);
+            }
+            assert_eq!(store.len(), 4);
+            // Re-write every existing key repeatedly — must stay at 4 and
+            // every original key must still resolve (no silent eviction of
+            // live keys just from updates).
+            for _ in 0..50 {
+                for k in &keys {
+                    store.put(*k, vec![9]);
+                }
+            }
+            assert_eq!(store.len(), 4);
+            for k in &keys {
+                assert!(store.contains(k), "update-only churn must not evict");
+            }
+        }
     }
 
     mod complement_store_tests {
@@ -629,6 +792,20 @@ mod tests {
             let string_id = [4u8; 32];
             assert!(store.get_complement(&string_id).is_none());
         }
+
+        /// M1 (2026-07-25 audit): bounded eviction, same contract as
+        /// `LatticeStore`.
+        #[test]
+        fn test_complement_store_bounded_eviction() {
+            let store = ComplementStore::with_capacity(8);
+            for i in 0u32..500 {
+                let mut sid = [0u8; 32];
+                sid[0..4].copy_from_slice(&i.to_be_bytes());
+                store.store_complement(sid, vec![7; 16]);
+                assert!(store.len() <= 8, "complement store exceeded its cap");
+            }
+            assert_eq!(store.capacity(), 8);
+        }
     }
 
     mod state_store_tests {
@@ -671,6 +848,24 @@ mod tests {
         fn test_state_store_default() {
             let store: StateStore = Default::default();
             assert!(store.load_oes_state("test").is_none());
+        }
+
+        /// M1 (2026-07-25 audit): each of the two maps is bounded
+        /// independently.
+        #[test]
+        fn test_state_store_bounded_eviction() {
+            let store = StateStore::with_capacity(5);
+            for i in 0..200 {
+                store.save_oes_state(&format!("node-{i}"), vec![1]);
+                assert!(store.oes_state_count() <= 5);
+            }
+            for i in 0..200 {
+                store.save_federation_state(&format!("fed-{i}"), vec![2]);
+                assert!(store.federation_state_count() <= 5);
+            }
+            // The two maps must not share the cap budget.
+            assert!(store.oes_state_count() <= 5 && store.federation_state_count() <= 5);
+            assert_eq!(store.capacity(), 5);
         }
     }
 

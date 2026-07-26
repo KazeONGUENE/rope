@@ -1,276 +1,83 @@
 #!/bin/bash
 # =============================================================================
 # Datachain Rope - SSL Certificate Installation Script
-# This script installs all SSL certificates on the VPS
+#
+# SECURITY NOTE (2026-07-25 remediation, finding C1 of
+# docs/SECURITY_AUDIT_2026-07-25_FULL_WORKSPACE.md):
+#   This script previously embedded the plaintext PEM private keys for
+#   datachain.network, rope.network, and dcscan.io directly in this file,
+#   which is tracked by git and pushed to a public GitHub repository. That
+#   was a critical secret-exposure vulnerability: anyone who ever cloned
+#   the repo had full impersonation capability for all three domains.
+#
+#   This script no longer contains, generates, or transports any private
+#   key material. It only VALIDATES and INSTALLS certificate material that
+#   already exists on the target host, staged out-of-band (scp/rsync
+#   directly to the host, never through git) at $SSL_INBOX_DIR below.
+#
+#   Renewal workflow: Gandi-issued certs are renewed against the SAME
+#   private key (never regenerate the key on renewal) unless you are
+#   deliberately rotating compromised key material, in which case generate
+#   a fresh keypair + CSR on the target host itself
+#   ("openssl req -newkey rsa:2048 -nodes -keyout privkey.pem -out req.csr"),
+#   submit the CSR through the Gandi certificate portal/API, and stage only
+#   the returned fullchain.pem plus your already-local privkey.pem below.
 # =============================================================================
 
+set -euo pipefail
+
 SSL_DIR="/opt/datachain-rope/ssl"
+# Secure staging area. Populate out-of-band (scp/rsync from an operator
+# workstation, or from a secrets manager) — never via git, never inline in
+# this script. Each domain subdirectory must contain privkey.pem (mode 600)
+# and fullchain.pem before running this script.
+SSL_INBOX_DIR="${SSL_INBOX_DIR:-/opt/datachain-rope/ssl-inbox}"
+
+DOMAINS=(datachain.network rope.network dcscan.io)
 
 echo "╔════════════════════════════════════════════════════════════════╗"
 echo "║       INSTALLING SSL CERTIFICATES                              ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 
-# Create directories
-sudo mkdir -p $SSL_DIR/datachain.network
-sudo mkdir -p $SSL_DIR/rope.network
-sudo mkdir -p $SSL_DIR/dcscan.io
+for domain in "${DOMAINS[@]}"; do
+  privkey="$SSL_INBOX_DIR/$domain/privkey.pem"
+  fullchain="$SSL_INBOX_DIR/$domain/fullchain.pem"
 
-# =============================================================================
-# DATACHAIN.NETWORK
-# =============================================================================
-echo "📜 Installing datachain.network certificates..."
+  if [[ ! -f "$privkey" || ! -f "$fullchain" ]]; then
+    echo "❌ Missing staged material for $domain — expected:"
+    echo "     $privkey"
+    echo "     $fullchain"
+    echo "   Stage both files (out-of-band, never via git) before re-running."
+    exit 1
+  fi
 
-cat > /tmp/datachain_privkey.pem << 'PRIVKEY'
-[REDACTED-TLS-PRIVATE-KEY-purged-2026-07-26-see-SECURITY_AUDIT_2026-07-25]
-PRIVKEY
+  echo "📜 Validating $domain certificate/key pair..."
 
-# Domain certificate + CA chain (fullchain)
-cat > /tmp/datachain_fullchain.pem << 'FULLCHAIN'
------BEGIN CERTIFICATE-----
-MIIHIDCCBQigAwIBAgIQDOdEutdegx71DH7uuy/yfDANBgkqhkiG9w0BAQsFADA1MQswCQYDVQQG
-EwJGUjESMBAGA1UEChMJR2FuZGkgU0FTMRIwEAYDVQQDEwlHYW5kaUNlcnQwHhcNMjYwMTA3MDAw
-MDAwWhcNMjcwMTA3MjM1OTU5WjAcMRowGAYDVQQDExFkYXRhY2hhaW4ubmV0d29yazCCASIwDQYJ
-KoZIhvcNAQEBBQADggEPADCCAQoCggEBALkE66QTw/bzeVqNRpDFSb3PCXiA/R2iaNnXxYJhNi06
-JP6rcr+TNwfFGiHL/j6YdVuz4mnGR2zgQjgu5zmrvjeoFzX7r2FFhGSDmLeuHtHrsUAelMIIUye/
-Lz+W1AFy9BN90b2DpUlDP66swooPYLWTWKJy0qvA4vSKj7ttJo6lTeSZ6SeX0pC0QtmilILK+D1v
-Gf70tIPwR5oJvFHshgDFrYhhnGghokhiF10iO/12nhqvuNXAbxM/qCZ0TZBTPC5P1GPJn/XP2sp5
-3CqwHySLhaFFs2eIU13g9Kx9LfioVHieJRnhVDeJ7ujQQtLN3K1ozxCjnJXNqsfiy6nJhU0CAwEA
-AaOCA0MwggM/MB8GA1UdIwQYMBaAFLq7RohF7N1aKxjF0U7s4zwGUlOsMB0GA1UdDgQWBBTPpv2Y
-yNlpw2l0xW9TOmWBs2tnAjAzBgNVHREELDAqghFkYXRhY2hhaW4ubmV0d29ya4IVd3d3LmRhdGFj
-aGFpbi5uZXR3b3JrMD4GA1UdIAQ3MDUwMwYGZ4EMAQIBMCkwJwYIKwYBBQUHAgEWG2h0dHA6Ly93
-d3cuZGlnaWNlcnQuY29tL0NQUzAOBgNVHQ8BAf8EBAMCBaAwEwYDVR0lBAwwCgYIKwYBBQUHAwEw
-ZQYDVR0fBF4wXDAsoCqgKIYmaHR0cDovL2NybDMuZGlnaWNlcnQuY29tL0dhbmRpQ2VydC5jcmww
-LKAqoCiGJmh0dHA6Ly9jcmw0LmRpZ2ljZXJ0LmNvbS9HYW5kaUNlcnQuY3JsMGsGCCsGAQUFBwEB
-BF8wXTAkBggrBgEFBQcwAYYYaHR0cDovL29jc3AuZGlnaWNlcnQuY29tMDUGCCsGAQUFBzAChilo
-dHRwOi8vY2FjZXJ0cy5kaWdpY2VydC5jb20vR2FuZGlDZXJ0LmNydDAMBgNVHRMBAf8EAjAAMIIB
-fwYKKwYBBAHWeQIEAgSCAW8EggFrAWkAdwBMY9yY5Zwdq4j2Hoo93q6Pq0SjN3tfm5TD+6Gc/MG+
-JgAAAZuYzcKTAAAEAwBIMEYCIQD+hijoiW32bsNDYRril9ERNRNqbhgTbc5RCr11pn04QgIhAMy8
-0G4JSCiVjaREQbfnlji41LPyDOqq2XUgsUMidZnaAHUAHJ9oLOn68EVpUPgbloqH3dsyENhM5siy
-44JSSsTPWZ8AAAGbmM3CmAAABAMARjBEAiAMi8RCAY9UscgTJNxwolpHYD/RMak11RCLQp6zIPFn
-rQIgICZ6Gs0u2lIAx4pUqFQ/D0kw+ayO+W0HZEEMje/KLV0AdwBgTJqven93XwHUBvySDciZ6wsc
-ffjJUhv6+hd3O5eLyQAAAZuYzcOQAAAEAwBIMEYCIQDZ/q8ENVE9AV3CagHz8qI7yGJPd9Dym40Y
-JUILS7j5ZwIhALXUTYy7kMxtbJUDcvgU/4nf5JJVNXS43JH9/9rlvNs0MA0GCSqGSIb3DQEBCwUA
-A4ICAQB5ROlzyAxkHD7vhNLMZ2aq7iQd+TRZdP/xTFZnqA9lee30VOEbD5HenncZVjZpiYfxyFHx
-XPJP9eABWur+JafYF2ZiavbRGXKNSovQYl6lzskiTMzjr2ih5p8Ingls2cUGhYQ8GXPtLr+Zm9kG
-8QlDDDop40R2+VrIxq/IeoVxL5Sc/ySsIiqvA9NZltAC9jh74AbcwPA8KmjsBGgem3ftSerZIqQk
-325C4js4iSd308S1XIyEHsdBx4lDNpO9b9iMNUgke48XS/XDuI01yKQyK07/dJEIS72ezkue4TgB
-Tav/b97skKtxvUBx0joyCOFzcQiMiESPcTNark/3oSu+Ddj/mZ559vCDc/c+kEgVGnQWWGpMHOBH
-xk01c3RGz7yKSWEmP94OfT9sjvRTR9idMRjnNTzqPqDmSpW9mNYd5ZEXNDS8icsvXswosIIm/wUj
-RGZC3QaSjmWNmXKQPk/UaQSsqCJ6e5OqbNQpxboOr3DF/oUia59OB8EJEgk6YT9aJI9bE0JMz5K0
-sPxZo08t/rTYX6zrZPGIuAzb27+k6aWUkOnAy6H++5xTRZHYMS+/XsIvhJrAImkcilL95XY7B1/S
-7Ns1KrKUqwU2Neohld439KzD0vM7PNMSeiF4ZKC23OufGWFevvO2Kc34U4+u3khfcs1dhnOxS+AO
-JgaudA==
------END CERTIFICATE-----
------BEGIN CERTIFICATE-----
-MIIFeDCCBGCgAwIBAgIQC5tef2dzroxkMiFlfO5nwTANBgkqhkiG9w0BAQsFADBh
-MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3
-d3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBH
-MjAeFw0yNDA0MTcwMDAwMDBaFw0zNDA0MTYyMzU5NTlaMDUxCzAJBgNVBAYTAkZS
-MRIwEAYDVQQKEwlHYW5kaSBTQVMxEjAQBgNVBAMTCUdhbmRpQ2VydDCCAiIwDQYJ
-KoZIhvcNAQEBBQADggIPADCCAgoCggIBAK49Qu5ro3pTKXIqtRxyGZaCbX9989lh
-B3aBDQyWLN99EjYcbuQNKwNrom/lkVOL7CqZMVsxXjCO+Vqho2VI2u87KaEYOrMn
-0K4gICbUJrho0LpDNeFkZwwOLvEFmfaGPugXdHm1iOHj/ACdVtO4c96jJsBXrPl1
-07MmN/nMbZ8zbW/Lmx/3lrA9f0SpRqQz6FwoOe/BEn+52AzRJeEzUQgzI+nKzR9K
-xFBWiVRzMhU5c/NEE7QmWynOYMI/dPuUCkMhhmYftkQZCXXMORigQjt+IoO4PRkJ
-rbJFD1JkQpkEIDZkxj5JgUsGqQUZoeiQh73v3ggp3xfUUDyMApI972ewc7S2PG9I
-KO9QNzjU2aFruEJbPJzfnWy6cZ/JtsASjyjdah6oNdNof/HSqyxcxw1ozD4ifRCA
-EYf7fId9SAwsut0Q92tECSbRUYMYdX1QqZD7teT40IQ4AaPWiXIru1MsyEKlEOUL
-TBrXf1vl7PGJUoUo9+P5dOtFwo0iHdAONg8mO7/AWyPTTPJZDsxjq4aRcZiBzdwT
-RxbVhgZc3BrDYaDUg8nT6lnc3tQNMHuLNTLGLyfmWwWMRcjsn5MF0E9UkA8trEoe
-MIdCutolrVWsG7sagUMEBbZPSs9j+JLZXcfw3gfDLcpl2YKy78JU1/F6erjm1K+m
-JSY3eVqjp4RJAgMBAAGjggFWMIIBUjASBgNVHRMBAf8ECDAGAQH/AgEAMB0GA1Ud
-DgQWBBS6u0aIRezdWisYxdFO7OM8BlJTrDAfBgNVHSMEGDAWgBROIlQgGJXm427m
-D/r6uRLtBhePOTAOBgNVHQ8BAf8EBAMCAYYwHQYDVR0lBBYwFAYIKwYBBQUHAwEG
-CCsGAQUFBwMCMHYGCCsGAQUFBwEBBGowaDAkBggrBgEFBQcwAYYYaHR0cDovL29j
-c3AuZGlnaWNlcnQuY29tMEAGCCsGAQUFBzAChjRodHRwOi8vY2FjZXJ0cy5kaWdp
-Y2VydC5jb20vRGlnaUNlcnRHbG9iYWxSb290RzIuY3J0MEIGA1UdHwQ7MDkwN6A1
-oDOGMWh0dHA6Ly9jcmwzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydEdsb2JhbFJvb3RH
-Mi5jcmwwEQYDVR0gBAowCDAGBgRVHSAAMA0GCSqGSIb3DQEBCwUAA4IBAQAqsQTC
-dbSSfPRpe+H+zWSok/VfzwhXviQwNiWZ9S93IRl47Yt9HGJn4YBBvLbmD2UgQc7s
-nOKVGzStvt9J5/MhZzilji+dUhkdUtDZbUsfqy/Fii5AU/2RRXCRWS+6qljOGdpV
-eSGqqgI88IGOKILH/h7jtJtlHDpriwwKTpXl4FudKWZaqK2Wrz9Fz0jfyY1FbZhk
-v/dzjN29FQVaxmWr7cNqjKb+H9LuXvuTUxt/uFTzFZHMNw0+iM4Tn4vMVPwa3X02
-fZ8V1IVWxLcvbhLOEIes1tjdWRXnzDQNDhCJh18t83R8GBEMU3ZX3ZtTaY3iTEJc
-zHfg5c8HflGcPZoZ
------END CERTIFICATE-----
-FULLCHAIN
+  # Confirm the private key and certificate are a matching pair before
+  # installing anything, so a mismatched or corrupted staged pair never
+  # silently breaks TLS termination.
+  key_modulus=$(openssl rsa -noout -modulus -in "$privkey" 2>/dev/null | openssl sha256)
+  cert_modulus=$(openssl x509 -noout -modulus -in "$fullchain" 2>/dev/null | openssl sha256)
+  if [[ "$key_modulus" != "$cert_modulus" ]]; then
+    echo "❌ Private key does not match certificate for $domain — refusing to install."
+    exit 1
+  fi
 
-sudo mv /tmp/datachain_privkey.pem $SSL_DIR/datachain.network/privkey.pem
-sudo mv /tmp/datachain_fullchain.pem $SSL_DIR/datachain.network/fullchain.pem
+  not_after=$(openssl x509 -noout -enddate -in "$fullchain" | cut -d= -f2)
+  echo "   ✓ key/cert pair matches. Expires: $not_after"
 
-# =============================================================================
-# ROPE.NETWORK
-# =============================================================================
-echo "📜 Installing rope.network certificates..."
+  sudo mkdir -p "$SSL_DIR/$domain"
+  sudo install -m 600 -o root -g root "$privkey" "$SSL_DIR/$domain/privkey.pem"
+  sudo install -m 644 -o root -g root "$fullchain" "$SSL_DIR/$domain/fullchain.pem"
 
-cat > /tmp/rope_privkey.pem << 'PRIVKEY'
-[REDACTED-TLS-PRIVATE-KEY-purged-2026-07-26-see-SECURITY_AUDIT_2026-07-25]
-PRIVKEY
+  echo "   ✓ installed to $SSL_DIR/$domain/"
+done
 
-cat > /tmp/rope_fullchain.pem << 'FULLCHAIN'
------BEGIN CERTIFICATE-----
-MIIHETCCBPmgAwIBAgIQC65cnPGc8ibVGkM6biPk6DANBgkqhkiG9w0BAQsFADA1MQswCQYDVQQG
-EwJGUjESMBAGA1UEChMJR2FuZGkgU0FTMRIwEAYDVQQDEwlHYW5kaUNlcnQwHhcNMjYwMTA3MDAw
-MDAwWhcNMjcwMTA3MjM1OTU5WjAXMRUwEwYDVQQDEwxyb3BlLm5ldHdvcmswggEiMA0GCSqGSIb3
-DQEBAQUAA4IBDwAwggEKAoIBAQC7ARejjLqAzGU8JiKGlSkKWSD8LBJTP/rERKAaeFvkDWmN4o2u
-Tnneoz1curGk58J4EF4G6TotBdD33HvPq2QxI5yImbFPRgukDvHuxUCLPqRYSHbLqNebiixuCQog
-T1w/juCMt6fSD7stzdbaBo50+TUyKC1/bHX6pvfkOtsvxka+UPz1lN4LkDXuE0ip/JIVc5vMWUXq
-xfPFD5SFQbWyYHuCIZ2UPtXgIR2p0sPyT9DrYKlpa6GAXdn3f6/uFa3/NAO/ssB497pUbzCnBDSU
-ePetqO6pv6TJF9OHd4DoCp+1/e72DxBKlpLfxrl6hoQqCB4zgXPEyA2DKToSKe3HAgMBAAGjggM5
-MIIDNTAfBgNVHSMEGDAWgBS6u0aIRezdWisYxdFO7OM8BlJTrDAdBgNVHQ4EFgQULsF1jNNOMLH5
-8ZiLZ2NgjDUPt1wwKQYDVR0RBCIwIIIMcm9wZS5uZXR3b3JrghB3d3cucm9wZS5uZXR3b3JrMD4G
-A1UdIAQ3MDUwMwYGZ4EMAQIBMCkwJwYIKwYBBQUHAgEWG2h0dHA6Ly93d3cuZGlnaWNlcnQuY29t
-L0NQUzAOBgNVHQ8BAf8EBAMCBaAwEwYDVR0lBAwwCgYIKwYBBQUHAwEwZQYDVR0fBF4wXDAsoCqg
-KIYmaHR0cDovL2NybDMuZGlnaWNlcnQuY29tL0dhbmRpQ2VydC5jcmwwLKAqoCiGJmh0dHA6Ly9j
-cmw0LmRpZ2ljZXJ0LmNvbS9HYW5kaUNlcnQuY3JsMGsGCCsGAQUFBwEBBF8wXTAkBggrBgEFBQcw
-AYYYaHR0cDovL29jc3AuZGlnaWNlcnQuY29tMDUGCCsGAQUFBzAChilodHRwOi8vY2FjZXJ0cy5k
-aWdpY2VydC5jb20vR2FuZGlDZXJ0LmNydDAMBgNVHRMBAf8EAjAAMIIBfwYKKwYBBAHWeQIEAgSC
-AW8EggFrAWkAdgBMY9yY5Zwdq4j2Hoo93q6Pq0SjN3tfm5TD+6Gc/MG+JgAAAZuYzVPOAAAEAwBH
-MEUCICgXNgT6GTOiliR/GhDvq5tluKpiBu0hcQKl0B3f1haKAiEAmtKdR14tNvGY9vAHQPKIedVN
-Cef3f8ZajpkmpanJXjQAdwAcn2gs6frwRWlQ+BuWiofd2zIQ2EzmyLLjglJKxM9ZnwAAAZuYzVPz
-AAAEAwBIMEYCIQDeqTiHRX9G2wcado7Cjfcn16hwQUWxdrN15I59rOeY7wIhAIIx8K0QFju7OzAa
-MJffCDN4FcTSinG+JZ91wId5VCtjAHYAYEyar3p/d18B1Ab8kg3ImesLHH34yVIb+voXdzuXi8kA
-AAGbmM1UwAAABAMARzBFAiA/SbQnsOZKzZJOqnjtIIdIZ6FsHagion7jNc0y4ujhfQIhAPgjFz/G
-NnUfmFXD6B2k1iiGktgmjXE2bCLaQ/jGTML3MA0GCSqGSIb3DQEBCwUAA4ICAQB2F0QJsp7sYF3u
-xG5CJFps+y4R8rBluXMwkwQ2B4D3dM/DaoAHX1HQUxOgFgJi+eDeOoojNCCXOwqqq2g0Br9ZyF2S
-JIHmXpUn83voEzvYJBg53mctZXAXHVfpCLdF1Tqgz26I3qITBQ0iFZstA0z9biQsH3r688DMBOPt
-qDVBXa3tpO2cv5cTf4KBH6DsQ9MofvAT2NZegwjUxwjXAEWKsAvYsSoPxkAEjeUlKGh6mevtK+GX
-dPjD262CRwAOvQkZ4xH3AKZQ9vC1lHRdBCDFk6Ho8tsOHPAvKMe2gGXcqIHlO2VBPPCRI9rGepSI
-5yETsC1O2EUXTltOPLOb/eR8ruE0PJgyAt/mj5zbQP0tdeatvJhKJQFI57otNonFz/u8cbVWIt2f
-bDNahE+9btBVOvdCkDHx42c46Qcb9sOsKiX44jeAHW87KWQqBaf4NcDprzCM8WzECnEF0luxfn/T
-IOdCoy1yp+XbV4QqNMaDM6AgGSUEtUOAeYInnIVwEgD03hoFdhN0xouynb2kb3c6lmST0/1GuRX4
-DfZKIoy5QIUl/CPP2/NRZ9ooEDbF+AZgAM2ZrpkdREqivtBH/9CNJL6dQZ+Qpgi9TrB08fFn64D0
-iFTM4BCGVHpAMbXQPp6R9GN3yZ/aAJv0PswwZlyq4Te4lcyBzE9TX3X/XD46Eg==
------END CERTIFICATE-----
------BEGIN CERTIFICATE-----
-MIIFeDCCBGCgAwIBAgIQC5tef2dzroxkMiFlfO5nwTANBgkqhkiG9w0BAQsFADBh
-MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3
-d3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBH
-MjAeFw0yNDA0MTcwMDAwMDBaFw0zNDA0MTYyMzU5NTlaMDUxCzAJBgNVBAYTAkZS
-MRIwEAYDVQQKEwlHYW5kaSBTQVMxEjAQBgNVBAMTCUdhbmRpQ2VydDCCAiIwDQYJ
-KoZIhvcNAQEBBQADggIPADCCAgoCggIBAK49Qu5ro3pTKXIqtRxyGZaCbX9989lh
-B3aBDQyWLN99EjYcbuQNKwNrom/lkVOL7CqZMVsxXjCO+Vqho2VI2u87KaEYOrMn
-0K4gICbUJrho0LpDNeFkZwwOLvEFmfaGPugXdHm1iOHj/ACdVtO4c96jJsBXrPl1
-07MmN/nMbZ8zbW/Lmx/3lrA9f0SpRqQz6FwoOe/BEn+52AzRJeEzUQgzI+nKzR9K
-xFBWiVRzMhU5c/NEE7QmWynOYMI/dPuUCkMhhmYftkQZCXXMORigQjt+IoO4PRkJ
-rbJFD1JkQpkEIDZkxj5JgUsGqQUZoeiQh73v3ggp3xfUUDyMApI972ewc7S2PG9I
-KO9QNzjU2aFruEJbPJzfnWy6cZ/JtsASjyjdah6oNdNof/HSqyxcxw1ozD4ifRCA
-EYf7fId9SAwsut0Q92tECSbRUYMYdX1QqZD7teT40IQ4AaPWiXIru1MsyEKlEOUL
-TBrXf1vl7PGJUoUo9+P5dOtFwo0iHdAONg8mO7/AWyPTTPJZDsxjq4aRcZiBzdwT
-RxbVhgZc3BrDYaDUg8nT6lnc3tQNMHuLNTLGLyfmWwWMRcjsn5MF0E9UkA8trEoe
-MIdCutolrVWsG7sagUMEBbZPSs9j+JLZXcfw3gfDLcpl2YKy78JU1/F6erjm1K+m
-JSY3eVqjp4RJAgMBAAGjggFWMIIBUjASBgNVHRMBAf8ECDAGAQH/AgEAMB0GA1Ud
-DgQWBBS6u0aIRezdWisYxdFO7OM8BlJTrDAfBgNVHSMEGDAWgBROIlQgGJXm427m
-D/r6uRLtBhePOTAOBgNVHQ8BAf8EBAMCAYYwHQYDVR0lBBYwFAYIKwYBBQUHAwEG
-CCsGAQUFBwMCMHYGCCsGAQUFBwEBBGowaDAkBggrBgEFBQcwAYYYaHR0cDovL29j
-c3AuZGlnaWNlcnQuY29tMEAGCCsGAQUFBzAChjRodHRwOi8vY2FjZXJ0cy5kaWdp
-Y2VydC5jb20vRGlnaUNlcnRHbG9iYWxSb290RzIuY3J0MEIGA1UdHwQ7MDkwN6A1
-oDOGMWh0dHA6Ly9jcmwzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydEdsb2JhbFJvb3RH
-Mi5jcmwwEQYDVR0gBAowCDAGBgRVHSAAMA0GCSqGSIb3DQEBCwUAA4IBAQAqsQTC
-dbSSfPRpe+H+zWSok/VfzwhXviQwNiWZ9S93IRl47Yt9HGJn4YBBvLbmD2UgQc7s
-nOKVGzStvt9J5/MhZzilji+dUhkdUtDZbUsfqy/Fii5AU/2RRXCRWS+6qljOGdpV
-eSGqqgI88IGOKILH/h7jtJtlHDpriwwKTpXl4FudKWZaqK2Wrz9Fz0jfyY1FbZhk
-v/dzjN29FQVaxmWr7cNqjKb+H9LuXvuTUxt/uFTzFZHMNw0+iM4Tn4vMVPwa3X02
-fZ8V1IVWxLcvbhLOEIes1tjdWRXnzDQNDhCJh18t83R8GBEMU3ZX3ZtTaY3iTEJc
-zHfg5c8HflGcPZoZ
------END CERTIFICATE-----
-FULLCHAIN
-
-sudo mv /tmp/rope_privkey.pem $SSL_DIR/rope.network/privkey.pem
-sudo mv /tmp/rope_fullchain.pem $SSL_DIR/rope.network/fullchain.pem
-
-# =============================================================================
-# DCSCAN.IO
-# =============================================================================
-echo "📜 Installing dcscan.io certificates..."
-
-cat > /tmp/dcscan_privkey.pem << 'PRIVKEY'
-[REDACTED-TLS-PRIVATE-KEY-purged-2026-07-26-see-SECURITY_AUDIT_2026-07-25]
-PRIVKEY
-
-cat > /tmp/dcscan_fullchain.pem << 'FULLCHAIN'
------BEGIN CERTIFICATE-----
-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
------END CERTIFICATE-----
------BEGIN CERTIFICATE-----
-MIIFeDCCBGCgAwIBAgIQC5tef2dzroxkMiFlfO5nwTANBgkqhkiG9w0BAQsFADBh
-MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3
-d3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBH
-MjAeFw0yNDA0MTcwMDAwMDBaFw0zNDA0MTYyMzU5NTlaMDUxCzAJBgNVBAYTAkZS
-MRIwEAYDVQQKEwlHYW5kaSBTQVMxEjAQBgNVBAMTCUdhbmRpQ2VydDCCAiIwDQYJ
-KoZIhvcNAQEBBQADggIPADCCAgoCggIBAK49Qu5ro3pTKXIqtRxyGZaCbX9989lh
-B3aBDQyWLN99EjYcbuQNKwNrom/lkVOL7CqZMVsxXjCO+Vqho2VI2u87KaEYOrMn
-0K4gICbUJrho0LpDNeFkZwwOLvEFmfaGPugXdHm1iOHj/ACdVtO4c96jJsBXrPl1
-07MmN/nMbZ8zbW/Lmx/3lrA9f0SpRqQz6FwoOe/BEn+52AzRJeEzUQgzI+nKzR9K
-xFBWiVRzMhU5c/NEE7QmWynOYMI/dPuUCkMhhmYftkQZCXXMORigQjt+IoO4PRkJ
-rbJFD1JkQpkEIDZkxj5JgUsGqQUZoeiQh73v3ggp3xfUUDyMApI972ewc7S2PG9I
-KO9QNzjU2aFruEJbPJzfnWy6cZ/JtsASjyjdah6oNdNof/HSqyxcxw1ozD4ifRCA
-EYf7fId9SAwsut0Q92tECSbRUYMYdX1QqZD7teT40IQ4AaPWiXIru1MsyEKlEOUL
-TBrXf1vl7PGJUoUo9+P5dOtFwo0iHdAONg8mO7/AWyPTTPJZDsxjq4aRcZiBzdwT
-RxbVhgZc3BrDYaDUg8nT6lnc3tQNMHuLNTLGLyfmWwWMRcjsn5MF0E9UkA8trEoe
-MIdCutolrVWsG7sagUMEBbZPSs9j+JLZXcfw3gfDLcpl2YKy78JU1/F6erjm1K+m
-JSY3eVqjp4RJAgMBAAGjggFWMIIBUjASBgNVHRMBAf8ECDAGAQH/AgEAMB0GA1Ud
-DgQWBBS6u0aIRezdWisYxdFO7OM8BlJTrDAfBgNVHSMEGDAWgBROIlQgGJXm427m
-D/r6uRLtBhePOTAOBgNVHQ8BAf8EBAMCAYYwHQYDVR0lBBYwFAYIKwYBBQUHAwEG
-CCsGAQUFBwMCMHYGCCsGAQUFBwEBBGowaDAkBggrBgEFBQcwAYYYaHR0cDovL29j
-c3AuZGlnaWNlcnQuY29tMEAGCCsGAQUFBzAChjRodHRwOi8vY2FjZXJ0cy5kaWdp
-Y2VydC5jb20vRGlnaUNlcnRHbG9iYWxSb290RzIuY3J0MEIGA1UdHwQ7MDkwN6A1
-oDOGMWh0dHA6Ly9jcmwzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydEdsb2JhbFJvb3RH
-Mi5jcmwwEQYDVR0gBAowCDAGBgRVHSAAMA0GCSqGSIb3DQEBCwUAA4IBAQAqsQTC
-dbSSfPRpe+H+zWSok/VfzwhXviQwNiWZ9S93IRl47Yt9HGJn4YBBvLbmD2UgQc7s
-nOKVGzStvt9J5/MhZzilji+dUhkdUtDZbUsfqy/Fii5AU/2RRXCRWS+6qljOGdpV
-eSGqqgI88IGOKILH/h7jtJtlHDpriwwKTpXl4FudKWZaqK2Wrz9Fz0jfyY1FbZhk
-v/dzjN29FQVaxmWr7cNqjKb+H9LuXvuTUxt/uFTzFZHMNw0+iM4Tn4vMVPwa3X02
-fZ8V1IVWxLcvbhLOEIes1tjdWRXnzDQNDhCJh18t83R8GBEMU3ZX3ZtTaY3iTEJc
-zHfg5c8HflGcPZoZ
------END CERTIFICATE-----
-FULLCHAIN
-
-sudo mv /tmp/dcscan_privkey.pem $SSL_DIR/dcscan.io/privkey.pem
-sudo mv /tmp/dcscan_fullchain.pem $SSL_DIR/dcscan.io/fullchain.pem
-
-# Set permissions
-echo "🔒 Setting permissions..."
-sudo chown -R root:root $SSL_DIR
-sudo chmod 755 $SSL_DIR
-sudo chmod 755 $SSL_DIR/*
-sudo chmod 600 $SSL_DIR/*/privkey.pem
-sudo chmod 644 $SSL_DIR/*/fullchain.pem
+sudo chmod 755 "$SSL_DIR"
+sudo chmod 755 "$SSL_DIR"/*
 
 echo ""
 echo "✅ SSL certificates installed successfully!"
 echo ""
 echo "Certificates installed:"
-ls -la $SSL_DIR/*/
-
+ls -la "$SSL_DIR"/*/

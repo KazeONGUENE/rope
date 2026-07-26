@@ -522,6 +522,25 @@ async fn handle_connection(
     Ok(())
 }
 
+/// M9 (2026-07-25 security audit): upper bound on a single WebSocket
+/// frame's payload before we allocate a buffer for it. The RFC 6455
+/// extended-length path lets a client declare up to `u64::MAX` bytes in
+/// just 2 header bytes + 8 length bytes; without a cap, `vec![0u8;
+/// payload_len]` attempts that allocation immediately, well before a
+/// single payload byte has been read off the wire — an attacker-chosen
+/// number, not real data. 16 MiB is generous headroom over any legitimate
+/// JSON-RPC request/response this listener ever handles while bounding
+/// the worst case an attacker can force per frame. The listener binds
+/// 127.0.0.1-only today (V11 gate), but this cap holds regardless of
+/// that assumption ever changing.
+const MAX_WS_FRAME_PAYLOAD_BYTES: usize = 16 * 1024 * 1024;
+
+/// RFC 6455 §5.5: control frames (Close/Ping/Pong, opcodes 0x8–0xA) MUST
+/// NOT have a payload larger than 125 bytes. Enforced here so a
+/// malformed/hostile control frame can't reach the same unbounded-length
+/// path either.
+const MAX_WS_CONTROL_FRAME_PAYLOAD_BYTES: usize = 125;
+
 async fn handle_websocket_connection(
     mut stream: tokio::net::TcpStream,
     handlers: Arc<RpcHandlers>,
@@ -584,6 +603,27 @@ async fn handle_websocket_connection(
                     break;
                 }
                 payload_len = u64::from_be_bytes(ext) as usize;
+            }
+
+            // M9: reject before allocating anything sized off the
+            // client-declared length. Control frames get the stricter
+            // RFC 6455 125-byte ceiling; data frames get the general cap.
+            let is_control_frame = opcode >= 0x8;
+            let frame_cap = if is_control_frame {
+                MAX_WS_CONTROL_FRAME_PAYLOAD_BYTES
+            } else {
+                MAX_WS_FRAME_PAYLOAD_BYTES
+            };
+            if payload_len > frame_cap {
+                tracing::warn!(
+                    target: "rope_node::rpc_server",
+                    payload_len,
+                    frame_cap,
+                    opcode,
+                    "WebSocket frame exceeds cap; closing connection (code 1009)"
+                );
+                let _ = send_websocket_frame(&mut stream, 0x8, &1009u16.to_be_bytes()).await;
+                break;
             }
 
             let mut mask_key = [0u8; 4];

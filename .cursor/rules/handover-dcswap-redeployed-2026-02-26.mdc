@@ -174,7 +174,7 @@ cast call 0x4e4fc01BD381226Acbd1D127c961ea982d751230 \
   0xE7b39CEB95E593bf3F50D887cc4B500b8429Afc4 --rpc-url $RPC
 
 # Mint stablecoins (deployer has minter role)
-PK=0xREDACTED_COMPROMISED_KEY_purged_2026_07_26_rotated
+PK=<REDACTED-COMPROMISED-KEY-see-SECURITY_AUDIT_2026-07-25>
 cast send --private-key $PK --rpc-url $RPC \
   0xE9D4fd64DF93fe848fE13303EAa28008feb72789 \
   "mint(address,uint256)" $TARGET_ADDRESS 1000000000000
