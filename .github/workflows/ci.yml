@@ -272,3 +272,42 @@ jobs:
       - name: Build Explorer Docker image
         run: |
           docker build -f deploy/Dockerfile.explorer -t dc-explorer:${{ github.sha }} .
+
+  # ============================================================================
+  # Deploy Config Audit (Tier C - 2026-08-23)
+  # ============================================================================
+  # Guards the nginx failover topology declared in deploy/nginx/conf.d/*.conf.
+  # Runs deploy/scripts/nginx-config-audit.py + the fixture test suite in
+  # deploy/scripts/tests/test-nginx-config-audit.sh. This is the CI-level
+  # backstop for the 2026-08-23 `digitalocean_rpc` regression (a 3-node
+  # DigitalOcean failover pool silently collapsed to BLUE-only, which is
+  # why 3 of 4 Chainlist entries went red).
+  #
+  # Fast (~5s), stdlib-only Python + bash. No Rust compile, no docker.
+  #
+  # Behaviour on `main` today:
+  #   - `deploy/nginx/conf.d/datachain.network.conf` and `rope.network.conf`
+  #     have zero `upstream` blocks (main is behind production; the current
+  #     multi-node failover topology lives only on rope-vps).
+  #   - The audit therefore passes trivially on `main` HEAD.
+  #   - The guard becomes active on the next PR that adds `upstream` blocks
+  #     (i.e. the follow-up "sync main with production nginx confs" PR).
+  #     That PR must declare `# nginx-audit:` annotations for every
+  #     `upstream` it introduces, or this job fails.
+  deploy-config-audit:
+    name: Deploy Config Audit (nginx failover)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run nginx-config-audit fixture tests
+        run: bash deploy/scripts/tests/test-nginx-config-audit.sh
+
+      - name: Audit live nginx configs (strict, no unannotated upstreams)
+        run: |
+          python3 deploy/scripts/nginx-config-audit.py \
+            deploy/nginx/conf.d/datachain.network.conf \
+            deploy/nginx/conf.d/rope.network.conf
