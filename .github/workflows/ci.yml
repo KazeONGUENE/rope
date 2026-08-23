@@ -98,9 +98,10 @@ jobs:
         uses: taiki-e/install-action@cargo-audit
 
       - name: Run security audit
-        # Continue on error for now - transitive dependency vulnerabilities
-        # will be fixed by upstream maintainers (libp2p, sqlx, etc.)
-        run: cargo audit || true
+        # Known/unreachable transitive advisories are explicitly allow-listed
+        # in .cargo/audit.toml (each with a justification). Any advisory NOT
+        # in that list — i.e. any new vulnerability — fails this job.
+        run: cargo audit
 
   # ============================================================================
   # Documentation

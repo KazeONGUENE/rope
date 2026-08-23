@@ -1,0 +1,38 @@
+# gitleaks configuration — Datachain Rope
+#
+# SECURITY (2026-07-26 counter-audit, closes finding L-1 from
+# docs/SECURITY_REVIEW_2026-07-02_RECURRENCE_RISK.md).
+#
+# Extends gitleaks' built-in ruleset (private keys, AWS/GCP/generic API keys,
+# connection strings, JWTs, etc.) rather than replacing it. The allowlist
+# below covers exactly the false positives confirmed during the 2026-07-25/26
+# workspace-wide secret sweep — every entry has a one-line justification and
+# must not be widened without one. Do NOT add a broad path/regex exclusion to
+# silence a real finding; redact the secret at its source instead and remove
+# the allowlist entry.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Confirmed false positives from the 2026-07-25/26 counter-audit secret sweep"
+
+regexes = [
+  # Public did:key identifiers (e.g. in deploy/scripts/ipfs-crosspin-storacha.sh)
+  # are DID *public* keys by construction — did:key: encodes a public key
+  # multicodec, never a private key. High-entropy base58 triggers generic
+  # secret-detection heuristics but there is nothing secret to leak.
+  '''did:key:z[1-9A-HJ-NP-Za-km-z]+''',
+
+  # Redacted-secret placeholders left in this repo's own audit trail
+  # (SECURITY_AUDIT_2026-07-25_FULL_WORKSPACE.md and the git-history-purge
+  # replacement tokens) are literal "REDACTED..." strings, not secrets.
+  '''REDACTED[-_][A-Za-z0-9_-]*''',
+]
+
+paths = [
+  # Exoscale zone identifiers (e.g. EXOSCALE_ZONE_DEFAULT=de-fra-1) are public
+  # region/config names, not credentials — confirmed false positive against
+  # deploy/EXOSCALE_AS_A_SERVICE.md during the 2026-07-25/26 sweep.
+  '''deploy/EXOSCALE_AS_A_SERVICE\.md''',
+]

@@ -15,6 +15,36 @@ permissions:
 
 jobs:
   # ============================================================================
+  # Secret Scanning
+  # ============================================================================
+  # SECURITY (2026-07-26 counter-audit, closes finding L-1 from
+  # docs/SECURITY_REVIEW_2026-07-02_RECURRENCE_RISK.md): the 2026-06-22
+  # incident post-mortem's own root cause was a private key pasted into a
+  # markdown handover file. No mechanical control existed to catch that class
+  # of mistake before this job — the only prior check was a narrow,
+  # non-failing grep in the `crypto-security` job below (`.rs` files only,
+  # `continue-on-error` implicit via `if`, never blocks a merge). `gitleaks`
+  # scans the full diff (`push`/`pull_request`) for high-entropy strings and
+  # known secret patterns (private keys, API tokens, connection strings)
+  # across every file type, and FAILS the job on a match — this is a
+  # required check, not an advisory warning.
+  secrets-scan:
+    name: Secret Scanning (gitleaks)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+
+  # ============================================================================
   # Dependency Audit
   # ============================================================================
   audit:
@@ -32,9 +62,10 @@ jobs:
         run: cargo install cargo-audit
 
       - name: Run cargo audit
-        # Allow warnings for transitive dependency vulnerabilities
-        # that will be fixed by upstream maintainers
-        run: cargo audit || true
+        # Known/unreachable transitive advisories are explicitly allow-listed
+        # in .cargo/audit.toml (each with a justification). Any advisory NOT
+        # in that list — i.e. any new vulnerability — fails this job.
+        run: cargo audit
 
       - name: Install cargo-deny
         run: cargo install cargo-deny
