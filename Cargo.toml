@@ -53,18 +53,25 @@ prost = "0.12"
 prost-types = "0.12"
 
 # Cryptography - Classical
-ring = "0.17"
-ed25519-dalek = { version = "2.1", features = ["serde"] }
-x25519-dalek = { version = "2.0", features = ["serde", "static_secrets"] }
-blake3 = "1.5"
-zeroize = { version = "1.7", features = ["derive"] }
+#
+# SECURITY (crypto version pinning, 2026-07-26 counter-audit): every crate in
+# this section and the "Post-Quantum" section below is pinned to an EXACT
+# version (`=x.y.z`, matching what is already resolved in Cargo.lock) rather
+# than a caret range, so an unreviewed `cargo update` cannot silently change
+# constant-time behaviour, side-channel resistance, or key-derivation output.
+# Bumping any pin below MUST be a deliberate, reviewed commit.
+ring = "=0.17.14"
+ed25519-dalek = { version = "=2.2.0", features = ["serde"] }
+x25519-dalek = { version = "=2.0.1", features = ["serde", "static_secrets"] }
+blake3 = "=1.8.5"
+zeroize = { version = "=1.9.0", features = ["derive"] }
 serde_bytes = "0.11"
 
-# Cryptography - Post-Quantum (NIST PQ-3)
-pqcrypto = "0.17"
-pqcrypto-dilithium = "0.5"
-pqcrypto-kyber = "0.8"
-pqcrypto-traits = "0.3"
+# Cryptography - Post-Quantum (NIST PQ-3) — see pinning rationale above.
+pqcrypto = "=0.17.0"
+pqcrypto-dilithium = "=0.5.0"
+pqcrypto-kyber = "=0.8.1"
+pqcrypto-traits = "=0.3.5"
 
 # Reed-Solomon Erasure Coding
 reed-solomon-erasure = "6.0"

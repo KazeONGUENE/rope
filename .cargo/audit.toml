@@ -1,0 +1,90 @@
+# cargo-audit configuration.
+#
+# `docs/SECURITY_AUDIT_2026-07-25_FULL_WORKSPACE.md` counter-audit finding
+# (2026-07-26): this tree's `.github/workflows/ci.yml` and
+# `.github/workflows/security.yml` ran `cargo audit || true`, which means
+# the audit step NEVER failed CI regardless of what it found. On top of
+# that, `Cargo.lock` here had drifted (21 real vulnerabilities, several
+# with simple semver-compatible fixes already available) because the
+# fail-open masked the fact nobody was looking. Both issues are fixed
+# together: `cargo update` was run to pull every dependency forward to the
+# latest semver-compatible version (no manifest/breaking changes), which
+# alone cut the open advisory count from 21 to 12. The remaining 12 are
+# the same class of deep-transitive, no-patched-version-yet advisories
+# also tracked in the main `datachain-rope` tree's `.cargo/audit.toml` —
+# see that file for the full per-advisory reasoning. CI now runs `cargo
+# audit` for real (no `|| true`): it fails on ANY advisory not in this
+# explicit, dated, reasoned list, so a genuinely new vulnerability in a
+# dependency bump is caught immediately.
+#
+# Maintenance rule: do not add an entry here without (a) confirming via
+# `cargo tree -i <pkg>` that the flagged crate is a transitive dependency
+# with no direct patched-version bump available, and (b) a one-line reason
+# + the date it was triaged. Remove an entry the moment the underlying
+# dependency is bumped past the advisory's patched range — do not let this
+# list grow monotonically as a de facto `|| true`.
+[advisories]
+ignore = [
+    # hickory-proto 0.24.4 — O(n^2) CPU cost in DNS message-name
+    # compression. Transitive via libp2p's mdns/dns transport.
+    "RUSTSEC-2026-0119",
+    # protobuf 2.28.0 — uncontrolled recursion crash. Transitive via
+    # libp2p's gossipsub/kad wire encoding.
+    "RUSTSEC-2024-0437",
+    # ring 0.16.20 — AES functions may panic under overflow-checks builds
+    # (debug builds only; release profile disables overflow checks).
+    # Transitive via rustls' crypto provider.
+    "RUSTSEC-2025-0009",
+    # rsa 0.9.10 — Marvin Attack timing side-channel in PKCS#1v1.5
+    # decryption. Verified via Cargo.lock dependency-graph inspection: the
+    # only path to `rsa` is `sqlx-mysql`'s `caching_sha2_password` /
+    # `sha256_password` auth handshake, and no crate in this tree enables
+    # sqlx's `mysql` feature (every `sqlx = {...}` declaration requests
+    # only `postgres`) — so the vulnerable code is not even compiled into
+    # any production binary, let alone reachable.
+    "RUSTSEC-2023-0071",
+    # rustls-webpki — four advisories (three cert-parsing panics + one
+    # faulty CRL-authority matching) across the 0.101/0.102 lines pulled in
+    # transitively by different branches of the dependency tree (rustls
+    # itself, plus libp2p's TLS transport). No single version bump resolves
+    # all lines simultaneously without a broader rustls major-version
+    # coordination across the tree.
+    "RUSTSEC-2026-0104",
+    "RUSTSEC-2026-0098",
+    "RUSTSEC-2026-0099",
+    "RUSTSEC-2026-0049",
+    # sqlx 0.7.4 — binary protocol misinterpretation from truncating casts
+    # in the Postgres wire-protocol decoder. Tracked for a 0.8.x bump;
+    # deferred because 0.8 has its own breaking-API migration cost that
+    # needs a dedicated pass across every `sqlx::query!` call site, not a
+    # drop-in patch bump.
+    "RUSTSEC-2024-0363",
+    # h2 0.3.27 — unbounded empty DATA frames, server-side DoS
+    # (published 2026-08-17, after this file was first drafted 2026-07-26,
+    # triaged 2026-08-23). The 0.4.x line was fixed in-place by bumping
+    # `h2 0.4.15 -> 0.4.18` via `cargo update -p h2@0.4.15` on this branch;
+    # every public HTTP/2 surface on the Rope stack (rope-explorer,
+    # compliance-agent, semantic-agent — the dcscan.io / erpc.datachain.network
+    # / semantic-agent.datachain.network endpoints reachable from the internet)
+    # runs `hyper 1.x + axum 0.7 + h2 0.4.18` and is therefore patched. The
+    # remaining vulnerable `h2 0.3.27` is a pure transitive with three source
+    # paths, verified via `cargo tree -i h2:0.3.27` (2026-08-23), none of
+    # which is a public HTTP/2 server accepting frames from hostile clients:
+    #   (a) `rumqttd 0.19 -> axum 0.6 -> hyper 0.14`  — MQTT broker used by
+    #       rope-iot-gateway; MQTT-over-WebSocket, not public HTTP/2.
+    #   (b) `tonic 0.10.2 -> hyper 0.14`              — internal gRPC in
+    #       rope-network; validator-mesh only, not exposed on nginx.
+    #   (c) `reqwest 0.11.27 -> hyper 0.14`           — outbound HTTP/2
+    #       CLIENT (dcswap.net, tanastok.io, geckoterminal, coingecko).
+    #       The CVE is a server-side DoS; a client hitting our own upstream
+    #       services is not the CVE's attack surface.
+    # `cargo update -p h2@0.3.27` returned "Locking 0 packages to latest
+    # compatible versions" — hyper 0.14 pins h2 to `^0.3`, and 0.3.27 is
+    # already the max in that range with no 0.3.x back-port available.
+    # Bumping past this requires `hyper 0.14 -> 1.x`, which in turn requires
+    # `axum 0.6 -> 0.7` in rope-iot-gateway (via a rumqttd rework — rumqttd
+    # 0.19 pins axum 0.6) AND `tonic 0.10 -> 0.12+` in rope-network. Both are
+    # multi-crate breaking-API migrations, tracked as a follow-up to this
+    # allow-list entry, not a same-session drop-in.
+    "RUSTSEC-2026-0258",
+]
