@@ -24,7 +24,7 @@ Add **Datachain Rope** to MetaMask or any EVM-compatible wallet:
 | Parameter | Value |
 |-----------|-------|
 | **Network Name** | Datachain Rope |
-| **Chain ID** | `271828` (0x42644) |
+| **Chain ID** | `271828` (0x425D4) |
 | **Currency Symbol** | `FAT` |
 | **Currency Name** | DC FAT |
 | **RPC URL** | `https://erpc.datachain.network` |
@@ -54,10 +54,11 @@ Add **Datachain Rope** to MetaMask or any EVM-compatible wallet:
 |-----------|-------|
 | **Network Name** | Datachain Rope Testnet |
 | **Chain ID** | `271829` (0x425D5) |
-| **Currency Symbol** | `DCR FAT` |
+| **Currency Symbol** | `xFAT` |
+| **Currency Name** | Testnet xFAT (gas credit, not mainnet FAT) |
 | **RPC URL** | `https://testnet.erpc.datachain.network` |
 | **Block Explorer** | `https://testnet.dcscan.io` |
-| **Faucet** | `https://faucet.testnet.datachain.network` |
+| **Faucet** | `https://faucet.datachain.network` |
 
 ---
 
