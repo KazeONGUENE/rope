@@ -34,6 +34,9 @@ Environment=CERBER_EDGE_INGEST_PORT=9109
 # Ring buffer path (auto-rotated at ~40 MB into <path>.1).
 Environment=CERBER_EDGE_PROBES_FILE=/var/lib/datachain-rope/fleet/external-probes.ndjson
 
+ExecStartPre=/bin/mkdir -p /var/lib/datachain-rope/fleet
+ExecStartPre=/bin/touch /var/lib/datachain-rope/fleet/external-probes.ndjson
+ExecStartPre=/bin/chown ubuntu:ubuntu /var/lib/datachain-rope/fleet/external-probes.ndjson
 ExecStart=/usr/bin/node /opt/datachain-rope/cerber/bin/cerber-edge-ingest.mjs
 Restart=always
 RestartSec=5

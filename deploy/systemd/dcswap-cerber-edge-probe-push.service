@@ -1,0 +1,22 @@
+[Unit]
+Description=DCSwap CERBER edge probe publisher
+Documentation=file:///opt/dcswap/cerber-mesh/bin/cerber-edge-probe-push.mjs
+After=network-online.target dcswap-cerber-mesh.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+EnvironmentFile=-/etc/cerber-alert.env
+Environment=CERBER_PEER_ID=cerber-dcswap
+Environment=CERBER_IDENTITY_KEY=/var/lib/cerber/dcswap-mesh-identity.pem
+Environment=CERBER_AUDIT_DIR=/var/lib/cerber/mesh-audit
+Environment=CERBER_PEER_SOURCE_REGION=gandi-paris
+Environment=CERBER_EDGE_PROBE_URL=https://erpc.datachain.network/v1/cerber/edge-probe
+Environment=CERBER_EDGE_TARGET_URL=https://erpc.datachain.network
+Environment=CERBER_EDGE_WINDOW_SECS=300
+ExecStart=/usr/bin/node /opt/dcswap/cerber-mesh/bin/cerber-edge-probe-push.mjs
+
+[Install]
+WantedBy=multi-user.target

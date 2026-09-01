@@ -1,0 +1,13 @@
+[Unit]
+Description=Datachain erpc DNS failover watcher (Gandi A-record to DO-rpc-1 when London edge down)
+Documentation=file:///opt/datachain-rope/code/deploy/scripts/erpc-dns-failover-watcher.sh
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/datachain-rope/dns-failover.env
+ExecStart=/opt/datachain-rope/scripts/erpc-dns-failover-watcher.sh
+
+[Install]
+WantedBy=multi-user.target

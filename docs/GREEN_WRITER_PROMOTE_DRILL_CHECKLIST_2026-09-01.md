@@ -98,14 +98,29 @@ PY
 
 - [ ] GREEN lag **<= 512 blocks** (attester HA resync threshold). If lag > 512, run `reth-snapshot-replicate.sh` from London first or **ABORT** promote.
 
-### 3.3 Sealer key on GREEN
+### 3.3 Sealer / proposer readiness on GREEN
+
+**Production model (2026-09-01):** block production is **`rope-evm-proposer.service`** (rope-engine-driver), not `ROPE_ENABLE_MINING` + `sealer.key`. London runs the sole active proposer; GREEN runs attester only until promote.
 
 ```bash
+# Legacy sealer.key check (may be absent on engine-driver fleets)
 ssh -i ~/.ssh/DCRope_key ubuntu@92.243.25.119 \
-  'test -f /opt/datachain-rope/data/sealer.key && echo READY || echo MISSING'
+  'test -f /opt/datachain-rope/data/sealer.key && echo SEALER_KEY_PRESENT || echo SEALER_KEY_ABSENT'
+
+# Engine-driver promote prerequisites (canonical)
+ssh -i ~/.ssh/DCRope_key ubuntu@92.243.25.119 \
+  'test -x /opt/datachain-rope/bin/rope-engine-driver && echo ENGINE_DRIVER_OK || echo ENGINE_DRIVER_MISSING; \
+   echo -n "proposer unit: "; systemctl is-enabled rope-evm-proposer 2>/dev/null || echo not-installed; \
+   echo -n "attester unit: "; systemctl is-active rope-evm-attester 2>/dev/null || echo inactive'
+
+ssh -i ~/.ssh/datachain_rope_id_rsa root@159.65.208.206 \
+  'systemctl is-active rope-evm-proposer rope-evm-attester'
 ```
 
-- [ ] Result is `READY`. If `MISSING`, **STOP** - transport key out-of-band (encrypted carry). Do not automate key copy.
+- [ ] `ENGINE_DRIVER_OK` on GREEN.
+- [ ] London `rope-evm-proposer` is `active` (only one proposer fleet-wide before promote).
+- [ ] GREEN `rope-evm-proposer` is `disabled` or `inactive` pre-promote (expected today).
+- [ ] If using legacy `sealer.key` path instead, result must be `READY` - otherwise **STOP** and transport key OOB.
 
 ### 3.4 Fleet-status + edge corroboration
 
@@ -160,7 +175,21 @@ ssh -i ~/.ssh/datachain_rope_id_rsa root@159.65.208.206 \
 
 ### 5.1 Enable sealer on GREEN
 
-Ensure drop-in exists (create if missing):
+**Engine-driver fleet (canonical since London migration):** move the proposer, do not enable legacy mining env vars unless the host still uses them.
+
+```bash
+# Stop proposer on London first (after fence in section 4)
+ssh -i ~/.ssh/datachain_rope_id_rsa root@159.65.208.206 \
+  'systemctl stop rope-evm-proposer.service && systemctl mask rope-evm-proposer.service'
+
+# Enable proposer on GREEN
+ssh -i ~/.ssh/DCRope_key ubuntu@92.243.25.119 \
+  'sudo systemctl unmask rope-evm-proposer.service 2>/dev/null; \
+   sudo systemctl enable --now rope-evm-proposer.service && \
+   systemctl is-active rope-evm-proposer rope-evm-attester datachain-rope reth-rope'
+```
+
+**Legacy fallback** (only if `rope-evm-proposer` is not installed on GREEN):
 
 ```bash
 ssh -i ~/.ssh/DCRope_key ubuntu@92.243.25.119 'sudo tee /etc/systemd/system/datachain-rope.service.d/50-sealer.conf' <<'EOF'
@@ -173,7 +202,8 @@ ssh -i ~/.ssh/DCRope_key ubuntu@92.243.25.119 \
   'sudo systemctl daemon-reload && sudo systemctl restart datachain-rope.service'
 ```
 
-- [ ] `systemctl is-active datachain-rope` on GREEN is `active`.
+- [ ] `rope-evm-proposer` (or legacy `datachain-rope` sealer mode) is `active` on GREEN.
+- [ ] London proposer is **stopped and masked**.
 
 ### 5.2 Verify GREEN seals
 
@@ -266,7 +296,11 @@ ssh -i ~/.ssh/DCRope_key ubuntu@92.243.25.119 \
 
 - [ ] Knot hash recorded: `________________________`
 
-### 8.2 Destroy sealer key on fenced London
+### 8.2 Retire writer credentials on fenced London
+
+**Engine-driver fleet:** stop and mask `rope-evm-proposer.service` on London (section 5.1). Do **not** delete `jwt.hex` on followers.
+
+**Legacy sealer.key fleets only:**
 
 ```bash
 ssh -i ~/.ssh/datachain_rope_id_rsa root@159.65.208.206 \
@@ -291,28 +325,36 @@ Drop `handover-writer-promote-green-live-YYYY-MM-DD.mdc` into DCSwap + Tanastok 
 
 | Field | Value |
 |---|---|
-| Date (UTC) | |
-| Mode (A/B/C) | |
-| Operator | |
-| Trigger (real / drill) | |
-| BLUE block at start | |
-| GREEN block at start | |
-| Lag blocks | |
-| Sealer key READY? | |
-| Fence confirmed? | |
-| GREEN sealed? | |
-| Nginx reloaded? | |
-| Public write OK? | |
-| WriterPromoteEvent knot | |
-| Rollback needed? | |
-| Notes | |
+| Date (UTC) | **2026-09-01T09:16Z** |
+| Mode (A/B/C) | **B** (read-only preflight) |
+| Operator | Cursor agent / operator workstation |
+| Trigger (real / drill) | **drill** |
+| BLUE block at start | **0x4123c3 (4,268,995)** |
+| GREEN block at start | **0x4123c3 (0 lag)** |
+| Paris block at start | **0x412338 (139 lag - OK)** |
+| DO-1 / DO-2 | **0x4123c3 / 0x4123c4** |
+| Lag blocks (GREEN) | **0** (threshold 512) |
+| Sealer key READY? | **N/A - engine-driver model** (`sealer.key` absent both hosts) |
+| Engine-driver GREEN | **proposer disabled, attester active, binary OK** |
+| London proposer | **active** |
+| Fleet-status | **writer=healthy, edge=healthy 10/10, escalate=false** |
+| Fence confirmed? | skipped (Mode B) |
+| GREEN sealed? | skipped |
+| Nginx reloaded? | skipped |
+| Public write OK? | **eth_chainId 0x425d4 OK** |
+| WriterPromoteEvent knot | skipped |
+| Rollback needed? | no |
+| Notes | Paris RPC briefly down mid-run (reth+rope stopped 09:10Z, recovered by 09:15Z); attester HA log showed `rpc_probe_fail` while local RPC was down. Section 3.5 nginx backup skipped (read-only). GREEN :8545 not reachable from public internet (firewall - use SSH loopback). |
 
 ---
 
 ## 10. Acceptance criteria (drill complete)
 
 - [ ] All preflight commands run without SSH surprises.
-- [ ] Operators know where sealer key lives and who holds backup.
+- [ ] Operators know where **proposer / validator credentials** live (engine-driver model):
+  - London: `/opt/datachain-rope/reth/jwt.hex` (Engine-API), `rope-evm-proposer.service` env in `/etc/systemd/system/rope-evm-proposer.service.d/`
+  - GREEN promote: enable `rope-evm-proposer.service` on GREEN; **no** `sealer.key` required when engine-driver is active
+  - Legacy fallback only if `sealer.key` exists: `/opt/datachain-rope/data/sealer.key` (shred on fenced writer after promote)
 - [ ] Nginx backup/restore path verified.
 - [ ] Partner comms template reviewed.
 - [ ] Rollback section timed (< 5 min) in Mode C.
@@ -325,7 +367,8 @@ Drop `handover-writer-promote-green-live-YYYY-MM-DD.mdc` into DCSwap + Tanastok 
 - London migration: `docs/BLUE_MIGRATION_TO_DO_LON1_RUNBOOK_2026-08-23.md`
 - Read failover (already live): `deploy/nginx/conf.d/datachain.network.conf` `rpc_read_failover`, `rope_ws`
 - Attester HA (Paris): `deploy/systemd/erpc-fleet-ha.env.d/paris-attester.conf`
-- DNS failover defaults: `deploy/scripts/erpc-dns-failover-watcher.sh`
+- Read-pool drain (P0): `deploy/scripts/read-pool-drain-follower.sh`, `deploy/nginx/conf.d/includes/read-pool/`
+- Resilience runbook: `docs/FLEET_RESILIENCE_P0_P1_2026-09-01.md`
 - Automated promote (future B1): `docs/BLUE_NEVER_HANGDOWN_ALTERNATIVES_2026-08-23.md`
 
 ---

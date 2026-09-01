@@ -1,0 +1,13 @@
+[Unit]
+Description=Publish Tanastok CERBER edge probe every 5 minutes
+Documentation=file:///opt/datachain-rope/code/docs/EDGE_EXTERNAL_PROBES_INGEST_SPEC_v1.md
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Persistent=true
+Unit=tanastok-cerber-edge-probe-push.service
+
+[Install]
+WantedBy=timers.target

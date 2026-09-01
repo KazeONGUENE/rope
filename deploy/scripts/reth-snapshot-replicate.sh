@@ -8,14 +8,16 @@
 #   1. `reth db copy --compact -p <DEST>` - bundled mdbx_copy. Produces a
 #      consistent point-in-time snapshot file with zero BLUE downtime.
 #      MVCC throttle (-p) keeps memory pressure bounded.
-#   2. For each follower, in parallel: stop services, rsync snapshot, restart.
-#   3. If a follower's chain hash at the test block matches BLUE's, skip it
+#   2. For each follower, in parallel: drain from London read pool, stop services,
+#      rsync snapshot, restart in order (reth -> wait RPC -> attester -> rope-node).
+#   3. If a follower's chain hash at the reference block matches BLUE's, skip it
 #      (follower is in sync; resync is unnecessary).
 #
 # Cron (every 10 min, offset to avoid mass-restarts on the hour):
 #   7,17,27,37,47,57 * * * * /opt/datachain-rope/scripts/reth-snapshot-replicate.sh >> /home/ubuntu/log/reth-snapshot-replicate.log 2>&1
 #
 # 2026-05-20: created after BLUE outage postmortem (handover-blue-outage-2026-05-20-postmortem.mdc).
+# 2026-09-01: read-pool drain, 512-block reference lag, hardened start order, rsync *.tmp exclude.
 
 set -uo pipefail
 
@@ -25,6 +27,10 @@ SNAPSHOT_PATH=/opt/datachain-rope/reth/snapshot
 RETH_BIN=/usr/local/bin/reth
 CHAIN_SPEC=/opt/datachain-rope/reth/genesis.json
 LOG_DIR=/home/ubuntu/log
+DRAIN_SCRIPT="${ROPE_READ_POOL_DRAIN_SCRIPT:-/opt/datachain-rope/scripts/read-pool-drain-follower.sh}"
+# Blocks behind tip before we force a full resync (was 100; Paris at ~144 lag resynced every 10 min).
+REFERENCE_LAG_BLOCKS="${REFERENCE_LAG_BLOCKS:-512}"
+RETH_RPC_WAIT_SECS="${RETH_RPC_WAIT_SECS:-120}"
 mkdir -p "$LOG_DIR"
 
 log() { echo "[reth-snap $(date -u +%H:%M:%S)] $*"; }
@@ -48,6 +54,20 @@ follower_ssh() {
   ssh -p "$port" -n -o ConnectTimeout=15 -o StrictHostKeyChecking=no "$@"
 }
 
+drain_follower() {
+  local name="$1"
+  if [[ -x "$DRAIN_SCRIPT" ]]; then
+    "$DRAIN_SCRIPT" drain "$name" || log "[$name] WARN: read-pool drain failed (continuing)"
+  fi
+}
+
+undrain_follower() {
+  local name="$1"
+  if [[ -x "$DRAIN_SCRIPT" ]]; then
+    "$DRAIN_SCRIPT" undrain "$name" || log "[$name] WARN: read-pool undrain failed"
+  fi
+}
+
 # === Lock ===
 if [ -f "$LOCK_FILE" ]; then
   AGE=$(( $(date +%s) - $(stat -c %Y "$LOCK_FILE" 2>/dev/null || echo 0) ))
@@ -63,7 +83,7 @@ trap 'rm -f "$LOCK_FILE"' EXIT
 touch "$LOCK_FILE"
 
 OVERALL_START=$(date +%s)
-log "=== START ==="
+log "=== START (reference_lag=${REFERENCE_LAG_BLOCKS} blocks) ==="
 
 # Get BLUE's reference block at a recent height
 PRIMARY_BLOCK_HEX=$(curl -sf -m 3 -X POST -H 'content-type: application/json' \
@@ -74,7 +94,10 @@ if [ -z "$PRIMARY_BLOCK_HEX" ]; then
   exit 1
 fi
 PRIMARY_BLOCK=$(( PRIMARY_BLOCK_HEX ))
-TEST_BLOCK=$(( PRIMARY_BLOCK - 100 ))
+TEST_BLOCK=$(( PRIMARY_BLOCK - REFERENCE_LAG_BLOCKS ))
+if [ "$TEST_BLOCK" -lt 1 ]; then
+  TEST_BLOCK=1
+fi
 TEST_HEX=$(printf '0x%x' $TEST_BLOCK)
 BLUE_HASH=$(curl -sf -m 3 -X POST -H 'content-type: application/json' \
     -d "{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBlockByNumber\",\"params\":[\"$TEST_HEX\",false],\"id\":1}" \
@@ -119,12 +142,16 @@ if [ ${#NEEDS_SYNC[@]} -eq 0 ]; then
 fi
 
 # === Phase 1: snapshot ===
-log "Phase 1: reth db copy --compact -p (zero downtime; ~6 min)"
+log "Phase 1: reth db copy --compact -p (zero downtime; ~360s typical)"
 rm -rf "$SNAPSHOT_PATH"
 SNAP_START=$(date +%s)
 $RETH_BIN db --datadir "$DATA_DIR" --chain "$CHAIN_SPEC" \
   copy --compact -p "$SNAPSHOT_PATH" >/dev/null 2>&1
-log "snapshot done in $(($(date +%s) - SNAP_START))s"
+if [[ ! -s "$SNAPSHOT_PATH" ]]; then
+  log "ERROR: snapshot empty or missing at $SNAPSHOT_PATH"
+  exit 1
+fi
+log "snapshot done in $(($(date +%s) - SNAP_START))s size=$(stat -c%s "$SNAPSHOT_PATH" 2>/dev/null || echo 0)"
 
 # === Phase 2: parallel push to followers that need it ===
 PIDS=()
@@ -133,6 +160,7 @@ for name in "${NEEDS_SYNC[@]}"; do
   (
     F_START=$(date +%s)
     echo "[$name] starting at $(date -u +%H:%M:%S)"
+    drain_follower "$name"
     follower_ssh "$name" "$target" "
       sudo systemctl stop rope-evm-attester datachain-rope reth-rope 2>/dev/null
       sleep 3
@@ -151,20 +179,60 @@ for name in "${NEEDS_SYNC[@]}"; do
     else
       rsync -a "$SNAPSHOT_PATH" "$target:$DATA_DIR/db/mdbx.dat"
     fi
+    follower_ssh "$name" "$target" "test -s $DATA_DIR/db/mdbx.dat" || {
+      echo "[$name] ERROR: mdbx.dat missing or empty after rsync"
+      undrain_follower "$name"
+      exit 1
+    }
     follower_ssh "$name" "$target" "sudo chown ubuntu:ubuntu $DATA_DIR/db/mdbx.dat"
     if [[ -n "$rsync_rsh" ]]; then
-      rsync -a -e "$rsync_rsh" "$DATA_DIR/static_files/" "$target:$DATA_DIR/static_files/"
+      rsync -a --exclude='*.tmp' -e "$rsync_rsh" "$DATA_DIR/static_files/" "$target:$DATA_DIR/static_files/"
     else
-      rsync -a "$DATA_DIR/static_files/" "$target:$DATA_DIR/static_files/"
+      rsync -a --exclude='*.tmp' "$DATA_DIR/static_files/" "$target:$DATA_DIR/static_files/"
     fi
     follower_ssh "$name" "$target" "sudo chown -R ubuntu:ubuntu $DATA_DIR/static_files"
     # jwt.hex / reth.toml stay node-local (Engine-API).
+    # Start order: reth-rope -> wait for Engine/RPC -> attester -> rope-node (fixes 09:03 race).
     follower_ssh "$name" "$target" "
-            sudo systemctl start reth-rope
-      sleep 10
+      sudo systemctl start reth-rope
+      ok=0
+      for i in \$(seq 1 $(( RETH_RPC_WAIT_SECS / 2 ))); do
+        if curl -sf -m 2 -X POST -H 'content-type: application/json' \
+          -d '{\"jsonrpc\":\"2.0\",\"method\":\"eth_chainId\",\"params\":[],\"id\":1}' \
+          http://127.0.0.1:8595 >/dev/null 2>&1; then
+          ok=1
+          break
+        fi
+        sleep 2
+      done
+      if [ \"\$ok\" -ne 1 ]; then
+        echo 'ERROR: reth-rope RPC not ready after ${RETH_RPC_WAIT_SECS}s'
+        exit 1
+      fi
       sudo systemctl start rope-evm-attester 2>/dev/null || true
+      sleep 2
       sudo systemctl start datachain-rope
-    "
+    " || {
+      echo "[$name] ERROR: follower bootstrap failed"
+      undrain_follower "$name"
+      exit 1
+    }
+    ip=$(echo "$target" | cut -d@ -f2)
+    rpc_ok=0
+    for i in $(seq 1 30); do
+      if curl -sf -m 3 -X POST -H 'content-type: application/json' \
+        -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
+        "http://${ip}:8545" >/dev/null 2>&1; then
+        rpc_ok=1
+        break
+      fi
+      sleep 2
+    done
+    if [ "$rpc_ok" -ne 1 ]; then
+      echo "[$name] WARN: :8545 not answering after restart; leaving read pool drained"
+      exit 1
+    fi
+    undrain_follower "$name"
     echo "[$name] done in $(($(date +%s) - F_START))s"
   ) > "$LOG_DIR/reth-snap-$name.log" 2>&1 &
   PIDS+=($!)
