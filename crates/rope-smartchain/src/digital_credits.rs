@@ -446,7 +446,7 @@ impl CreditsLedger {
                     attrs.insert("ticker".to_string(), "FAT".to_string());
                     attrs.insert("type".to_string(), "utility".to_string());
                     attrs.insert("network".to_string(), "Datachain Rope".to_string());
-                    attrs.insert("standard".to_string(), "DC-20".to_string());
+                    attrs.insert("standard".to_string(), "DCR-20".to_string());
                     attrs.insert("supply_model".to_string(), "inflationary".to_string());
                     attrs.insert("genesis_supply".to_string(), "10000000000".to_string());
                     attrs.insert("annual_cap".to_string(), "500000000".to_string());

@@ -1,4 +1,4 @@
-//! Metering & billing against AccessGrant price terms — spec v1.0 §6.3:
+//! Metering & billing against AccessGrant price terms - spec v1.0 §6.3:
 //! "Metered and subscription access is billed automatically against the
 //! grant's price terms".
 //!
@@ -7,14 +7,14 @@
 //! statements:
 //!
 //! * `statement_for` computes the open (not yet invoiced) amount from the
-//!   grant's price model — pure, deterministic, auditable.
+//!   grant's price model - pure, deterministic, auditable.
 //! * Closing a statement (console action) anchors a `BillingStatement`
 //!   knot on the project string and advances the invoiced watermark
 //!   (`billed_calls`, `last_billed_at`), so the full invoicing history is
 //!   on-chain and the open window restarts at zero.
 //!
 //! Settlement itself (FAT transfer, project-token transfer, or fiat via
-//! an off-chain processor) is executed against the anchored statement —
+//! an off-chain processor) is executed against the anchored statement -
 //! the statement's knot hash is the invoice reference.
 
 use serde::{Deserialize, Serialize};
@@ -97,10 +97,10 @@ pub fn statement_for(grant: &AccessGrant, now: i64) -> BillingStatement {
 /// The watermark a grant must advance to when `statement` is closed
 /// (invoiced): `(billed_calls, last_billed_at)`.
 ///
-/// * metered — everything counted on the statement is now invoiced.
-/// * subscription — the watermark advances by whole periods only, so a
+/// * metered - everything counted on the statement is now invoiced.
+/// * subscription - the watermark advances by whole periods only, so a
 ///   partially-elapsed period carries over to the next statement.
-/// * one_time / free — the timestamp alone marks the invoice.
+/// * one_time / free - the timestamp alone marks the invoice.
 pub fn closed_watermark(grant: &AccessGrant, statement: &BillingStatement) -> (u64, i64) {
     match statement.price_model.as_str() {
         "metered" => (

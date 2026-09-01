@@ -104,6 +104,14 @@ contract VoteEscrow {
         NoQuorum
     }
 
+    /// @notice Who may cast a ballot on a given vote (Phase 5, spec §1.1).
+    enum EligibleVoterSet {
+        /// Any wallet whose attested cross-chain weight clears `minWeightToVote`.
+        AllHolders,
+        /// Only addresses in the jury set OR wallets that paid `payToVoteFee`.
+        JuryAndPay
+    }
+
     /// @notice Creation-time configuration for a single vote. Packed fields
     ///         chosen so a third party can fully audit disposition,
     ///         eligibility bounds, and outcome from storage alone.
@@ -142,6 +150,17 @@ contract VoteEscrow {
         uint256 totalWeightAgainst;
         uint256 totalLockedFor;
         uint256 totalLockedAgainst;
+        /// @dev Phase 5 — who may cast (AllHolders vs jury + pay-to-vote).
+        EligibleVoterSet eligibleVoterSet;
+        /// @dev Native FAT fee (wei) required from non-jurors when `JuryAndPay`.
+        ///      Must be 0 when `eligibleVoterSet == AllHolders`.
+        uint256 payToVoteFee;
+        /// @dev Sum of all `payToVote` fees collected for this vote.
+        uint256 totalPayFees;
+        /// @dev Block timestamp when this vote was created (jury-set window).
+        uint64 createdAt;
+        /// @dev True once `setJury` has been called for this vote.
+        bool jurySet;
     }
 
     /// @notice One voter's ballot on one vote.
@@ -171,6 +190,8 @@ contract VoteEscrow {
         uint16 approvalThresholdBps;
         address rewardPoolFunder;
         bytes32 metadataHash;
+        EligibleVoterSet eligibleVoterSet;
+        uint256 payToVoteFee;
     }
 
     // ============================================================
@@ -231,6 +252,10 @@ contract VoteEscrow {
 
     VoteConfig[] private _votes;
     mapping(uint256 => mapping(address => Ballot)) private _ballots;
+    mapping(uint256 => mapping(address => bool)) private _paidRight;
+    mapping(uint256 => mapping(address => bool)) private _jury;
+    mapping(uint256 => mapping(address => uint256)) private _payFees;
+    mapping(uint256 => mapping(address => bool)) private _payFeeDisposed;
     /// @dev Per-(voter, attestation-purpose) nonce-free replay guard is
     ///      unnecessary for `castVote` (bound to voteId + `hasVoted`), but
     ///      `createVote`'s community path has no natural per-call state to
@@ -253,8 +278,13 @@ contract VoteEscrow {
         uint256 quorumWeight,
         uint16 approvalThresholdBps,
         uint256 rewardPoolAmount,
-        bytes32 metadataHash
+        bytes32 metadataHash,
+        EligibleVoterSet eligibleVoterSet,
+        uint256 payToVoteFee
     );
+    event PayToVote(uint256 indexed voteId, address indexed payer, uint256 amount);
+    event JurySet(uint256 indexed voteId, uint256 count, bytes32 juryRoot);
+    event PayFeeWithdrawn(uint256 indexed voteId, address indexed payer, uint256 amount);
     event VoteCast(
         uint256 indexed voteId,
         address indexed voter,
@@ -306,6 +336,16 @@ contract VoteEscrow {
     error NoParticipation(uint256 voteId);
     error GracePeriodNotElapsed(uint256 voteId, uint256 elapsedUntil);
     error TransferFailed();
+    error NotEligible(uint256 voteId, address voter);
+    error AlreadyPaid(uint256 voteId, address payer);
+    error BadPayFee(uint256 payToVoteFee, EligibleVoterSet eligibleVoterSet);
+    error JuryAlreadySet(uint256 voteId);
+    error JurySetWindowClosed(uint256 voteId, uint64 createdAt, uint64 startsAt);
+    error NotCreatorOrOwner(address caller);
+    error WrongEligibleSet(EligibleVoterSet actual, EligibleVoterSet expected);
+    error PayFeeNotPaid(uint256 voteId, address payer);
+    error PayFeeAlreadyWithdrawn(uint256 voteId, address payer);
+    error VotingStillOpenForPayFee(uint256 voteId, uint64 endsAt);
 
     // ============================================================
     //  Construction
@@ -408,13 +448,13 @@ contract VoteEscrow {
     //  Vote creation
     // ============================================================
 
-    /// @notice Create a new vote. `Project`/`NonCriticalFeature` votes may
-    ///         be created by ANY wallet that presents a valid cross-chain
-    ///         weight attestation >= `minWeightToCreate` (spec §1.1
-    ///         "community-initiated"). `Cause`/`CriticalProtocol` votes may
-    ///         only be created by the `creator` role (spec §1.1
-    ///         "admin-initiated (Datachain Foundation)"); the attestation
-    ///         parameters are ignored on that path.
+    /// @notice Create a new vote. `Project`/`Cause`/`NonCriticalFeature`
+    ///         votes may be created by ANY wallet that presents a valid
+    ///         cross-chain weight attestation >= `minWeightToCreate` (spec
+    ///         §1.1 "community-initiated"; Cause covers the NGO/donation
+    ///         pipeline). `CriticalProtocol` votes may only be created by
+    ///         the `creator` role (spec §1.1 "admin-initiated"); the
+    ///         attestation parameters are ignored on that path.
     /// @dev    When `params.disposition == Reward`, `msg.value` becomes the
     ///         reward pool and MUST be > 0. Otherwise `msg.value` MUST be 0
     ///         (Burn/Return votes hold no organiser-funded pool).
@@ -429,13 +469,26 @@ contract VoteEscrow {
         }
         if (params.approvalThresholdBps > 10_000) revert ThresholdOutOfRange(params.approvalThresholdBps);
 
+        if (params.eligibleVoterSet == EligibleVoterSet.AllHolders) {
+            if (params.payToVoteFee != 0) revert BadPayFee(params.payToVoteFee, params.eligibleVoterSet);
+        } else {
+            if (params.payToVoteFee == 0) revert BadPayFee(params.payToVoteFee, params.eligibleVoterSet);
+        }
+
         if (params.disposition == Disposition.Reward) {
             if (msg.value == 0) revert RewardFundingMismatch(msg.value, params.disposition);
         } else if (msg.value != 0) {
             revert RewardFundingMismatch(msg.value, params.disposition);
         }
 
-        bool communityPath = params.voteClass == VoteClass.Project || params.voteClass == VoteClass.NonCriticalFeature;
+        // Community-creatable classes (attested weight ≥ minWeightToCreate):
+        // Project, Cause (NGO/donation — Andrew Neophytou / governance-ngo
+        // pipeline), and NonCriticalFeature. CriticalProtocol stays
+        // Foundation-creator-only — minting / treasury / protocol params
+        // must never be opened to a weight threshold alone.
+        bool communityPath = params.voteClass == VoteClass.Project
+            || params.voteClass == VoteClass.Cause
+            || params.voteClass == VoteClass.NonCriticalFeature;
         if (communityPath) {
             if (msg.sender != creator) {
                 if (block.timestamp > creatorExpiresAt) revert AttestationExpired(creatorExpiresAt, block.timestamp);
@@ -468,7 +521,12 @@ contract VoteEscrow {
             totalWeightFor: 0,
             totalWeightAgainst: 0,
             totalLockedFor: 0,
-            totalLockedAgainst: 0
+            totalLockedAgainst: 0,
+            eligibleVoterSet: params.eligibleVoterSet,
+            payToVoteFee: params.payToVoteFee,
+            totalPayFees: 0,
+            createdAt: uint64(block.timestamp),
+            jurySet: false
         }));
 
         emit VoteCreated(
@@ -481,7 +539,9 @@ contract VoteEscrow {
             params.quorumWeight,
             params.approvalThresholdBps,
             msg.value,
-            params.metadataHash
+            params.metadataHash,
+            params.eligibleVoterSet,
+            params.payToVoteFee
         );
     }
 
@@ -511,6 +571,12 @@ contract VoteEscrow {
         if (weight < v.minWeightToVote) revert WeightTooLow(weight, v.minWeightToVote);
         if (msg.value > weight) revert StakeExceedsWeight(msg.value, weight);
 
+        if (v.eligibleVoterSet == EligibleVoterSet.JuryAndPay) {
+            if (!_jury[voteId][msg.sender] && !_paidRight[voteId][msg.sender]) {
+                revert NotEligible(voteId, msg.sender);
+            }
+        }
+
         bytes32 digest = _ethSigned(castWeightDigest(voteId, msg.sender, weight, expiresAt));
         if (_recover(digest, attestation) != attestor) revert InvalidAttestation();
 
@@ -531,6 +597,87 @@ contract VoteEscrow {
         }
 
         emit VoteCast(voteId, msg.sender, choice, weight, msg.value);
+    }
+
+    // ============================================================
+    //  Phase 5 — jury + pay-to-vote eligibility
+    // ============================================================
+
+    /// @notice Pay the configured native FAT fee to obtain voting rights on a
+    ///         `JuryAndPay` vote. Jurors (set via `setJury`) may cast without
+    ///         paying. Fee disposition follows the vote's `Disposition` after
+    ///         `endsAt` via `withdrawPayFee` (Return/Reward) or `sweepBurn`.
+    function payToVote(uint256 voteId) external payable whenNotPaused {
+        if (voteId >= _votes.length) revert VoteNotFound(voteId);
+        VoteConfig storage v = _votes[voteId];
+        if (v.eligibleVoterSet != EligibleVoterSet.JuryAndPay) {
+            revert WrongEligibleSet(v.eligibleVoterSet, EligibleVoterSet.JuryAndPay);
+        }
+        if (block.timestamp < v.startsAt || block.timestamp > v.endsAt) {
+            revert VoteNotOpen(block.timestamp, v.startsAt, v.endsAt);
+        }
+        if (_paidRight[voteId][msg.sender]) revert AlreadyPaid(voteId, msg.sender);
+        if (msg.value != v.payToVoteFee) revert BadPayFee(msg.value, v.eligibleVoterSet);
+
+        _paidRight[voteId][msg.sender] = true;
+        _payFees[voteId][msg.sender] = msg.value;
+        v.totalPayFees += msg.value;
+
+        emit PayToVote(voteId, msg.sender, msg.value);
+    }
+
+    /// @notice Register the jury cohort for a `JuryAndPay` vote. Callable only
+    ///         by the vote creator or contract owner, before `startsAt` or
+    ///         within one hour of vote creation. May be set only once.
+    function setJury(uint256 voteId, address[] calldata jurors) external {
+        if (voteId >= _votes.length) revert VoteNotFound(voteId);
+        VoteConfig storage v = _votes[voteId];
+        if (v.eligibleVoterSet != EligibleVoterSet.JuryAndPay) {
+            revert WrongEligibleSet(v.eligibleVoterSet, EligibleVoterSet.JuryAndPay);
+        }
+        if (msg.sender != v.creator && msg.sender != owner) revert NotCreatorOrOwner(msg.sender);
+        if (v.jurySet) revert JuryAlreadySet(voteId);
+
+        uint64 deadline = v.createdAt + 1 hours;
+        if (block.timestamp >= v.startsAt && block.timestamp > deadline) {
+            revert JurySetWindowClosed(voteId, v.createdAt, v.startsAt);
+        }
+
+        bytes memory packed;
+        for (uint256 i = 0; i < jurors.length; ++i) {
+            address juror = jurors[i];
+            if (juror == COMPROMISED) revert CompromisedAddress(juror);
+            _jury[voteId][juror] = true;
+            packed = abi.encodePacked(packed, juror);
+        }
+        v.jurySet = true;
+
+        bytes32 juryRoot = keccak256(packed);
+        emit JurySet(voteId, jurors.length, juryRoot);
+    }
+
+    /// @notice After voting closes on a `Return` or `Reward` vote, reclaim the
+    ///         pay-to-vote fee paid by a non-juror wallet. On `Burn` votes,
+    ///         fees are swept together with locked stakes via `sweepBurn`.
+    function withdrawPayFee(uint256 voteId) external {
+        if (voteId >= _votes.length) revert VoteNotFound(voteId);
+        VoteConfig storage v = _votes[voteId];
+        if (v.eligibleVoterSet != EligibleVoterSet.JuryAndPay) {
+            revert WrongEligibleSet(v.eligibleVoterSet, EligibleVoterSet.JuryAndPay);
+        }
+        if (block.timestamp <= v.endsAt) revert VotingStillOpenForPayFee(voteId, v.endsAt);
+        if (v.disposition == Disposition.Burn) revert WrongDisposition(v.disposition, Disposition.Return);
+
+        uint256 amount = _payFees[voteId][msg.sender];
+        if (amount == 0) revert PayFeeNotPaid(voteId, msg.sender);
+        if (_payFeeDisposed[voteId][msg.sender]) revert PayFeeAlreadyWithdrawn(voteId, msg.sender);
+
+        _payFeeDisposed[voteId][msg.sender] = true;
+
+        (bool ok, ) = msg.sender.call{value: amount}("");
+        if (!ok) revert TransferFailed();
+
+        emit PayFeeWithdrawn(voteId, msg.sender, amount);
     }
 
     // ============================================================
@@ -598,12 +745,16 @@ contract VoteEscrow {
         if (block.timestamp <= v.endsAt) revert VotingStillOpen(voteId, v.endsAt);
         if (v.burnSwept) revert BurnAlreadySwept(voteId);
 
-        uint256 amount = v.totalLockedFor + v.totalLockedAgainst;
+        uint256 amount = v.totalLockedFor + v.totalLockedAgainst + v.totalPayFees;
         v.burnSwept = true; // CEI
 
         if (amount > 0) {
             (bool ok, ) = BURN_SINK.call{value: amount}("");
             if (!ok) revert TransferFailed();
+            // Mark all pay fees as disposed so they cannot be double-withdrawn.
+            if (v.eligibleVoterSet == EligibleVoterSet.JuryAndPay && v.totalPayFees > 0) {
+                v.totalPayFees = 0;
+            }
         }
 
         emit BurnSwept(voteId, amount);
@@ -733,6 +884,18 @@ contract VoteEscrow {
 
     function hasVoted(uint256 voteId, address voter) external view returns (bool) {
         return _ballots[voteId][voter].voted;
+    }
+
+    function isJuror(uint256 voteId, address addr) external view returns (bool) {
+        return _jury[voteId][addr];
+    }
+
+    function hasPaidRight(uint256 voteId, address addr) external view returns (bool) {
+        return _paidRight[voteId][addr];
+    }
+
+    function payFeeAmount(uint256 voteId, address payer) external view returns (uint256) {
+        return _payFees[voteId][payer];
     }
 
     /// @notice Escrowed native FAT this contract currently custodies —

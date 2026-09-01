@@ -1,5 +1,5 @@
 /*!
- * dcscan-wallet.js — DCScan Connect Wallet button + modal.
+ * dcscan-wallet.js - DCScan Connect Wallet button + modal.
  *
  * Ported from tanastok.io's WalletConnectModal (tanastok-app
  * src/app/components/auth/WalletConnectModal.tsx) and restyled with the
@@ -22,14 +22,23 @@
   'use strict';
 
   /* ------------------------------------------------------------ config */
+  /* Bootstrap defaults - overwritten ASAP from GET /api/v1/network/config
+   * so MetaMask / Coinbase / Trust always receive the live RPC list without
+   * the user editing network settings. */
   var ROPE_CHAIN = {
     chainId: '0x425d4', // 271828
     chainName: 'Datachain Rope',
     nativeCurrency: { name: 'DC FAT', symbol: 'FAT', decimals: 18 },
-    rpcUrls: ['https://erpc.datachain.network'],
-    blockExplorerUrls: ['https://dcscan.io']
+    rpcUrls: ['https://erpc.datachain.network', 'https://erpc.rope.network'],
+    blockExplorerUrls: ['https://dcscan.io'],
+    // PNG first (MetaMask prefers raster and skips SVG on some builds);
+    // SVG kept as scalable fallback for wallets that request hi-DPI.
+    iconUrls: [
+      'https://dcscan.io/assets/logo.png',
+      'https://dcscan.io/assets/logo.svg'
+    ]
   };
-  /* Per-site overrides — set window.DCW_CONFIG BEFORE loading this script:
+  /* Per-site overrides - set window.DCW_CONFIG BEFORE loading this script:
    *   { brand: 'Datachain Network', assetBase: '/assets/wallets/',
    *     explorerBase: 'https://dcscan.io' }
    * Defaults keep the original dcscan.io behavior. */
@@ -37,9 +46,10 @@
   var BRAND = SITE.brand || 'DCScan';
   var ASSET_BASE = SITE.assetBase || '/assets/wallets/';
   var EXPLORER_BASE = SITE.explorerBase || '';
+  var NETWORK_CONFIG_URL = SITE.networkConfigUrl || '/api/v1/network/config';
   var LS_ADDR = 'dcscan_wallet_addr';
   var LS_NAME = 'dcscan_wallet_name';
-  /* Datachain ID — ecosystem identity gateway (Datawallet+ SSO).
+  /* Datachain ID - ecosystem identity gateway (Datawallet+ SSO).
    * Ed25519-signed ecosystem tokens; JWKS at /.well-known/jwks.json. */
   var IDP_URL = 'https://id.datachain.network';
   var LS_TOKEN = 'dcscan_id_token';
@@ -148,44 +158,69 @@
   function getTrust()     { return (window.trustwallet) || findEth(function (p) { return p.isTrust || p.isTrustWallet; }); }
 
   /* ------------------------------------------------------------ chain */
+  /** Pull live EIP-3085 params from dc-explorer so RPC HA changes never
+   * require users to edit MetaMask manually. Falls back to ROPE_CHAIN. */
+  function refreshRopeChainFromNetwork() {
+    return fetch(NETWORK_CONFIG_URL, { credentials: 'omit', cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        var e = j && j.eip3085;
+        if (!e || !e.chainId || !Array.isArray(e.rpcUrls) || !e.rpcUrls.length) return ROPE_CHAIN;
+        ROPE_CHAIN.chainId = e.chainId;
+        if (e.chainName) ROPE_CHAIN.chainName = e.chainName;
+        if (e.nativeCurrency) ROPE_CHAIN.nativeCurrency = e.nativeCurrency;
+        ROPE_CHAIN.rpcUrls = e.rpcUrls.slice();
+        if (Array.isArray(e.blockExplorerUrls) && e.blockExplorerUrls.length) {
+          ROPE_CHAIN.blockExplorerUrls = e.blockExplorerUrls.slice();
+        }
+        if (Array.isArray(e.iconUrls) && e.iconUrls.length) {
+          ROPE_CHAIN.iconUrls = e.iconUrls.slice();
+        }
+        return ROPE_CHAIN;
+      })
+      .catch(function () { return ROPE_CHAIN; });
+  }
+
   function ensureRopeChain(provider) {
-    return provider.request({
-      method: 'wallet_switchEthereumChain',
-      params: [{ chainId: ROPE_CHAIN.chainId }]
-    }).catch(function (err) {
-      var msg = (err && err.message) || '';
-      if ((err && err.code === 4902) || /Unrecognized chain ID|wallet_addEthereumChain/i.test(msg)) {
-        return provider.request({ method: 'wallet_addEthereumChain', params: [ROPE_CHAIN] })
-          .then(function () {
-            return provider.request({
-              method: 'wallet_switchEthereumChain',
-              params: [{ chainId: ROPE_CHAIN.chainId }]
+    return refreshRopeChainFromNetwork().then(function () {
+      return provider.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: ROPE_CHAIN.chainId }]
+      }).catch(function (err) {
+        var msg = (err && err.message) || '';
+        if ((err && err.code === 4902) || /Unrecognized chain ID|wallet_addEthereumChain/i.test(msg)) {
+          return provider.request({ method: 'wallet_addEthereumChain', params: [ROPE_CHAIN] })
+            .then(function () {
+              return provider.request({
+                method: 'wallet_switchEthereumChain',
+                params: [{ chainId: ROPE_CHAIN.chainId }]
+              });
             });
-          });
-      }
-      if (err && err.code === 4001) return null; // user declined switch — connection still valid
-      return null; // chain switch is best-effort; never fail the connect
+        }
+        if (err && err.code === 4001) return null; // user declined switch - connection still valid
+        return null; // chain switch is best-effort; never fail the connect
+      });
     });
   }
 
-  /* Push the Datachain Rope network configuration (chainId 271828, RPC,
-   * FAT currency, dcscan.io explorer) into every injected EVM provider —
-   * MetaMask, Coinbase, Trust, XDC Pay, Exodus. Best-effort: providers
-   * that already know the chain resolve instantly; user rejections are
-   * swallowed. Resolves with the number of providers that accepted. */
+  /* Push the live Datachain Rope network configuration into every injected
+   * EVM provider. Re-calling wallet_addEthereumChain with the same chainId
+   * refreshes RPC URLs in MetaMask when the chain is already known - that
+   * is how we keep wallets on the best public edge without user action. */
   function syncRopeNetworkToWallets() {
-    var providers = ethProviders();
-    if (!providers.length) return Promise.resolve(0);
-    var added = 0;
-    var chain = providers.reduce(function (p, provider) {
-      return p.then(function () {
-        return provider
-          .request({ method: 'wallet_addEthereumChain', params: [ROPE_CHAIN] })
-          .then(function () { added++; })
-          .catch(function () { /* rejected or unsupported — ignore */ });
-      });
-    }, Promise.resolve());
-    return chain.then(function () { return added; });
+    return refreshRopeChainFromNetwork().then(function () {
+      var providers = ethProviders();
+      if (!providers.length) return 0;
+      var added = 0;
+      return providers.reduce(function (p, provider) {
+        return p.then(function () {
+          return provider
+            .request({ method: 'wallet_addEthereumChain', params: [ROPE_CHAIN] })
+            .then(function () { added++; })
+            .catch(function () { /* rejected or unsupported - ignore */ });
+        });
+      }, Promise.resolve()).then(function () { return added; });
+    });
   }
 
   /* ------------------------------------------------------------ state */
@@ -219,7 +254,7 @@
         connected ? 'datachain-wallet:connected' : 'datachain-wallet:disconnected',
         { detail: { address: state.address, walletName: state.walletName, email: state.email } }
       ));
-    } catch (e) { /* CustomEvent unavailable — nothing to notify */ }
+    } catch (e) { /* CustomEvent unavailable - nothing to notify */ }
   }
 
   function persist(addr, name) {
@@ -259,7 +294,7 @@
     emitConnectionEvent(true);
   }
 
-  /* Decode the exp claim of a compact JWT without verifying — the
+  /* Decode the exp claim of a compact JWT without verifying - the
    * gateway verifies server-side; this is only a local session check. */
   function tokenExpired(token) {
     try {
@@ -372,7 +407,7 @@
                 '<img src="' + ASSET_BASE + 'app-store-badge.svg" alt="Download on the App Store">' +
               '</a>' +
             '</div>' +
-            '<p class="dcw-coming">Chrome extension — coming soon</p>' +
+            '<p class="dcw-coming">Chrome extension - coming soon</p>' +
           '</div>' +
         '</div>' +
 
@@ -454,14 +489,9 @@
       persistIdentity(result.data.token, user.email || email, user.primary_address || '');
       form.querySelector('#dcw-si-password').value = '';
       feedback('Connected with Datawallet+! Datachain Rope (chainId 271828) is your primary network in Datawallet+.');
-      /* Mirror the Rope network configuration into any injected browser
-       * wallets (MetaMask first and foremost) so the user's whole wallet
-       * stack knows chainId 271828 / erpc.datachain.network / FAT. */
-      syncRopeNetworkToWallets().then(function (added) {
-        if (added > 0) {
-          feedback('Connected with Datawallet+! Datachain Rope network also added to ' + added + ' browser wallet' + (added > 1 ? 's' : '') + ' (MetaMask & co).');
-        }
-      });
+      /* Do not call wallet_addEthereumChain here - that pops MetaMask
+       * without the user choosing an injected wallet. Network sync stays
+       * behind explicit EVM connect / DatacchainWallet.addNetwork(). */
       setTimeout(function () {
         state.connecting = null;
         submit.disabled = false;
@@ -732,9 +762,14 @@
     document.head.appendChild(style);
     bindButtons();
     resumeSession();
+    /* Do NOT call wallet_addEthereumChain / wallet_switchEthereumChain on
+     * page load or tab focus. That prompts MetaMask (and other injected
+     * wallets) without a user gesture. Network sync runs only when the
+     * user explicitly connects (evmConnect → ensureRopeChain) or calls
+     * DatacchainWallet.addNetwork() from a button. */
   }
 
-  /* Public API — lets host pages (e.g. the datachain.network landing page's
+  /* Public API - lets host pages (e.g. the datachain.network landing page's
    * "Add to Datawallet+" button) open the Connect Wallet drawer and push the
    * Rope network config to injected wallets programmatically. */
   window.DatachainWallet = {
@@ -750,7 +785,7 @@
       return { address: state.address, walletName: state.walletName, email: state.email };
     },
     /* Datachain ID (Datawallet+) bearer token, when signed in via
-     * credentials — lets host backends verify the session server-side
+     * credentials - lets host backends verify the session server-side
      * against id.datachain.network. */
     getIdentityToken: function () {
       var t = localStorage.getItem(LS_TOKEN);

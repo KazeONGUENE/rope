@@ -1,4 +1,4 @@
-//! AI analytics orchestration — spec v2.0 §6.
+//! AI analytics orchestration - spec v2.0 §6.
 //!
 //! Design principle: **the AI never invents numbers.** Every question is
 //! answered in two stages:
@@ -8,7 +8,7 @@
 //!    correlation, distribution, clustering, cohort comparison,
 //!    predictive-maintenance reliability, compliance, data quality) is
 //!    executed over the scoped readings. This produces the **analytics
-//!    dossier** — the complete quantitative picture, computed locally on
+//!    dossier** - the complete quantitative picture, computed locally on
 //!    the project's own node.
 //! 2. If an AI provider is configured (Alteros orchestrator routing across
 //!    Ollama / Anthropic Claude / OpenAI), the dossier + question are sent
@@ -72,7 +72,7 @@ pub struct AnalyticsAnswer {
 }
 
 // ---------------------------------------------------------------------------
-// The analytics dossier — every known method, computed deterministically
+// The analytics dossier - every known method, computed deterministically
 // ---------------------------------------------------------------------------
 
 /// Compute the complete analytics dossier over a set of readings scoped to
@@ -140,7 +140,7 @@ pub fn build_dossier(
             });
         }
 
-        // 4. Anomaly detection — all four detectors.
+        // 4. Anomaly detection - all four detectors.
         let z = analytics::zscore_anomalies(&series, 3.0);
         let mad = analytics::mad_anomalies(&series, 3.5);
         let iqr = analytics::iqr_anomalies(&series, 1.5);
@@ -168,7 +168,7 @@ pub fn build_dossier(
             });
         }
 
-        // 6. Forecasting — linear always; Holt & Holt-Winters when enough data.
+        // 6. Forecasting - linear always; Holt & Holt-Winters when enough data.
         let step = median_step_secs(&series).unwrap_or(3600);
         if let Some(f) = analytics::forecast_linear(&series, 12, step) {
             out.push(Grounding {
@@ -361,7 +361,7 @@ pub fn deterministic_charts(
         if buckets.len() >= 2 {
             charts.push(ChartSpec {
                 chart: "line".to_string(),
-                title: format!("{param} — hourly mean"),
+                title: format!("{param} - hourly mean"),
                 x: buckets
                     .iter()
                     .map(|b| {
@@ -533,7 +533,7 @@ pub fn deterministic_narrative(dossier: &[Grounding]) -> String {
                     g.result.get("sla_met").and_then(|v| v.as_bool()),
                 ) {
                     lines.push(format!(
-                        "{param}: {pct:.1}% of readings in the optimal band — SLA {}.",
+                        "{param}: {pct:.1}% of readings in the optimal band - SLA {}.",
                         if met { "met" } else { "NOT met" }
                     ));
                 }
@@ -665,7 +665,7 @@ impl AiAnalytics {
                 messages: vec![ChatMessage {
                     role: "user".to_string(),
                     content: format!(
-                        "QUESTION: {question}\n\nANALYTICS DOSSIER (deterministic, computed from on-chain-anchored readings — every figure you state MUST come from here):\n{dossier_bounded}\n\nFACTUAL SKELETON: {skeleton}"
+                        "QUESTION: {question}\n\nANALYTICS DOSSIER (deterministic, computed from on-chain-anchored readings - every figure you state MUST come from here):\n{dossier_bounded}\n\nFACTUAL SKELETON: {skeleton}"
                     ),
                 }],
                 temperature: 0.3,
@@ -713,7 +713,7 @@ const SYSTEM_PROMPT: &str = "You are the analytics narrator of a Datachain Rope 
 Deployment Console. You are given a QUESTION and an ANALYTICS DOSSIER of deterministic \
 computations (descriptive statistics, trends, anomaly detection, forecasts, correlations, \
 reliability, compliance, data quality) over on-chain-anchored sensor readings. Rules: \
-(1) Every number you state must appear in the dossier — never invent or extrapolate figures \
+(1) Every number you state must appear in the dossier - never invent or extrapolate figures \
 yourself. (2) Answer plainly for the stakeholder audience; explain method names in ordinary \
 words. (3) When the dossier is empty or lacks the data to answer, say so. (4) You have \
 read-only access; never claim to have changed anything. Keep answers under 250 words.";

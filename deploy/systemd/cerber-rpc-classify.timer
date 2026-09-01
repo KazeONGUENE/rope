@@ -1,0 +1,12 @@
+[Unit]
+Description=CERBER R14 - hourly RPC activity classifier + daily 09:15 UTC email
+
+[Timer]
+# Every 15 min: refresh tarpit map + severe-page dedupe. Full daily email uses
+# CERBER_ALERT_COOLDOWN_MS (6h default) to prevent floods.
+OnCalendar=*:0/15
+Persistent=true
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

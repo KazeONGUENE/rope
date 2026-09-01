@@ -1,0 +1,11 @@
+[Unit]
+Description=Run erpc fleet HA probe every 30s
+
+[Timer]
+OnBootSec=45s
+OnUnitActiveSec=30s
+AccuracySec=5s
+Unit=erpc-fleet-ha.service
+
+[Install]
+WantedBy=timers.target

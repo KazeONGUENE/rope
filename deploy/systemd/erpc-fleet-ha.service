@@ -1,0 +1,17 @@
+[Unit]
+Description=Datachain Rope erpc fleet HA probe (detect + self-heal)
+After=network-online.target datachain-rope.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+Environment=ROPE_FLEET_STATE_DIR=/var/lib/datachain-rope/fleet
+Environment=ROPE_FLEET_HA_LOG=/var/log/erpc-fleet-ha.log
+# Production heal: never leave DUMP_ONLY stranded without escalation.
+ExecStart=/opt/datachain-rope/scripts/erpc-fleet-ha.sh
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

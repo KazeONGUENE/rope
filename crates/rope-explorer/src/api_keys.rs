@@ -1,4 +1,4 @@
-//! DCScan API keys — self-service issuance for authenticated users.
+//! DCScan API keys - self-service issuance for authenticated users.
 //!
 //! Any user authenticated through **Datachain ID** (`id.datachain.network`,
 //! Datawallet+ credentials or EIP-191 wallet signature) can mint API keys
@@ -53,7 +53,7 @@ fn now() -> i64 {
     chrono::Utc::now().timestamp()
 }
 
-/// One issued API key. The plaintext key is never stored — `key_hash`
+/// One issued API key. The plaintext key is never stored - `key_hash`
 /// is `blake3(full_key)` in hex.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ApiKeyRecord {
@@ -62,7 +62,7 @@ pub struct ApiKeyRecord {
     /// Display form: `dcsk_ab12cd34…` (first 8 chars of the secret).
     pub prefix: String,
     pub label: String,
-    /// Datachain ID subject (stable user UUID) — ownership anchor.
+    /// Datachain ID subject (stable user UUID) - ownership anchor.
     pub owner_sub: String,
     pub owner_email: Option<String>,
     pub owner_name: Option<String>,
@@ -285,7 +285,7 @@ async fn authenticate(
             return Err(error_json(
                 StatusCode::UNAUTHORIZED,
                 "missing_token",
-                "Authorization: Bearer <Datachain ID token> required — sign in at id.datachain.network (Datawallet+ credentials or wallet signature)",
+                "Authorization: Bearer <Datachain ID token> required - sign in at id.datachain.network (Datawallet+ credentials or wallet signature)",
             ))
         }
     };
@@ -302,7 +302,7 @@ pub struct CreateKeyRequest {
     pub label: String,
 }
 
-/// POST /api/v1/keys — mint a new API key for the authenticated identity.
+/// POST /api/v1/keys - mint a new API key for the authenticated identity.
 pub async fn create_key(
     State(state): State<std::sync::Arc<crate::AppState>>,
     headers: HeaderMap,
@@ -348,7 +348,7 @@ pub async fn create_key(
                 StatusCode::CONFLICT,
                 "key_limit_reached",
                 &format!(
-                    "you already have {MAX_ACTIVE_KEYS_PER_OWNER} active keys — revoke one first"
+                    "you already have {MAX_ACTIVE_KEYS_PER_OWNER} active keys - revoke one first"
                 ),
             );
         }
@@ -359,7 +359,7 @@ pub async fn create_key(
     tracing::info!(sub = %identity.sub, key_id = %record.id, "API key minted");
 
     // Security notice to the account owner (fire-and-forget; the key
-    // itself is never emailed — only the masked prefix).
+    // itself is never emailed - only the masked prefix).
     if let Some(email) = identity.email.clone() {
         state.mailer.send_background(
             email,
@@ -371,7 +371,7 @@ pub async fn create_key(
                  Created: {}\n\n\
                  Manage your keys at https://dcscan.io/apis or https://datachain.network/docs#api-keys.\n\
                  If you did not create this key, revoke it immediately and change your Datawallet+ password.\n\n\
-                 — Datachain Foundation",
+                 - Datachain Foundation",
                 record.label,
                 record.prefix,
                 chrono::Utc::now().to_rfc3339(),
@@ -386,13 +386,13 @@ pub async fn create_key(
             "prefix": record.prefix,
             "label": record.label,
             "created_at": record.created_at,
-            "note": "Store this key now — it is shown only once. Present it as an X-API-Key header.",
+            "note": "Store this key now - it is shown only once. Present it as an X-API-Key header.",
         })),
     )
         .into_response()
 }
 
-/// GET /api/v1/keys — list the caller's keys (masked).
+/// GET /api/v1/keys - list the caller's keys (masked).
 pub async fn list_keys(
     State(state): State<std::sync::Arc<crate::AppState>>,
     headers: HeaderMap,
@@ -415,7 +415,7 @@ pub async fn list_keys(
     .into_response()
 }
 
-/// DELETE /api/v1/keys/:id — revoke one of the caller's keys.
+/// DELETE /api/v1/keys/:id - revoke one of the caller's keys.
 pub async fn revoke_key(
     State(state): State<std::sync::Arc<crate::AppState>>,
     Path(id): Path<String>,
@@ -447,7 +447,7 @@ pub async fn revoke_key(
     Json(json!({ "revoked": true, "id": id })).into_response()
 }
 
-/// GET /api/v1/keys/verify — validate an `X-API-Key` header. Counts as a
+/// GET /api/v1/keys/verify - validate an `X-API-Key` header. Counts as a
 /// use (it exercises the exact production path consumers will use).
 pub async fn verify_key(
     State(state): State<std::sync::Arc<crate::AppState>>,
@@ -481,7 +481,7 @@ pub async fn verify_key(
 
 /// Axum middleware: attribute any `/api/*` request carrying a valid
 /// `X-API-Key` header to its key (usage counter + last-used timestamp).
-/// Unkeyed requests pass through untouched — the public API stays public.
+/// Unkeyed requests pass through untouched - the public API stays public.
 pub async fn track_usage(
     State(state): State<std::sync::Arc<crate::AppState>>,
     request: Request,
@@ -492,7 +492,7 @@ pub async fn track_usage(
         .get("x-api-key")
         .and_then(|v| v.to_str().ok())
         .map(String::from);
-    // /api/v1/keys/verify already counts itself — avoid double counting.
+    // /api/v1/keys/verify already counts itself - avoid double counting.
     let is_verify = request.uri().path() == "/api/v1/keys/verify";
     if let Some(key) = presented {
         if !is_verify && request.uri().path().starts_with("/api/") {

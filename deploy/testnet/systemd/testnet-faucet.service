@@ -1,0 +1,25 @@
+[Unit]
+Description=Datachain Rope Testnet Faucet (POST /api/drip -> 100 xFAT on chainId 271829)
+After=network-online.target reth-testnet.service
+Wants=network-online.target
+Requires=reth-testnet.service
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/datachain-rope/testnet/faucet
+EnvironmentFile=/etc/testnet-faucet.env
+ExecStart=/usr/bin/node /opt/datachain-rope/testnet/faucet/server.mjs
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/datachain-rope/testnet/faucet/state
+PrivateTmp=true
+LimitNOFILE=4096
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target

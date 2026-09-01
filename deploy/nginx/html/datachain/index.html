@@ -600,7 +600,111 @@
             padding: 1rem;
             font-size: 1rem;
         }
-        
+
+        /* Tabbed network card (Mainnet <-> Testnet) */
+        .network-card--tabbed {
+            padding: 0;
+            overflow: hidden;
+        }
+        .network-tabs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        .network-tab {
+            all: unset;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1.75rem;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.15s ease;
+        }
+        .network-tab + .network-tab {
+            border-left: 1px solid var(--gray-200);
+        }
+        .network-tab:hover {
+            background: var(--white);
+        }
+        .network-tab:focus-visible {
+            outline: 2px solid var(--gray-900);
+            outline-offset: -2px;
+        }
+        .network-tab .network-tab-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            flex-shrink: 0;
+        }
+        .network-tab--mainnet .network-tab-icon {
+            background: var(--black);
+            color: var(--white);
+        }
+        .network-tab--testnet .network-tab-icon {
+            /* Black-and-white palette per design brief - no yellow/tan */
+            background: var(--gray-100);
+            color: var(--gray-900);
+        }
+        .network-tab-text {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            min-width: 0;
+        }
+        .network-tab-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            line-height: 1.15;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .network-tab-subtitle {
+            font-size: 0.875rem;
+            color: var(--gray-500);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .network-tab[aria-selected="true"] .network-tab-title {
+            color: var(--black);
+        }
+        .network-tab[aria-selected="false"] .network-tab-title {
+            color: var(--gray-300);
+        }
+        .network-tab[aria-selected="false"] .network-tab-subtitle {
+            color: var(--gray-300);
+        }
+        .network-tab[aria-selected="false"] .network-tab-icon {
+            opacity: 0.55;
+        }
+        .network-panel {
+            padding: 2rem 2.5rem 2.5rem;
+        }
+        .network-panel[hidden] {
+            display: none;
+        }
+        @media (max-width: 640px) {
+            .network-tabs { grid-template-columns: 1fr; }
+            .network-tab + .network-tab {
+                border-left: none;
+                border-top: 1px solid var(--gray-200);
+            }
+            .network-tab { padding: 1.25rem; }
+            .network-tab-title { font-size: 1.125rem; white-space: normal; }
+            .network-tab-subtitle { white-space: normal; }
+            .network-panel { padding: 1.5rem; }
+        }
+
         /* CTA Section */
         .cta {
             padding: 120px 2rem;
@@ -894,6 +998,7 @@
             <div class="nav-links">
                 <a href="#features">Features</a>
                 <a href="#technology">Technology</a>
+                <a href="https://console.datachain.network/console/" target="_blank">Console</a>
                 <a href="https://dcscan.io" target="_blank">Explorer</a>
                 <a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a>
                 <a href="/docs">Documentation</a>
@@ -1052,7 +1157,7 @@
                     </div>
                     <h3 class="feature-title">Smartchain Capabilities</h3>
                     <p class="feature-desc">
-                        Intelligent network that can invoke vetted external protocols—blockchain, banking, asset management—with AI-validated conditions.
+                        Intelligent network that can invoke vetted external protocols-blockchain, banking, asset management-with AI-validated conditions.
                     </p>
                 </div>
                 
@@ -1196,59 +1301,165 @@
                     </div>
                 </div>
                 
-                <div class="network-card">
-                    <div class="network-card-header">
-                        <div class="network-card-icon">
-                            <i class="fa-solid fa-link"></i>
-                        </div>
-                        <div>
-                            <div class="network-card-title">Datachain Rope</div>
-                            <div class="network-card-subtitle">Mainnet Configuration</div>
-                        </div>
+                <div class="network-card network-card--tabbed">
+                    <div class="network-tabs" role="tablist" aria-label="Network configuration">
+                        <button
+                            type="button"
+                            class="network-tab network-tab--mainnet"
+                            role="tab"
+                            id="network-tab-mainnet"
+                            aria-controls="network-panel-mainnet"
+                            aria-selected="true"
+                            tabindex="0"
+                            data-network="mainnet">
+                            <span class="network-tab-icon" aria-hidden="true">
+                                <i class="fa-solid fa-link"></i>
+                            </span>
+                            <span class="network-tab-text">
+                                <span class="network-tab-title">Datachain Rope</span>
+                                <span class="network-tab-subtitle">
+                                    Mainnet Configuration
+                                    <span style="display:inline-block; padding:0.15em 0.55em; font-size:0.7em; font-weight:600; background:#dcfce7; color:#166534; border-radius:12px;">LIVE</span>
+                                </span>
+                            </span>
+                        </button>
+                        <button
+                            type="button"
+                            class="network-tab network-tab--testnet"
+                            role="tab"
+                            id="network-tab-testnet"
+                            aria-controls="network-panel-testnet"
+                            aria-selected="false"
+                            tabindex="-1"
+                            data-network="testnet">
+                            <span class="network-tab-icon" aria-hidden="true">
+                                <i class="fa-solid fa-flask"></i>
+                            </span>
+                            <span class="network-tab-text">
+                                <span class="network-tab-title">Rope Testnet</span>
+                                <span class="network-tab-subtitle">
+                                    Testnet Details
+                                    <span style="display:inline-block; padding:0.15em 0.55em; font-size:0.7em; font-weight:600; background:#dcfce7; color:#166534; border-radius:12px;">LIVE</span>
+                                </span>
+                            </span>
+                        </button>
                     </div>
-                    
-                    <div class="network-details">
-                        <div class="network-row">
-                            <span class="network-row-label">
-                                <i class="fa-solid fa-tag"></i>
-                                Network Name
-                            </span>
-                            <span class="network-row-value">Datachain Rope</span>
+
+                    <div
+                        class="network-panel"
+                        id="network-panel-mainnet"
+                        role="tabpanel"
+                        aria-labelledby="network-tab-mainnet">
+                        <div class="network-details">
+                            <div class="network-row">
+                                <span class="network-row-label">
+                                    <i class="fa-solid fa-tag"></i>
+                                    Network Name
+                                </span>
+                                <span class="network-row-value">Datachain Rope</span>
+                            </div>
+                            <div class="network-row">
+                                <span class="network-row-label">
+                                    <i class="fa-solid fa-server"></i>
+                                    RPC URL
+                                </span>
+                                <span class="network-row-value">https://erpc.datachain.network</span>
+                            </div>
+                            <div class="network-row">
+                                <span class="network-row-label">
+                                    <i class="fa-solid fa-hashtag"></i>
+                                    Chain ID
+                                </span>
+                                <span class="network-row-value">271828 (0x425D4)</span>
+                            </div>
+                            <div class="network-row">
+                                <span class="network-row-label">
+                                    <i class="fa-solid fa-coins"></i>
+                                    Currency Symbol
+                                </span>
+                                <span class="network-row-value">FAT</span>
+                            </div>
+                            <div class="network-row">
+                                <span class="network-row-label">
+                                    <i class="fa-solid fa-chart-line"></i>
+                                    Block Explorer
+                                </span>
+                                <span class="network-row-value">https://dcscan.io</span>
+                            </div>
                         </div>
-                        <div class="network-row">
-                            <span class="network-row-label">
-                                <i class="fa-solid fa-server"></i>
-                                RPC URL
-                            </span>
-                            <span class="network-row-value">https://erpc.datachain.network</span>
-                        </div>
-                        <div class="network-row">
-                            <span class="network-row-label">
-                                <i class="fa-solid fa-hashtag"></i>
-                                Chain ID
-                            </span>
-                            <span class="network-row-value">271828 (0x425D4)</span>
-                        </div>
-                        <div class="network-row">
-                            <span class="network-row-label">
-                                <i class="fa-solid fa-coins"></i>
-                                Currency Symbol
-                            </span>
-                            <span class="network-row-value">FAT</span>
-                        </div>
-                        <div class="network-row">
-                            <span class="network-row-label">
-                                <i class="fa-solid fa-chart-line"></i>
-                                Block Explorer
-                            </span>
-                            <span class="network-row-value">https://dcscan.io</span>
-                        </div>
+
+                        <button onclick="addToWallet()" class="btn btn-primary add-wallet-btn">
+                            <i class="fa-solid fa-wallet"></i>
+                            Add Mainnet to Datawallet+
+                        </button>
                     </div>
-                    
-                    <button onclick="addToWallet()" class="btn btn-primary add-wallet-btn">
-                        <i class="fa-solid fa-wallet"></i>
-                        Add to Datawallet+
-                    </button>
+
+                    <div
+                        class="network-panel"
+                        id="network-panel-testnet"
+                        role="tabpanel"
+                        aria-labelledby="network-tab-testnet"
+                        hidden>
+                        <div class="network-details">
+                            <div class="network-row">
+                                <span class="network-row-label">
+                                    <i class="fa-solid fa-tag"></i>
+                                    Network Name
+                                </span>
+                                <span class="network-row-value">Datachain Rope Testnet</span>
+                            </div>
+                            <div class="network-row">
+                                <span class="network-row-label">
+                                    <i class="fa-solid fa-server"></i>
+                                    RPC URL
+                                </span>
+                                <span class="network-row-value">https://testnet.erpc.datachain.network</span>
+                            </div>
+                            <div class="network-row">
+                                <span class="network-row-label">
+                                    <i class="fa-solid fa-hashtag"></i>
+                                    Chain ID
+                                </span>
+                                <span class="network-row-value">271829 (0x425D5)</span>
+                            </div>
+                            <div class="network-row">
+                                <span class="network-row-label">
+                                    <i class="fa-solid fa-coins"></i>
+                                    Currency Symbol
+                                </span>
+                                <span class="network-row-value">xFAT (testnet only)</span>
+                            </div>
+                            <div class="network-row">
+                                <span class="network-row-label">
+                                    <i class="fa-solid fa-chart-line"></i>
+                                    Block Explorer
+                                </span>
+                                <span class="network-row-value">https://testnet.dcscan.io</span>
+                            </div>
+                            <div class="network-row">
+                                <span class="network-row-label">
+                                    <i class="fa-solid fa-droplet"></i>
+                                    Faucet
+                                </span>
+                                <span class="network-row-value"><a href="https://faucet.datachain.network/" style="color:inherit; text-decoration:underline;">faucet.datachain.network</a></span>
+                            </div>
+                        </div>
+
+                        <div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin-top:1.5rem;">
+                            <button onclick="addToTestnet()" class="btn btn-primary add-wallet-btn" style="flex:1; min-width:220px; margin-top:0;">
+                                <i class="fa-solid fa-wallet"></i>
+                                Add Testnet to Wallet
+                            </button>
+                            <a href="https://faucet.datachain.network/" class="btn btn-secondary" style="flex:1; min-width:220px; text-decoration:none; display:inline-flex; align-items:center; justify-content:center;">
+                                <i class="fa-solid fa-droplet"></i>&nbsp;
+                                Get 100 xFAT
+                            </a>
+                        </div>
+                        <p style="margin-top:0.75rem; font-size:0.8125rem; color:#71717a; line-height:1.5;">
+                            <code>xFAT</code> is a testnet-only gas credit - not fungible with mainnet <code>FAT</code>.
+                            Use this network only for development, testing, and integration.
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1291,6 +1502,7 @@
             <div class="footer-links">
                 <a href="/about/">About</a>
                 <a href="https://dcscan.io/create-wallet">Create Wallet</a>
+                <a href="https://console.datachain.network/console/">Console</a>
                 <a href="https://dcscan.io">Explorer</a>
                 <a href="/docs">Documentation</a>
                 <a href="https://github.com/KazeONGUENE/rope">GitHub</a>
@@ -1331,14 +1543,21 @@
 
             <div class="modal-body">
                 <div class="modal-intro">
-                    <p>
-                        Request a relay node on sovereign cloud infrastructure managed by the
-                        Datachain Foundation (DigitalOcean and Exoscale today; additional
-                        sovereign cloud partners are being onboarded). The operations team
-                        provisions your node with the <code>ropectl</code> deployment CLI and
-                        sends the connection details to your email. Prefer the CLI? Run
-                        <code>ropectl deploy-node --provider digitalocean --region fra1</code>
-                        from the <a href="https://github.com/KazeONGUENE/rope" target="_blank">rope repository</a>.
+                    <p>Two live paths are available today:</p>
+                    <ul style="margin: 0 0 0.6rem 1.2rem; line-height: 1.55;">
+                        <li><strong>Self-serve, instant</strong> - open the
+                            <a href="https://console.datachain.network/console/" target="_blank">Datachain Ecosystem Console</a>,
+                            connect your Datawallet+ identity, and click <em>Deploy a Node</em>. A real
+                            DigitalOcean or Exoscale VM is provisioned under the Foundation's sub-tenant
+                            (2 vCPU / 4 GB by default) and its IPv4 + status appear in the panel.</li>
+                        <li><strong>Email + ops-team assist (this form)</strong> - fill the fields below and
+                            our operations team will handle onboarding, follow up on IP allocation, and email
+                            you the connection details. Best when you want a review before the VM comes up.</li>
+                    </ul>
+                    <p style="font-size: 0.9em; color: var(--text-secondary, #94a3b8);">
+                        Prefer the terminal? Install the <code>rope</code> CLI with a single line
+                        (<code>curl -fsSL https://get.datachain.network | sh</code>) and run
+                        <code>rope deploy digitalocean rpc-slot --region fra1 --size s-2vcpu-4gb</code>.
                     </p>
                 </div>
 
@@ -1709,7 +1928,7 @@
                                     <span class="dot yellow"></span>
                                     <span class="dot green"></span>
                                 </div>
-                                <span class="cli-title">rope-cli — Instance Deployment</span>
+                                <span class="cli-title">rope-cli - Instance Deployment</span>
                             </div>
                             <div class="cli-body" id="modal-cli-body">
                                 <div class="cli-output" id="modal-cli-output">
@@ -2522,7 +2741,7 @@
                     return;
                 }
 
-                // Show success message — only reached on a real, persisted,
+                // Show success message - only reached on a real, persisted,
                 // chain-anchored submission (result.success === true).
                 const instanceInfo = project.instance_config ? `
                     <div style="background: #1a1a2e; border-radius: 12px; padding: 1.5rem; margin: 1.5rem 0; color: #e0e0e0; text-align: left;">
@@ -3112,7 +3331,7 @@ ${infraSection}
     </script>
     
     <script>
-        /* Connect Wallet drawer (shared Datachain Rope component) — branding
+        /* Connect Wallet drawer (shared Datachain Rope component) - branding
            for datachain.network. Must be set before dcscan-wallet.js loads. */
         window.DCW_CONFIG = {
             brand: 'Datachain Network',
@@ -3120,9 +3339,9 @@ ${infraSection}
             explorerBase: 'https://dcscan.io'
         };
     </script>
-    <script src="/js/dcscan-wallet.js?v=20260707"></script>
+    <script src="/js/dcscan-wallet.js?v=20260730a"></script>
     <script>
-        // "Add to Datawallet+" — opens the Connect Wallet drawer. Once the
+        // "Add to Datawallet+" - opens the Connect Wallet drawer. Once the
         // user authenticates (Datawallet+ credentials or any EVM wallet),
         // the drawer automatically registers the Datachain Rope network
         // (chainId 271828, https://erpc.datachain.network, FAT, dcscan.io)
@@ -3132,12 +3351,12 @@ ${infraSection}
             var dw = window.DatachainWallet;
             if (dw) {
                 if (dw.isConnected()) {
-                    // Already authenticated — just (re)push the network config.
+                    // Already authenticated - just (re)push the network config.
                     var added = await dw.addNetwork();
                     if (added > 0) {
                         alert('Datachain Rope (chainId 271828) is configured in ' + added + ' wallet' + (added > 1 ? 's' : '') + '.');
                     } else {
-                        alert('You are connected. Datachain Rope is the primary network in Datawallet+ — no browser wallet detected to add it to.');
+                        alert('You are connected. Datachain Rope is the primary network in Datawallet+ - no browser wallet detected to add it to.');
                     }
                 } else {
                     dw.open();
@@ -3161,8 +3380,15 @@ ${infraSection}
                             symbol: 'FAT',
                             decimals: 18
                         },
-                        rpcUrls: ['https://erpc.datachain.network'],
-                        blockExplorerUrls: ['https://dcscan.io']
+                        rpcUrls: [
+                            'https://erpc.datachain.network',
+                            'https://erpc.rope.network'
+                        ],
+                        blockExplorerUrls: ['https://dcscan.io'],
+                        iconUrls: [
+                            'https://dcscan.io/assets/logo.png',
+                            'https://dcscan.io/assets/logo.svg'
+                        ]
                     }]
                 });
                 alert('Datachain Rope has been added to your wallet!');
@@ -3176,6 +3402,46 @@ ${infraSection}
             }
         }
         
+        // "Add Testnet to Wallet" - direct EIP-3085 add for the public testnet
+        // on Chain ID 271829. The Datawallet+ drawer today only pre-registers the
+        // mainnet, so testnet gets a direct wallet_addEthereumChain call. The
+        // native currency is xFAT (testnet-only gas credit), NOT mainnet FAT.
+        async function addToTestnet() {
+            if (typeof window.ethereum === 'undefined') {
+                alert('Please install Datawallet+ or another EVM wallet to add the testnet.');
+                window.open('https://datawallet.plus/', '_blank');
+                return;
+            }
+            try {
+                await window.ethereum.request({
+                    method: 'wallet_addEthereumChain',
+                    params: [{
+                        chainId: '0x425D5',
+                        chainName: 'Datachain Rope Testnet',
+                        nativeCurrency: {
+                            name: 'xFAT',
+                            symbol: 'xFAT',
+                            decimals: 18
+                        },
+                        rpcUrls: ['https://testnet.erpc.datachain.network'],
+                        blockExplorerUrls: ['https://testnet.dcscan.io'],
+                        iconUrls: [
+                            'https://dcscan.io/assets/logo.png',
+                            'https://dcscan.io/assets/logo.svg'
+                        ]
+                    }]
+                });
+                alert('Datachain Rope Testnet added. Grab 100 xFAT at https://faucet.datachain.network/');
+            } catch (error) {
+                console.error('Failed to add testnet:', error);
+                if (error && error.code === 4001) {
+                    alert('Request rejected. Please try again.');
+                } else {
+                    alert('Failed to add testnet. Please add it manually: https://testnet.erpc.datachain.network (chainId 271829, xFAT).');
+                }
+            }
+        }
+
         // Smooth scroll for anchor links
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function(e) {
@@ -3208,6 +3474,61 @@ ${infraSection}
             el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
             observer.observe(el);
         });
+
+        // Network config tabstrip: Mainnet <-> Testnet
+        (function initNetworkTabs() {
+            const tabs = Array.from(document.querySelectorAll('.network-tab[role="tab"]'));
+            if (tabs.length === 0) return;
+            const panels = {
+                mainnet: document.getElementById('network-panel-mainnet'),
+                testnet: document.getElementById('network-panel-testnet'),
+            };
+            function activate(name, opts) {
+                opts = opts || {};
+                tabs.forEach(function (t) {
+                    const isActive = t.dataset.network === name;
+                    t.setAttribute('aria-selected', isActive ? 'true' : 'false');
+                    t.tabIndex = isActive ? 0 : -1;
+                });
+                Object.keys(panels).forEach(function (k) {
+                    const panel = panels[k];
+                    if (!panel) return;
+                    if (k === name) panel.removeAttribute('hidden');
+                    else panel.setAttribute('hidden', '');
+                });
+                if (opts.updateHash && typeof history !== 'undefined' && history.replaceState) {
+                    const newHash = name === 'testnet' ? '#testnet' : '';
+                    const url = window.location.pathname + window.location.search + newHash;
+                    history.replaceState(null, '', url);
+                }
+                if (opts.focus) {
+                    const active = tabs.find(function (t) { return t.dataset.network === name; });
+                    if (active) active.focus();
+                }
+            }
+            tabs.forEach(function (tab) {
+                tab.addEventListener('click', function () {
+                    activate(tab.dataset.network, { updateHash: true });
+                });
+                tab.addEventListener('keydown', function (e) {
+                    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Home' && e.key !== 'End') return;
+                    e.preventDefault();
+                    const idx = tabs.indexOf(tab);
+                    let next = idx;
+                    if (e.key === 'ArrowRight') next = (idx + 1) % tabs.length;
+                    else if (e.key === 'ArrowLeft') next = (idx - 1 + tabs.length) % tabs.length;
+                    else if (e.key === 'Home') next = 0;
+                    else if (e.key === 'End') next = tabs.length - 1;
+                    activate(tabs[next].dataset.network, { updateHash: true, focus: true });
+                });
+            });
+            const initial = window.location.hash === '#testnet' ? 'testnet' : 'mainnet';
+            activate(initial, { updateHash: false });
+            window.addEventListener('hashchange', function () {
+                const name = window.location.hash === '#testnet' ? 'testnet' : 'mainnet';
+                activate(name, { updateHash: false });
+            });
+        })();
     </script>
 </body>
 </html>

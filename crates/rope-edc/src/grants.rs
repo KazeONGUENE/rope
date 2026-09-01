@@ -1,4 +1,4 @@
-//! AccessGrant engine — spec v2.0 §5.
+//! AccessGrant engine - spec v2.0 §5.
 //!
 //! Every grant of external access is an explicit object with scope,
 //! grantee, duration, price, and delivery method. API keys are minted FROM
@@ -137,7 +137,7 @@ pub struct AccessGrant {
     /// When the last scheduled export was produced (unix seconds).
     #[serde(default)]
     pub last_export_at: i64,
-    /// Calls already invoiced on a closed billing statement — the
+    /// Calls already invoiced on a closed billing statement - the
     /// metered-billing window is `calls - billed_calls`.
     #[serde(default)]
     pub billed_calls: u64,
@@ -219,7 +219,7 @@ impl AccessGrant {
 pub struct ApiKeyRecord {
     pub id: String,
     pub grant_id: String,
-    /// hex(blake3(token)) — the plaintext token is returned exactly once.
+    /// hex(blake3(token)) - the plaintext token is returned exactly once.
     pub token_digest: String,
     pub created_at: i64,
     #[serde(default)]
@@ -227,7 +227,7 @@ pub struct ApiKeyRecord {
     #[serde(default)]
     pub label: String,
     /// Sandbox key (spec v1.0 §6.3): served from synthetic data derived
-    /// from the project's own sensor declarations — never from the live
+    /// from the project's own sensor declarations - never from the live
     /// stream. Lets a stakeholder validate their integration first.
     #[serde(default)]
     pub sandbox: bool,

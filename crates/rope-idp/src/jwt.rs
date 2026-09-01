@@ -72,6 +72,8 @@ pub enum TokenError {
     Expired,
     #[error("issuer mismatch")]
     IssuerMismatch,
+    #[error("audience mismatch")]
+    AudienceMismatch,
 }
 
 /// The gateway's signing identity. Loaded from (or generated into) a
@@ -83,10 +85,21 @@ pub struct TokenSigner {
     /// restarts, changes only on key rotation.
     kid: String,
     issuer: String,
+    /// SECURITY (2026-07-26 counter-audit, rope-node/rope-explorer backend
+    /// sweep finding F1): `verify()` MUST reject a token whose `aud` claim
+    /// doesn't match this value, exactly as every downstream ecosystem
+    /// platform is told to do in `handover-datachain-id-sso-live-2026-07-07`
+    /// (`jwtVerify(token, JWKS, { issuer, audience })`). Before this fix,
+    /// `verify()` checked `iss`/`exp`/signature but never `aud` — harmless
+    /// today because this gateway only ever mints the one fixed audience,
+    /// but a silent gap in the one place (`/v1/auth/introspect` /
+    /// `/v1/auth/userinfo`) that's supposed to be the reference
+    /// implementation of the check every partner is told to perform.
+    audience: String,
 }
 
 impl TokenSigner {
-    pub fn new(signing_key: SigningKey, issuer: String) -> Self {
+    pub fn new(signing_key: SigningKey, issuer: String, audience: String) -> Self {
         let verifying_key = signing_key.verifying_key();
         let kid = blake3::hash(verifying_key.as_bytes()).to_hex()[..16].to_string();
         Self {
@@ -94,12 +107,13 @@ impl TokenSigner {
             verifying_key,
             kid,
             issuer,
+            audience,
         }
     }
 
     /// Load the signing key from `path`, generating a fresh one (mode
     /// 0600) when the file does not exist yet.
-    pub fn load_or_generate(path: &str, issuer: String) -> anyhow::Result<Self> {
+    pub fn load_or_generate(path: &str, issuer: String, audience: String) -> anyhow::Result<Self> {
         use std::io::Write;
         let key_bytes: [u8; 32] = match std::fs::read_to_string(path) {
             Ok(content) => {
@@ -129,7 +143,7 @@ impl TokenSigner {
             }
             Err(err) => return Err(err.into()),
         };
-        Ok(Self::new(SigningKey::from_bytes(&key_bytes), issuer))
+        Ok(Self::new(SigningKey::from_bytes(&key_bytes), issuer, audience))
     }
 
     pub fn kid(&self) -> &str {
@@ -212,6 +226,9 @@ impl TokenSigner {
         if claims.iss != self.issuer {
             return Err(TokenError::IssuerMismatch);
         }
+        if claims.aud != self.audience {
+            return Err(TokenError::AudienceMismatch);
+        }
         Ok(claims)
     }
 }
@@ -257,6 +274,7 @@ mod tests {
         TokenSigner::new(
             SigningKey::from_bytes(&[7u8; 32]),
             "https://id.datachain.network".into(),
+            "datachain-ecosystem".into(),
         )
     }
 
@@ -328,11 +346,30 @@ mod tests {
         let other = TokenSigner::new(
             SigningKey::from_bytes(&[9u8; 32]),
             "https://id.datachain.network".into(),
+            "datachain-ecosystem".into(),
         );
         let now = 1_800_000_000;
         let token = s.sign(&sample_claims(now));
         // Different key ⇒ kid mismatch surfaces as UnsupportedHeader.
         assert!(other.verify(&token, now + 10).is_err());
+    }
+
+    #[test]
+    fn wrong_audience_rejected() {
+        // A signer configured for a different audience must reject a
+        // token minted for "datachain-ecosystem", even with a correctly
+        // matching key/issuer/signature/expiry (finding F1, 2026-07-26).
+        let s = TokenSigner::new(
+            SigningKey::from_bytes(&[7u8; 32]),
+            "https://id.datachain.network".into(),
+            "some-other-audience".into(),
+        );
+        let now = 1_800_000_000;
+        let token = s.sign(&sample_claims(now));
+        assert!(matches!(
+            s.verify(&token, now + 10),
+            Err(TokenError::AudienceMismatch)
+        ));
     }
 
     #[test]

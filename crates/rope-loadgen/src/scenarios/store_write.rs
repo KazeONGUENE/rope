@@ -71,7 +71,7 @@ pub fn run(args: StoreWriteArgs) -> Result<Report, String> {
                 sid[3] = ((op_idx >> 16) & 0xFF) as u8;
 
                 let t0 = Instant::now();
-                store.append_to_chain(wallet, sid);
+                let _ = store.append_to_chain(wallet, sid);
                 let dt = t0.elapsed().as_nanos() as u64;
                 samples.push(dt);
             }

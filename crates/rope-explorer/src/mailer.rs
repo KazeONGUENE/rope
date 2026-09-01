@@ -1,4 +1,4 @@
-//! Ecosystem mailer — SendGrid-backed transactional email for
+//! Ecosystem mailer - SendGrid-backed transactional email for
 //! datachain.network, dcscan.io, and Datachain Rope services.
 //!
 //! Configuration comes from the environment (see `.env` / the systemd
@@ -91,7 +91,7 @@ impl Mailer {
 
         if api_key.is_none() {
             tracing::warn!(
-                "mailer: EMAIL_PASS / SENDGRID_API_KEY not configured — outbound email disabled"
+                "mailer: EMAIL_PASS / SENDGRID_API_KEY not configured - outbound email disabled"
             );
         } else {
             tracing::info!(
@@ -204,7 +204,7 @@ fn bad_request(msg: &str) -> Response {
         .into_response()
 }
 
-/// POST /api/v1/contact — public contact-form relay.
+/// POST /api/v1/contact - public contact-form relay.
 pub async fn contact(
     State(state): State<Arc<crate::AppState>>,
     ConnectInfo(peer): ConnectInfo<std::net::SocketAddr>,
@@ -236,7 +236,7 @@ pub async fn contact(
         return bad_request("message is required (max 10000 chars)");
     }
 
-    // CERBER WATCH — `name`/`subject`/`source` are structured fields; the
+    // CERBER WATCH - `name`/`subject`/`source` are structured fields; the
     // body of the outbound email includes them verbatim. `message` is
     // classified as free text (CHAT_FIELDS) so ordinary prose is never
     // false-positived, but a definite-attack pattern (SQL comment
@@ -264,7 +264,7 @@ pub async fn contact(
             StatusCode::TOO_MANY_REQUESTS,
             Json(json!({
                 "success": false,
-                "error": "Too many messages from this address — please try again later."
+                "error": "Too many messages from this address - please try again later."
             })),
         )
             .into_response();
@@ -317,7 +317,7 @@ pub async fn contact(
                 StatusCode::BAD_GATEWAY,
                 Json(json!({
                     "success": false,
-                    "error": "Delivery failed — please email contact@datachain.one directly."
+                    "error": "Delivery failed - please email contact@datachain.one directly."
                 })),
             )
                 .into_response()

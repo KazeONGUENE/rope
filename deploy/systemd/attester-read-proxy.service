@@ -1,0 +1,18 @@
+[Unit]
+Description=Attester-only /v1/read JSON-RPC filter (writes 405)
+After=network.target datachain-rope.service
+Wants=datachain-rope.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/datachain-rope/scripts/attester-read-proxy.py
+Restart=always
+RestartSec=2
+Environment=ATTESTER_READ_LISTEN=127.0.0.1
+Environment=ATTESTER_READ_PORT=18547
+Environment=ATTESTER_READ_UPSTREAM=http://127.0.0.1:8545
+User=root
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

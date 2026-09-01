@@ -1,0 +1,11 @@
+[req]
+distinguished_name=req
+x509_extensions=v3_ca
+prompt=no
+[req]
+CN=rope-testnet-1.datachain.network
+[v3_ca]
+subjectAltName=DNS:testnet.erpc.datachain.network,DNS:faucet.datachain.network
+basicConstraints=CA:FALSE
+keyUsage=digitalSignature,keyEncipherment
+extendedKeyUsage=serverAuth

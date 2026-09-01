@@ -1,15 +1,15 @@
-//! Global Databox Network — real registration + heartbeat registry.
+//! Global Databox Network - real registration + heartbeat registry.
 //!
 //! Replaces the previous fabricated `/api/v1/databoxes*` handlers (which
 //! reported zero entries because no live pipeline existed) AND the
 //! `databoxes.html` frontend's ~70 hardcoded fake city markers with a
 //! genuine, production self-service registry:
 //!
-//!   - Any node operator running a Datachain Rope data source — a
+//!   - Any node operator running a Datachain Rope data source - a
 //!     `rope deploy <provider> databox|rpc-slot|witness|community-node`
 //!     instance, or an Ecosystem Deployment Console node hosting one of
 //!     the four EDC roles (`ingestion_gateway`, `storage_ledger`,
-//!     `ai_agent_host`, `federation_validator`) — can self-register by
+//!     `ai_agent_host`, `federation_validator`) - can self-register by
 //!     signing an EIP-191 message with the wallet that controls the
 //!     node (domain-tagged `DCROPE-DATABOX-AUTH`, distinct from the
 //!     vote/EDC/Datachain-ID domains so a captured signature can never
@@ -29,7 +29,7 @@
 //!     high-frequency liveness pings and are intentionally NOT anchored
 //!     (that would spam the ledger); they are persisted locally only.
 //!   - The map endpoint plots ONLY entries that have self-reported real
-//!     coordinates — never synthesized geography.
+//!     coordinates - never synthesized geography.
 
 use crate::AppState;
 use axum::extract::{Path, Query, State};
@@ -41,7 +41,7 @@ use sha3::{Digest, Keccak256};
 use std::sync::Arc;
 
 // ============================================================================
-// EIP-191 wallet-signature verification — domain `DCROPE-DATABOX-AUTH`.
+// EIP-191 wallet-signature verification - domain `DCROPE-DATABOX-AUTH`.
 // Same k256/keccak construction as governance_votes.rs, reimplemented
 // locally (module-private) so each domain tag stays unambiguous.
 // ============================================================================
@@ -138,7 +138,7 @@ fn verify_signature(
 ) -> Result<String, String> {
     if (now - timestamp).abs() > DATABOX_AUTH_WINDOW_SECS {
         return Err(format!(
-            "timestamp outside ±{DATABOX_AUTH_WINDOW_SECS}s freshness window — sign again"
+            "timestamp outside ±{DATABOX_AUTH_WINDOW_SECS}s freshness window - sign again"
         ));
     }
     let claimed = address.to_lowercase();
@@ -166,7 +166,7 @@ fn compute_databox_id(owner_address: &str, name: &str) -> String {
 }
 
 // ============================================================================
-// Persistence — a single mutable JSONL snapshot, rewritten atomically on
+// Persistence - a single mutable JSONL snapshot, rewritten atomically on
 // every register/heartbeat/deregister. Same idiom as
 // governance_votes.rs::{load,save}_projects_local.
 // ============================================================================
@@ -189,7 +189,7 @@ fn databox_ledger_wallet() -> String {
 }
 
 /// Transport-layer errors (pooled-connection races against rope-node's
-/// HTTP server — "connection closed before message completed" / "connection
+/// HTTP server - "connection closed before message completed" / "connection
 /// reset by peer") are common on a fresh connection pool and are NOT a
 /// real outage; retry once on a fresh connection before giving up. Mirrors
 /// the pattern already deployed in `validation-agent`/`insurance-agent`
@@ -301,7 +301,7 @@ async fn save_databoxes_local(list: &[Value]) -> std::io::Result<()> {
 /// Rebuild the local cache from the rope ledger when the local file is
 /// missing/empty (fresh node, disk loss, bootstrap). Folds
 /// `DataboxRegistered` then `DataboxDeregistered` events in chain order.
-/// Heartbeat history is NOT recoverable this way (by design — heartbeats
+/// Heartbeat history is NOT recoverable this way (by design - heartbeats
 /// are not anchored), so a rebuilt entry shows as unheartbeated until the
 /// operator's node pings again; this is honest, not a regression.
 async fn rebuild_databoxes_from_rope(state: &Arc<AppState>) -> Vec<Value> {
@@ -383,7 +383,7 @@ async fn load_databoxes(state: &Arc<AppState>) -> Vec<Value> {
 }
 
 // ============================================================================
-// Live-view computation — status/liveness derived at read time, never
+// Live-view computation - status/liveness derived at read time, never
 // persisted as a potentially-stale flag.
 // ============================================================================
 
@@ -429,7 +429,7 @@ pub struct ListParams {
     limit: Option<u32>,
 }
 
-/// `GET /api/v1/databoxes` — real, persisted, chain-anchored Global
+/// `GET /api/v1/databoxes` - real, persisted, chain-anchored Global
 /// Databox Network membership. Optional `?type=&status=&region=` filters.
 pub async fn list_databoxes(
     State(state): State<Arc<AppState>>,
@@ -471,14 +471,14 @@ pub async fn list_databoxes(
         "totalCount": total,
         "pagination": { "page": page, "limit": limit, "total": total },
         "note": if total == 0 {
-            "Global Databox Network has no registered nodes yet — see POST /api/v1/databoxes/register to add one.".to_string()
+            "Global Databox Network has no registered nodes yet - see POST /api/v1/databoxes/register to add one.".to_string()
         } else {
-            format!("{total} live-registered node(s) — data is self-reported and signature-verified, not fabricated.")
+            format!("{total} live-registered node(s) - data is self-reported and signature-verified, not fabricated.")
         },
     }))
 }
 
-/// `GET /api/v1/databoxes/types` — per-type breakdown across the whole
+/// `GET /api/v1/databoxes/types` - per-type breakdown across the whole
 /// registry. Satisfies discovery of "each type of data source" without
 /// requiring the caller to know the taxonomy in advance.
 pub async fn databox_types(State(state): State<Arc<AppState>>) -> Json<Value> {
@@ -515,7 +515,7 @@ pub async fn databox_types(State(state): State<Arc<AppState>>) -> Json<Value> {
     }))
 }
 
-/// `GET /api/v1/databoxes/type/:type` — dedicated route per data-source
+/// `GET /api/v1/databoxes/type/:type` - dedicated route per data-source
 /// type (e.g. `/api/v1/databoxes/type/witness`, `.../storage_ledger`).
 pub async fn databoxes_by_type(
     State(state): State<Arc<AppState>>,
@@ -571,7 +571,7 @@ pub async fn get_databox(
     }
 }
 
-/// `GET /api/v1/databoxes/map` — geo markers for entries that have
+/// `GET /api/v1/databoxes/map` - geo markers for entries that have
 /// self-reported real coordinates only. Never synthesizes geography.
 pub async fn databox_map(State(state): State<Arc<AppState>>) -> Json<Value> {
     let now = chrono::Utc::now().timestamp();
@@ -598,7 +598,7 @@ pub async fn databox_map(State(state): State<Arc<AppState>>) -> Json<Value> {
         "markers": markers,
         "totalDataboxes": markers.len(),
         "note": if markers.is_empty() {
-            "No registered databox has reported geographic coordinates yet — the map plots only self-reported, signature-verified locations.".to_string()
+            "No registered databox has reported geographic coordinates yet - the map plots only self-reported, signature-verified locations.".to_string()
         } else {
             format!("{} node(s) with self-reported coordinates.", markers.len())
         },
@@ -623,7 +623,7 @@ pub struct RegisterRequest {
     signature: String,
 }
 
-/// `POST /api/v1/databoxes/register` — signature-verified self-service
+/// `POST /api/v1/databoxes/register` - signature-verified self-service
 /// registration. Re-submitting with the same `(owner_address, name)`
 /// upserts the existing entry (e.g. to update coordinates or capacity).
 pub async fn register_databox(
@@ -664,7 +664,7 @@ pub async fn register_databox(
         }
     }
 
-    // CERBER WATCH — every free-text field here is persisted and later
+    // CERBER WATCH - every free-text field here is persisted and later
     // rendered on the public databox map/registry page. `owner_address`
     // is checked against the blocklist below, once signature verification
     // has established it is the real owner (proof-of-key, not just a
@@ -693,7 +693,7 @@ pub async fn register_databox(
         }
     };
 
-    // CERBER WATCH — `blocked_signers` gate (finding H1/C4), applied to
+    // CERBER WATCH - `blocked_signers` gate (finding H1/C4), applied to
     // the signature-verified owner (not the unverified request field).
     if let Err(resp) = crate::security_guard::check_signer(&owner) {
         return resp;
@@ -778,10 +778,10 @@ pub struct HeartbeatRequest {
     metrics: Value,
 }
 
-/// `POST /api/v1/databoxes/:id/heartbeat` — signature-verified liveness
+/// `POST /api/v1/databoxes/:id/heartbeat` - signature-verified liveness
 /// ping. Updates `last_heartbeat_at` + `heartbeat_count` locally; NOT
 /// anchored on-chain (heartbeats are high-frequency, would spam the
-/// ledger — only register/deregister are anchored).
+/// ledger - only register/deregister are anchored).
 pub async fn heartbeat_databox(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
@@ -799,7 +799,7 @@ pub async fn heartbeat_databox(
         }
     };
 
-    // CERBER WATCH — `blocked_signers` gate (finding H1/C4).
+    // CERBER WATCH - `blocked_signers` gate (finding H1/C4).
     if let Err(resp) = crate::security_guard::check_signer(&owner) {
         return resp;
     }
@@ -846,7 +846,7 @@ pub struct DeregisterRequest {
     signature: String,
 }
 
-/// `POST /api/v1/databoxes/:id/deregister` — signature-verified removal.
+/// `POST /api/v1/databoxes/:id/deregister` - signature-verified removal.
 pub async fn deregister_databox(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
@@ -864,7 +864,7 @@ pub async fn deregister_databox(
         }
     };
 
-    // CERBER WATCH — `blocked_signers` gate (finding H1/C4).
+    // CERBER WATCH - `blocked_signers` gate (finding H1/C4).
     if let Err(resp) = crate::security_guard::check_signer(&owner) {
         return resp;
     }

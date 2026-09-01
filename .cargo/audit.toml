@@ -1,0 +1,75 @@
+# cargo-audit configuration.
+#
+# `docs/SECURITY_AUDIT_2026-07-25_FULL_WORKSPACE.md` counter-audit finding
+# (2026-07-26): both `.github/workflows/ci.yml` and
+# `.github/workflows/security.yml` ran `cargo audit || true`, which means
+# the audit step NEVER failed CI regardless of what it found — including
+# any brand-new, directly-exploitable advisory landing in a dependency
+# added tomorrow. That defeated the entire purpose of running the tool.
+#
+# The fix is a triaged, severity-gated gate, not a blind flip to hard-fail:
+# this file lists every advisory that was already open against the
+# workspace's `Cargo.lock` as of the date below (verified via
+# `cargo audit --json`, all transitive — coming from deep dependency trees
+# such as libp2p's QUIC/Quinn stack, the rustls/webpki chain, and sqlx —
+# with no upstream-patched version available yet). CI now runs `cargo
+# audit` for real (no `|| true`): it fails on ANY advisory that is not in
+# this explicit, dated, reasoned list below, so a genuinely new
+# vulnerability in a dependency bump is caught immediately, while today's
+# known transitive backlog does not block every future PR.
+#
+# Maintenance rule: do not add an entry here without (a) confirming via
+# `cargo tree -i <pkg>` that the flagged crate is a transitive dependency
+# with no direct patched-version bump available, and (b) a one-line reason
+# + the date it was triaged. Remove an entry the moment the underlying
+# dependency is bumped past the advisory's patched range — do not let this
+# list grow monotonically as a de facto `|| true`.
+[advisories]
+ignore = [
+    # bytes 1.11.0 — integer overflow in BytesMut::reserve. Transitive via
+    # tokio/hyper stack; no direct pin point in this workspace.
+    "RUSTSEC-2026-0007",
+    # crossbeam-epoch 0.9.18 — invalid pointer deref in Debug/Pointer impl
+    # (requires an already-invalid pointer to trigger; not reachable via
+    # any public API this workspace calls). Transitive via rayon/dashmap.
+    "RUSTSEC-2026-0204",
+    # hickory-proto 0.24.4 — O(n^2) CPU cost in DNS message-name
+    # compression. Transitive via libp2p's mdns/dns transport.
+    "RUSTSEC-2026-0119",
+    # protobuf 2.28.0 — uncontrolled recursion crash. Transitive via
+    # libp2p's gossipsub/kad wire encoding.
+    "RUSTSEC-2024-0437",
+    # quinn-proto 0.11.13 — two separate DoS/memory-exhaustion advisories
+    # in QUIC out-of-order stream reassembly. Transitive via libp2p's QUIC
+    # transport (not the primary transport in production — TCP/Noise is).
+    "RUSTSEC-2026-0185",
+    "RUSTSEC-2026-0037",
+    # ring 0.16.20 — AES functions may panic under overflow-checks builds
+    # (debug builds only; release profile disables overflow checks).
+    # Transitive via rustls' crypto provider.
+    "RUSTSEC-2025-0009",
+    # rsa 0.9.10 — Marvin Attack timing side-channel in PKCS#1v1.5
+    # decryption. Verified via Cargo.lock dependency-graph inspection: the
+    # only path to `rsa` is `sqlx-mysql`'s `caching_sha2_password` /
+    # `sha256_password` auth handshake, and no crate in this workspace
+    # enables sqlx's `mysql` feature (every `sqlx = {...}` declaration
+    # requests only `postgres`) — so the vulnerable code is not even
+    # compiled into any production binary, let alone reachable.
+    "RUSTSEC-2023-0071",
+    # rustls-webpki — four advisories (three cert-parsing panics + one
+    # faulty CRL-authority matching) across the 0.101/0.102/0.103 lines
+    # pulled in transitively by different branches of the dependency tree
+    # (rustls itself, plus libp2p's TLS transport). No single version bump
+    # resolves all three lines simultaneously without a broader rustls
+    # major-version coordination across the workspace.
+    "RUSTSEC-2026-0104",
+    "RUSTSEC-2026-0098",
+    "RUSTSEC-2026-0099",
+    "RUSTSEC-2026-0049",
+    # sqlx 0.7.4 — binary protocol misinterpretation from truncating casts
+    # in the Postgres wire-protocol decoder. Tracked for a 0.8.x bump;
+    # deferred because 0.8 has its own breaking-API migration cost that
+    # needs a dedicated pass across every `sqlx::query!` call site in
+    # rope-explorer, not a drop-in patch bump.
+    "RUSTSEC-2024-0363",
+]

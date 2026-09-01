@@ -41,7 +41,11 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let config = Config::from_env()?;
-    let signer = TokenSigner::load_or_generate(&config.key_file, config.issuer.clone())?;
+    let signer = TokenSigner::load_or_generate(
+        &config.key_file,
+        config.issuer.clone(),
+        config.audience.clone(),
+    )?;
     tracing::info!(kid = signer.kid(), issuer = %config.issuer, "signing key loaded");
 
     let supabase = SupabaseClient::new(

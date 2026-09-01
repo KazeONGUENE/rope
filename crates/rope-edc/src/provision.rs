@@ -1,4 +1,4 @@
-//! Node provisioning — spec v1.0 §5 / v2.0 §4: the deploy step turns the
+//! Node provisioning - spec v1.0 §5 / v2.0 §4: the deploy step turns the
 //! frozen `NodePlan` into actual sovereign nodes via `rope-deployer`.
 //!
 //! Provider selection:
@@ -6,7 +6,7 @@
 //! * `EDC_CLOUD_PROVIDER=exoscale|digitalocean|local` pins the target.
 //! * Unset: the first provider with live credentials wins
 //!   (Exoscale, then DigitalOcean), falling back to the in-process
-//!   `local` provider — which still walks the full provisioning path and
+//!   `local` provider - which still walks the full provisioning path and
 //!   records every node, so an owner running the console before wiring a
 //!   cloud account gets `status = "dry_run"` nodes they can re-provision
 //!   later instead of silent nothing.
@@ -16,7 +16,7 @@
 //! ledger, AI-agent host) deploys as a full RPC node, because those roles
 //! all need the rope-node write path locally.
 //!
-//! Simulation projects never provision — the sandbox runs on synthetic
+//! Simulation projects never provision - the sandbox runs on synthetic
 //! streams inside this process (spec v1.0 §6.3).
 
 use std::sync::Arc;
@@ -26,8 +26,14 @@ use rope_deployer::{NodeKind, Provider, ProviderRegistry, ProvisionRequest};
 
 use crate::types::{now_ts, NodePlan, Project, ProvisionedNode};
 
-/// Build the provider registry from the environment (idempotent, cheap).
-pub fn provider_registry() -> ProviderRegistry {
+/// Build the provider registry from the environment.
+///
+/// The registry is cheap to clone (its state is behind an `Arc<RwLock<…>>`
+/// internally), but we still want *one* build per process so both the
+/// project-deploy path (`provision_nodes`) and the bare-node deploy
+/// path (`crate::nodes::*`) share the same reqwest client pool and the
+/// same on-disk state cache.
+pub fn default_provider_registry() -> ProviderRegistry {
     let registry = ProviderRegistry::new();
     registry.register(Arc::new(LocalProvider::new()));
     registry.register(Arc::new(ExoscaleProvider::from_env()));
@@ -57,7 +63,7 @@ pub fn resolve_provider(registry: &ProviderRegistry) -> Provider {
     Provider::Local
 }
 
-/// Instance size per tier — conservative defaults that an operator can
+/// Instance size per tier - conservative defaults that an operator can
 /// override per provider via env.
 fn instance_size(plan: &NodePlan, provider: Provider) -> String {
     let var = match provider {
@@ -103,16 +109,19 @@ fn node_kind_for(roles: &[String]) -> NodeKind {
 }
 
 /// Provision every node in the plan. Returns one `ProvisionedNode` per
-/// planned node — failures surface as `status = "failed: …"` entries so
+/// planned node - failures surface as `status = "failed: …"` entries so
 /// the console shows exactly which slots need a retry, never a silent
 /// partial deploy.
-pub async fn provision_nodes(project: &Project, plan: &NodePlan) -> Vec<ProvisionedNode> {
+pub async fn provision_nodes(
+    registry: &ProviderRegistry,
+    project: &Project,
+    plan: &NodePlan,
+) -> Vec<ProvisionedNode> {
     if project.simulation {
         return Vec::new();
     }
 
-    let registry = provider_registry();
-    let provider = resolve_provider(&registry);
+    let provider = resolve_provider(registry);
     let adapter = registry
         .get(provider)
         .expect("resolved provider is always registered");
@@ -192,6 +201,7 @@ mod tests {
     async fn local_provider_provisions_full_plan() {
         // Force the deterministic in-process provider for the test.
         std::env::set_var("EDC_CLOUD_PROVIDER", "local");
+        let registry = default_provider_registry();
         let mut project = Project::new("Provision test", "0xowner");
         crate::simulation::apply_template(&mut project, "den_haag_escalators");
         let plan = NodePlan::recommend(
@@ -200,7 +210,7 @@ mod tests {
             1,
             false,
         );
-        let nodes = provision_nodes(&project, &plan).await;
+        let nodes = provision_nodes(&registry, &project, &plan).await;
         assert_eq!(nodes.len(), plan.node_count as usize);
         for n in &nodes {
             assert!(!n.instance_id.is_empty());
@@ -212,11 +222,12 @@ mod tests {
 
     #[tokio::test]
     async fn simulation_projects_never_provision() {
+        let registry = default_provider_registry();
         let mut project = Project::new("Sandbox", "0xowner");
         project.simulation = true;
         crate::simulation::apply_template(&mut project, "agri_estate");
         let plan = NodePlan::recommend(10, 100.0, 1, false);
-        let nodes = provision_nodes(&project, &plan).await;
+        let nodes = provision_nodes(&registry, &project, &plan).await;
         assert!(nodes.is_empty());
     }
 }

@@ -179,21 +179,62 @@ impl RopeNode {
         // `ROPE_LEDGER_PERSISTENCE=0` (tests / ephemeral sandboxes);
         // override the DB location with `ROPE_LEDGER_DB_PATH`.
         let lattice = Arc::new(StringLattice::new());
+        // 2026-07-27 P1.2 — finality BFS must not run inside add_string.
+        lattice.start_finality_actor();
         let persistence_enabled = std::env::var("ROPE_LEDGER_PERSISTENCE")
             .map(|v| !matches!(v.trim(), "0" | "false" | "no" | "off"))
             .unwrap_or(true);
         let ledger_db_path = std::env::var("ROPE_LEDGER_DB_PATH")
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|_| self.data_dir.join("ledger_db"));
+        // Phase 1.6.1 (2026-08-11 P1) — lazy rehydration.
+        // The 2026-08-11 outage was caused by the eager open loading all
+        // ~532K knot payloads into RAM at boot (RSS 200 MB -> 4.5 GB in
+        // ~5 min), crash-looping under the systemd cgroup ceiling before
+        // the RPC listener could bind. Enable lazy mode in production
+        // via `ROPE_LAZY_REHYDRATE=1` so:
+        //   * open pays only the RocksDB WAL replay + descriptor/chain
+        //     recovery cost (~seconds, not minutes),
+        //   * tombstones + ledger descriptors are still restored at boot
+        //     (small in aggregate, needed by hot-path readers),
+        //   * knot payloads are loaded on demand via
+        //     `LedgerManager::ensure_string_loaded` when a query touches
+        //     them (typical working set is a small fraction of history),
+        //   * optionally a bounded background pass fills the rest via
+        //     `ROPE_REHYDRATE_ASYNC=1` after RPC has already bound.
+        // The old eager path (default when `ROPE_LAZY_REHYDRATE` is
+        // absent) is preserved bit-for-bit for rollback safety.
+        let lazy_rehydrate = std::env::var("ROPE_LAZY_REHYDRATE")
+            .map(|v| matches!(v.trim(), "1" | "true" | "yes" | "on"))
+            .unwrap_or(false);
         let (ledger_store, recovered_blobs, recovered_tombstones) = if persistence_enabled {
-            match LedgerStore::open_with_recovery(&ledger_db_path) {
+            let open_result = if lazy_rehydrate {
+                LedgerStore::open_with_recovery_lazy(&ledger_db_path)
+            } else {
+                LedgerStore::open_with_recovery(&ledger_db_path)
+            };
+            match open_result {
                 Ok((store, blobs, tombstones)) => {
-                    tracing::info!(
-                        "Ledger persistence active at {:?} — {} knot blobs, {} tombstones on disk",
-                        ledger_db_path,
-                        blobs.len(),
-                        tombstones.len()
-                    );
+                    if lazy_rehydrate {
+                        tracing::info!(
+                            "Ledger persistence active (LAZY) at {:?} — {} tombstones on disk; \
+                             knot payloads will be loaded on demand \
+                             (Phase 1.6.1 P1, 2026-08-11)",
+                            ledger_db_path,
+                            tombstones.len()
+                        );
+                        debug_assert!(
+                            blobs.is_empty(),
+                            "lazy open must return an empty blob vec"
+                        );
+                    } else {
+                        tracing::info!(
+                            "Ledger persistence active at {:?} — {} knot blobs, {} tombstones on disk",
+                            ledger_db_path,
+                            blobs.len(),
+                            tombstones.len()
+                        );
+                    }
                     (Arc::new(store), blobs, tombstones)
                 }
                 Err(e) => {
@@ -233,9 +274,68 @@ impl RopeNode {
         ));
         // Phase 1.6 — replay recovered knots, tombstones, and ledger
         // descriptors into the fresh lattice + registry.
-        ledger.rehydrate_from_disk(recovered_blobs, recovered_tombstones);
+        //
+        // Phase 1.6.1 (2026-08-11 P1) — when `ROPE_LAZY_REHYDRATE=1` the
+        // eager `open_with_recovery` returned an empty knot-blob vec (see
+        // above), so we take the metadata-only path here. Knot payloads
+        // then load on demand via `LedgerManager::ensure_string_loaded`.
+        if lazy_rehydrate {
+            ledger.rehydrate_metadata_only(recovered_tombstones);
+        } else {
+            ledger.rehydrate_from_disk(recovered_blobs, recovered_tombstones);
+        }
         self.ledger_manager = Some(ledger.clone());
         tracing::info!("Personal ledger subsystem initialized (rope_* RPC methods active)");
+
+        // Phase 1.6.1 (2026-08-11 P1) — optional background rehydration
+        // pass. Off by default in lazy mode (the working set is small);
+        // opt in with `ROPE_REHYDRATE_ASYNC=1` when you'd rather pay
+        // steady I/O to warm the whole lattice. Batch size and
+        // between-batch sleep are tunable so operators can trade
+        // completion latency against RSS-growth smoothness.
+        //
+        // Safety: this only runs when the lazy path is active — the
+        // eager path already loaded every knot synchronously so an
+        // async pass would be a no-op (all `restore_string` calls
+        // would hit the shard's already-present fast return).
+        let rehydrate_async = std::env::var("ROPE_REHYDRATE_ASYNC")
+            .map(|v| matches!(v.trim(), "1" | "true" | "yes" | "on"))
+            .unwrap_or(false);
+        if lazy_rehydrate && rehydrate_async {
+            let batch_size: usize = std::env::var("ROPE_REHYDRATE_BATCH")
+                .ok()
+                .and_then(|v| v.trim().parse().ok())
+                .filter(|n: &usize| *n > 0)
+                .unwrap_or(10_000);
+            let sleep_ms: u64 = std::env::var("ROPE_REHYDRATE_SLEEP_MS")
+                .ok()
+                .and_then(|v| v.trim().parse().ok())
+                .unwrap_or(250);
+            let sleep_between = std::time::Duration::from_millis(sleep_ms);
+            let ledger_bg = ledger.clone();
+            tracing::info!(
+                "Spawning background ledger rehydration (batch_size={}, \
+                 sleep_between_batches={}ms) — RPC listener will bind BEFORE \
+                 rehydration completes",
+                batch_size,
+                sleep_ms
+            );
+            // spawn_blocking because RocksDB iteration is synchronous
+            // and would otherwise block the tokio runtime.
+            tokio::task::spawn_blocking(move || {
+                match ledger_bg.rehydrate_strings_in_background(batch_size, sleep_between) {
+                    Ok(n) => tracing::info!(
+                        "Background ledger rehydration finished ({} knots restored)",
+                        n
+                    ),
+                    Err(e) => tracing::error!(
+                        "Background ledger rehydration failed: {} — node will still \
+                         serve queries via on-demand loading",
+                        e
+                    ),
+                }
+            });
+        }
 
         // Auto-anchor the signed deployer attestation onto the deployer's
         // personal ledger (Quipu Canon: this lives on the global lattice ==
@@ -433,6 +533,47 @@ impl RopeNode {
             None
         };
 
+        // P1 §17.5 #3 — internal loopback RPC watchdog.
+        //
+        // This is independent from the systemd/HA layer: it probes
+        // 127.0.0.1:<rpc_http_port> for `eth_blockNumber` on its own
+        // interval, writes a JSON snapshot to `<data_dir>/self-watchdog.json`
+        // on every tick, and — when `ROPE_SELF_WATCHDOG_SUICIDE=1` is set —
+        // calls `std::process::exit(1)` if no probe has succeeded in
+        // `ROPE_SELF_WATCHDOG_STALL_SECS` (default 60s), forcing systemd
+        // to restart even under a wedge that leaves the RPC accept-loop
+        // parked in a lock. Runs alongside the RPC server task so an
+        // absent RPC (`node.rpc.enabled = false`) skips the watchdog
+        // entirely — nothing to probe.
+        let watchdog_handle = if self.config.rpc.enabled
+            && crate::self_watchdog::watchdog_enabled_from_env()
+        {
+            let wd_cfg = crate::self_watchdog::WatchdogConfig::from_env(
+                &self.data_dir,
+                &self.config.rpc.http_addr,
+            );
+            tracing::info!(
+                "Self-watchdog enabled: probe={} interval={:?} timeout={:?} \
+                 stall_threshold={:?} startup_grace={:?} suicide={} state_file={:?}",
+                wd_cfg.probe_url,
+                wd_cfg.interval,
+                wd_cfg.timeout,
+                wd_cfg.stall_threshold,
+                wd_cfg.startup_grace,
+                wd_cfg.suicide_enabled,
+                wd_cfg.state_file,
+            );
+            let (_state, handle) = crate::self_watchdog::spawn(wd_cfg);
+            Some(handle)
+        } else {
+            if !self.config.rpc.enabled {
+                tracing::debug!("Self-watchdog skipped (rpc.enabled=false)");
+            } else {
+                tracing::info!("Self-watchdog disabled via ROPE_SELF_WATCHDOG_ENABLED=0");
+            }
+            None
+        };
+
         // Start metrics server
         let metrics_handle = if self.config.metrics.enabled {
             let metrics_server = MetricsServer::new(&self.config.metrics)?;
@@ -470,6 +611,9 @@ impl RopeNode {
 
         // Stop other components
         if let Some(handle) = rpc_handle {
+            handle.abort();
+        }
+        if let Some(handle) = watchdog_handle {
             handle.abort();
         }
         if let Some(handle) = metrics_handle {
@@ -612,9 +756,19 @@ impl RopeNode {
 
         let evm_url = evm_urls[0].clone();
 
+        // Resolve the upstream Reth WebSocket URL for the subscription
+        // bridge (`ws_subscription_bridge.rs`). Precedence lives in
+        // `EvmBackendSettings::resolved_ws_url`: env `ROPE_RETH_WS_URL`
+        // → `[evm_backend].ws_url` TOML → `ws://127.0.0.1:8547` default.
+        // `None` here means the operator explicitly disabled the bridge;
+        // in that case `eth_subscribe` returns a canonical JSON-RPC error
+        // rather than a dead subscription id.
+        let reth_ws_url = self.config.evm_backend.resolved_ws_url();
+
         let evm_config = EvmBackendConfig {
             urls: evm_urls.clone(),
             expected_chain_id: self.config.node.chain_id,
+            reth_ws_url: reth_ws_url.clone(),
             ..Default::default()
         };
         tracing::info!(
@@ -622,6 +776,15 @@ impl RopeNode {
             evm_urls.len(),
             evm_urls.join(", ")
         );
+        match reth_ws_url.as_deref() {
+            Some(ws) => tracing::info!(
+                "EVM WebSocket bridge target: {ws} (eth_subscribe over wss://ws.datachain.network enabled)"
+            ),
+            None => tracing::warn!(
+                "EVM WebSocket bridge disabled (ROPE_RETH_WS_URL or [evm_backend].ws_url set to empty); \
+                 eth_subscribe on wss://ws.datachain.network will return -32601 method-unavailable"
+            ),
+        }
 
         // Construct and install the EVM backend UNCONDITIONALLY whenever the
         // client can be built. The previous flow dropped the backend on any

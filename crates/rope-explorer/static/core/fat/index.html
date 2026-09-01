@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DC FAT | Native token | DC Explorer</title>
+    <meta name="description" content="Native DC FAT on Datachain Rope: live price, market cap, 24h DCSwap volume, and Scenario A circulating supply.">
+    <link rel="icon" type="image/svg+xml" href="/assets/logo.svg">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="/css/dcscan-header.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root{
+            --black:#000000; --white:#ffffff;
+            --gray-50:#fafafa; --gray-100:#f4f4f5; --gray-200:#e4e4e7; --gray-300:#d4d4d8;
+            --gray-400:#a1a1aa; --gray-500:#71717a; --gray-600:#52525b; --gray-700:#3f3f46;
+            --gray-800:#27272a; --gray-900:#18181b;
+            --success:#22c55e; --success-bg:#dcfce7; --success-fg:#166534;
+            --warning:#f59e0b; --warning-bg:#fef3c7; --warning-fg:#92400e;
+            --info:#3b82f6; --gold-bg:#fef9c3; --gold-fg:#854d0e;
+            --font-sans:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+            --font-mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
+            --radius-md:8px; --radius-lg:12px;
+            --shadow-sm:0 1px 2px 0 rgba(0,0,0,.05);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: var(--font-sans); background: var(--gray-50); color: var(--gray-900); line-height: 1.5; font-size: 14px; }
+        a { color: var(--black); text-decoration: none; }
+        a:hover { color: var(--gray-600); }
+        .container { max-width: 1400px; margin: 0 auto; padding: 0 1rem; }
+        .top-bar { background: var(--gray-900); color: var(--white); padding: 0.5rem 0; font-size: 12px; }
+        .top-bar-content { display: flex; justify-content: space-between; align-items: center; }
+        .top-bar-left { display: flex; align-items: center; gap: 1.5rem; }
+        .top-bar-item { display: flex; align-items: center; gap: 0.375rem; color: var(--gray-400); }
+        .top-bar-value { color: var(--white); font-weight: 500; }
+        header { background: var(--white); border-bottom: 1px solid var(--gray-200); position: sticky; top: 0; z-index: 100; }
+        .header-container { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+        .logo { display: flex; align-items: center; gap: 0.625rem; font-weight: 450; font-size: 1rem; color: #000; line-height: 1.2; }
+        .logo-text { display: flex; flex-direction: column; }
+        .logo-icon { width: 32px; height: 32px; }
+        .main-nav { display: flex; align-items: center; gap: 0.25rem; }
+        .nav-item { position: relative; }
+        .nav-link { display: flex; align-items: center; gap: 0.375rem; padding: 0.5rem 0.875rem; color: var(--gray-600); font-weight: 500; font-size: 13px; border-radius: var(--radius-md); }
+        .nav-link:hover { color: var(--black); background: var(--gray-100); }
+        .nav-link.active { background: var(--gray-100); color: var(--black); }
+        .nav-dropdown { position: absolute; top: 100%; left: 0; min-width: 220px; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: 0.5rem; opacity: 0; visibility: hidden; transform: translateY(10px); transition: all 0.2s; z-index: 200; }
+        .nav-item:hover .nav-dropdown { opacity: 1; visibility: visible; transform: translateY(0); }
+        .dropdown-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.625rem 0.75rem; color: var(--gray-700); border-radius: 6px; font-size: 13px; }
+        .dropdown-item:hover { background: var(--gray-100); color: var(--black); }
+        .btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.5rem 1rem; font-size: 13px; font-weight: 600; border-radius: var(--radius-md); border: none; cursor: pointer; }
+        .btn-secondary { background: var(--gray-100); color: var(--gray-700); }
+        .page-header { background: var(--white); border-bottom: 1px solid var(--gray-200); padding: 1.5rem 0; }
+        .page-breadcrumb { display: flex; align-items: center; gap: 0.5rem; font-size: 12px; color: var(--gray-500); margin-bottom: 0.75rem; }
+        .hero { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+        .hero img { width: 56px; height: 56px; border-radius: 50%; border: 1px solid var(--gray-200); background: #fff; object-fit: cover; }
+        .page-title { font-size: 1.5rem; font-weight: 700; }
+        .page-subtitle { color: var(--gray-500); font-size: 0.875rem; }
+        .pill { display: inline-flex; align-items: center; padding: 0.2rem 0.6rem; border-radius: 20px; font-size: 11px; font-weight: 600; background: var(--gold-bg); color: var(--gold-fg); }
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin: 1.5rem 0; }
+        .stat-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 1.25rem; box-shadow: var(--shadow-sm); }
+        .stat-label { font-size: 11px; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; font-weight: 600; }
+        .stat-value { font-size: 1.35rem; font-weight: 700; font-family: var(--font-mono); }
+        .stat-sub { font-size: 12px; color: var(--gray-500); margin-top: 0.35rem; }
+        .card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); margin-bottom: 1.5rem; overflow: hidden; box-shadow: var(--shadow-sm); }
+        .card-header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--gray-200); font-weight: 600; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+        .card-body { padding: 1.25rem; color: var(--gray-700); font-size: 13px; line-height: 1.7; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { text-align: left; padding: 0.75rem 1.25rem; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gray-500); border-bottom: 1px solid var(--gray-200); background: var(--gray-50); font-weight: 600; }
+        td { padding: 0.875rem 1.25rem; border-bottom: 1px solid var(--gray-100); }
+        .mono { font-family: var(--font-mono); font-size: 12px; }
+        .change-up { color: var(--success-fg); }
+        .change-down { color: #991b1b; }
+        footer { background: var(--white); border-top: 1px solid var(--gray-200); padding: 2rem 0; margin-top: 3rem; }
+        .footer-content { display: flex; justify-content: space-between; align-items: center; }
+        .footer-brand { display: flex; align-items: center; gap: 0.5rem; color: var(--gray-500); }
+        .footer-links { display: flex; gap: 1.5rem; }
+        .footer-links a { font-size: 12px; color: var(--gray-500); }
+        @media (max-width: 1024px) { .stats-row { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 768px) { .stats-row { grid-template-columns: 1fr; } .main-nav { display: none; } }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <div class="container top-bar-container top-bar-content">
+            <div class="top-bar-left">
+                <div class="top-bar-item"><span>DC FAT Price:</span><span class="top-bar-value" id="topbar-fat-price">-</span><span class="top-bar-change" id="topbar-fat-change"></span></div>
+                <div class="top-bar-item"><span>Gas:</span><span class="top-bar-value" id="topbar-gas">-</span></div>
+            </div>
+        </div>
+    </div>
+    <header>
+        <div class="container header-container">
+            <a href="/" class="logo">
+                <div class="logo-icon"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 100%; height: 100%; object-fit: contain;"></div>
+                <span class="logo-text"><span>DC</span><span>Explorer</span></span>
+            </a>
+            <nav class="main-nav">
+                <div class="nav-item"><a href="#" class="nav-link">Smartchain <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/strings" class="dropdown-item">View Strings</a>
+                        <a href="/txs" class="dropdown-item">Transactions</a>
+                        <a href="/txsPending" class="dropdown-item">Pending Txns</a>
+                        <a href="/accounts" class="dropdown-item">Top Accounts</a>
+                        <a href="/contracts" class="dropdown-item">Verified Contracts</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">AI Agents <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/agents" class="dropdown-item">All Agents</a>
+                        <a href="/testimonies" class="dropdown-item">Testimonies</a>
+                        <a href="/validations" class="dropdown-item">Validators</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link active">Tokens <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/tokens" class="dropdown-item">DCR-20 Tokens</a>
+                        <a href="/core/fat" class="dropdown-item">Native DC FAT</a>
+                        <a href="/tokentxns" class="dropdown-item">Token Transfers</a>
+                        <a href="/vote" class="dropdown-item">Vote</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">Network <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/ecosystem" class="dropdown-item">Ecosystem Projects</a>
+                        <a href="/vote" class="dropdown-item">Governance &amp; Voting</a>
+                        <a href="/defi" class="dropdown-item">DeFi</a>
+                        <a href="/supply" class="dropdown-item">Supply Reconciliation</a>
+                        <a href="/validators" class="dropdown-item">Validators</a>
+                        <a href="/databases" class="dropdown-item">Databases</a>
+                        <a href="/databoxes" class="dropdown-item">Global Databox Network</a>
+                        <a href="/stats" class="dropdown-item">Charts &amp; Stats</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">More <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/apis" class="dropdown-item">API Docs</a>
+                        <a href="/apis/exchange-integration" class="dropdown-item">Exchange Integration</a>
+                        <a href="/admin-tokens" class="dropdown-item">Admin Tokens</a>
+                        <a href="/verify" class="dropdown-item">Verify Contract</a>
+                        <a href="/create-wallet" class="dropdown-item">Create Wallet</a>
+                        <a href="/faucet" class="dropdown-item">Faucet</a>
+                        <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank" rel="noopener">GitHub</a>
+                        <a href="/partners" class="dropdown-item">Partners</a>
+                        <a href="/contact" class="dropdown-item">Contact</a>
+                    </div>
+                </div>
+            </nav>
+            <div class="header-actions"><button class="btn btn-secondary"><i class="fa-solid fa-wallet"></i> Connect</button></div>
+        </div>
+    </header>
+
+    <div class="page-header">
+        <div class="container">
+            <div class="page-breadcrumb"><a href="/">Home</a> <i class="fas fa-chevron-right" style="font-size: 8px;"></i> <a href="/tokens">Tokens</a> <i class="fas fa-chevron-right" style="font-size: 8px;"></i> <span>Native DC FAT</span></div>
+            <div class="hero">
+                <img id="fat-logo" src="/assets/tokens/fat.png" alt="DC FAT">
+                <div>
+                    <h1 class="page-title">DC FAT <span class="pill">Native</span></h1>
+                    <p class="page-subtitle">Native unit of Datachain Rope (chain 271828). WFAT is the 1:1 DCR-20 wrap used by DCSwap pools.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <main class="container">
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-label">Price</div>
+                <div class="stat-value" id="fat-price">-</div>
+                <div class="stat-sub" id="fat-change">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Market cap</div>
+                <div class="stat-value" id="fat-mcap">-</div>
+                <div class="stat-sub">Circulating x live FAT price</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Volume (24h)</div>
+                <div class="stat-value" id="fat-vol">-</div>
+                <div class="stat-sub">DCSwap pools (WFAT wrap)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Circulating supply</div>
+                <div class="stat-value" id="fat-circ">-</div>
+                <div class="stat-sub">Scenario A / <a href="/supply">supply reconciliation</a></div>
+            </div>
+        </div>
+
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-label">Total supply</div>
+                <div class="stat-value" id="fat-total">-</div>
+                <div class="stat-sub">Genesis 10B + knot-reward emission toward ~18B max</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Price source</div>
+                <div class="stat-value" id="fat-source" style="font-size:13px;font-weight:600;font-family:var(--font-sans);">-</div>
+                <div class="stat-sub"><a href="https://dcswap.net/v1/prices" target="_blank" rel="noopener">dcswap.net/v1/prices</a></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">WFAT wrap</div>
+                <div class="stat-value" style="font-size:13px;"><a class="mono" href="/address/0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4">0x285eecf5...b3e4</a></div>
+                <div class="stat-sub">DCR-20 1:1 wrap of native FAT</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Trade</div>
+                <div class="stat-value" style="font-size:13px;"><a href="https://dcswap.net" target="_blank" rel="noopener">dcswap.net</a></div>
+                <div class="stat-sub">FAT/USDC, FAT/USDT, FAT/EUROD pools</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">DCSwap pools containing WFAT</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Pool</th>
+                        <th>Pair</th>
+                        <th>TVL</th>
+                        <th>24h volume</th>
+                    </tr>
+                </thead>
+                <tbody id="fat-pools"><tr><td colspan="4" style="color:var(--gray-500);">Loading pool snapshot...</td></tr></tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <div class="card-header">Latest swaps</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Txn</th>
+                        <th>Pool</th>
+                        <th>In</th>
+                        <th>Out</th>
+                        <th>Age</th>
+                    </tr>
+                </thead>
+                <tbody id="fat-swaps"><tr><td colspan="5" style="color:var(--gray-500);">Loading recent swaps...</td></tr></tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <div class="card-header">What DC FAT is</div>
+            <div class="card-body">
+                <p>DC FAT is the native currency of Datachain Rope. It is not a DCR-20 contract. New FAT is created by knot-reward emission (genesis 10 billion, asymptotic maximum about 18 billion, 4-year halving), not by minting a wrap.</p>
+                <p style="margin-top:10px;">WFAT (<a href="/address/0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4">0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4</a>) is the 1:1 DCR-20 wrap used by DCSwap. Price policy on dcscan is <strong>WFAT price = FAT price</strong>, taken from the DCSwap canonical feed.</p>
+                <p style="margin-top:10px;">Circulating supply on this page is Scenario A from <a href="/supply">/supply</a> (excludes labelled uncirculated wallets). It is not WFAT <span class="mono">totalSupply</span> and not the 10B genesis figure.</p>
+                <p style="margin-top:10px;color:var(--gray-500);" id="fat-note">-</p>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container footer-content">
+            <div class="footer-brand">
+                <div class="logo-icon" style="width:24px;height:24px;"><img src="/assets/logo.svg" alt="" style="width:100%;height:100%;object-fit:contain;"></div>
+                DC Explorer - Powered by Datachain Rope
+            </div>
+            <div class="footer-links">
+                <a href="https://datachain.network">Datachain</a>
+                <a href="/apis">API</a>
+                <a href="/supply">Supply</a>
+                <a href="/tokens">Tokens</a>
+                <a href="/contact">Contact</a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+    (function () {
+        var WFAT = '0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4';
+        function dash(v) {
+            if (v == null || v === '' || v === 0) return '-';
+            return v;
+        }
+        function usd(n) {
+            var x = Number(n);
+            if (!isFinite(x) || x <= 0) return '-';
+            try {
+                return new Intl.NumberFormat(navigator.language || 'en-US', {
+                    style: 'currency', currency: 'USD',
+                    maximumFractionDigits: x < 0.01 ? 6 : 2
+                }).format(x);
+            } catch (e) {
+                return '$' + x.toFixed(2);
+            }
+        }
+        function timeAgo(ts) {
+            if (!ts) return '-';
+            var t = typeof ts === 'number' ? (ts < 1e12 ? ts * 1000 : ts) : Date.parse(ts);
+            if (!isFinite(t)) return '-';
+            var s = Math.max(0, (Date.now() - t) / 1000);
+            if (s < 60) return Math.floor(s) + 's ago';
+            if (s < 3600) return Math.floor(s / 60) + 'm ago';
+            if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+            return Math.floor(s / 86400) + 'd ago';
+        }
+        function shortHash(h) {
+            if (!h) return '-';
+            return h.slice(0, 10) + '...' + h.slice(-4);
+        }
+
+        Promise.all([
+            fetch('/api/v1/core/fat').then(function (r) { return r.ok ? r.json() : null; }),
+            fetch('/api/v1/tokens/' + WFAT + '/dex').then(function (r) { return r.ok ? r.json() : null; }),
+            fetch('/api/v1/supply/reconciliation').then(function (r) { return r.ok ? r.json() : null; })
+        ]).then(function (pair) {
+            var t = pair[0] || {};
+            var dex = pair[1] || {};
+            var rec = pair[2] || {};
+            var meta = t.metadata || {};
+
+            var price = t.priceUsd;
+            document.getElementById('fat-price').textContent =
+                (typeof price === 'number' && price > 0) ? '$' + Number(price).toFixed(6) : '-';
+            var ch = t.change != null ? t.change : meta.globalPercentChange24h;
+            var chEl = document.getElementById('fat-change');
+            if (typeof ch === 'number' && isFinite(ch)) {
+                chEl.textContent = (ch >= 0 ? '+' : '') + ch.toFixed(2) + '% (24h)';
+                chEl.className = 'stat-sub ' + (ch >= 0 ? 'change-up' : 'change-down');
+            } else {
+                chEl.textContent = '24h change unavailable';
+            }
+
+            document.getElementById('fat-mcap').textContent = dash(meta.globalMarketCapStr || t.marketCapStr || usd(t.marketCap));
+            var vol = meta.globalVolume24hStr || usd(t.volume) || (dex.totals && dex.totals.volume_24h_str);
+            document.getElementById('fat-vol').textContent = dash(vol);
+            document.getElementById('fat-circ').textContent = dash(
+                meta.globalCirculatingSupplyStr
+                || t.circulatingSupplyStr
+                || (typeof rec.circulatingSupply === 'number' ? rec.circulatingSupply.toLocaleString() + ' FAT' : null)
+            );
+            document.getElementById('fat-total').textContent = dash(t.totalSupplyFormatted || (t.totalSupply ? t.totalSupply + ' FAT' : null));
+            document.getElementById('fat-source').textContent = dash(meta.dataSource || t.source);
+            document.getElementById('fat-note').textContent = meta.description || '';
+
+            var pools = (dex.pools || []);
+            var pbody = document.getElementById('fat-pools');
+            if (!pools.length) {
+                pbody.innerHTML = '<tr><td colspan="4" style="color:var(--gray-500);">No DCSwap pool snapshot yet.</td></tr>';
+            } else {
+                pbody.innerHTML = pools.map(function (p) {
+                    var ta = p.token_a || {};
+                    var tb = p.token_b || {};
+                    var pair = (ta.symbol || '?') + '/' + (tb.symbol || '?');
+                    var addr = p.id || p.address || '';
+                    return '<tr>'
+                        + '<td class="mono"><a href="/address/' + addr + '">' + shortHash(addr) + '</a></td>'
+                        + '<td>' + pair + '</td>'
+                        + '<td class="mono">' + dash(usd(p.tvl_usd)) + '</td>'
+                        + '<td class="mono">' + dash(usd(p.volume_24h)) + '</td>'
+                        + '</tr>';
+                }).join('');
+            }
+
+            var swaps = dex.recentSwaps || [];
+            var sbody = document.getElementById('fat-swaps');
+            if (!swaps.length) {
+                sbody.innerHTML = '<tr><td colspan="5" style="color:var(--gray-500);">No recent swaps in the DCSwap snapshot.</td></tr>';
+            } else {
+                sbody.innerHTML = swaps.slice(0, 15).map(function (s) {
+                    var hash = s.tx_hash || s.hash || '';
+                    var amtIn = (s.amount_in != null ? Number(s.amount_in) : null);
+                    var amtOut = (s.amount_out != null ? Number(s.amount_out) : null);
+                    var inStr = amtIn != null && isFinite(amtIn) ? amtIn.toPrecision(6) + ' ' + (s.token_in_symbol || '') : '-';
+                    var outStr = amtOut != null && isFinite(amtOut) ? amtOut.toPrecision(6) + ' ' + (s.token_out_symbol || '') : '-';
+                    return '<tr>'
+                        + '<td class="mono"><a href="/tx/' + hash + '">' + shortHash(hash) + '</a></td>'
+                        + '<td class="mono"><a href="/address/' + (s.pool_id || '') + '">' + shortHash(s.pool_id) + '</a></td>'
+                        + '<td>' + inStr + '</td>'
+                        + '<td>' + outStr + '</td>'
+                        + '<td>' + timeAgo(s.created_at || s.timestamp) + '</td>'
+                        + '</tr>';
+                }).join('');
+            }
+        }).catch(function () {
+            document.getElementById('fat-note').textContent = 'Could not load live FAT metrics. Retry shortly.';
+        });
+    })();
+    </script>
+    <script src="/js/dcscan-stats.js"></script>
+    <script src="/js/dcscan-wallet.js" defer></script>
+</body>
+</html>

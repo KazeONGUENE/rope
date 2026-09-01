@@ -1,9 +1,9 @@
-//! Cross-chain governance voting-weight aggregator + attestation signer —
+//! Cross-chain governance voting-weight aggregator + attestation signer -
 //! Governance Voting & Cause Platform Phase 2
 //! (`docs/GOVERNANCE_VOTING_CAUSE_PLATFORM_SPEC_V1.md` §2.1, option (b)).
 //!
 //! `VoteEscrow.sol` (Datachain Rope, chain 271828) cannot read a wallet's
-//! balance on Ethereum or XDC — a smart contract has no cross-chain
+//! balance on Ethereum or XDC - a smart contract has no cross-chain
 //! visibility, and Datachain Rope has no `IVotes`-checkpointed DCR-20 to
 //! read a past-block balance from even on its own chain. So voting/vote-
 //! creation power is computed HERE, off-chain, by summing:
@@ -11,6 +11,7 @@
 //!   - legacy DC on Ethereum   (ERC-20,  `LEGACY_DC_ETH_ADDRESS`)
 //!   - legacy DC on XDC        (XRC-20,  `LEGACY_DC_XDC_ADDRESS`)
 //!   - native DC FAT on Rope   (`eth_getBalance`, reusing `state.rpc_urls`)
+//!   - WFAT on Rope            (DCR-20 `balanceOf`, `WFAT_ADDRESS`)
 //!
 //! and then EIP-191-signing an attestation binding (contract, chain,
 //! purpose, vote id or creator address, voter, weight, expiry) that
@@ -19,14 +20,14 @@
 //! `FATMigrationMinter.claimMigration` (see
 //! `dcswap/contracts/src/migration/FATMigrationMinter.sol`) and by
 //! `rope-node`'s Phase-2 signed-destructive-RPC verifier
-//! (`crates/rope-node/src/rpc_signature.rs`) — reused deliberately rather
+//! (`crates/rope-node/src/rpc_signature.rs`) - reused deliberately rather
 //! than reinvented.
 //!
 //! All three balance lookups are REAL, live JSON-RPC calls with per-chain
 //! multi-endpoint failover. A chain whose RPCs are all unreachable is
 //! surfaced as an explicit error in the response (never silently
 //! substituted with zero) so a voter is never short-changed without
-//! knowing it — "no stubs" extends to "no silent zero-fill on RPC failure".
+//! knowing it - "no stubs" extends to "no silent zero-fill on RPC failure".
 
 use k256::ecdsa::{RecoveryId, Signature as EcdsaSignature, SigningKey, VerifyingKey};
 use serde::Serialize;
@@ -54,6 +55,12 @@ fn legacy_dc_xdc_address() -> String {
         .unwrap_or_else(|_| "0x20b59e6c5deb7d7ced2ca823c6ca81dd3f7e9a3a".to_string())
 }
 
+/// Wrapped DC FAT (DCR-20) on Datachain Rope - summed with native FAT for weight.
+fn wfat_address() -> String {
+    std::env::var("WFAT_ADDRESS")
+        .unwrap_or_else(|_| "0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4".to_string())
+}
+
 fn eth_rpc_urls() -> Vec<String> {
     std::env::var("ETH_RPC_URL")
         .map(|v| v.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect())
@@ -77,22 +84,22 @@ fn xdc_rpc_urls() -> Vec<String> {
 }
 
 /// The deployed `VoteEscrow` address on chain 271828. `None` until Phase 2
-/// deployment lands — the balance-aggregation half of this module stays
+/// deployment lands - the balance-aggregation half of this module stays
 /// fully functional even before that (only attestation signing requires it).
-fn vote_escrow_address() -> Option<String> {
+pub fn vote_escrow_address() -> Option<String> {
     std::env::var("VOTE_ESCROW_ADDRESS")
         .ok()
         .filter(|v| !v.trim().is_empty())
 }
 
-fn rope_chain_id() -> u64 {
+pub fn rope_chain_id() -> u64 {
     std::env::var("ROPE_CHAIN_ID")
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(271_828)
 }
 
-/// How long a signed attestation remains valid — long enough for a user to
+/// How long a signed attestation remains valid - long enough for a user to
 /// review + submit a MetaMask transaction, short enough to bound replay
 /// exposure if a signed attestation leaked before use (it moves no value by
 /// itself; it only proves eligibility, so this is a defence-in-depth bound,
@@ -134,7 +141,7 @@ fn attestor_signing_key() -> Result<&'static SigningKey, String> {
 }
 
 /// The Ethereum-style address (`0x…`, lowercase) derived from the attestor
-/// signing key — exposed via `/api/v1/governance/attestor` so the on-chain
+/// signing key - exposed via `/api/v1/governance/attestor` so the on-chain
 /// `attestor` role can be verified to match without ever exposing the key.
 pub fn attestor_public_address() -> Result<String, String> {
     let sk = attestor_signing_key()?;
@@ -152,7 +159,7 @@ fn eth_address_from_verifying_key(pk: &VerifyingKey) -> String {
 }
 
 // ============================================================================
-// Address / integer encoding helpers — must byte-for-byte match Solidity's
+// Address / integer encoding helpers - must byte-for-byte match Solidity's
 // `abi.encode(bytes32, bytes32, uint256, address, uint256, address, uint256,
 // uint256)`, which for an all-static-type tuple is simply the concatenation
 // of each value's 32-byte big-endian representation (bytes32 as-is; address
@@ -197,7 +204,7 @@ fn keccak(bytes: &[u8]) -> [u8; 32] {
     digest
 }
 
-/// `keccak256("DCROPE/governance/vote-escrow/weight/v1")` — computed at
+/// `keccak256("DCROPE/governance/vote-escrow/weight/v1")` - computed at
 /// runtime from the same ASCII bytes Solidity's `keccak256("…")` literal
 /// hashes at compile time, so the two are guaranteed identical without
 /// hardcoding (and re-deriving) a hex constant in two languages.
@@ -273,7 +280,7 @@ fn sign_digest(sk: &SigningKey, digest: &[u8; 32]) -> Result<String, String> {
 }
 
 // ============================================================================
-// Balance aggregation — real, live, multi-chain, multi-endpoint failover
+// Balance aggregation - real, live, multi-chain, multi-endpoint failover
 // ============================================================================
 
 #[derive(Debug, Clone, Serialize)]
@@ -292,8 +299,9 @@ pub struct WeightBreakdown {
     pub ethereum: ChainBalance,
     pub xdc: ChainBalance,
     pub rope: ChainBalance,
+    pub rope_wfat: ChainBalance,
     /// Sum of all chains that resolved successfully. A chain that failed
-    /// contributes 0 to this sum AND sets `all_chains_ok = false` — the
+    /// contributes 0 to this sum AND sets `all_chains_ok = false` - the
     /// caller decides whether a partial sum is acceptable for its purpose
     /// (e.g. a generous UI preview vs. a strict on-chain-bound attestation).
     pub total_wei: String,
@@ -420,13 +428,16 @@ pub async fn aggregate_weight(state: &Arc<AppState>, address: &str) -> WeightBre
 
     let eth_token = legacy_dc_eth_address();
     let xdc_token = legacy_dc_xdc_address();
+    let wfat_token = wfat_address();
     let eth_urls = eth_rpc_urls();
     let xdc_urls = xdc_rpc_urls();
+    let rope_urls: Vec<String> = state.rpc_urls.clone();
 
-    let (eth_result, xdc_result, rope_result) = tokio::join!(
+    let (eth_result, xdc_result, rope_result, wfat_result) = tokio::join!(
         erc20_balance_of(&state.http_client, &eth_urls, &eth_token, &addr20),
         erc20_balance_of(&state.http_client, &xdc_urls, &xdc_token, &addr20),
-        rope_native_balance(state, address)
+        rope_native_balance(state, address),
+        erc20_balance_of(&state.http_client, &rope_urls, &wfat_token, &addr20)
     );
 
     let eth_balance = match &eth_result {
@@ -489,14 +500,38 @@ pub async fn aggregate_weight(state: &Arc<AppState>, address: &str) -> WeightBre
             error: Some(e.clone()),
         },
     };
+    let wfat_balance = match &wfat_result {
+        Ok(w) => ChainBalance {
+            chain: "rope",
+            chain_id: rope_chain_id(),
+            token: wfat_token.clone(),
+            balance_wei: w.to_string(),
+            balance_human: *w as f64 / 1e18,
+            ok: true,
+            error: None,
+        },
+        Err(e) => ChainBalance {
+            chain: "rope",
+            chain_id: rope_chain_id(),
+            token: wfat_token,
+            balance_wei: "0".to_string(),
+            balance_human: 0.0,
+            ok: false,
+            error: Some(e.clone()),
+        },
+    };
 
-    let total_wei: u128 = eth_result.unwrap_or(0) + xdc_result.unwrap_or(0) + rope_result.unwrap_or(0);
-    let all_ok = eth_balance.ok && xdc_balance.ok && rope_balance.ok;
+    let total_wei: u128 = eth_result.unwrap_or(0)
+        + xdc_result.unwrap_or(0)
+        + rope_result.unwrap_or(0)
+        + wfat_result.unwrap_or(0);
+    let all_ok = eth_balance.ok && xdc_balance.ok && rope_balance.ok && wfat_balance.ok;
 
     WeightBreakdown {
         ethereum: eth_balance,
         xdc: xdc_balance,
         rope: rope_balance,
+        rope_wfat: wfat_balance,
         total_wei: total_wei.to_string(),
         total_human: total_wei as f64 / 1e18,
         all_chains_ok: all_ok,
@@ -504,7 +539,7 @@ pub async fn aggregate_weight(state: &Arc<AppState>, address: &str) -> WeightBre
 }
 
 // ============================================================================
-// HTTP handlers — wired into `main.rs` under `/api/v1/governance/*`.
+// HTTP handlers - wired into `main.rs` under `/api/v1/governance/*`.
 // ============================================================================
 
 #[derive(Debug, serde::Deserialize)]
@@ -518,7 +553,7 @@ pub struct WeightQuery {
 ///
 /// Always returns the real, live cross-chain balance breakdown. Only
 /// includes a signed on-chain attestation when `VOTE_ESCROW_ATTESTOR_PRIVATE_KEY`
-/// and (for `purpose=cast`) `VOTE_ESCROW_ADDRESS` are configured — this is
+/// and (for `purpose=cast`) `VOTE_ESCROW_ADDRESS` are configured - this is
 /// the honest Phase-2-pre-deployment state, not a stub: the aggregation is
 /// always real, the attestation is additive once the contract is live.
 pub async fn get_weight(
@@ -544,10 +579,11 @@ pub async fn get_weight(
     let purpose = query.purpose.as_deref().unwrap_or("cast");
     let now = chrono::Utc::now().timestamp();
     let expires_at = now + attestation_window_secs();
+    let voter_hex = format!("0x{}", hex::encode(voter20));
 
     let mut response = json!({
         "success": true,
-        "address": format!("0x{}", hex::encode(voter20)),
+        "address": voter_hex,
         "breakdown": breakdown,
         "weight_wei": weight_wei.to_string(),
         "weight_dc_equivalent": weight_wei as f64 / 1e18,
@@ -556,11 +592,56 @@ pub async fn get_weight(
         "attestation_available": false,
     });
 
+    if purpose == "cast" {
+        if let Some(vote_id) = query.vote_id {
+            response["vote_id"] = json!(vote_id);
+            if let Some(project) =
+                crate::governance_votes::find_project_by_escrow_vote_id(&state, vote_id).await
+            {
+                let paid_records = crate::ngo_pipeline::load_paid_rights_for_check().await;
+                let (allowed, is_juror_flag, has_paid) = crate::ngo_pipeline::voter_may_attest_cause(
+                    &project,
+                    &paid_records,
+                    vote_id,
+                    &voter_hex,
+                );
+                let mode = project
+                    .get("eligibleVoterSet")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("all_holders");
+                if !allowed {
+                    let default_fee = crate::ngo_pipeline::pay_to_vote_fee_wei();
+                    let fee = project
+                        .get("payToVoteFeeWei")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(default_fee.as_str());
+                    response["attestation_available"] = json!(false);
+                    response["attestation_unavailable_reason"] = json!(
+                        "voter is not in the jury and has not paid the vote-right fee for this cause"
+                    );
+                    response["eligibility"] = json!({
+                        "mode": mode,
+                        "is_juror": is_juror_flag,
+                        "has_paid": has_paid,
+                        "pay_to_vote_fee_wei": fee,
+                        "pay_to_vote_hint": "call VoteEscrow.payToVote or POST /api/v1/governance/escrow/pay",
+                    });
+                    return (StatusCode::OK, Json(response));
+                }
+                response["eligibility"] = json!({
+                    "mode": mode,
+                    "is_juror": is_juror_flag,
+                    "has_paid": has_paid,
+                });
+            }
+        }
+    }
+
     let contract_addr = match vote_escrow_address() {
         Some(a) => a,
         None => {
             response["attestation_unavailable_reason"] =
-                json!("VoteEscrow contract not yet deployed (VOTE_ESCROW_ADDRESS unset) — balance breakdown above is live and real.");
+                json!("VoteEscrow contract not yet deployed (VOTE_ESCROW_ADDRESS unset) - balance breakdown above is live and real.");
             return (StatusCode::OK, Json(response));
         }
     };
@@ -608,7 +689,7 @@ pub async fn get_weight(
     (StatusCode::OK, Json(response))
 }
 
-/// `GET /api/v1/governance/attestor` — public health/verification endpoint.
+/// `GET /api/v1/governance/attestor` - public health/verification endpoint.
 /// Lets anyone confirm the address this service signs with matches the
 /// `attestor` role configured on the deployed `VoteEscrow` contract,
 /// without ever exposing the private key.
@@ -640,7 +721,7 @@ mod tests {
     fn test_signing_key() -> SigningKey {
         // Fixed 32-byte scalar for deterministic cross-language verification
         // (this exact key + these exact inputs produce the digest asserted
-        // in `VoteEscrow.t.sol::test_rustGoDigestCrossCheck_*` — keep both
+        // in `VoteEscrow.t.sol::test_rustGoDigestCrossCheck_*` - keep both
         // in sync if either side's encoding ever changes).
         let mut bytes = [0u8; 32];
         bytes[31] = 0x11;
@@ -740,7 +821,7 @@ mod tests {
         assert_eq!(raw.len(), 65);
         let v = raw[64];
         assert!(v == 27 || v == 28);
-        // EIP-2 low-s check — the exact malleability bound VoteEscrow._recover enforces.
+        // EIP-2 low-s check - the exact malleability bound VoteEscrow._recover enforces.
         let s = u128::from_be_bytes(raw[48..64].try_into().unwrap());
         let s_hi = u128::from_be_bytes(raw[32..48].try_into().unwrap());
         // secp256k1 order / 2, split into hi/lo 128-bit halves for comparison

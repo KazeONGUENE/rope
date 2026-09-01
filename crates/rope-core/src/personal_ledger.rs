@@ -407,6 +407,50 @@ impl Default for EntityHeadLocks {
     }
 }
 
+/// Number of [`StringRegistry`] shards. Matches lattice / HLC / head-lock
+/// sharding (first byte of entity `id_bytes` / knot `StringId`).
+pub const REGISTRY_SHARDS: usize = 256;
+
+#[inline]
+fn registry_shard_for_id_bytes(id_bytes: &[u8]) -> usize {
+    id_bytes.first().copied().unwrap_or(0) as usize
+}
+
+#[inline]
+fn registry_shard_for_knot(knot_id: &StringId) -> usize {
+    knot_id.as_bytes()[0] as usize
+}
+
+/// One entity-keyed shard of the string registry (ledgers + indexes).
+struct RegistryEntityShard {
+    ledgers: RwLock<HashMap<(StringKind, Vec<u8>), LedgerDescriptor>>,
+    genesis_index: RwLock<HashMap<(StringKind, Vec<u8>), StringId>>,
+    head_index: RwLock<HashMap<(StringKind, Vec<u8>), StringId>>,
+}
+
+impl RegistryEntityShard {
+    fn new() -> Self {
+        Self {
+            ledgers: RwLock::new(HashMap::new()),
+            genesis_index: RwLock::new(HashMap::new()),
+            head_index: RwLock::new(HashMap::new()),
+        }
+    }
+}
+
+/// One knot-keyed shard of the reverse owner index.
+struct RegistryKnotShard {
+    knot_to_owner: RwLock<HashMap<StringId, (StringKind, Vec<u8>)>>,
+}
+
+impl RegistryKnotShard {
+    fn new() -> Self {
+        Self {
+            knot_to_owner: RwLock::new(HashMap::new()),
+        }
+    }
+}
+
 /// Registry of strings indexed by `(StringKind, id_bytes)`.
 ///
 /// Quipu Canon v1.2: every ecosystem entity that records knots — a
@@ -419,29 +463,47 @@ impl Default for EntityHeadLocks {
 /// concurrent appends to the same entity from forking its chain.
 /// See [`EntityHeadLocks`] for the lock semantics.
 ///
+/// ## 2026-07-27 — sharded maps (residual erpc 5xx P1.2)
+///
+/// The previous process-wide `RwLock` on `ledgers` / `head_index` /
+/// `knot_to_owner` forced every append to take a global exclusive write
+/// — a lock convoy matching the hang signature (100+ threads in
+/// `futex_wait`, flat RSS). Entity state is now partitioned over
+/// [`REGISTRY_SHARDS`] shards keyed by `id_bytes[0]`; the reverse
+/// knot→owner index is sharded by `StringId[0]`. Concurrent appends to
+/// distinct wallets no longer contend.
+///
 /// Thread-safe for concurrent node operation.
 pub struct StringRegistry {
-    /// Composite key = (kind, id_bytes). Keeps two distinct entities
-    /// that share the same byte-id (e.g. wallet 0xABC vs contract 0xABC)
-    /// from colliding.
-    ledgers: RwLock<HashMap<(StringKind, Vec<u8>), LedgerDescriptor>>,
-    genesis_index: RwLock<HashMap<(StringKind, Vec<u8>), StringId>>,
-    head_index: RwLock<HashMap<(StringKind, Vec<u8>), StringId>>,
-    /// Reverse lookup: which (kind, id) does a given knot belong to?
-    knot_to_owner: RwLock<HashMap<StringId, (StringKind, Vec<u8>)>>,
+    entity_shards: Box<[RegistryEntityShard]>,
+    knot_shards: Box<[RegistryKnotShard]>,
     /// Per-entity head-string locks (Quipu Canon v2.0 Phase 1.2).
     head_locks: EntityHeadLocks,
 }
 
 impl StringRegistry {
     pub fn new() -> Self {
+        let entity_shards: Vec<RegistryEntityShard> = (0..REGISTRY_SHARDS)
+            .map(|_| RegistryEntityShard::new())
+            .collect();
+        let knot_shards: Vec<RegistryKnotShard> = (0..REGISTRY_SHARDS)
+            .map(|_| RegistryKnotShard::new())
+            .collect();
         Self {
-            ledgers: RwLock::new(HashMap::new()),
-            genesis_index: RwLock::new(HashMap::new()),
-            head_index: RwLock::new(HashMap::new()),
-            knot_to_owner: RwLock::new(HashMap::new()),
+            entity_shards: entity_shards.into_boxed_slice(),
+            knot_shards: knot_shards.into_boxed_slice(),
             head_locks: EntityHeadLocks::new(),
         }
+    }
+
+    #[inline]
+    fn entity_shard(&self, id_bytes: &[u8]) -> &RegistryEntityShard {
+        &self.entity_shards[registry_shard_for_id_bytes(id_bytes)]
+    }
+
+    #[inline]
+    fn knot_shard(&self, knot_id: &StringId) -> &RegistryKnotShard {
+        &self.knot_shards[registry_shard_for_knot(knot_id)]
     }
 
     // ---------------------------------------------------------------
@@ -458,7 +520,8 @@ impl StringRegistry {
         replication_factor: u32,
     ) -> Result<LedgerDescriptor, LedgerRegistryError> {
         let key = (kind, id_bytes.to_vec());
-        let mut ledgers = self.ledgers.write();
+        let shard = self.entity_shard(id_bytes);
+        let mut ledgers = shard.ledgers.write();
         if ledgers.contains_key(&key) {
             return Err(LedgerRegistryError::AlreadyExists(format!(
                 "{}:{}",
@@ -486,9 +549,13 @@ impl StringRegistry {
         };
 
         ledgers.insert(key.clone(), descriptor.clone());
-        self.genesis_index.write().insert(key.clone(), genesis_id);
-        self.head_index.write().insert(key.clone(), genesis_id);
-        self.knot_to_owner.write().insert(genesis_id, key);
+        shard.genesis_index.write().insert(key.clone(), genesis_id);
+        shard.head_index.write().insert(key.clone(), genesis_id);
+        drop(ledgers);
+        self.knot_shard(&genesis_id)
+            .knot_to_owner
+            .write()
+            .insert(genesis_id, key);
 
         Ok(descriptor)
     }
@@ -503,34 +570,47 @@ impl StringRegistry {
         oes_generation: u64,
     ) -> Result<(), LedgerRegistryError> {
         let key = (kind, id_bytes.to_vec());
-        let mut ledgers = self.ledgers.write();
-        let desc = ledgers.get_mut(&key).ok_or_else(|| {
-            LedgerRegistryError::NotFound(format!("{}:{}", kind.as_str(), hex::encode(id_bytes)))
-        })?;
+        let shard = self.entity_shard(id_bytes);
+        {
+            let mut ledgers = shard.ledgers.write();
+            let desc = ledgers.get_mut(&key).ok_or_else(|| {
+                LedgerRegistryError::NotFound(format!(
+                    "{}:{}",
+                    kind.as_str(),
+                    hex::encode(id_bytes)
+                ))
+            })?;
 
-        if desc.is_deleted {
-            return Err(LedgerRegistryError::Deleted(format!(
-                "{}:{}",
-                kind.as_str(),
-                hex::encode(id_bytes)
-            )));
+            if desc.is_deleted {
+                return Err(LedgerRegistryError::Deleted(format!(
+                    "{}:{}",
+                    kind.as_str(),
+                    hex::encode(id_bytes)
+                )));
+            }
+
+            desc.head_string_id = new_knot_id;
+            desc.entry_count += 1;
+            desc.total_size_bytes += content_size;
+            desc.current_oes_generation = oes_generation;
+            desc.last_appended_at = chrono::Utc::now().timestamp();
         }
-
-        desc.head_string_id = new_knot_id;
-        desc.entry_count += 1;
-        desc.total_size_bytes += content_size;
-        desc.current_oes_generation = oes_generation;
-        desc.last_appended_at = chrono::Utc::now().timestamp();
-
-        self.head_index.write().insert(key.clone(), new_knot_id);
-        self.knot_to_owner.write().insert(new_knot_id, key);
+        shard.head_index.write().insert(key.clone(), new_knot_id);
+        self.knot_shard(&new_knot_id)
+            .knot_to_owner
+            .write()
+            .insert(new_knot_id, key);
 
         Ok(())
     }
 
     /// Look up the descriptor for any (kind, id).
     pub fn get_string(&self, kind: StringKind, id_bytes: &[u8]) -> Option<LedgerDescriptor> {
-        self.ledgers.read().get(&(kind, id_bytes.to_vec())).cloned()
+        self.entity_shard(id_bytes)
+            .ledgers
+            .read()
+            .get(&(kind, id_bytes.to_vec()))
+            .cloned()
     }
 
     /// Quipu Canon v2.0 Phase 1.6 — restore a string's full registry
@@ -544,27 +624,42 @@ impl StringRegistry {
     /// is a no-op returning `false`.
     pub fn restore_string_state(&self, descriptor: LedgerDescriptor, chain: &[StringId]) -> bool {
         let key = (descriptor.kind, descriptor.wallet_address.clone());
-        let mut ledgers = self.ledgers.write();
-        if ledgers.contains_key(&key) {
-            return false;
-        }
-        self.genesis_index
-            .write()
-            .insert(key.clone(), descriptor.genesis_string_id);
-        self.head_index
-            .write()
-            .insert(key.clone(), descriptor.head_string_id);
+        let shard = self.entity_shard(&descriptor.wallet_address);
         {
-            let mut owners = self.knot_to_owner.write();
-            for knot_id in chain {
-                owners.insert(*knot_id, key.clone());
+            let mut ledgers = shard.ledgers.write();
+            if ledgers.contains_key(&key) {
+                return false;
             }
-            // The genesis and head are always owned, even when the
-            // caller passed an empty chain (defensive).
-            owners.insert(descriptor.genesis_string_id, key.clone());
-            owners.insert(descriptor.head_string_id, key.clone());
+            shard
+                .genesis_index
+                .write()
+                .insert(key.clone(), descriptor.genesis_string_id);
+            shard
+                .head_index
+                .write()
+                .insert(key.clone(), descriptor.head_string_id);
+            ledgers.insert(key.clone(), descriptor.clone());
         }
-        ledgers.insert(key, descriptor);
+        // Knot reverse index is sharded by StringId[0]. Acquire shard
+        // locks in ascending index order to avoid lock-order deadlocks
+        // when a chain spans many shards.
+        let mut knot_ids: Vec<StringId> = chain.to_vec();
+        knot_ids.push(descriptor.genesis_string_id);
+        knot_ids.push(descriptor.head_string_id);
+        knot_ids.sort_by_key(|id| registry_shard_for_knot(id));
+        knot_ids.dedup();
+        let mut last_shard = None;
+        let mut owners_guard = None;
+        for knot_id in knot_ids {
+            let s_idx = registry_shard_for_knot(&knot_id);
+            if last_shard != Some(s_idx) {
+                owners_guard = Some(self.knot_shards[s_idx].knot_to_owner.write());
+                last_shard = Some(s_idx);
+            }
+            if let Some(ref mut g) = owners_guard {
+                g.insert(knot_id, key.clone());
+            }
+        }
         true
     }
 
@@ -575,7 +670,7 @@ impl StringRegistry {
         id_bytes: &[u8],
     ) -> Result<(), LedgerRegistryError> {
         let key = (kind, id_bytes.to_vec());
-        let mut ledgers = self.ledgers.write();
+        let mut ledgers = self.entity_shard(id_bytes).ledgers.write();
         let desc = ledgers.get_mut(&key).ok_or_else(|| {
             LedgerRegistryError::NotFound(format!("{}:{}", kind.as_str(), hex::encode(id_bytes)))
         })?;
@@ -586,40 +681,58 @@ impl StringRegistry {
 
     /// All descriptors of a given kind.
     pub fn descriptors_by_kind(&self, kind: StringKind) -> Vec<LedgerDescriptor> {
-        self.ledgers
-            .read()
-            .iter()
-            .filter(|((k, _), _)| *k == kind)
-            .map(|(_, d)| d.clone())
-            .collect()
+        let mut out = Vec::new();
+        for shard in self.entity_shards.iter() {
+            out.extend(
+                shard
+                    .ledgers
+                    .read()
+                    .iter()
+                    .filter(|((k, _), _)| *k == kind)
+                    .map(|(_, d)| d.clone()),
+            );
+        }
+        out
     }
 
     /// Quipu Canon v1.2 — total registered strings (across all kinds).
     pub fn strings_count(&self) -> usize {
-        self.ledgers.read().len()
+        self.entity_shards
+            .iter()
+            .map(|s| s.ledgers.read().len())
+            .sum()
     }
 
     /// Quipu Canon v1.2 — total knots, summed across all strings.
     /// Invariant: `knots_count() >= strings_count()` (each string has at
     /// least its genesis knot).
     pub fn knots_count(&self) -> u64 {
-        self.ledgers.read().values().map(|d| d.entry_count).sum()
+        self.entity_shards
+            .iter()
+            .map(|s| s.ledgers.read().values().map(|d| d.entry_count).sum::<u64>())
+            .sum()
     }
 
     /// Per-kind counts. Useful for the `rope_globalStats` RPC method.
     pub fn counts_by_kind(&self) -> HashMap<StringKind, (usize, u64)> {
         let mut out = HashMap::new();
-        for ((k, _), d) in self.ledgers.read().iter() {
-            let entry = out.entry(*k).or_insert((0usize, 0u64));
-            entry.0 += 1;
-            entry.1 += d.entry_count;
+        for shard in self.entity_shards.iter() {
+            for ((k, _), d) in shard.ledgers.read().iter() {
+                let entry = out.entry(*k).or_insert((0usize, 0u64));
+                entry.0 += 1;
+                entry.1 += d.entry_count;
+            }
         }
         out
     }
 
     /// Look up which (kind, id) owns a knot.
     pub fn owner_of_knot(&self, knot_id: &StringId) -> Option<(StringKind, Vec<u8>)> {
-        self.knot_to_owner.read().get(knot_id).cloned()
+        self.knot_shard(knot_id)
+            .knot_to_owner
+            .read()
+            .get(knot_id)
+            .cloned()
     }
 
     // ---------------------------------------------------------------
@@ -703,54 +816,76 @@ impl StringRegistry {
     /// Backward-compat: look up which wallet owns a given knot.
     /// Returns `None` if the owning string is not of `Wallet` kind.
     pub fn wallet_for_string(&self, string_id: &StringId) -> Option<Vec<u8>> {
-        self.knot_to_owner.read().get(string_id).and_then(|(k, b)| {
-            if *k == StringKind::Wallet {
-                Some(b.clone())
-            } else {
-                None
-            }
-        })
+        self.knot_shard(string_id)
+            .knot_to_owner
+            .read()
+            .get(string_id)
+            .and_then(|(k, b)| {
+                if *k == StringKind::Wallet {
+                    Some(b.clone())
+                } else {
+                    None
+                }
+            })
     }
 
     pub fn head_for_wallet(&self, wallet_address: &[u8]) -> Option<StringId> {
-        self.head_index
+        self.entity_shard(wallet_address)
+            .head_index
             .read()
             .get(&(StringKind::Wallet, wallet_address.to_vec()))
             .copied()
     }
 
     pub fn genesis_for_wallet(&self, wallet_address: &[u8]) -> Option<StringId> {
-        self.genesis_index
+        self.entity_shard(wallet_address)
+            .genesis_index
             .read()
             .get(&(StringKind::Wallet, wallet_address.to_vec()))
             .copied()
     }
 
     pub fn all_wallets(&self) -> Vec<Vec<u8>> {
-        self.ledgers
-            .read()
-            .iter()
-            .filter(|((k, _), _)| *k == StringKind::Wallet)
-            .map(|((_, b), _)| b.clone())
-            .collect()
+        let mut out = Vec::new();
+        for shard in self.entity_shards.iter() {
+            out.extend(
+                shard
+                    .ledgers
+                    .read()
+                    .iter()
+                    .filter(|((k, _), _)| *k == StringKind::Wallet)
+                    .map(|((_, b), _)| b.clone()),
+            );
+        }
+        out
     }
 
     /// Count of active (non-deleted) wallet ledgers.
     pub fn active_count(&self) -> usize {
-        self.ledgers
-            .read()
+        self.entity_shards
             .iter()
-            .filter(|((k, _), d)| *k == StringKind::Wallet && !d.is_deleted)
-            .count()
+            .map(|s| {
+                s.ledgers
+                    .read()
+                    .iter()
+                    .filter(|((k, _), d)| *k == StringKind::Wallet && !d.is_deleted)
+                    .count()
+            })
+            .sum()
     }
 
     /// Count of all wallet ledgers.
     pub fn total_count(&self) -> usize {
-        self.ledgers
-            .read()
+        self.entity_shards
             .iter()
-            .filter(|((k, _), _)| *k == StringKind::Wallet)
-            .count()
+            .map(|s| {
+                s.ledgers
+                    .read()
+                    .iter()
+                    .filter(|((k, _), _)| *k == StringKind::Wallet)
+                    .count()
+            })
+            .sum()
     }
 }
 

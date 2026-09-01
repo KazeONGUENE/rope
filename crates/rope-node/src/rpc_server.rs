@@ -22,14 +22,20 @@ use crate::entity_labels::{self, EntityLabel, LabelKind, LabelRegistry};
 use crate::evm_backend::EvmBackend;
 use crate::governance::{Authorized, GovernanceAction, GovernanceManager};
 use crate::ledger_manager::LedgerManager;
+use crate::ws_subscription_bridge::{BridgeWriteFrame, SubscriptionBridge};
 use rope_ai_framework::AgentFramework;
 use rope_iot_gateway::IoTGateway;
 use sha1::{Digest, Sha1};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, OnceLock};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::sync::{broadcast, RwLock};
+// `AsyncWrite` is imported (in addition to `AsyncWriteExt`) so
+// `send_websocket_frame` can accept any `impl AsyncWrite + Unpin` —
+// specifically the `OwnedWriteHalf` produced by `TcpStream::into_split`
+// in the refactored per-connection writer task that unblocks
+// server-initiated `eth_subscription` push frames on `wss://ws.datachain.network`.
+use tokio::io::{AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::sync::{broadcast, mpsc, RwLock};
 
 /// The CERBER WATCH gate — one process-wide [`rope_security::guard::RequestGuard`]
 /// shared by every connection handler. Seeded with
@@ -67,6 +73,22 @@ fn request_guard() -> &'static rope_security::guard::RequestGuard {
 /// `X-Rope-RPC-Version` HTTP response header and via the response of
 /// the `rpc_methods` discovery method.
 pub const ROPE_RPC_API_VERSION: &str = "1.4.0";
+
+/// JSON-RPC `-32005` = retryable ledger overload (queue full).
+/// Message carries `Retry-After: 1` for HTTP-aware proxies/clients.
+fn jsonrpc_ledger_err(id: &serde_json::Value, e: String) -> String {
+    let code = if e.contains("OVERLOAD:") {
+        -32005
+    } else {
+        -32603
+    };
+    serde_json::json!({
+        "jsonrpc": "2.0",
+        "error": { "code": code, "message": e },
+        "id": id
+    })
+    .to_string()
+}
 
 /// RPC Server with mTLS and WebSocket support
 pub struct RpcServer {
@@ -371,6 +393,54 @@ impl RpcServer {
 
         tracing::info!("RPC server ready (JSON-RPC HTTP + WebSocket)");
 
+        // Loopback probe port (sync thread) — immune to Tokio pool saturation.
+        crate::probe_listener::spawn_probe_listener(self.handlers.block_number.clone());
+
+        // Background tip refresh: keeps `block_number` warm even when the HTTP
+        // accept/handler pool is contended, so HA probes and eth_blockNumber
+        // fast-path can answer from cache without wedging on Reth.
+        {
+            let tip_handlers = self.handlers.clone();
+            tokio::spawn(async move {
+                let req = serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "method": "eth_blockNumber",
+                    "params": [],
+                    "id": 0
+                });
+                let mut tick = tokio::time::interval(std::time::Duration::from_secs(2));
+                tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+                loop {
+                    tick.tick().await;
+                    let Some(evm) = tip_handlers.evm_backend.as_ref() else {
+                        continue;
+                    };
+                    if !evm.is_healthy() {
+                        continue;
+                    }
+                    match tokio::time::timeout(
+                        std::time::Duration::from_secs(1),
+                        evm.forward_request(&req),
+                    )
+                    .await
+                    {
+                        Ok(Ok(response)) => {
+                            if let Some(hex_str) =
+                                response.get("result").and_then(|v| v.as_str())
+                            {
+                                if let Ok(n) =
+                                    u64::from_str_radix(hex_str.trim_start_matches("0x"), 16)
+                                {
+                                    *tip_handlers.block_number.write() = n;
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            });
+        }
+
         let http_handlers = self.handlers.clone();
         let http_rate_limiter = self.rate_limiter.clone();
         let http_metrics = self.metrics.clone();
@@ -457,6 +527,7 @@ impl RpcServer {
 
                             if let Err(e) = handle_websocket_connection(
                                 stream,
+                                peer_addr,
                                 handlers,
                                 metrics.clone(),
                                 broadcast,
@@ -915,7 +986,7 @@ async fn handle_connection(
                 Access-Control-Allow-Headers: Content-Type\r\n\
                 Access-Control-Expose-Headers: X-Rope-RPC-Version\r\n\
                 X-Rope-RPC-Version: {}\r\n\
-                Cache-Control: public, max-age=2\r\n\
+                Cache-Control: no-store\r\n\
                 Content-Length: {}\r\n\r\n{}",
                 ROPE_RPC_API_VERSION,
                 json_response.len(),
@@ -972,6 +1043,7 @@ const MAX_WS_CONTROL_FRAME_PAYLOAD_BYTES: usize = 125;
 
 async fn handle_websocket_connection(
     mut stream: tokio::net::TcpStream,
+    peer_addr: SocketAddr,
     handlers: Arc<RpcHandlers>,
     metrics: Arc<RwLock<RpcMetrics>>,
     _broadcast: broadcast::Sender<String>,
@@ -984,6 +1056,44 @@ async fn handle_websocket_connection(
     }
 
     let request = String::from_utf8_lossy(&buf[..n]);
+
+    // V11 (2026-08-11 ws.datachain.network fix): mirror the HTTP-listener
+    // rule so the WS listener can be exposed publicly via nginx safely.
+    // Compute `is_internal` from the same two signals as the HTTP path:
+    //   1. Peer address is loopback (127.0.0.0/8 or ::1) AND the HTTP
+    //      upgrade request carries no `X-Forwarded-For` / `X-Real-IP`.
+    //      nginx ALWAYS sets X-Forwarded-For on public traffic, so a
+    //      missing XFF on a loopback connection means the caller is a
+    //      co-located agent speaking straight to 127.0.0.1:8546.
+    //   2. `X-Rope-Internal-Token` header matches the env-var secret
+    //      (constant-time compare); nginx strips this header on the
+    //      public location, so it can only be set by trusted callers.
+    // We fail-closed: if neither rule fires, destructive `rope_*`
+    // methods hit the `-32401` gate exactly like on the HTTP listener.
+    let headers_end = request.find("\r\n\r\n").unwrap_or(request.len());
+    let headers = &request[..headers_end];
+    let has_x_forwarded_for = headers.lines().any(|l| {
+        let lc = l.to_ascii_lowercase();
+        lc.starts_with("x-forwarded-for:") || lc.starts_with("x-real-ip:")
+    });
+    let presented_token = headers
+        .lines()
+        .find(|l| {
+            let h = crate::rpc_auth::INTERNAL_AUTH_HEADER;
+            l.len() > h.len()
+                && l[..h.len()].eq_ignore_ascii_case(h)
+                && l.as_bytes()[h.len()] == b':'
+        })
+        .map(|l| {
+            l[crate::rpc_auth::INTERNAL_AUTH_HEADER.len() + 1..]
+                .trim()
+                .to_string()
+        })
+        .unwrap_or_default();
+    let token_matches = !presented_token.is_empty()
+        && crate::rpc_auth::internal_token_matches(&presented_token);
+    let peer_is_loopback = peer_addr.ip().is_loopback();
+    let is_internal = token_matches || (peer_is_loopback && !has_x_forwarded_for);
 
     if request.contains("Upgrade: websocket") {
         let key = request
@@ -1009,9 +1119,41 @@ async fn handle_websocket_connection(
             m.active_connections += 1;
         }
 
+        // Split the client TCP stream so the reader can keep parsing
+        // frames while a dedicated writer task pushes outbound frames
+        // driven from three independent sources:
+        //   (1) the reader loop's JSON-RPC responses,
+        //   (2) the SubscriptionBridge's `eth_subscribe`/
+        //       `eth_unsubscribe` replies and forwarded `eth_subscription`
+        //       push notifications from Reth (this is what fixes the
+        //       ChainList red-Score badge on wss://ws.datachain.network),
+        //   (3) pong replies to client pings + the final close frame.
+        // Unbounded channel is bounded in practice by per-connection
+        // subscription rate; no cross-connection sharing.
+        let (raw_read, raw_write) = stream.into_split();
+        let mut reader = raw_read;
+        let (write_tx, write_rx) = mpsc::unbounded_channel::<WsWriteFrame>();
+        let writer_task = tokio::spawn(ws_writer_task(raw_write, write_rx));
+
+        // Per-connection subscription bridge to Reth's `--ws` port. Lazy:
+        // no upstream TCP connection is opened until the client actually
+        // sends `eth_subscribe`. If the operator has disabled the bridge
+        // (`ROPE_RETH_WS_URL=""` or `[evm_backend].ws_url = ""`), the
+        // bridge still exists but `handle()` will return a canonical
+        // `-32601` for subscribe / unsubscribe, matching the "method
+        // unavailable" wire shape the client expects.
+        let reth_ws_url = handlers
+            .evm_backend
+            .as_ref()
+            .and_then(|b| b.reth_ws_url().map(|s| s.to_string()));
+        let bridge_write_tx = bridge_writer_adapter(write_tx.clone());
+        let bridge = SubscriptionBridge::new(reth_ws_url, bridge_write_tx);
+
+        let mut close_requested = false;
+
         loop {
             let mut header = [0u8; 2];
-            if stream.read_exact(&mut header).await.is_err() {
+            if reader.read_exact(&mut header).await.is_err() {
                 break;
             }
 
@@ -1022,13 +1164,13 @@ async fn handle_websocket_connection(
 
             if payload_len == 126 {
                 let mut ext = [0u8; 2];
-                if stream.read_exact(&mut ext).await.is_err() {
+                if reader.read_exact(&mut ext).await.is_err() {
                     break;
                 }
                 payload_len = u16::from_be_bytes(ext) as usize;
             } else if payload_len == 127 {
                 let mut ext = [0u8; 8];
-                if stream.read_exact(&mut ext).await.is_err() {
+                if reader.read_exact(&mut ext).await.is_err() {
                     break;
                 }
                 payload_len = u64::from_be_bytes(ext) as usize;
@@ -1051,22 +1193,24 @@ async fn handle_websocket_connection(
                     opcode,
                     "WebSocket frame exceeds cap; closing connection (code 1009)"
                 );
-                // 1009 = "Message Too Big" per RFC 6455 §7.4.1. Best-effort:
-                // if the peer already vanished this may fail, which is fine
-                // since we're closing the connection either way.
-                let _ = send_websocket_frame(&mut stream, 0x8, &1009u16.to_be_bytes()).await;
+                // 1009 = "Message Too Big" per RFC 6455 §7.4.1. Best-effort
+                // send: if the writer channel has already been closed
+                // (client dropped after sending only the header) the
+                // error is fine — we're breaking either way.
+                let _ = write_tx.send(WsWriteFrame::close(1009));
+                close_requested = true;
                 break;
             }
 
             let mut mask_key = [0u8; 4];
             if masked {
-                if stream.read_exact(&mut mask_key).await.is_err() {
+                if reader.read_exact(&mut mask_key).await.is_err() {
                     break;
                 }
             }
 
             let mut payload = vec![0u8; payload_len];
-            if !payload.is_empty() && stream.read_exact(&mut payload).await.is_err() {
+            if !payload.is_empty() && reader.read_exact(&mut payload).await.is_err() {
                 break;
             }
 
@@ -1080,27 +1224,73 @@ async fn handle_websocket_connection(
                 0x1 | 0x2 => {
                     if fin {
                         let request_str = String::from_utf8_lossy(&payload);
-                        // V11: WebSocket listener is bound 127.0.0.1 only,
-                        // so all callers are local. Treat as internal.
-                        let response = handlers
-                            .handle_json_rpc_with_auth(&request_str, true)
-                            .await;
-
-                        send_websocket_frame(&mut stream, 0x1, response.as_bytes()).await?;
-
+                        // Route `eth_subscribe` / `eth_unsubscribe` to
+                        // the bridge; everything else stays on the
+                        // existing dispatcher.
+                        //
+                        // The bridge's return value is the JSON-RPC
+                        // *acknowledgement* text (subscription id for
+                        // `eth_subscribe`, boolean result for
+                        // `eth_unsubscribe`, or a canonical error). The
+                        // subsequent `eth_subscription` push
+                        // notifications are pumped independently
+                        // through the bridge's own `to_client` channel
+                        // (adapted into `write_tx` by
+                        // `bridge_writer_adapter` above), so they land
+                        // on the same TCP writer without going through
+                        // the reader loop again.
+                        if let Some((method, request_id)) =
+                            parse_subscription_request(&request_str)
                         {
-                            let mut m = metrics.write().await;
-                            m.total_requests += 1;
-                            m.successful_requests += 1;
+                            let response = bridge
+                                .handle(&method, &request_str, request_id)
+                                .await;
+                            if write_tx.send(WsWriteFrame::Text(response)).is_err() {
+                                // Writer task exited (client gone or
+                                // channel closed by shutdown path). We
+                                // can't deliver anything else on this
+                                // connection — bail out cleanly.
+                                break;
+                            }
+                            {
+                                let mut m = metrics.write().await;
+                                m.total_requests += 1;
+                                m.successful_requests += 1;
+                            }
+                        } else {
+                            // V11 (2026-08-11): auth signal is computed
+                            // at handshake time (peer address + XFF +
+                            // internal token). Direct-loopback callers
+                            // stay internal; nginx-proxied public WS is
+                            // treated as external and hits the
+                            // destructive-RPC gate.
+                            let response = handlers
+                                .handle_json_rpc_with_auth(&request_str, is_internal)
+                                .await;
+                            if write_tx.send(WsWriteFrame::Text(response)).is_err() {
+                                break;
+                            }
+                            {
+                                let mut m = metrics.write().await;
+                                m.total_requests += 1;
+                                m.successful_requests += 1;
+                            }
                         }
                     }
                 }
                 0x8 => {
-                    send_websocket_frame(&mut stream, 0x8, &[]).await?;
+                    // Peer initiated the close; echo an empty close and
+                    // exit. Per RFC 6455 §5.5.1 the response may carry a
+                    // status code but is not required to; we mirror the
+                    // pre-refactor behaviour of sending an empty close.
+                    let _ = write_tx.send(WsWriteFrame::Close(Vec::new()));
+                    close_requested = true;
                     break;
                 }
                 0x9 => {
-                    send_websocket_frame(&mut stream, 0xA, &payload).await?;
+                    if write_tx.send(WsWriteFrame::Pong(payload)).is_err() {
+                        break;
+                    }
                 }
                 0xA => {}
                 _ => {
@@ -1109,6 +1299,29 @@ async fn handle_websocket_connection(
             }
         }
 
+        // Shutdown sequence — order matters:
+        //   1. Drop the subscription bridge first: this closes its
+        //      internal command channel, which lets the pump task drop
+        //      the upstream WSS connection to Reth cleanly (no
+        //      dangling subscriptions server-side).
+        drop(bridge);
+        //   2. Drop the writer's send side: after this the writer task
+        //      will drain any remaining queued frames (e.g. the Close
+        //      frame we just enqueued on the oversized-frame path) and
+        //      then observe recv() -> None and exit.
+        drop(write_tx);
+        //   3. Await the writer task with a bounded timeout so a stuck
+        //      TCP socket can't wedge the connection cleanup forever.
+        //      The timeout also guarantees the oversized-frame
+        //      regression test's `server_task` completes within its own
+        //      5s deadline.
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(5), writer_task).await;
+
+        // Suppress unused-variable warning on the shutdown-only local.
+        // Kept as a named binding so a future maintainer sees that the
+        // reader loop explicitly tracks whether a close was queued.
+        let _ = close_requested;
+
         {
             let mut m = metrics.write().await;
             m.active_connections = m.active_connections.saturating_sub(1);
@@ -1116,9 +1329,11 @@ async fn handle_websocket_connection(
     } else {
         let body_start = request.find("\r\n\r\n").map(|i| i + 4).unwrap_or(0);
         let body = &request[body_start..];
-        // V11: this branch lives on the WebSocket listener (loopback-only),
-        // so the caller is internal by binding.
-        let json_response = handlers.handle_json_rpc_with_auth(body, true).await;
+        // V11 (2026-08-11): fallback branch (plain HTTP JSON-RPC hitting
+        // the WS port). Same `is_internal` computed above applies; the
+        // destructive gate runs when the caller is not loopback + no
+        // XFF + no matching internal token.
+        let json_response = handlers.handle_json_rpc_with_auth(body, is_internal).await;
 
         let response = format!(
             "HTTP/1.1 200 OK\r\n\
@@ -1128,7 +1343,7 @@ async fn handle_websocket_connection(
             Access-Control-Allow-Headers: Content-Type\r\n\
             Access-Control-Expose-Headers: X-Rope-RPC-Version\r\n\
             X-Rope-RPC-Version: {}\r\n\
-            Cache-Control: public, max-age=2\r\n\
+            Cache-Control: no-store\r\n\
             Content-Length: {}\r\n\r\n{}",
             ROPE_RPC_API_VERSION,
             json_response.len(),
@@ -1153,11 +1368,24 @@ fn generate_websocket_accept_key(key: &str) -> String {
     general_purpose::STANDARD.encode(result)
 }
 
-async fn send_websocket_frame(
-    stream: &mut tokio::net::TcpStream,
-    opcode: u8,
-    payload: &[u8],
-) -> anyhow::Result<()> {
+/// Frame a single, unfragmented WebSocket message (FIN=1) with `opcode`
+/// and `payload`, then write it to `stream`. Generic over `AsyncWrite`
+/// so the same helper works both on the raw `TcpStream` (used by the
+/// oversized-frame regression test) and on the `OwnedWriteHalf` owned by
+/// the per-connection writer task in `handle_websocket_connection` (the
+/// path that lets `eth_subscription` push notifications from Reth reach
+/// the client concurrently with the reader loop).
+///
+/// Only used server-side, so frames are never masked (mask bit stays 0)
+/// per RFC 6455 §5.1. Uses 16-bit extended length for payloads in
+/// [126, 65_536) and 64-bit extended length for payloads at or above
+/// 65_536; frames larger than `MAX_WS_FRAME_PAYLOAD_BYTES` are already
+/// rejected upstream in the reader loop, so this helper does no cap
+/// enforcement of its own.
+async fn send_websocket_frame<S>(stream: &mut S, opcode: u8, payload: &[u8]) -> anyhow::Result<()>
+where
+    S: AsyncWrite + Unpin,
+{
     let mut frame = Vec::new();
 
     frame.push(0x80 | opcode);
@@ -1177,6 +1405,162 @@ async fn send_websocket_frame(
 
     stream.write_all(&frame).await?;
     Ok(())
+}
+
+/// A WebSocket frame that the per-connection writer task can be asked to
+/// emit toward the client. Kept intentionally small (three variants only):
+/// the reader loop, the `SubscriptionBridge` upstream pump, and the
+/// shutdown path each pick exactly one variant. Anything richer (e.g.
+/// server-initiated pings, fragmented text) would grow this enum and
+/// belongs in a future revision, not in the ChainList-red-Score fix.
+#[derive(Debug)]
+enum WsWriteFrame {
+    /// A complete text frame (opcode 0x1, FIN=1). Used for JSON-RPC
+    /// responses (from the reader loop's dispatch to
+    /// `handle_json_rpc_with_auth` and from the `SubscriptionBridge`'s
+    /// `eth_subscribe` / `eth_unsubscribe` reply) and for the
+    /// server-initiated `eth_subscription` push notifications the bridge
+    /// forwards from Reth verbatim.
+    Text(String),
+    /// A pong frame (opcode 0xA) in response to a client-initiated ping.
+    /// Payload is echoed back exactly per RFC 6455 §5.5.3.
+    Pong(Vec<u8>),
+    /// A close frame (opcode 0x8). The two-byte payload carries the
+    /// RFC 6455 status code (big-endian) — 1000 for normal closure,
+    /// 1009 for "Message Too Big" when the reader tripped
+    /// `MAX_WS_FRAME_PAYLOAD_BYTES`. Empty payload means "close without
+    /// status code" (still legal per §5.5.1). After the writer emits a
+    /// close frame it exits its loop.
+    Close(Vec<u8>),
+}
+
+impl WsWriteFrame {
+    /// Convenience: build a close frame carrying a big-endian status
+    /// code. Kept here instead of at call sites so the two current
+    /// callers (oversized-frame path + shutdown path) can't disagree on
+    /// byte layout.
+    fn close(status: u16) -> Self {
+        WsWriteFrame::Close(status.to_be_bytes().to_vec())
+    }
+}
+
+/// Adapter that lets the [`SubscriptionBridge`] push
+/// [`BridgeWriteFrame`] payloads onto the same per-connection writer
+/// channel that carries the reader loop's own JSON-RPC responses.
+///
+/// The bridge's `to_client` channel deliberately carries only "text
+/// payload" — its wire type is `BridgeWriteFrame { text: String }` —
+/// because the bridge is oblivious to WebSocket framing details like
+/// pong / close opcodes (those are pure client-facing concerns owned
+/// by the reader loop). This adapter spawns a small task that
+/// republishes every bridge text payload as a `WsWriteFrame::Text` on
+/// the writer's mpsc, so:
+///
+///   * the writer task stays oblivious to who produced a text frame
+///     (reader response, subscribe/unsubscribe reply, or forwarded
+///     `eth_subscription` push notification) — they're all serialised
+///     through a single per-connection queue, preserving RFC 6455
+///     "messages arrive in send order" for that connection;
+///   * the bridge stays wire-format-agnostic — a future rewrite that
+///     switches text→binary frames touches only the writer task and
+///     `send_websocket_frame`, not the bridge.
+///
+/// Task lifetime: the adapter task exits as soon as either side's
+/// channel is closed. Both `bridge_tx` (returned) and `tx` (writer)
+/// dropping triggers a clean exit, matching the shutdown sequence in
+/// `handle_websocket_connection`.
+fn bridge_writer_adapter(
+    tx: mpsc::UnboundedSender<WsWriteFrame>,
+) -> mpsc::UnboundedSender<BridgeWriteFrame> {
+    let (bridge_tx, mut bridge_rx) = mpsc::unbounded_channel::<BridgeWriteFrame>();
+    tokio::spawn(async move {
+        while let Some(BridgeWriteFrame { text }) = bridge_rx.recv().await {
+            // If the writer channel has been dropped (client
+            // disconnected, close frame already sent) there is nothing
+            // sensible to do but drop the notification; the bridge
+            // itself will discover the closure the next time its own
+            // upstream socket produces a frame and shut down cleanly.
+            if tx.send(WsWriteFrame::Text(text)).is_err() {
+                break;
+            }
+        }
+    });
+    bridge_tx
+}
+
+/// Per-connection writer task. Owns the write half of the client TCP
+/// stream and drains a single `mpsc::UnboundedReceiver<WsWriteFrame>`
+/// until either a `Close` frame is emitted or the sender side is
+/// dropped. Kept intentionally simple: one task per connection, no
+/// batching, no back-pressure past the (unbounded) channel — the only
+/// producers are the reader loop and the bridge, and both are
+/// per-connection, so unbounded is bounded in practice by the client's
+/// own subscription rate.
+async fn ws_writer_task<W>(mut write_half: W, mut rx: mpsc::UnboundedReceiver<WsWriteFrame>)
+where
+    W: AsyncWrite + Unpin + Send + 'static,
+{
+    while let Some(frame) = rx.recv().await {
+        let result = match &frame {
+            WsWriteFrame::Text(text) => {
+                send_websocket_frame(&mut write_half, 0x1, text.as_bytes()).await
+            }
+            WsWriteFrame::Pong(payload) => {
+                send_websocket_frame(&mut write_half, 0xA, payload).await
+            }
+            WsWriteFrame::Close(payload) => {
+                send_websocket_frame(&mut write_half, 0x8, payload).await
+            }
+        };
+        if let Err(e) = result {
+            tracing::debug!(
+                target: "rope_node::rpc_server",
+                error = %e,
+                "ws writer: write failed; closing writer task"
+            );
+            break;
+        }
+        if matches!(frame, WsWriteFrame::Close(_)) {
+            // After a Close frame we drain nothing further; the reader
+            // side is already breaking its loop and dropping the tx.
+            break;
+        }
+    }
+}
+
+/// Inspect a JSON-RPC request body and, if it targets the two Reth
+/// subscription methods that Datachain Rope's own dispatcher does not
+/// implement (`eth_subscribe` / `eth_unsubscribe`), return the parsed
+/// value and method name so the caller can hand them to the
+/// `SubscriptionBridge`. Any other request — including malformed JSON —
+/// returns `None`, letting the caller fall through to
+/// `handle_json_rpc_with_auth` unchanged. Deliberately scoped to those
+/// two methods so a future dispatcher addition can't be accidentally
+/// stolen by the bridge.
+/// Parse a raw JSON-RPC request text just enough to decide whether the
+/// subscription bridge should own it, and extract the pieces
+/// [`SubscriptionBridge::handle`] needs.
+///
+/// Returns `Some((method, id))` iff `body` is a syntactically valid
+/// JSON-RPC request whose `method` is one that
+/// [`SubscriptionBridge::is_bridged_method`] recognises
+/// (`eth_subscribe` / `eth_unsubscribe`). `id` is left as [`serde_json::Value::Null`]
+/// when the caller omitted it (matches JSON-RPC 2.0 §4.2 notification
+/// semantics), so `handle` still has something to echo back on error.
+///
+/// Non-bridged methods (or invalid JSON) return `None` and fall through
+/// to the standard dispatcher unchanged. Crucially, we do NOT parse the
+/// full request here — the bridge forwards the raw bytes verbatim to
+/// Reth to avoid any semantic drift between serialize/deserialize
+/// round-trips (e.g. accidental id-type coercion).
+fn parse_subscription_request(body: &str) -> Option<(String, serde_json::Value)> {
+    let value: serde_json::Value = serde_json::from_str(body).ok()?;
+    let method = value.get("method")?.as_str()?;
+    if !SubscriptionBridge::is_bridged_method(method) {
+        return None;
+    }
+    let id = value.get("id").cloned().unwrap_or(serde_json::Value::Null);
+    Some((method.to_string(), id))
 }
 
 // ============================================================================
@@ -1702,6 +2086,7 @@ impl RpcHandlers {
             "rope_anchorDeployerAttestation",
             "rope_listDeployerAttestations",
             "rope_governanceInfo",
+            "rope_latticeMetrics",
             "rope_listMasterNodes",
             "rope_nodeIdentity",
             "rope_suspendNode",
@@ -1906,8 +2291,9 @@ impl RpcHandlers {
                     .cloned()
                     .unwrap_or(serde_json::Value::Null);
                 let verifier = self.auth_verifier();
-                match crate::rpc_signature::verify_destructive_call(
+                match crate::rpc_signature::verify_destructive_call_for_chain(
                     &verifier,
+                    self.chain_id,
                     method,
                     &params_value,
                 ) {
@@ -2022,8 +2408,15 @@ impl RpcHandlers {
                 } else {
                     request.clone()
                 };
-                match self.delegate_to_evm(&upstream_request).await {
-                    EvmResult::Ok(result) => {
+                let cached = *self.block_number.read();
+                // Health probes and nginx upstream checks must not queue behind
+                // heavy rope_* work. Prefer a fresh Reth tip, but fall back to
+                // the background-refreshed cache within 800ms.
+                const TIP_PROBE_BUDGET: std::time::Duration = std::time::Duration::from_millis(800);
+                match tokio::time::timeout(TIP_PROBE_BUDGET, self.delegate_to_evm(&upstream_request))
+                    .await
+                {
+                    Ok(EvmResult::Ok(result)) => {
                         if let Some(hex_str) = result.as_str() {
                             if let Ok(n) = u64::from_str_radix(hex_str.trim_start_matches("0x"), 16)
                             {
@@ -2032,12 +2425,15 @@ impl RpcHandlers {
                         }
                         result
                     }
-                    EvmResult::EvmError(e) => {
+                    Ok(EvmResult::EvmError(e)) => {
                         return serde_json::json!({"jsonrpc":"2.0","error":e,"id":id}).to_string();
                     }
-                    EvmResult::Unavailable => {
-                        let num = *self.block_number.read();
-                        serde_json::json!(format!("0x{:x}", num))
+                    Ok(EvmResult::Unavailable) | Err(_) => {
+                        if cached > 0 {
+                            serde_json::json!(format!("0x{:x}", cached))
+                        } else {
+                            serde_json::json!(format!("0x{:x}", cached.max(1)))
+                        }
                     }
                 }
             }
@@ -2674,16 +3070,33 @@ impl RpcHandlers {
                 if owner.is_empty() {
                     return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32602,"message":"Missing owner address parameter"},"id":id}).to_string();
                 }
-                match ledger.create_ledger(owner) {
-                    Ok(_) => {
+                // 2026-07-26 deadlock/5xx fix: route ledger mutators
+                // through `spawn_blocking` so Condvar durability waits
+                // never park a tokio worker.
+                // 2026-07-27 P1: create/append default to ack-after-
+                // enqueue (`ROPE_SYNC_DURABILITY` unset), so the blocking
+                // pool is not saturated by 5s fsync waits under Quipu
+                // bursts. `spawn_blocking` remains as defence in depth
+                // for CPU-heavy encrypt/OES work and for
+                // `ROPE_SYNC_DURABILITY=1` / GDPR paths.
+                let ledger_bg = ledger.clone();
+                let owner_owned = owner.to_string();
+                let create_result =
+                    tokio::task::spawn_blocking(move || ledger_bg.create_ledger(&owner_owned))
+                        .await;
+                match create_result {
+                    Ok(Ok(_)) => {
                         let now = chrono::Utc::now().timestamp();
                         serde_json::json!({"owner": owner, "created_at": now})
                     }
-                    Err(e) if e.contains("already exists") => {
+                    Ok(Err(e)) if e.contains("already exists") => {
                         return serde_json::json!({"jsonrpc":"2.0","error":{"code":2001,"message":"Ledger already exists for this address"},"id":id}).to_string();
                     }
-                    Err(e) => {
-                        return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32603,"message":e},"id":id}).to_string();
+                    Ok(Err(e)) => {
+                        return jsonrpc_ledger_err(&id, e);
+                    }
+                    Err(join_err) => {
+                        return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32603,"message":format!("internal: ledger task failed: {join_err}")},"id":id}).to_string();
                     }
                 }
             }
@@ -2765,19 +3178,30 @@ impl RpcHandlers {
                     },
                 };
 
-                match ledger.append_to_ledger(owner, record) {
-                    Ok(resp) => serde_json::json!({
+                // 2026-07-26 / 2026-07-27: see `rope_createPersonalLedger`
+                // — `spawn_blocking` + ack-after-enqueue (default).
+                let ledger_bg = ledger.clone();
+                let owner_owned = owner.to_string();
+                let append_result = tokio::task::spawn_blocking(move || {
+                    ledger_bg.append_to_ledger(&owner_owned, record)
+                })
+                .await;
+                match append_result {
+                    Ok(Ok(resp)) => serde_json::json!({
                         "index": resp.piece_count,
                         "hash": resp.string_id
                     }),
-                    Err(e) if e.contains("No ledger") => {
+                    Ok(Err(e)) if e.contains("No ledger") => {
                         return serde_json::json!({"jsonrpc":"2.0","error":{"code":2002,"message":"No ledger found for this address"},"id":id}).to_string();
                     }
-                    Err(e) if e.contains("deleted") => {
+                    Ok(Err(e)) if e.contains("deleted") => {
                         return serde_json::json!({"jsonrpc":"2.0","error":{"code":2003,"message":"Ledger has been deleted"},"id":id}).to_string();
                     }
-                    Err(e) => {
-                        return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32603,"message":e},"id":id}).to_string();
+                    Ok(Err(e)) => {
+                        return jsonrpc_ledger_err(&id, e);
+                    }
+                    Err(join_err) => {
+                        return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32603,"message":format!("internal: ledger task failed: {join_err}")},"id":id}).to_string();
                     }
                 }
             }
@@ -2944,8 +3368,17 @@ impl RpcHandlers {
                      Operator MUST front this RPC with an authenticated proxy or restrict to private network."
                 );
                 use rope_protocols::ledger_lifecycle::DeletionReason;
-                match ledger.erase_ledger(owner, DeletionReason::OwnerRequest) {
-                    Ok(resp) => serde_json::json!({
+                // 2026-07-26: see the `rope_createPersonalLedger` comment
+                // above — `erase_ledger` also calls `await_all_durable`
+                // (up to 10s here) and must not block a tokio worker.
+                let ledger_bg = ledger.clone();
+                let owner_owned = owner.to_string();
+                let erase_result = tokio::task::spawn_blocking(move || {
+                    ledger_bg.erase_ledger(&owner_owned, DeletionReason::OwnerRequest)
+                })
+                .await;
+                match erase_result {
+                    Ok(Ok(resp)) => serde_json::json!({
                         "owner": resp.wallet_address,
                         "erased_fragments": resp.entries_erased,
                         "audit_hash": format!("0x{}", resp.audit_hash),
@@ -2955,14 +3388,17 @@ impl RpcHandlers {
                         "canon": "v1.1 §6 — explicit wallet-closure, equivalent to closing the account. For granular per-event erasure, use rope_untieKnot.",
                         "auth_method": "phase-1-trusted-proxy"
                     }),
-                    Err(e) if e.contains("No ledger") => {
+                    Ok(Err(e)) if e.contains("No ledger") => {
                         return serde_json::json!({"jsonrpc":"2.0","error":{"code":2002,"message":"No ledger found for this address"},"id":id}).to_string();
                     }
-                    Err(e) if e.contains("already deleted") => {
+                    Ok(Err(e)) if e.contains("already deleted") => {
                         return serde_json::json!({"jsonrpc":"2.0","error":{"code":2003,"message":"Ledger already deleted"},"id":id}).to_string();
                     }
-                    Err(e) => {
+                    Ok(Err(e)) => {
                         return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32603,"message":e},"id":id}).to_string();
+                    }
+                    Err(join_err) => {
+                        return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32603,"message":format!("internal: ledger task failed: {join_err}")},"id":id}).to_string();
                     }
                 }
             }
@@ -3039,8 +3475,19 @@ impl RpcHandlers {
                      See rpc_server.rs `rope_untieKnot` doc-comment."
                 );
 
-                match ledger.untie_knot(owner, knot_id, reason) {
-                    Ok(resp) => serde_json::json!({
+                // 2026-07-26: see the `rope_createPersonalLedger` comment
+                // above — `untie_knot` also calls `await_all_durable`
+                // (up to 10s here) and must not block a tokio worker.
+                let ledger_bg = ledger.clone();
+                let owner_owned = owner.to_string();
+                let knot_id_owned = knot_id.to_string();
+                let reason_owned = reason.to_string();
+                let untie_result = tokio::task::spawn_blocking(move || {
+                    ledger_bg.untie_knot(&owner_owned, &knot_id_owned, &reason_owned)
+                })
+                .await;
+                match untie_result {
+                    Ok(Ok(resp)) => serde_json::json!({
                         "wallet_address": resp.wallet_address,
                         "knot_string_id": format!("0x{}", resp.knot_string_id),
                         "tombstone_audit_hash": format!("0x{}", resp.tombstone_audit_hash),
@@ -3053,23 +3500,26 @@ impl RpcHandlers {
                         "scope": "single_knot",
                         "auth_method": "phase-1-trusted-proxy"
                     }),
-                    Err(e) if e.contains("No ledger") => {
+                    Ok(Err(e)) if e.contains("No ledger") => {
                         return serde_json::json!({"jsonrpc":"2.0","error":{"code":2002,"message":"No ledger found for this address"},"id":id}).to_string();
                     }
-                    Err(e) if e.contains("already wholly deleted") => {
+                    Ok(Err(e)) if e.contains("already wholly deleted") => {
                         return serde_json::json!({"jsonrpc":"2.0","error":{"code":2003,"message":e},"id":id}).to_string();
                     }
-                    Err(e) if e.contains("genesis knot") => {
+                    Ok(Err(e)) if e.contains("genesis knot") => {
                         return serde_json::json!({"jsonrpc":"2.0","error":{"code":2010,"message":e},"id":id}).to_string();
                     }
-                    Err(e) if e.contains("does not belong") => {
+                    Ok(Err(e)) if e.contains("does not belong") => {
                         return serde_json::json!({"jsonrpc":"2.0","error":{"code":2011,"message":e},"id":id}).to_string();
                     }
-                    Err(e) if e.contains("already untied") => {
+                    Ok(Err(e)) if e.contains("already untied") => {
                         return serde_json::json!({"jsonrpc":"2.0","error":{"code":2012,"message":e},"id":id}).to_string();
                     }
-                    Err(e) => {
+                    Ok(Err(e)) => {
                         return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32603,"message":e},"id":id}).to_string();
+                    }
+                    Err(join_err) => {
+                        return serde_json::json!({"jsonrpc":"2.0","error":{"code":-32603,"message":format!("internal: ledger task failed: {join_err}")},"id":id}).to_string();
                     }
                 }
             }
@@ -3643,6 +4093,39 @@ impl RpcHandlers {
                     obj.insert(
                         "rpc_api_version".to_string(),
                         serde_json::json!(ROPE_RPC_API_VERSION),
+                    );
+                }
+                json
+            }
+
+            "rope_latticeMetrics" => {
+                // P1 (§17.5 #1) — head_guard wait/hold histograms + per-op
+                // counters + flusher wait histogram. Always-on, lock-free,
+                // safe to poll every 10 s from Grafana / a scraper.
+                //
+                // Params (optional): [{ "reset": bool }]. Reset=true zeroes
+                // all counters after returning the snapshot; used to open
+                // a fresh observation window without a process restart.
+                let reset = params
+                    .and_then(|p| p.get(0))
+                    .and_then(|v| v.get("reset"))
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                let metrics = crate::lattice_metrics::lattice_metrics();
+                let snap = metrics.snapshot();
+                if reset {
+                    metrics.reset();
+                }
+                let mut json = serde_json::to_value(&snap)
+                    .unwrap_or(serde_json::json!({}));
+                if let Some(obj) = json.as_object_mut() {
+                    obj.insert(
+                        "rpc_api_version".to_string(),
+                        serde_json::json!(ROPE_RPC_API_VERSION),
+                    );
+                    obj.insert(
+                        "reset_after_snapshot".to_string(),
+                        serde_json::json!(reset),
                     );
                 }
                 json
@@ -5868,12 +6351,13 @@ mod tests {
         let (broadcast_tx, _rx) = broadcast::channel(4);
 
         let server_task = tokio::spawn(async move {
-            let (socket, _peer) = listener.accept().await.expect("accept");
+            let (socket, peer) = listener.accept().await.expect("accept");
             // Errors are expected here once the client drops the socket
             // after reading the close frame — that's a normal shutdown,
             // not a test failure.
             let _ = handle_websocket_connection(
                 socket,
+                peer,
                 handlers,
                 metrics,
                 broadcast_tx,
@@ -5950,6 +6434,377 @@ mod tests {
         tokio::time::timeout(std::time::Duration::from_secs(5), server_task)
             .await
             .expect("server task must exit after closing the oversized-frame connection")
+            .expect("server task must not panic");
+    }
+
+    // ------------------------------------------------------------------
+    // parse_subscription_request unit tests
+    //
+    // Locking these down keeps the bridge-vs-dispatcher routing decision
+    // pure: any change to `SubscriptionBridge::is_bridged_method` or to
+    // how we extract the id must be reflected here, so a future refactor
+    // can't silently route `eth_subscribe` through the non-bridge path
+    // (which is exactly the bug that produced the ChainList red-Score
+    // badge before this fix landed).
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn parse_subscription_request_recognises_eth_subscribe() {
+        let body =
+            r#"{"jsonrpc":"2.0","id":7,"method":"eth_subscribe","params":["newHeads"]}"#;
+        let (method, id) = parse_subscription_request(body)
+            .expect("eth_subscribe must be routed to the bridge");
+        assert_eq!(method, "eth_subscribe");
+        assert_eq!(id, serde_json::json!(7));
+    }
+
+    #[test]
+    fn parse_subscription_request_recognises_eth_unsubscribe() {
+        let body =
+            r#"{"jsonrpc":"2.0","id":"abc","method":"eth_unsubscribe","params":["0x1"]}"#;
+        let (method, id) = parse_subscription_request(body)
+            .expect("eth_unsubscribe must be routed to the bridge");
+        assert_eq!(method, "eth_unsubscribe");
+        assert_eq!(id, serde_json::json!("abc"));
+    }
+
+    #[test]
+    fn parse_subscription_request_leaves_other_methods_alone() {
+        let body =
+            r#"{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}"#;
+        assert!(
+            parse_subscription_request(body).is_none(),
+            "eth_chainId must NOT be routed to the bridge — it goes through the normal dispatcher"
+        );
+    }
+
+    #[test]
+    fn parse_subscription_request_null_id_when_missing() {
+        // JSON-RPC 2.0 §4.2 permits omitting `id` for notifications.
+        // We still hand it to the bridge so it can echo Null back in
+        // the ack error path.
+        let body = r#"{"jsonrpc":"2.0","method":"eth_subscribe","params":["newHeads"]}"#;
+        let (method, id) = parse_subscription_request(body)
+            .expect("eth_subscribe without id still routes to bridge");
+        assert_eq!(method, "eth_subscribe");
+        assert!(id.is_null(), "missing id must materialise as Value::Null");
+    }
+
+    #[test]
+    fn parse_subscription_request_rejects_garbage() {
+        assert!(parse_subscription_request("not json at all").is_none());
+        assert!(parse_subscription_request("{}").is_none());
+        assert!(parse_subscription_request(r#"{"jsonrpc":"2.0"}"#).is_none());
+    }
+
+    // ------------------------------------------------------------------
+    // End-to-end WSS regression tests for the refactored
+    // `handle_websocket_connection`.
+    //
+    // These drive a real TCP client against the real server function
+    // (spawned on a loopback listener) so a future refactor of the
+    // reader/writer split, mpsc channels, or shutdown sequence can't
+    // silently regress:
+    //
+    //   * non-bridged JSON-RPC responses still flow through the
+    //     per-connection writer task,
+    //   * client-initiated ping frames produce pong replies through the
+    //     mpsc channel (this exercises the writer-task pathway that the
+    //     pre-refactor code handled inline),
+    //   * client-initiated close frames trigger a clean shutdown of
+    //     both the bridge and the writer task within a bounded timeout.
+    //
+    // A dedicated Reth-mock-based push-notification round-trip lives in
+    // `ws_subscription_bridge::tests::end_to_end_subscribe_push_unsubscribe_round_trip`
+    // — no need to duplicate it here since the bridge is exercised
+    // through its public `handle` surface.
+    // ------------------------------------------------------------------
+
+    /// Perform the RFC 6455 client handshake on `client` and assert 101
+    /// Switching Protocols. Panics on any transport or parse error —
+    /// the test would be meaningless without the upgrade succeeding.
+    async fn perform_ws_handshake(client: &mut tokio::net::TcpStream) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let handshake = "GET / HTTP/1.1\r\n\
+             Host: 127.0.0.1\r\n\
+             Upgrade: websocket\r\n\
+             Connection: Upgrade\r\n\
+             Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\
+             Sec-WebSocket-Version: 13\r\n\r\n";
+        client
+            .write_all(handshake.as_bytes())
+            .await
+            .expect("send handshake");
+        let mut resp_buf = [0u8; 512];
+        let n = client
+            .read(&mut resp_buf)
+            .await
+            .expect("read handshake response");
+        let resp = String::from_utf8_lossy(&resp_buf[..n]);
+        assert!(
+            resp.starts_with("HTTP/1.1 101"),
+            "expected 101 Switching Protocols, got: {resp}"
+        );
+    }
+
+    /// Frame `payload` as a MASKED client text frame (opcode 0x1) —
+    /// required by RFC 6455 §5.3 for client→server frames — and write
+    /// it to `client`.
+    async fn send_client_text_frame(client: &mut tokio::net::TcpStream, payload: &[u8]) {
+        use tokio::io::AsyncWriteExt;
+        let mut frame = Vec::with_capacity(payload.len() + 14);
+        frame.push(0x81); // FIN + opcode 0x1 (text)
+        let len = payload.len();
+        if len < 126 {
+            frame.push(0x80 | (len as u8));
+        } else if len < 65536 {
+            frame.push(0x80 | 126);
+            frame.extend_from_slice(&(len as u16).to_be_bytes());
+        } else {
+            frame.push(0x80 | 127);
+            frame.extend_from_slice(&(len as u64).to_be_bytes());
+        }
+        let mask = [0x37u8, 0xfa, 0x21, 0x3d];
+        frame.extend_from_slice(&mask);
+        for (i, b) in payload.iter().enumerate() {
+            frame.push(b ^ mask[i % 4]);
+        }
+        client
+            .write_all(&frame)
+            .await
+            .expect("send client text frame");
+    }
+
+    /// Read exactly one *unmasked* server frame (server→client frames
+    /// are never masked per RFC 6455 §5.3) and return `(opcode,
+    /// payload)`. Supports the 7-bit and 16-bit length forms which is
+    /// enough for the responses these tests exercise (all under 64 KiB).
+    async fn read_server_frame(
+        client: &mut tokio::net::TcpStream,
+    ) -> (u8, Vec<u8>) {
+        use tokio::io::AsyncReadExt;
+        let mut header = [0u8; 2];
+        client
+            .read_exact(&mut header)
+            .await
+            .expect("read frame header");
+        let opcode = header[0] & 0x0F;
+        let mut len = (header[1] & 0x7F) as usize;
+        if len == 126 {
+            let mut ext = [0u8; 2];
+            client.read_exact(&mut ext).await.expect("read 16-bit len");
+            len = u16::from_be_bytes(ext) as usize;
+        } else if len == 127 {
+            panic!("64-bit length not needed for these tests");
+        }
+        let mut payload = vec![0u8; len];
+        if len > 0 {
+            client
+                .read_exact(&mut payload)
+                .await
+                .expect("read payload");
+        }
+        (opcode, payload)
+    }
+
+    /// Build a minimal `RpcHandlers` sufficient for the WSS tests. The
+    /// EVM backend is `None`, so `eth_subscribe` — routed through
+    /// [`SubscriptionBridge`] — returns the canonical `-32601` and no
+    /// upstream socket is opened. `eth_chainId` still resolves natively
+    /// against `chain_id: 271828`.
+    fn test_handlers() -> Arc<RpcHandlers> {
+        Arc::new(RpcHandlers {
+            chain_id: 271828,
+            network_version: "0.1.0".to_string(),
+            block_number: Arc::new(parking_lot::RwLock::new(1)),
+            gas_price: 1_000_000_000,
+            evm_backend: None,
+            orchestrator: None,
+            ledger: None,
+            iot_gateway: None,
+            ai_framework: None,
+            governance: None,
+            deployer: None,
+            self_node_id: String::new(),
+            auth_verifier: parking_lot::RwLock::new(None),
+            dag: Arc::new(crate::dag_ledger::DagLedger::new()),
+        })
+    }
+
+    /// Spawn `handle_websocket_connection` on a loopback listener and
+    /// return `(client, server_task)`. The server task's error is
+    /// intentionally swallowed — clean shutdowns after the client drops
+    /// the socket are represented as `Err(io)` by `read_exact`, which
+    /// is expected, not a test failure.
+    async fn spawn_ws_server() -> (
+        tokio::net::TcpStream,
+        tokio::task::JoinHandle<()>,
+    ) {
+        use tokio::net::{TcpListener, TcpStream};
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind loopback listener");
+        let addr = listener.local_addr().expect("local addr");
+        let handlers = test_handlers();
+        let metrics = Arc::new(RwLock::new(RpcMetrics::default()));
+        let (broadcast_tx, _rx) = broadcast::channel(4);
+        let server_task = tokio::spawn(async move {
+            let (socket, peer) = listener.accept().await.expect("accept");
+            let _ = handle_websocket_connection(
+                socket,
+                peer,
+                handlers,
+                metrics,
+                broadcast_tx,
+            )
+            .await;
+        });
+        let client = TcpStream::connect(addr)
+            .await
+            .expect("connect to loopback listener");
+        (client, server_task)
+    }
+
+    #[tokio::test]
+    async fn ws_eth_chain_id_still_works_through_refactored_writer_task() {
+        let (mut client, server_task) = spawn_ws_server().await;
+        perform_ws_handshake(&mut client).await;
+
+        let req = r#"{"jsonrpc":"2.0","id":42,"method":"eth_chainId","params":[]}"#;
+        send_client_text_frame(&mut client, req.as_bytes()).await;
+
+        let (opcode, payload) = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            read_server_frame(&mut client),
+        )
+        .await
+        .expect("server must reply within 5s");
+        assert_eq!(opcode, 0x1, "expected text frame");
+        let response: serde_json::Value =
+            serde_json::from_slice(&payload).expect("valid JSON-RPC");
+        assert_eq!(response["id"], serde_json::json!(42));
+        assert_eq!(
+            response["result"].as_str(),
+            Some("0x425d4"),
+            "chain id 271828 must round-trip verbatim through the new writer task"
+        );
+
+        drop(client);
+        tokio::time::timeout(std::time::Duration::from_secs(5), server_task)
+            .await
+            .expect("server task must exit after client drops")
+            .expect("server task must not panic");
+    }
+
+    #[tokio::test]
+    async fn ws_eth_subscribe_returns_method_unavailable_when_bridge_disabled() {
+        // `evm_backend: None` above means `reth_ws_url()` never returns
+        // Some, so the SubscriptionBridge is constructed disabled and
+        // must reply with a canonical -32601 without opening any
+        // upstream socket. This is the failure mode a public rope-node
+        // deployment sees if the operator has explicitly set
+        // `ROPE_RETH_WS_URL=""` — ChainList's scorer must NOT interpret
+        // that as a working subscription surface.
+        let (mut client, server_task) = spawn_ws_server().await;
+        perform_ws_handshake(&mut client).await;
+
+        let req = r#"{"jsonrpc":"2.0","id":9,"method":"eth_subscribe","params":["newHeads"]}"#;
+        send_client_text_frame(&mut client, req.as_bytes()).await;
+
+        let (opcode, payload) = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            read_server_frame(&mut client),
+        )
+        .await
+        .expect("bridge-disabled ack must arrive within 5s");
+        assert_eq!(opcode, 0x1);
+        let response: serde_json::Value =
+            serde_json::from_slice(&payload).expect("valid JSON-RPC");
+        assert_eq!(response["id"], serde_json::json!(9));
+        let code = response["error"]["code"]
+            .as_i64()
+            .expect("error.code present");
+        assert_eq!(
+            code, -32601,
+            "disabled bridge must return the standard 'method not available' code, not a fake subscription id"
+        );
+
+        drop(client);
+        tokio::time::timeout(std::time::Duration::from_secs(5), server_task)
+            .await
+            .expect("server task must exit after client drops")
+            .expect("server task must not panic");
+    }
+
+    #[tokio::test]
+    async fn ws_ping_frame_produces_pong_through_writer_task() {
+        // Pre-refactor the ping/pong path wrote inline to the raw
+        // stream. Post-refactor it enqueues `WsWriteFrame::Pong` onto
+        // the mpsc consumed by `ws_writer_task`. This test locks that
+        // pathway down so a maintainer removing the Pong arm from the
+        // writer task's match would be caught by CI.
+        use tokio::io::AsyncWriteExt;
+        let (mut client, server_task) = spawn_ws_server().await;
+        perform_ws_handshake(&mut client).await;
+
+        // Masked client ping frame with a 4-byte payload.
+        let ping_payload = *b"ping";
+        let mask = [0x11u8, 0x22, 0x33, 0x44];
+        let mut frame = vec![0x89u8, 0x84]; // FIN + opcode 0x9, MASK=1, len=4
+        frame.extend_from_slice(&mask);
+        for (i, b) in ping_payload.iter().enumerate() {
+            frame.push(b ^ mask[i % 4]);
+        }
+        client.write_all(&frame).await.expect("send ping");
+
+        let (opcode, payload) = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            read_server_frame(&mut client),
+        )
+        .await
+        .expect("pong must arrive within 5s");
+        assert_eq!(opcode, 0xA, "expected pong opcode");
+        assert_eq!(payload.as_slice(), &ping_payload[..]);
+
+        drop(client);
+        tokio::time::timeout(std::time::Duration::from_secs(5), server_task)
+            .await
+            .expect("server task must exit after client drops")
+            .expect("server task must not panic");
+    }
+
+    #[tokio::test]
+    async fn ws_client_close_frame_shuts_down_cleanly() {
+        use tokio::io::AsyncWriteExt;
+        let (mut client, server_task) = spawn_ws_server().await;
+        perform_ws_handshake(&mut client).await;
+
+        // Masked client close frame, empty payload.
+        let mask = [0x00u8, 0x00, 0x00, 0x00];
+        let mut frame = vec![0x88u8, 0x80]; // FIN + opcode 0x8, MASK=1, len=0
+        frame.extend_from_slice(&mask);
+        client.write_all(&frame).await.expect("send close");
+
+        // Server echoes an empty close frame per the pre-refactor
+        // behaviour that this test locks down.
+        let (opcode, payload) = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            read_server_frame(&mut client),
+        )
+        .await
+        .expect("close echo must arrive within 5s");
+        assert_eq!(opcode, 0x8, "expected close opcode");
+        assert!(
+            payload.is_empty(),
+            "server's close echo carries no status code, matches pre-refactor behaviour"
+        );
+
+        // Server task must finish — the shutdown sequence (drop bridge,
+        // drop write_tx, await writer_task) must run to completion
+        // within its bounded timeout.
+        tokio::time::timeout(std::time::Duration::from_secs(5), server_task)
+            .await
+            .expect("server task must exit after receiving client close")
             .expect("server task must not panic");
     }
 }

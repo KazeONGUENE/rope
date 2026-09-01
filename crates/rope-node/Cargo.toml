@@ -55,9 +55,20 @@ prometheus = { workspace = true }
 # HTTP client for Anvil backend
 reqwest = { workspace = true }
 
-# WebSocket support
+# WebSocket support — server-side framing (rope-node's own WS listener)
 sha1 = "0.10"
 base64 = "0.22"
+
+# WebSocket client — used by ws_subscription_bridge.rs to open a
+# per-client-connection upstream WSS session to Reth's `--ws` port
+# (ws://127.0.0.1:8547 by default) so `eth_subscribe`/`eth_unsubscribe`
+# and the server-initiated `eth_subscription` push notifications work
+# end-to-end on `wss://ws.datachain.network` / `wss://ws.rope.network`.
+# No TLS features requested: the upstream hop is always loopback
+# plaintext to a co-located Reth process. Version pin matches
+# rope-agent-runtime for workspace consistency.
+tokio-tungstenite = "0.21"
+futures-util = "0.3"
 
 # Master-node governance signature verification (added 2026-05-03)
 ed25519-dalek = { workspace = true }

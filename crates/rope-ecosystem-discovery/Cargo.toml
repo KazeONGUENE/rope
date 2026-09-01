@@ -1,0 +1,33 @@
+[package]
+name = "rope-ecosystem-discovery"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Autonomous discovery scanner for the Datachain Rope ecosystem directory. Runs on a schedule (default 6h), scans multiple sources (handover markdown files in .cursor/rules/, live on-chain data via dcscan API, and partner project APIs like Tanastok / DCSwap / Datawallet+), extracts new or updated project references, and emits a signed JSONL overlay file consumed by rope-explorer's ecosystem_overlay module (spec: docs/ECOSYSTEM_OVERLAY_JSONL_SPEC_V1.md). Precedence in the merged directory stays EDC-registered > canonical (hand-curated) > overlay (auto-discovered), so the discovery script can never override an operator's explicit visibility choice for a canonical project."
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "rope-ecosystem-discovery"
+path = "src/bin/rope_ecosystem_discovery.rs"
+
+[dependencies]
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+chrono = { workspace = true }
+hex = { workspace = true }
+reqwest = { workspace = true }
+toml = { workspace = true }
+clap = { workspace = true }
+async-trait = { workspace = true }
+url = "2.5"
+
+[dev-dependencies]
+tempfile = { workspace = true }

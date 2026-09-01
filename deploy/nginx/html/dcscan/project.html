@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project | DC Explorer</title>
+    <meta name="description" content="Community governance project on Datachain Rope">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <link rel="icon" type="image/svg+xml" href="/assets/logo.svg">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root{
+            --black:#000000; --white:#ffffff;
+            --gray-50:#fafafa; --gray-100:#f4f4f5; --gray-200:#e4e4e7; --gray-300:#d4d4d8;
+            --gray-400:#a1a1aa; --gray-500:#71717a; --gray-600:#52525b; --gray-700:#3f3f46;
+            --gray-800:#27272a; --gray-900:#18181b;
+            --success:#22c55e; --success-bg:#dcfce7; --success-fg:#166534;
+            --warning:#f59e0b; --warning-bg:#fef3c7; --warning-fg:#92400e;
+            --error:#ef4444; --error-bg:#fee2e2; --error-fg:#991b1b;
+            --info:#3b82f6; --info-bg:#dbeafe; --info-fg:#1e40af;
+            --font-sans:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+            --font-mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
+            --radius-sm:6px; --radius-md:8px; --radius-lg:12px;
+            --shadow-sm:0 1px 2px 0 rgba(0,0,0,.05);
+            --shadow-md:0 4px 6px -1px rgba(0,0,0,.1);
+            --shadow-lg:0 10px 15px -3px rgba(0,0,0,.1);
+        }
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:var(--font-sans);background:var(--gray-50);color:var(--gray-900);line-height:1.5;font-size:14px}
+        a{color:var(--black);text-decoration:none}
+        a:hover{color:var(--gray-600)}
+        .container{max-width:1120px;margin:0 auto;padding:0 1rem}
+        .top-bar{background:var(--gray-900);color:var(--white);padding:.5rem 0;font-size:12px}
+        .top-bar-content{display:flex;justify-content:space-between;align-items:center}
+        .top-bar-item{display:flex;align-items:center;gap:.375rem;color:var(--gray-400)}
+        .top-bar-value{color:var(--white);font-weight:500;font-family:var(--font-mono)}
+        header{background:var(--white);border-bottom:1px solid var(--gray-200);position:sticky;top:0;z-index:100}
+        .header-container{display:flex;align-items:center;justify-content:space-between;height:64px}
+        .logo{display:flex;align-items:center;gap:.625rem;font-weight:600;color:var(--black)}
+        .logo-icon{width:32px;height:32px}
+        .header-actions{display:flex;align-items:center;gap:.5rem}
+        .btn{display:inline-flex;align-items:center;gap:.375rem;padding:.5rem 1rem;font-size:13px;font-weight:600;border-radius:var(--radius-md);border:none;cursor:pointer;font-family:inherit}
+        .btn-secondary{background:var(--gray-100);color:var(--gray-700)}
+        .btn-secondary:hover{background:var(--gray-200)}
+        .btn-primary{background:var(--gray-900);color:var(--white)}
+        .btn-primary:hover{background:var(--gray-700)}
+        .btn-ghost{background:var(--white);color:var(--gray-700);border:1px solid var(--gray-300)}
+        .btn-success{background:var(--success);color:var(--white)}
+        .btn-danger{background:var(--error);color:var(--white)}
+        .btn:disabled{opacity:.5;cursor:not-allowed}
+        .crumb{padding:1rem 0 .5rem;font-size:12px;color:var(--gray-500)}
+        .crumb a{color:var(--gray-600)}
+        .hero-media{width:100%;aspect-ratio:16/9;max-height:420px;border-radius:var(--radius-lg);overflow:hidden;background:linear-gradient(135deg,#18181b 0%,#3f3f46 55%,#71717a 100%);display:flex;align-items:center;justify-content:center;color:var(--white);position:relative;margin-bottom:1.5rem;border:1px solid var(--gray-200)}
+        .hero-media .cat-icon{font-size:4rem;opacity:.35}
+        .hero-media .hero-badge{position:absolute;top:1rem;left:1rem}
+        .layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:2rem;align-items:start;padding-bottom:3rem}
+        .title-block{margin-bottom:1.25rem}
+        .project-title{font-size:2rem;font-weight:700;letter-spacing:-.02em;margin-bottom:.5rem;line-height:1.2}
+        .project-tagline{font-size:1.05rem;color:var(--gray-600);margin-bottom:.75rem}
+        .byline{display:flex;flex-wrap:wrap;align-items:center;gap:.75rem;font-size:13px;color:var(--gray-500)}
+        .avatar{width:28px;height:28px;border-radius:50%;background:var(--gray-200);display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--gray-700)}
+        .badge{display:inline-flex;align-items:center;gap:.25rem;padding:.2rem .55rem;font-size:11px;font-weight:600;border-radius:20px}
+        .badge-ok{background:var(--success-bg);color:var(--success-fg)}
+        .badge-warn{background:var(--warning-bg);color:var(--warning-fg)}
+        .badge-err{background:var(--error-bg);color:var(--error-fg)}
+        .badge-info{background:var(--info-bg);color:var(--info-fg)}
+        .badge-muted{background:var(--gray-100);color:var(--gray-600)}
+        .tabs{display:flex;gap:.25rem;border-bottom:1px solid var(--gray-200);margin:1.5rem 0 1rem;overflow-x:auto}
+        .tab{padding:.75rem 1rem;background:transparent;border:none;border-bottom:2px solid transparent;font-size:13px;font-weight:600;color:var(--gray-500);cursor:pointer;white-space:nowrap;font-family:inherit}
+        .tab:hover{color:var(--black);background:var(--gray-100)}
+        .tab.active{color:var(--black);border-bottom-color:var(--black)}
+        .panel{display:none}
+        .panel.active{display:block}
+        .section{margin-bottom:1.75rem}
+        .section h2{font-size:1.125rem;font-weight:700;margin-bottom:.75rem}
+        .section p,.prose{color:var(--gray-700);white-space:pre-wrap;line-height:1.7}
+        .chip-row{display:flex;flex-wrap:wrap;gap:.4rem}
+        .chip{background:var(--gray-100);border:1px solid var(--gray-200);border-radius:20px;padding:.25rem .65rem;font-size:12px;font-weight:500;color:var(--gray-700)}
+        .meta-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.75rem}
+        .meta-card{background:var(--white);border:1px solid var(--gray-200);border-radius:var(--radius-lg);padding:1rem;box-shadow:var(--shadow-sm)}
+        .meta-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:.25rem}
+        .meta-value{font-weight:600;color:var(--gray-900);word-break:break-word}
+        .link-list a{display:inline-flex;align-items:center;gap:.4rem;margin-right:1rem;margin-bottom:.5rem;font-weight:500}
+        .sidebar{position:sticky;top:80px}
+        .pledge-card{background:var(--white);border:1px solid var(--gray-200);border-radius:var(--radius-lg);padding:1.25rem;box-shadow:var(--shadow-md)}
+        .big-stat{font-size:1.75rem;font-weight:700;font-family:var(--font-mono);letter-spacing:-.02em}
+        .stat-sub{font-size:12px;color:var(--gray-500);margin-bottom:1rem}
+        .bar{height:8px;background:var(--gray-100);border-radius:4px;overflow:hidden;display:flex;margin:.5rem 0}
+        .bar-for{background:var(--success);height:100%}
+        .bar-against{background:var(--error);height:100%}
+        .bar-quorum{background:var(--gray-900);height:100%}
+        .row-between{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--gray-600);margin-bottom:.35rem}
+        .vote-row{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin:1rem 0}
+        .share-row{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1rem}
+        .faq-item{border:1px solid var(--gray-200);border-radius:var(--radius-md);margin-bottom:.5rem;background:var(--white)}
+        .faq-q{padding:.85rem 1rem;font-weight:600;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+        .faq-a{padding:0 1rem 1rem;color:var(--gray-600);display:none}
+        .faq-item.open .faq-a{display:block}
+        .empty{padding:2rem;text-align:center;color:var(--gray-500)}
+        .err-banner{background:var(--error-bg);color:var(--error-fg);border:1px solid #fecaca;border-radius:var(--radius-md);padding:1rem;margin:1rem 0}
+        /* Flat text-block milestone - no left-border accent (banned
+           decorative pattern, see rule ban-left-border-text-block-callouts). */
+        .milestone{padding:.5rem 0;margin-bottom:.75rem}
+        .milestone strong{display:block;margin-bottom:.15rem}
+        footer{background:var(--white);border-top:1px solid var(--gray-200);padding:2rem 0;margin-top:2rem}
+        .footer-content{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem}
+        .footer-links{display:flex;gap:1.25rem}
+        .footer-links a{font-size:12px;color:var(--gray-500)}
+        @media (max-width:900px){
+            .layout{grid-template-columns:1fr}
+            .sidebar{position:static}
+            .project-title{font-size:1.5rem}
+            .meta-grid{grid-template-columns:1fr}
+        }
+    </style>
+    <link rel="stylesheet" href="/css/dcscan-header.css">
+</head>
+<body>
+    <div class="top-bar">
+        <div class="container top-bar-container top-bar-content">
+            <div class="top-bar-left">
+                <div class="top-bar-item"><span>DC FAT Price:</span><span class="top-bar-value" id="topbar-fat-price">-</span><span class="top-bar-change" id="topbar-fat-change"></span></div>
+                <div class="top-bar-item"><span>Gas:</span><span class="top-bar-value" id="topbar-gas">-</span></div>
+            </div>
+        </div>
+    </div>
+    <header>
+        <div class="container header-container">
+            <a href="/" class="logo">
+                <div class="logo-icon"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 100%; height: 100%; object-fit: contain;"></div>
+                <span class="logo-text"><span>DC</span><span>Explorer</span></span>
+            </a>
+            <nav class="main-nav">
+                <div class="nav-item"><a href="#" class="nav-link">Smartchain <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/strings" class="dropdown-item">View Strings</a>
+                        <a href="/txs" class="dropdown-item">Transactions</a>
+                        <a href="/txsPending" class="dropdown-item">Pending Txns</a>
+                        <a href="/accounts" class="dropdown-item">Top Accounts</a>
+                        <a href="/contracts" class="dropdown-item">Verified Contracts</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">AI Agents <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/agents" class="dropdown-item">All Agents</a>
+                        <a href="/testimonies" class="dropdown-item">Testimonies</a>
+                        <a href="/validations" class="dropdown-item">Validators</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">Tokens <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/tokens" class="dropdown-item">DCR-20 Tokens</a>
+                        <a href="/core/fat" class="dropdown-item">Native DC FAT</a>
+                        <a href="/tokentxns" class="dropdown-item">Token Transfers</a>
+                        <a href="/vote" class="dropdown-item">Vote</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">Network <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/ecosystem" class="dropdown-item">Ecosystem Projects</a>
+                        <a href="/vote" class="dropdown-item">Governance &amp; Voting</a>
+                        <a href="/defi" class="dropdown-item">DeFi</a>
+                        <a href="/supply" class="dropdown-item">Supply Reconciliation</a>
+                        <a href="/validators" class="dropdown-item">Validators</a>
+                        <a href="/databases" class="dropdown-item">Databases</a>
+                        <a href="/databoxes" class="dropdown-item">Global Databox Network</a>
+                        <a href="/stats" class="dropdown-item">Charts &amp; Stats</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link active">More <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/apis" class="dropdown-item">API Docs</a>
+                        <a href="/apis/exchange-integration" class="dropdown-item">Exchange Integration</a>
+                        <a href="/admin-tokens" class="dropdown-item">Admin Tokens</a>
+                        <a href="/verify" class="dropdown-item">Verify Contract</a>
+                        <a href="/create-wallet" class="dropdown-item">Create Wallet</a>
+                        <a href="/faucet" class="dropdown-item">Faucet</a>
+                        <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank" rel="noopener">GitHub</a>
+                        <a href="/partners" class="dropdown-item">Partners</a>
+                        <a href="/contact" class="dropdown-item">Contact</a>
+                    </div>
+                </div>
+            </nav>
+            <div class="header-actions"><button class="btn btn-secondary"><i class="fa-solid fa-wallet"></i> Connect</button></div>
+        </div>
+    </header>
+
+    <main class="container" id="main">
+        <div class="crumb"><a href="/vote">Community Vote</a> / <span id="crumbName">Project</span></div>
+        <div id="loadState" class="empty"><i class="fas fa-spinner fa-spin"></i> Loading project…</div>
+        <div id="projectRoot" style="display:none">
+            <div class="hero-media" id="heroMedia">
+                <span class="hero-badge" id="heroBadge"></span>
+                <i class="fas fa-cube cat-icon" id="heroIcon"></i>
+            </div>
+            <div class="layout">
+                <div class="main-col">
+                    <div class="title-block">
+                        <h1 class="project-title" id="pName"></h1>
+                        <p class="project-tagline" id="pTagline"></p>
+                        <div class="byline">
+                            <span class="avatar" id="pAvatar">?</span>
+                            <span>by <strong id="pCreator">-</strong></span>
+                            <span id="pOrgType" class="badge badge-muted"></span>
+                            <span id="pCategory" class="badge badge-info"></span>
+                            <span id="pStage" class="badge badge-muted"></span>
+                        </div>
+                    </div>
+
+                    <div class="tabs" role="tablist">
+                        <button class="tab active" data-tab="campaign" type="button">Campaign</button>
+                        <button class="tab" data-tab="details" type="button">Details</button>
+                        <button class="tab" data-tab="creator" type="button">Creator</button>
+                        <button class="tab" data-tab="faq" type="button">FAQ</button>
+                    </div>
+
+                    <div class="panel active" id="tab-campaign">
+                        <div class="section">
+                            <h2>About this project</h2>
+                            <div class="prose" id="pDescription"></div>
+                        </div>
+                        <div class="section" id="secFeatures" style="display:none">
+                            <h2>Key features</h2>
+                            <ul id="pFeatures" style="padding-left:1.25rem;color:var(--gray-700)"></ul>
+                        </div>
+                        <div class="section" id="secUseCases" style="display:none">
+                            <h2>Use cases</h2>
+                            <div class="prose" id="pUseCases"></div>
+                        </div>
+                        <div class="section" id="secMilestones" style="display:none">
+                            <h2>Milestones</h2>
+                            <div id="pMilestones"></div>
+                        </div>
+                        <div class="section" id="secRejection" style="display:none">
+                            <h2>Review outcome</h2>
+                            <div class="err-banner" id="pRejection"></div>
+                        </div>
+                    </div>
+
+                    <div class="panel" id="tab-details">
+                        <div class="meta-grid" id="metaGrid"></div>
+                        <div class="section" style="margin-top:1.5rem">
+                            <h2>Tech stack</h2>
+                            <div class="chip-row" id="pTech"></div>
+                        </div>
+                        <div class="section" id="secArch" style="display:none">
+                            <h2>Architecture</h2>
+                            <div class="prose" id="pArch"></div>
+                        </div>
+                        <div class="section">
+                            <h2>Links</h2>
+                            <div class="link-list" id="pLinks"></div>
+                        </div>
+                        <div class="section" id="secFunding" style="display:none">
+                            <h2>Funding breakdown</h2>
+                            <div class="prose" id="pFundingBreakdown"></div>
+                        </div>
+                    </div>
+
+                    <div class="panel" id="tab-creator">
+                        <div class="section">
+                            <h2>Project creator</h2>
+                            <div class="meta-grid">
+                                <div class="meta-card"><div class="meta-label">Name</div><div class="meta-value" id="cName">-</div></div>
+                                <div class="meta-card"><div class="meta-label">Organization</div><div class="meta-value" id="cOrg">-</div></div>
+                                <div class="meta-card"><div class="meta-label">Organization type</div><div class="meta-value" id="cType">-</div></div>
+                                <div class="meta-card"><div class="meta-label">Target users</div><div class="meta-value" id="cUsers">-</div></div>
+                            </div>
+                        </div>
+                        <div class="section" id="secTeam" style="display:none">
+                            <h2>Team</h2>
+                            <div id="pTeam"></div>
+                        </div>
+                    </div>
+
+                    <div class="panel" id="tab-faq">
+                        <div class="faq-item open">
+                            <div class="faq-q">How does voting work? <i class="fas fa-chevron-down"></i></div>
+                            <div class="faq-a">DC FAT holders connect a wallet on Datachain Rope and cast a signed ballot. Voting weight equals their live native DC FAT balance. Projects need more than 50% approval weight and at least 1,000,000 FAT of total participation.</div>
+                        </div>
+                        <div class="faq-item">
+                            <div class="faq-q">What chains count for the governance pool? <i class="fas fa-chevron-down"></i></div>
+                            <div class="faq-a">Members can register DCR-20 wallets on Datachain Rope (DC FAT / FAT / WFAT), ERC-20/ERC-777 DC on Ethereum, and XRC-20 DC on XDC Network via Join Governance Pool on the Vote page.</div>
+                        </div>
+                        <div class="faq-item">
+                            <div class="faq-q">Is this financial advice or a securities offering? <i class="fas fa-chevron-down"></i></div>
+                            <div class="faq-a">No. Community Vote decides which projects may build on Datachain Rope infrastructure. It is not an investment solicitation.</div>
+                        </div>
+                        <div class="faq-item">
+                            <div class="faq-q">Where is the audit trail? <i class="fas fa-chevron-down"></i></div>
+                            <div class="faq-a">Submissions, reviews, and ballots are anchored as knots on the governance ledger and visible via DCScan / rope RPC.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <aside class="sidebar">
+                    <div class="pledge-card">
+                        <div class="big-stat" id="sWeightFor">0</div>
+                        <div class="stat-sub">FAT weight for · of <span id="sQuorumNeed">1,000,000</span> quorum</div>
+                        <div class="row-between"><span>Quorum progress</span><span id="sQuorumPct">0%</span></div>
+                        <div class="bar"><div class="bar-quorum" id="barQuorum" style="width:0%"></div></div>
+                        <div class="row-between" style="margin-top:1rem"><span style="color:var(--success-fg)">For</span><span id="sForPct">0%</span></div>
+                        <div class="bar"><div class="bar-for" id="barFor" style="width:0%"></div><div class="bar-against" id="barAgainst" style="width:0%"></div></div>
+                        <div class="row-between"><span>Against weight</span><span id="sWeightAgainst">0 FAT</span></div>
+                        <div class="row-between"><span>Ballots</span><span id="sBallots">0</span></div>
+                        <div class="row-between"><span>Time left</span><span id="sTimeLeft">-</span></div>
+                        <div class="row-between"><span>Funding ask</span><span id="sFunding">-</span></div>
+                        <div class="vote-row">
+                            <button class="btn btn-success" id="btnFor" type="button"><i class="fas fa-check"></i> Vote For</button>
+                            <button class="btn btn-danger" id="btnAgainst" type="button"><i class="fas fa-times"></i> Vote Against</button>
+                        </div>
+                        <p id="voteHint" style="font-size:12px;color:var(--gray-500)">Connect a Datachain Rope wallet to cast a weighted vote.</p>
+                        <div class="share-row">
+                            <button class="btn btn-ghost" type="button" id="btnCopy"><i class="fas fa-link"></i> Copy link</button>
+                            <a class="btn btn-ghost" id="btnX" target="_blank" rel="noopener"><i class="fab fa-x-twitter"></i> Share</a>
+                        </div>
+                        <p style="margin-top:1rem;font-size:11px;color:var(--gray-400);font-family:var(--font-mono)" id="pId"></p>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="footer-container container footer-content">
+            <div class="footer-brand">
+                <div class="logo-icon" style="width: 24px; height: 24px;">
+                    <img src="/assets/logo.svg" alt="DC Explorer Logo" style="width: 100%; height: 100%; object-fit: contain;">
+                </div>
+                DC Explorer - Powered by Datachain Rope
+            </div>
+            <div class="footer-links">
+                <a href="https://datachain.network">Datachain</a>
+                <a href="/apis">API</a>
+                <a href="/apis/exchange-integration">Exchange Integration</a>
+                <a href="/admin-tokens">Admin Tokens</a>
+                <a href="https://github.com/KazeONGUENE/rope">GitHub</a>
+                <a href="/partners">Partners</a>
+                <a href="/contact">Contact</a>
+            </div>
+        </div>
+    </footer>
+
+    <script src="/js/dcscan-wallet.js?v=20260730a" defer></script>
+    <script>
+(function () {
+    const API = '/api/v1';
+    const CAT_ICON = {
+        defi: 'fa-chart-line', nft: 'fa-image', gaming: 'fa-gamepad',
+        infrastructure: 'fa-server', marketplace: 'fa-store', identity: 'fa-id-card',
+        ai_ml: 'fa-robot', dao: 'fa-users', social: 'fa-comments', other: 'fa-cube'
+    };
+
+    function projectIdFromPath() {
+        var path = (location.pathname || '').replace(/\/+$/, '');
+        var m = path.match(/\/project\/([^\/?#]+)/i);
+        if (m && m[1] && m[1].toLowerCase() !== 'index.html') {
+            return decodeURIComponent(m[1]);
+        }
+        var q = new URLSearchParams(location.search).get('id');
+        if (q) return q;
+        // Last resort: hash #/project/id or #id=
+        var hash = (location.hash || '').replace(/^#\/?/, '');
+        var hm = hash.match(/^(?:project\/)?([^\/?#=]+)$/i);
+        return hm ? decodeURIComponent(hm[1]) : '';
+    }
+
+    function esc(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function fmtFat(n) {
+        const v = Number(n) || 0;
+        if (v >= 1e6) return (v / 1e6).toFixed(2) + 'M';
+        if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
+        return v.toLocaleString(undefined, { maximumFractionDigits: 4 });
+    }
+
+    function statusBadge(status) {
+        const s = (status || '').toLowerCase();
+        if (s === 'voting') return ['badge-ok', 'Voting now'];
+        if (s === 'approved' || s === 'building') return ['badge-ok', 'Approved'];
+        if (s === 'pending_review') return ['badge-warn', 'Pending review'];
+        if (s === 'rejected' || s === 'rejected_by_admin' || s === 'rejected_no_quorum') return ['badge-err', s.replace(/_/g, ' ')];
+        return ['badge-muted', status || 'unknown'];
+    }
+
+    function voteAuthMessage(projectId, voteFor, timestamp) {
+        return `DCROPE-VOTE-AUTH\nvote\n${projectId}\n${voteFor}\n${timestamp}`;
+    }
+
+    async function voteOnProject(projectId, voteFor) {
+        if (!window.DatachainWallet || !window.DatachainWallet.isConnected()) {
+            if (window.DatachainWallet) window.DatachainWallet.open();
+            alert('Connect your wallet first - voting weight is your live DC FAT balance on Datachain Rope.');
+            return;
+        }
+        const provider = window.DatachainWallet.getEvmProvider();
+        const { address } = window.DatachainWallet.getState();
+        if (!provider || !address) {
+            alert('Connect an EVM wallet on Datachain Rope to vote.');
+            return;
+        }
+        const timestamp = Math.floor(Date.now() / 1000);
+        const message = voteAuthMessage(projectId, voteFor, timestamp);
+        let signature;
+        try {
+            signature = await provider.request({ method: 'personal_sign', params: [message, address] });
+        } catch (e) {
+            alert('Signature rejected - vote not cast.');
+            return;
+        }
+        try {
+            const res = await fetch(`${API}/projects/${projectId}/vote`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ voter_address: address, vote_for: voteFor, timestamp, signature })
+            });
+            const result = await res.json();
+            if (res.ok && result.success) {
+                alert(`Vote recorded with ${fmtFat(result.vote.weightFat)} FAT weight.`);
+                load();
+            } else {
+                alert('Vote failed: ' + (result.error || 'unknown error'));
+            }
+        } catch (e) {
+            alert('Vote failed - could not reach the API.');
+        }
+    }
+
+    function featureItems(features) {
+        if (!Array.isArray(features)) return [];
+        return features.map(function (f) {
+            if (typeof f === 'string') return f;
+            if (f && typeof f === 'object') return f.name || f.title || f.label || JSON.stringify(f);
+            return String(f);
+        }).filter(Boolean);
+    }
+
+    function render(p) {
+        document.getElementById('loadState').style.display = 'none';
+        document.getElementById('projectRoot').style.display = 'block';
+        document.title = (p.name || 'Project') + ' | Community Vote';
+        document.getElementById('crumbName').textContent = p.name || p.id;
+        document.getElementById('pName').textContent = p.name || 'Untitled project';
+        document.getElementById('pTagline').textContent = p.tagline || '';
+        document.getElementById('pTagline').style.display = p.tagline ? 'block' : 'none';
+        const creator = p.submitterName || p.organizationName || 'Anonymous creator';
+        document.getElementById('pCreator').textContent = creator;
+        document.getElementById('pAvatar').textContent = (creator.trim()[0] || '?').toUpperCase();
+        document.getElementById('pOrgType').textContent = (p.organizationType || 'individual').replace(/_/g, ' ');
+        document.getElementById('pCategory').textContent = (p.category || 'other').replace(/_/g, ' ');
+        document.getElementById('pStage').textContent = (p.stage || 'idea').replace(/_/g, ' ');
+        const [badgeCls, badgeLabel] = statusBadge(p.status);
+        document.getElementById('heroBadge').innerHTML = '<span class="badge ' + badgeCls + '">' + esc(badgeLabel) + '</span>';
+        const icon = CAT_ICON[p.category] || 'fa-cube';
+        document.getElementById('heroIcon').className = 'fas ' + icon + ' cat-icon';
+        document.getElementById('pDescription').textContent = p.description || 'No description provided.';
+
+        const feats = featureItems(p.features);
+        if (feats.length) {
+            document.getElementById('secFeatures').style.display = 'block';
+            document.getElementById('pFeatures').innerHTML = feats.map(function (f) { return '<li>' + esc(f) + '</li>'; }).join('');
+        }
+        if (p.useCases) {
+            document.getElementById('secUseCases').style.display = 'block';
+            document.getElementById('pUseCases').textContent = p.useCases;
+        }
+        if (p.rejectionReason) {
+            document.getElementById('secRejection').style.display = 'block';
+            document.getElementById('pRejection').textContent = p.rejectionReason;
+        }
+        const milestones = Array.isArray(p.milestones) ? p.milestones : [];
+        if (milestones.length) {
+            document.getElementById('secMilestones').style.display = 'block';
+            document.getElementById('pMilestones').innerHTML = milestones.map(function (m) {
+                if (typeof m === 'string') return '<div class="milestone"><strong>' + esc(m) + '</strong></div>';
+                return '<div class="milestone"><strong>' + esc(m.title || m.name || 'Milestone') + '</strong><span>' + esc(m.description || m.detail || '') + '</span></div>';
+            }).join('');
+        }
+
+        const tech = Array.isArray(p.techStack) ? p.techStack : [];
+        document.getElementById('pTech').innerHTML = tech.length
+            ? tech.map(function (t) { return '<span class="chip">' + esc(t) + '</span>'; }).join('')
+            : '<span class="chip">Not specified</span>';
+        if (p.architectureDescription) {
+            document.getElementById('secArch').style.display = 'block';
+            document.getElementById('pArch').textContent = p.architectureDescription;
+        }
+        const links = [
+            ['Website', p.websiteUrl],
+            ['GitHub', p.githubUrl],
+            ['Demo', p.demoUrl],
+            ['Whitepaper', p.whitepaperUrl],
+            ['Docs', p.documentationUrl]
+        ].filter(function (x) { return x[1]; });
+        document.getElementById('pLinks').innerHTML = links.length
+            ? links.map(function (x) { return '<a href="' + esc(x[1]) + '" target="_blank" rel="noopener"><i class="fas fa-external-link-alt"></i> ' + esc(x[0]) + '</a>'; }).join('')
+            : '<span style="color:var(--gray-500)">No external links provided.</span>';
+        if (p.fundingBreakdown) {
+            document.getElementById('secFunding').style.display = 'block';
+            document.getElementById('pFundingBreakdown').textContent = p.fundingBreakdown;
+        }
+
+        document.getElementById('metaGrid').innerHTML = [
+            ['Project ID', p.id],
+            ['Status', (p.status || '').replace(/_/g, ' ')],
+            ['Created', p.createdAt ? new Date(p.createdAt * 1000).toLocaleString() : '-'],
+            ['Voting ends', p.votingEndsAt ? new Date(p.votingEndsAt * 1000).toLocaleString() : '-'],
+            ['AI testimony required', p.requiresAiTestimony ? 'Yes' : 'No'],
+            ['Approval threshold', ((Number(p.approvalThreshold) || 0.51) * 100).toFixed(0) + '%'],
+            ['Quorum required', fmtFat(p.requiredQuorumFat) + ' FAT'],
+            ['Funding currency', p.fundingCurrency || 'FAT']
+        ].map(function (row) {
+            return '<div class="meta-card"><div class="meta-label">' + esc(row[0]) + '</div><div class="meta-value">' + esc(row[1]) + '</div></div>';
+        }).join('');
+
+        document.getElementById('cName').textContent = p.submitterName || '-';
+        document.getElementById('cOrg').textContent = p.organizationName || '-';
+        document.getElementById('cType').textContent = (p.organizationType || '-').replace(/_/g, ' ');
+        document.getElementById('cUsers').textContent = p.targetUsers || '-';
+        const team = Array.isArray(p.teamMembers) ? p.teamMembers : [];
+        if (team.length) {
+            document.getElementById('secTeam').style.display = 'block';
+            document.getElementById('pTeam').innerHTML = team.map(function (m) {
+                if (typeof m === 'string') return '<div class="meta-card" style="margin-bottom:.5rem">' + esc(m) + '</div>';
+                return '<div class="meta-card" style="margin-bottom:.5rem"><strong>' + esc(m.name || 'Member') + '</strong> - ' + esc(m.role || '') + '</div>';
+            }).join('');
+        }
+
+        const wFor = Number(p.weightFor) || 0;
+        const wAgainst = Number(p.weightAgainst) || 0;
+        const totalW = wFor + wAgainst;
+        const forPct = totalW > 0 ? (wFor / totalW) * 100 : 0;
+        const againstPct = totalW > 0 ? (wAgainst / totalW) * 100 : 0;
+        const quorumNeed = Number(p.requiredQuorumFat) || 1000000;
+        const quorumPct = Math.min(100, (totalW / quorumNeed) * 100);
+        document.getElementById('sWeightFor').textContent = fmtFat(wFor);
+        document.getElementById('sQuorumNeed').textContent = fmtFat(quorumNeed);
+        document.getElementById('sQuorumPct').textContent = quorumPct.toFixed(1) + '%';
+        document.getElementById('barQuorum').style.width = quorumPct + '%';
+        document.getElementById('sForPct').textContent = forPct.toFixed(1) + '%';
+        document.getElementById('barFor').style.width = forPct + '%';
+        document.getElementById('barAgainst').style.width = againstPct + '%';
+        document.getElementById('sWeightAgainst').textContent = fmtFat(wAgainst) + ' FAT';
+        document.getElementById('sBallots').textContent = ((p.votesFor || 0) + (p.votesAgainst || 0)).toLocaleString();
+        const days = p.daysRemaining;
+        document.getElementById('sTimeLeft').textContent =
+            p.status === 'voting' && days != null ? (days + ' day' + (days === 1 ? '' : 's')) : (p.status || '-').replace(/_/g, ' ');
+        const fund = Number(p.fundingRequested) || 0;
+        document.getElementById('sFunding').textContent = fund > 0
+            ? fmtFat(fund) + ' ' + (p.fundingCurrency || 'FAT')
+            : 'Not requested';
+        document.getElementById('pId').textContent = p.id;
+
+        const canVote = (p.status || '') === 'voting';
+        document.getElementById('btnFor').disabled = !canVote;
+        document.getElementById('btnAgainst').disabled = !canVote;
+        document.getElementById('voteHint').textContent = canVote
+            ? 'Connect a Datachain Rope wallet to cast a weighted vote.'
+            : 'Voting is closed for this project (' + (p.status || '').replace(/_/g, ' ') + ').';
+
+        document.getElementById('btnFor').onclick = function () { voteOnProject(p.id, true); };
+        document.getElementById('btnAgainst').onclick = function () { voteOnProject(p.id, false); };
+        document.getElementById('btnCopy').onclick = function () {
+            navigator.clipboard.writeText(location.href).then(function () {
+                alert('Project link copied.');
+            }).catch(function () {
+                prompt('Copy this link:', location.href);
+            });
+        };
+        const shareText = encodeURIComponent((p.name || 'Datachain project') + ' - vote on Datachain Rope');
+        document.getElementById('btnX').href = 'https://twitter.com/intent/tweet?text=' + shareText + '&url=' + encodeURIComponent(location.href);
+    }
+
+    async function load() {
+        const id = projectIdFromPath();
+        if (!id) {
+            document.getElementById('loadState').innerHTML = '<div class="err-banner">Missing project id. Open a project from <a href="/vote">/vote</a>.</div>';
+            return;
+        }
+        try {
+            const res = await fetch(API + '/projects/' + encodeURIComponent(id), {
+                cache: 'no-store',
+                headers: { 'Accept': 'application/json' }
+            });
+            const data = await res.json();
+            // Accept both flat project payloads and { project: {...} } wrappers.
+            const project = (data && data.project && typeof data.project === 'object')
+                ? data.project
+                : data;
+            if (!res.ok || (data && data.error) || !project || !project.id) {
+                document.getElementById('loadState').innerHTML = '<div class="err-banner">' +
+                    esc((data && data.error) || 'Project not found') +
+                    ' <a href="/vote">← Back to Community Vote</a></div>';
+                return;
+            }
+            try {
+                render(project);
+            } catch (renderErr) {
+                console.error('project render failed', renderErr);
+                document.getElementById('loadState').innerHTML =
+                    '<div class="err-banner">Project loaded but failed to render. <a href="/vote">← Back to Community Vote</a></div>';
+            }
+        } catch (e) {
+            console.error('project fetch failed', e);
+            document.getElementById('loadState').innerHTML =
+                '<div class="err-banner">Could not load project. Please retry. <a href="/vote">← Back to Community Vote</a></div>';
+        }
+    }
+
+    document.querySelectorAll('.tab').forEach(function (tab) {
+        tab.addEventListener('click', function () {
+            document.querySelectorAll('.tab').forEach(function (t) { t.classList.remove('active'); });
+            document.querySelectorAll('.panel').forEach(function (p) { p.classList.remove('active'); });
+            tab.classList.add('active');
+            document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+        });
+    });
+    document.querySelectorAll('.faq-q').forEach(function (q) {
+        q.addEventListener('click', function () {
+            q.parentElement.classList.toggle('open');
+        });
+    });
+
+    fetch(API + '/stats').then(function (r) { return r.json(); }).then(function (d) {
+        const px = d.fatPriceRaw != null ? d.fatPriceRaw : d.fatPrice;
+        if (px != null) {
+            const n = Number(px);
+            document.getElementById('fatPrice').textContent = isFinite(n) ? ('$' + n.toFixed(5)) : String(px);
+        }
+    }).catch(function () {});
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', load);
+    } else {
+        load();
+    }
+})();
+    </script>
+</body>
+</html>

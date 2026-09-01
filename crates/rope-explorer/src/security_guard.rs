@@ -1,8 +1,8 @@
 //! CERBER WATCH wiring for rope-explorer's HTTP write paths.
 //!
 //! `docs/SECURITY_AUDIT_2026-07-25_FULL_WORKSPACE.md` §5.0 found that
-//! `rope-agent-runtime::security::cerber` — the module carrying CERBER's
-//! input-validation logic — was never imported by either production
+//! `rope-agent-runtime::security::cerber` - the module carrying CERBER's
+//! input-validation logic - was never imported by either production
 //! binary (`rope-node` or `rope-explorer`), so it provided zero real
 //! protection against SQL-injection / XSS / path-traversal payloads
 //! submitted through public write endpoints (project submissions, contact
@@ -55,7 +55,7 @@ fn guard() -> &'static rope_security::guard::RequestGuard {
 /// `(StatusCode, Json<Value>)` error tuple.
 ///
 /// Do NOT pass free-form source-code / bytecode fields (e.g. a Solidity
-/// `source_code` submission) through this helper — block comments (`/* */`)
+/// `source_code` submission) through this helper - block comments (`/* */`)
 /// are ubiquitous in real source and would trip the SQL-comment-injection
 /// heuristic on every legitimate submission. Those fields should be left
 /// unvalidated here (any dangerous content in them is inert text stored
@@ -94,7 +94,7 @@ pub fn validate_fields(fields: &[(&str, &str)]) -> Result<(), (StatusCode, Json<
 /// `RequestGuard::new()` (empty blocklist) instead of
 /// `with_default_blocklist()` somewhere", without requiring any network
 /// call. Exposed (rather than kept private) so the config-drift probe
-/// below — and any future health/status endpoint — can read it.
+/// below - and any future health/status endpoint - can read it.
 pub fn cerber_blocklist_active() -> bool {
     guard().is_signer_blocked(rope_security::guard::KNOWN_COMPROMISED_SIGNERS[0])
 }
@@ -110,7 +110,7 @@ const DESTRUCTIVE_GATE_CANARY_METHODS: &[&str] = &["rope_untieKnot", "rope_appen
 /// The Phase-1 destructive-method-gate denial code from
 /// `rope-node/src/rpc_auth.rs`. Duplicated here (rather than a
 /// cross-crate dependency on `rope-node`, which would be a real
-/// dependency-graph inversion — `rope-node` already depends on
+/// dependency-graph inversion - `rope-node` already depends on
 /// `rope-security`, not the other way around) because it is a small,
 /// stable, publicly documented protocol constant.
 const ROPE_NODE_DESTRUCTIVE_GATE_DENIAL_CODE: i64 = -32401;
@@ -124,7 +124,7 @@ const ROPE_NODE_DESTRUCTIVE_GATE_DENIAL_CODE: i64 = -32401;
 /// loopback connection is what marks a caller as internal/trusted. By
 /// deliberately setting XFF ourselves for this one probe, we make
 /// rope-node treat us exactly like an internet-side caller for the
-/// duration of this single request — which is the only way to actually
+/// duration of this single request - which is the only way to actually
 /// observe the public-facing gate posture from a co-located process
 /// without going out over the public internet.
 ///
@@ -175,7 +175,7 @@ async fn probe_destructive_gate(state: &crate::AppState, method: &str) -> String
 /// alongside the boot-time dispatcher-completeness check). Unlike
 /// `validate_fields`/`check_signer`, which run on the request hot path,
 /// this is meant to be driven by a periodic background task (see
-/// `main.rs`'s startup task list) — it checks *ambient* security posture
+/// `main.rs`'s startup task list) - it checks *ambient* security posture
 /// that no single request would ever surface:
 ///
 /// 1. Is this process's own `RequestGuard` still seeded with the
@@ -184,7 +184,7 @@ async fn probe_destructive_gate(state: &crate::AppState, method: &str) -> String
 ///    `rope_*` methods for non-internal callers (a cross-process canary
 ///    for the Phase-1 V11 gate staying deployed and enabled)?
 ///
-/// Findings are logged (WATCH), never auto-remediated (no STRIKE) —
+/// Findings are logged (WATCH), never auto-remediated (no STRIKE) -
 /// reverting a live security posture from an autonomous background loop
 /// would itself be a dangerous action; see `rope-security::config_drift`
 /// module docs for the full rationale.
@@ -216,7 +216,7 @@ pub async fn run_config_drift_probe(state: &crate::AppState) -> rope_security::c
         tracing::error!(
             target: "rope_explorer::security",
             drift = %report.summary(),
-            "CERBER config-drift probe: security posture DRIFTED from baseline — see \
+            "CERBER config-drift probe: security posture DRIFTED from baseline - see \
              SECURITY_AUDIT_2026-07-25_FULL_WORKSPACE.md and \
              handover-security-audit-2026-06-11.mdc"
         );
@@ -226,7 +226,7 @@ pub async fn run_config_drift_probe(state: &crate::AppState) -> rope_security::c
 
 /// Check a wallet/signer address (e.g. `owner_address`, `voter_address`)
 /// against the blocklist. A blank/empty address is treated as "not
-/// applicable" (Ok) — callers that require a non-empty signer already
+/// applicable" (Ok) - callers that require a non-empty signer already
 /// enforce that separately.
 pub fn check_signer(addr: &str) -> Result<(), (StatusCode, Json<Value>)> {
     if addr.trim().is_empty() {
@@ -250,6 +250,81 @@ pub fn check_signer(addr: &str) -> Result<(), (StatusCode, Json<Value>)> {
         ));
     }
     Ok(())
+}
+
+/// CERBER WATCH - SSRF guard for server-issued outbound URLs.
+///
+/// `docs/SECURITY_AUDIT_2026-07-26` counter-audit finding: the databox /
+/// third-party-service registration endpoint (`extra.rs::services_registry_post`)
+/// accepts an attacker-controlled `health_url`, which this process then
+/// dials on a periodic health-check loop (`main.rs::agent_health_ok`) with
+/// no validation at all - a classic Server-Side Request Forgery primitive
+/// (cloud metadata endpoints, internal-only services on loopback, or
+/// third-party DoS amplification). This helper wraps
+/// `rope_security::ssrf_guard` in the same ready-to-`return`
+/// `(StatusCode, Json<Value>)` shape as the other guards in this module, so
+/// registration handlers reject a malicious `health_url` at submission time
+/// (see also: call the async `validate_outbound_url_async` again
+/// immediately before actually dialing the URL, for defense against a
+/// hostname that later starts resolving to an internal address).
+pub fn validate_outbound_url(field_name: &str, raw: &str) -> Result<(), (StatusCode, Json<Value>)> {
+    if raw.trim().is_empty() {
+        return Ok(());
+    }
+    if let Err(e) = rope_security::ssrf_guard::validate_url_syntax(raw) {
+        tracing::warn!(
+            target: "rope_explorer::security",
+            field = field_name,
+            error = %e,
+            "CERBER WATCH: rejected outbound URL - possible SSRF payload"
+        );
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({
+                "success": false,
+                "error": format!(
+                    "request rejected by CERBER WATCH: field '{field_name}' is not a permitted \
+                     outbound URL ({e})"
+                ),
+            })),
+        ));
+    }
+    Ok(())
+}
+
+/// Async companion to [`validate_outbound_url`] - resolves the hostname via
+/// DNS and re-checks every resolved address, catching a hostname that
+/// passed the syntax-only check at registration time but now (or always)
+/// resolves to a private/loopback/link-local/metadata address. Callers
+/// should invoke this immediately before actually dialing the URL, not
+/// only at registration time.
+///
+/// Currently unused by any call site: `services_registry_post`'s
+/// `health_url` (the only attacker-controlled outbound-URL field in this
+/// crate today) is stored but never dialed by any existing health-check
+/// loop - `agent_health_ok`'s two callers both use trusted,
+/// operator-controlled URLs (see the doc comment on `agent_health_ok` in
+/// `main.rs`). Kept (fully implemented and unit-tested, not a stub) so
+/// that the moment a health-check loop for `services_registry` entries is
+/// added, this is a one-line call away instead of a forgotten SSRF gap.
+#[allow(dead_code)]
+pub async fn validate_outbound_url_before_fetch(raw: &str) -> bool {
+    if raw.trim().is_empty() {
+        return false;
+    }
+    match rope_security::ssrf_guard::validate_outbound_url(raw).await {
+        Ok(_) => true,
+        Err(e) => {
+            tracing::warn!(
+                target: "rope_explorer::security",
+                url = raw,
+                error = %e,
+                "CERBER WATCH: refused to dial outbound URL at fetch time - possible SSRF \
+                 (DNS rebinding or drifted resolution since registration)"
+            );
+            false
+        }
+    }
 }
 
 #[cfg(test)]
@@ -283,7 +358,7 @@ mod tests {
     #[test]
     fn validate_fields_allows_sql_keywords_in_free_text_description() {
         // "select" / "alter" are ordinary English words that legitimately
-        // appear in project descriptions — must not false-positive.
+        // appear in project descriptions - must not false-positive.
         assert!(validate_fields(&[(
             "description",
             "Users can select a plan and alter their subscription anytime."
@@ -316,5 +391,29 @@ mod tests {
     #[test]
     fn check_signer_allows_clean_address() {
         assert!(check_signer("0x000000000000000000000000000000000000dEaD").is_ok());
+    }
+
+    #[test]
+    fn validate_outbound_url_allows_empty_and_public_https() {
+        assert!(validate_outbound_url("health_url", "").is_ok());
+        assert!(validate_outbound_url("health_url", "https://tanastok.io/api/v1/health").is_ok());
+    }
+
+    #[test]
+    fn validate_outbound_url_rejects_metadata_and_loopback() {
+        assert!(validate_outbound_url("health_url", "http://169.254.169.254/latest/meta-data/").is_err());
+        assert!(validate_outbound_url("health_url", "http://127.0.0.1:5432/").is_err());
+        assert!(validate_outbound_url("health_url", "http://localhost:9096/").is_err());
+        assert!(validate_outbound_url("health_url", "ftp://internal/x").is_err());
+    }
+
+    #[tokio::test]
+    async fn validate_outbound_url_before_fetch_rejects_blocked_literal_ip() {
+        assert!(!validate_outbound_url_before_fetch("http://127.0.0.1:8545/").await);
+    }
+
+    #[tokio::test]
+    async fn validate_outbound_url_before_fetch_rejects_empty() {
+        assert!(!validate_outbound_url_before_fetch("").await);
     }
 }

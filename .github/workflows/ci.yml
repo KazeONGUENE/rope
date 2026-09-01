@@ -98,9 +98,10 @@ jobs:
         uses: taiki-e/install-action@cargo-audit
 
       - name: Run security audit
-        # Continue on error for now - transitive dependency vulnerabilities
-        # will be fixed by upstream maintainers (libp2p, sqlx, etc.)
-        run: cargo audit || true
+        # Known/unreachable transitive advisories are explicitly allow-listed
+        # in .cargo/audit.toml (each with a justification). Any advisory NOT
+        # in that list — i.e. any new vulnerability — fails this job.
+        run: cargo audit
 
   # ============================================================================
   # Documentation
@@ -247,6 +248,35 @@ jobs:
         with:
           name: ${{ matrix.artifact }}
           path: target/${{ matrix.target }}/release/rope-cli*
+
+  # ============================================================================
+  # Deploy Config Audit (Tier C - 2026-08-23)
+  # ============================================================================
+  # Guards the nginx failover topology declared in deploy/nginx/conf.d/*.conf.
+  # Runs deploy/scripts/nginx-config-audit.py + the fixture test suite in
+  # deploy/scripts/tests/test-nginx-config-audit.sh. This is the CI-level
+  # backstop for the 2026-08-23 `digitalocean_rpc` regression (a 3-node
+  # DigitalOcean failover pool silently collapsed to BLUE-only, which is
+  # why 3 of 4 Chainlist entries went red).
+  #
+  # Fast (~5s), stdlib-only Python + bash. No Rust compile, no docker.
+  deploy-config-audit:
+    name: Deploy Config Audit (nginx failover)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run nginx-config-audit fixture tests (15 cases)
+        run: bash deploy/scripts/tests/test-nginx-config-audit.sh
+
+      - name: Audit live nginx configs (strict, no unannotated upstreams)
+        run: |
+          python3 deploy/scripts/nginx-config-audit.py \
+            deploy/nginx/conf.d/datachain.network.conf \
+            deploy/nginx/conf.d/rope.network.conf
 
   # ============================================================================
   # Docker Build

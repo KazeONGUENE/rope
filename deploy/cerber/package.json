@@ -1,0 +1,21 @@
+{
+  "name": "@datachain/cerber-mesh",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Ecosystem CERBER mesh — node-signed interactions, 100% Rope verification, cross-host reports (Rope / DCSwap / Tanastok / Alteros)",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "cerber-mesh": "./bin/cerber-mesh.mjs",
+    "cerber-sign": "./bin/cerber-sign.mjs",
+    "cerber-report": "./bin/cerber-report.mjs"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "start": "node bin/cerber-mesh.mjs serve",
+    "verify-once": "node bin/cerber-mesh.mjs verify-rope",
+    "report": "node bin/cerber-report.mjs"
+  }
+}

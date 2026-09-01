@@ -160,23 +160,25 @@ pub fn populate_descriptors(store: &LedgerStore, pool: &WalletPool) {
     for wallet in pool.iter() {
         let mut head = [0u8; 32];
         head[..wallet.len().min(32)].copy_from_slice(&wallet[..wallet.len().min(32)]);
-        store.put_descriptor(
-            wallet,
-            StoredLedgerDescriptor {
-                wallet_address: wallet.to_vec(),
-                genesis_string_id: head,
-                head_string_id: head,
-                entry_count: 0,
-                total_size_bytes: 0,
-                oes_generation_at_creation: 0,
-                current_oes_generation: 0,
-                created_at: now,
-                last_appended_at: now,
-                is_deleted: false,
-                deleted_at: None,
-                replication_factor: 5,
-            },
-        );
+        store
+            .put_descriptor(
+                wallet,
+                StoredLedgerDescriptor {
+                    wallet_address: wallet.to_vec(),
+                    genesis_string_id: head,
+                    head_string_id: head,
+                    entry_count: 0,
+                    total_size_bytes: 0,
+                    oes_generation_at_creation: 0,
+                    current_oes_generation: 0,
+                    created_at: now,
+                    last_appended_at: now,
+                    is_deleted: false,
+                    deleted_at: None,
+                    replication_factor: 5,
+                },
+            )
+            .expect("populate_descriptors enqueue");
     }
 }
 

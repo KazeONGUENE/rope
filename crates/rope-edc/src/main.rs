@@ -1,4 +1,4 @@
-//! rope-edc binary — serves the console UI, the console API, the
+//! rope-edc binary - serves the console UI, the console API, the
 //! stakeholder gateway, and the public directory on one port.
 //!
 //! Environment:
@@ -63,9 +63,20 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(rope_edc::reports::run_report_scheduler(registry.clone()));
     tokio::spawn(rope_edc::simulation::run_simulation_ticker(registry.clone()));
 
+    // Build the shared cloud-provider registry once at startup. Live
+    // providers (DigitalOcean) read their credentials + state cache
+    // path from the environment here; dry-run providers (Exoscale)
+    // report `is_live=false` and stash dry-run instances in the same
+    // state directory.
+    let deployer = rope_edc::provision::default_provider_registry();
+    for (provider, live) in deployer.snapshot() {
+        tracing::info!("cloud provider: {} (live={})", provider.as_str(), live);
+    }
+
     let state = Arc::new(AppState {
         registry,
         ai,
+        deployer,
     });
 
     let cors = CorsLayer::new()
@@ -83,7 +94,7 @@ async fn main() -> anyhow::Result<()> {
         .layer(CompressionLayer::new());
 
     let listener = tokio::net::TcpListener::bind(&listen).await?;
-    tracing::info!("EDC listening on {listen} — console at /console/");
+    tracing::info!("EDC listening on {listen} - console at /console/");
     axum::serve(listener, app).await?;
     Ok(())
 }

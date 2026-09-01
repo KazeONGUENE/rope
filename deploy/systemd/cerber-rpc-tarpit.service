@@ -1,0 +1,26 @@
+[Unit]
+Description=CERBER R14 tarpit - slow, plausible-but-wrong JSON-RPC decoy for malicious clients
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+Environment=NODE_ENV=production
+Environment=CERBER_TARPIT_LISTEN=127.0.0.1:9099
+Environment=CERBER_TARPIT_DELAY_MIN_MS=1500
+Environment=CERBER_TARPIT_DELAY_MAX_MS=6000
+Environment=CERBER_TARPIT_LOG_DIR=/var/lib/datachain-rope/cerber/tarpit
+ExecStart=/usr/bin/node /opt/datachain-rope/cerber/bin/cerber-rpc-tarpit.mjs
+Restart=always
+RestartSec=5
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/datachain-rope/cerber
+PrivateTmp=true
+NoNewPrivileges=true
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

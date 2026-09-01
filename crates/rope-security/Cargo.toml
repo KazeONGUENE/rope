@@ -21,6 +21,7 @@ hex = { workspace = true }
 chrono = { workspace = true }
 parking_lot = { workspace = true }
 regex = "1.10"
+url = "2.5"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }

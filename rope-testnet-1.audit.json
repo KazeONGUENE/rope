@@ -1,0 +1,56 @@
+{
+  "audit_of": "rope-testnet-1.provision.json",
+  "created_at": "2026-08-31T09:24:00Z",
+  "purpose": "Immutable audit record of the initial provisioning of rope-testnet-1, including firewall bring-up, SSH bring-up, and matched-glibc verification. The operational manifest at rope-testnet-1.provision.json is regenerated on every idempotent re-run of provision-testnet-droplet.sh and does NOT retain historical detail; this file does.",
+  "droplet": {
+    "name": "rope-testnet-1",
+    "id": 596549440,
+    "region": "lon1",
+    "size": "s-2vcpu-4gb",
+    "image": "ubuntu-24-04-x64",
+    "public_ipv4": "159.65.82.207",
+    "public_ipv6": "2a03:b0c0:1:e0:0:1:b229:c001",
+    "created_at_api": "2026-08-31T09:21:30Z"
+  },
+  "firewall": {
+    "id": "7e279b17-07fd-48b7-8689-f30ef4e78853",
+    "name": "rope-testnet-fw",
+    "created_via": "manual DigitalOcean API POST after provision-testnet-droplet.sh v1 silently lost the id in its py_extract helper",
+    "created_at_api": "2026-08-31T09:22:18Z",
+    "public_inbound_ports": ["22/tcp", "443/tcp", "9000/tcp", "9000/udp"],
+    "attached_at_first_verify": "2026-08-31T09:22:19Z",
+    "attached_verified_at_reprovision": "2026-08-31T09:24:55Z"
+  },
+  "provisioner_bug_recorded_and_fixed": {
+    "symptom": "Initial run said 'created firewall ' (empty id) and continued; droplet came up without cloud-layer firewall until manual reconciliation.",
+    "root_cause": "curl POST /firewalls succeeded but the response wasn't captured; py_extract ran against a pipe that had already been consumed by the redirect, so FW_ID ended up empty; script continued.",
+    "fix_landed_in": "deploy/scripts/provision-testnet-droplet.sh (this commit)",
+    "fix_summary": [
+      "Capture full POST response body into FW_RESP before extracting id",
+      "If FW_ID is empty after extraction, print the response body and exit 1",
+      "Attach step now checks the response for an error object and bails",
+      "After attach, GET /firewalls/{FW_ID} and assert droplet_ids includes the target droplet - hard fail if not"
+    ],
+    "reverified_by": "Re-running the script at 2026-08-31T09:24:55Z: 'firewall exists: 7e279b17...', 'droplet rope-testnet-1 exists', 'firewall attach verified: droplet 596549440 is behind rope-testnet-fw'."
+  },
+  "os": {
+    "distro": "Ubuntu 24.04.4 LTS",
+    "kernel": "Linux 6.8.0-124-generic",
+    "glibc": "2.39",
+    "arch": "x86_64",
+    "binary_compat_with": ["new-blue (159.65.208.206)", "rope-vps (92.243.26.189)"]
+  },
+  "capacity": {
+    "mem_total": "3.8Gi",
+    "mem_free_at_first_ssh": "3.0Gi",
+    "swap": "0B",
+    "disk_root_size": "77G",
+    "disk_root_free": "75G"
+  },
+  "ssh": {
+    "alias": "rope-testnet-1",
+    "config_entry": "~/.ssh/config Host rope-testnet-1 -> root@159.65.82.207 (~/.ssh/datachain_rope_id_rsa)",
+    "first_successful_login_at": "2026-08-31T09:22:XXZ",
+    "host_key_algo": "ED25519"
+  }
+}

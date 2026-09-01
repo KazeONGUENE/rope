@@ -12,9 +12,11 @@
 //!
 //! API server powering dcscan.io
 
+#![recursion_limit = "512"]
+
 use axum::{
     extract::{Path, Query, State},
-    http::{HeaderValue, StatusCode},
+    http::{HeaderMap, HeaderValue, StatusCode},
     response::{IntoResponse, Json, Response},
     routing::{get, post},
     Router,
@@ -29,19 +31,39 @@ mod api;
 mod api_keys;
 mod certification_providers;
 mod db;
+mod ecosystem_canonical;
+mod ecosystem_overlay;
 mod mailer;
 mod extra;
 mod cross_chain_weight;
 mod databox_registry;
 mod governance_votes;
+mod jury;
+mod minting_governance_api;
+mod ngo_pipeline;
+mod vote_escrow_api;
 mod indexer;
 mod market_data;
 mod models;
-mod rate_limit;
 mod security_guard;
+mod swr;
 
 use api::*;
 use extra::*;
+
+// ── rope-addr-index: read-only per-address transaction / log index ─────
+// Optional at runtime: dc-explorer only opens the store when the
+// ADDR_INDEX_PATH env var is set AND the on-disk directory exists AND the
+// schema version matches. Every handler that reads it uses graceful
+// fallback: `state.addr_index.is_some()` → try the index first;
+// `None` / index-warmup / index-error → fall back to the legacy RPC scan.
+// See §10 of `handover-from-dcswap-dcscan-address-parity-fixes-2026-08-11.mdc`
+// for the read-flip protocol.
+use rope_addr_index::{
+    reader::AddressIndex as AddrIndex,
+    schema::{TxRef as AddrTxRef, TxRole as AddrTxRole},
+    store::Store as AddrIndexStore,
+};
 
 // DC FAT Token contract address on XDC Network
 const DC_FAT_CONTRACT: &str = "0x20b59e6c5deb7d7ced2ca823c6ca81dd3f7e9a3a";
@@ -83,7 +105,7 @@ pub struct AppState {
     pub http_client: reqwest::Client,
     /// Primary RPC URL (kept for backward compat with code that reads this field)
     pub rpc_url: String,
-    /// Ordered list of RPC endpoints — tried in order with automatic failover.
+    /// Ordered list of RPC endpoints - tried in order with automatic failover.
     /// Index of the currently healthy endpoint is tracked in `rpc_active_index`.
     pub rpc_urls: Vec<String>,
     /// Index into `rpc_urls` for the currently active endpoint (atomic for lock-free access)
@@ -96,6 +118,9 @@ pub struct AppState {
     pub verification_store: RwLock<std::collections::HashMap<String, extra::VerificationEntry>>,
     pub certifications_store:
         RwLock<std::collections::HashMap<String, Vec<extra::CertificationEntry>>>,
+    /// Onboarded third-party certification providers (C8). Empty ⇒ certify
+    /// endpoint fails closed with 501 - never accept unauthenticated claims.
+    pub certification_providers: certification_providers::CertificationProviderRegistry,
     /// When set, path to DCScan static frontend (for extensionless .html fallback)
     pub static_dir: Option<String>,
     /// PostgreSQL connection pool (None if DATABASE_URL not set)
@@ -115,17 +140,17 @@ pub struct AppState {
     pub tanastok_manifest_cache: RwLock<Option<TanastokManifestCache>>,
     /// Mapstore entity-manifest cache (marketplace participant ledger,
     /// refreshed every 5 min). Powers the `/api/v1/registry/mapstore-*`
-    /// endpoints — same mirror discipline as `tanastok_manifest_cache`.
+    /// endpoints - same mirror discipline as `tanastok_manifest_cache`.
     pub mapstore_manifest_cache: RwLock<Option<MapstoreManifestCache>>,
     /// Careaway entity-manifest cache (aggregate-only, health-data
-    /// boundary respected — counts/timestamps/hashes only, refreshed
+    /// boundary respected - counts/timestamps/hashes only, refreshed
     /// every 5 min). Powers `/api/v1/registry/careaway-manifest`.
     pub careaway_manifest_cache: RwLock<Option<CareawayManifestCache>>,
     /// TangibleDC Goodies entity-manifest cache (physical gold/silver
-    /// coin/title registry — DCNFT deed + ERC-3643 fractional title,
+    /// coin/title registry - DCNFT deed + ERC-3643 fractional title,
     /// pre-mint candidates, settlement/revenue activity, metal-spot
-    /// provenance — refreshed every 5 min). Powers the
-    /// `/api/v1/registry/tangibledc-*` endpoints — same mirror
+    /// provenance - refreshed every 5 min). Powers the
+    /// `/api/v1/registry/tangibledc-*` endpoints - same mirror
     /// discipline as `tanastok_manifest_cache` / `mapstore_manifest_cache`.
     pub tangibledc_manifest_cache: RwLock<Option<TangibleDcManifestCache>>,
     /// Ecosystem Deployment Console public directory cache (refreshed
@@ -134,7 +159,7 @@ pub struct AppState {
     pub ecosystem_directory_cache: RwLock<Option<EcosystemDirectoryCache>>,
     /// Exact cumulative transaction count (incrementally scanned by background task)
     pub tx_count_cache: RwLock<TxCountCache>,
-    /// Quipu Canon v1.2 — `rope_globalStats` cache. The data changes
+    /// Quipu Canon v1.2 - `rope_globalStats` cache. The data changes
     /// only when a new string is created or a knot appended, so a
     /// short TTL is enough to absorb burst load on `/api/v1/stats`.
     pub global_stats_cache: RwLock<Option<GlobalStatsCacheEntry>>,
@@ -172,16 +197,6 @@ pub struct AppState {
     /// Self-service API keys for authenticated (Datachain ID) users.
     /// File-persisted; management endpoints under `/api/v1/keys`.
     pub api_keys: api_keys::ApiKeyStore,
-    /// Onboarded third-party certification providers (auditors,
-    /// compliance vendors). Gates `POST /api/v1/verify/certify` — see
-    /// `certification_providers.rs` (finding C8,
-    /// SECURITY_AUDIT_2026-07-25_FULL_WORKSPACE.md).
-    pub certification_providers: certification_providers::CertificationProviderRegistry,
-    /// Per-effective-client-IP rate limiter covering every route on this
-    /// router (API + static frontend). See `rate_limit.rs` (finding H4,
-    /// SECURITY_AUDIT_2026-07-25_FULL_WORKSPACE.md) — before this field
-    /// existed, `rope-explorer` had no request-rate throttling at all.
-    pub rate_limiter: rate_limit::RateLimiter,
     /// SendGrid-backed transactional mailer (contact form relay for
     /// datachain.network / dcscan.io + API-key notifications). Reads
     /// EMAIL_* configuration from the environment at startup.
@@ -196,8 +211,38 @@ pub struct AppState {
     /// DC FAT supply-reconciliation cache (legacy ERC-20/XRC-20 supplies,
     /// WFAT supply, migrated supply, uncirculated wallets). Refreshed
     /// every 5 minutes; powers `/api/v1/supply/*` per the DC FAT Legacy
-    /// Migration spec v2.0 (Part A §9 / Part B §17–18).
+    /// Migration spec v2.0 (Part A §9 / Part B §17-18).
     pub supply_cache: RwLock<Option<market_data::SupplyReconCache>>,
+    /// Full-response cache for `/api/v1/stats` (stale-while-revalidate).
+    /// The endpoint sequentially fetches ~50 recent blocks to compute TPS
+    /// / avg-block-time / avg-fee, which costs ~3-16 s of `eth_getBlockBy*`
+    /// RPC time depending on how loaded the rope-node RPC forwarder is.
+    /// Under bursts (esp. during a rope-node restart or lazy-rehydration
+    /// warm-up), that pushed the handler past nginx's 60 s
+    /// `proxy_read_timeout` and produced 504s on dcscan.io's homepage.
+    /// The SWR cache turns steady-state loads into a lock-free clone with
+    /// a single background refresh at a time. Backed by `swr::SwrCache`
+    /// which owns both the payload cache and the single-flight refresh
+    /// lock; see `crate::swr` for the generic wrapper.
+    pub stats_response_cache: Arc<swr::SwrCache>,
+    /// Full-response cache for `/api/v1/validators`. Same SWR discipline
+    /// as `stats_response_cache`: the endpoint issues sequential
+    /// `rope_getString` + `eth_getBalance` + external `/healthz` HTTP
+    /// probes per canonical agent, which routinely take 5-8 s on a warm
+    /// path and >30 s if any agent is unreachable.
+    pub validators_response_cache: Arc<swr::SwrCache>,
+    /// Read-only handle to the persistent per-address transaction / log
+    /// index (RocksDB store maintained by `rope-addr-indexer.service`).
+    /// `None` when `ADDR_INDEX_PATH` is unset, the on-disk directory
+    /// doesn't exist, or the schema stamp mismatches - in every one of
+    /// those cases the handlers fall back to the legacy chunked
+    /// `eth_getLogs` / `from-to` scans.
+    ///
+    /// Ownership: `Arc<AddrIndex>` because the reader is cheap to clone
+    /// and every axum handler that touches it lives inside a
+    /// `State<Arc<AppState>>` future. `AddrIndex::new` wraps its own
+    /// `Arc<Store>` so cloning is O(refcount++).
+    pub addr_index: Option<Arc<AddrIndex>>,
 }
 
 /// One snapshot of CoinMarketCap quote data, keyed by token symbol
@@ -243,6 +288,54 @@ pub struct BlockNumberCacheEntry {
     pub head: u64,
 }
 
+// The former `StatsResponseCacheEntry` and `ValidatorsResponseCacheEntry`
+// structs were subsumed by `swr::SwrEntry` (2026-08-12, N+1 SWR helper).
+// The TTL constants below still drive the per-endpoint `swr::SwrConfig`
+// values built inside the handlers.
+
+/// TTL after which a cached response is considered stale but still safely
+/// servable while a background refresh runs. Stats change often enough
+/// that we want reasonably fresh numbers, but they DO NOT need to be
+/// second-accurate: TPS, avg block time and 24 h roll-ups all move on
+/// minute timescales. 15 s absorbs bursts without a visible delta.
+pub const STATS_RESPONSE_FRESH_TTL_SECS: i64 = 15;
+/// Serve-stale window. If the last successful refresh was less than
+/// STATS_RESPONSE_STALE_TTL_SECS ago and a fresh compute fails / times
+/// out, we return the stale payload rather than 5xx-ing the client.
+pub const STATS_RESPONSE_STALE_TTL_SECS: i64 = 300;
+/// Hard timeout on the inline compute path. rope-node → Reth RPC calls
+/// commonly finish in <200 ms; a wedged forwarder can extend that past
+/// nginx's 60 s. We cap the handler at 20 s so a bad path can never
+/// produce a 504 from the SWR handler itself.
+pub const STATS_RESPONSE_COMPUTE_TIMEOUT_SECS: u64 = 20;
+
+/// Same TTL / staleness / compute-timeout story for validators. Validator
+/// data (agent liveness + stake + attestation counts) is fundamentally
+/// lower-cardinality and slower-moving than stats, so we can afford a
+/// longer fresh window without any user-visible staleness.
+pub const VALIDATORS_RESPONSE_FRESH_TTL_SECS: i64 = 30;
+pub const VALIDATORS_RESPONSE_STALE_TTL_SECS: i64 = 600;
+pub const VALIDATORS_RESPONSE_COMPUTE_TIMEOUT_SECS: u64 = 20;
+
+/// Hard timeout on `account_overview_live` compute path. Same rationale as
+/// `STATS_RESPONSE_COMPUTE_TIMEOUT_SECS`: the account-overview handler
+/// issues 3 sequential loopback RPCs (eth_getBalance, eth_getTransactionCount,
+/// eth_getCode) plus a token-holdings fan-out (one balanceOf per DCR-20
+/// token in the registry). Under a rope-node wedge (see §17 in the
+/// dcscan address-parity handover) that chain can extend past nginx's
+/// 60 s `proxy_read_timeout`. This cap ensures the handler always
+/// returns a JSON body within 20 s - either the real overview, or a
+/// graceful fallback with the requested address + an honest `source`
+/// marker so the browser renders "loading / unavailable" instead of a
+/// nginx 504 HTML page.
+///
+/// Deliberately NOT a full SWR cache (unlike `stats` / `list_validators`):
+/// account overviews are per-address (millions of possible keys),
+/// mostly cold-cache, and each address's data changes independently -
+/// a per-address SWR would blow up in memory and give no visible win.
+/// A simple bounded timeout is the cautious, correct trade-off.
+pub const ACCOUNT_OVERVIEW_COMPUTE_TIMEOUT_SECS: u64 = 20;
+
 /// Incrementally scanned exact transaction count across the entire chain.
 /// Also tracks cumulative DCR-20 transfer volume (the *conveyed* value)
 /// since genesis, computed by aggregating Transfer logs on known token
@@ -251,7 +344,7 @@ pub struct BlockNumberCacheEntry {
 /// **Persisted to disk** (see TX_COUNT_CACHE_PATH) so the cumulative scan
 /// progress survives dc-explorer restarts. Without persistence, every
 /// restart re-scans from block 0 and the home page shows misleadingly
-/// low numbers for ~10–30 minutes while the cache catches up. Persistence
+/// low numbers for ~10-30 minutes while the cache catches up. Persistence
 /// fixes the "less than 200 K transactions since genesis" complaint by
 /// resuming scan from the last persisted block on every cold start.
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
@@ -259,7 +352,7 @@ pub struct TxCountCache {
     pub total_transactions: u64,
     pub last_scanned_block: u64,
     /// Cumulative USD volume of DCR-20 transfers across all known tokens
-    /// (WFAT, USDC, USDT, EUROD; LP tokens excluded — they have no $ price).
+    /// (WFAT, USDC, USDT, EUROD; LP tokens excluded - they have no $ price).
     pub total_volume_usd: f64,
     /// Cumulative WFAT-equivalent volume (sum of WFAT transfer amounts).
     /// Useful as a chain-native unit when stablecoin pricing is unavailable.
@@ -353,7 +446,7 @@ pub struct TokenHolderState {
     /// `holder_address (lc) -> raw u128 balance encoded as decimal string`.
     pub balances: std::collections::HashMap<String, String>,
     /// Total number of Transfer events processed since genesis. Used as
-    /// the authoritative "transfer count" for the token-info card —
+    /// the authoritative "transfer count" for the token-info card -
     /// previously the count came from the rolling 50-event cache, which
     /// massively under-reported.
     pub transfer_count: u64,
@@ -420,7 +513,7 @@ fn save_holder_index(idx: &HolderIndex) {
 /// Mirrors `HolderIndex` for the fungible-token side, but tracks per-tokenId
 /// ownership instead of per-address balances. Walks every ERC-721 `Transfer`
 /// event (`topic0 = keccak("Transfer(address,address,uint256)")` with
-/// **four** topics — for ERC-20 the same topic0 has only three topics, so
+/// **four** topics - for ERC-20 the same topic0 has only three topics, so
 /// the topic count is the disambiguator) for every Tanastok DCNFT contract
 /// and any other ERC-721 we discover via `supportsInterface(0x80ac58cd)`.
 ///
@@ -565,7 +658,7 @@ pub struct TanastokCache {
 /// cache is only ever populated on a *successful* fetch, any
 /// `dc-explorer` restart during that window (deploy, watchdog,
 /// crash) reset `/api/v1/registry/manifest` to a permanent `503
-/// "not yet warmed"` with zero entities — even though a perfectly
+/// "not yet warmed"` with zero entities - even though a perfectly
 /// good payload had been served minutes earlier. Persisting the last
 /// successful payload to disk and reloading it at startup means a
 /// restart can no longer make this worse than "as stale as it was
@@ -600,7 +693,7 @@ pub struct TanastokManifestCache {
 ///    `Cache-Control: s-maxage=300`).
 /// 3. **Persisted to disk** (`mapstore_manifest_cache.json`) so a
 ///    `dc-explorer` restart during a Mapstore-side outage keeps serving
-///    the last-known-good payload instead of going dark — same
+///    the last-known-good payload instead of going dark - same
 ///    last-known-good rationale documented on `TanastokManifestCache`.
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct MapstoreManifestCache {
@@ -617,7 +710,7 @@ pub struct MapstoreManifestCache {
     pub fetched_at: i64,
 }
 
-/// Cached TangibleDC Goodies **entity manifest** — the physical
+/// Cached TangibleDC Goodies **entity manifest** - the physical
 /// gold/silver coin/title registry (`dc.datachain.one`).
 ///
 /// Mirrors `https://dc.datachain.one/api/v1/tangibledc-entity-manifest`
@@ -625,7 +718,7 @@ pub struct MapstoreManifestCache {
 /// exact same discipline as `MapstoreManifestCache` above: real
 /// per-entity records (not aggregate-only like Careaway), so this gets
 /// the full three-endpoint mirror (manifest / labels / entity-by-id).
-/// Each entity is one physical coin — its NFC chip identity, DCNFT deed
+/// Each entity is one physical coin - its NFC chip identity, DCNFT deed
 /// (if minted) and ERC-3643 fractional title (if issued), and full
 /// production→delivery history. No customer PII: the only identifiers
 /// exposed are the same ones a buyer already reads by tapping their own
@@ -646,18 +739,18 @@ pub struct TangibleDcManifestCache {
     pub fetched_at: i64,
 }
 
-/// Cached Careaway **entity manifest** — aggregate-only healthcare
+/// Cached Careaway **entity manifest** - aggregate-only healthcare
 /// coordination stats (care-plan lifecycle counts, GDPR Art.17 erasure
 /// counters, DC-credit ledger settlement volume).
 ///
 /// Mirrors `https://careaway.co/api/v1/careaway-entity-manifest` (alias
 /// `/api/v1/registry/manifest` on the Careaway side). Unlike
 /// `TanastokManifestCache` / `MapstoreManifestCache`, Careaway's payload
-/// carries `"entities": []` **by design** — per the health-data special
+/// carries `"entities": []` **by design** - per the health-data special
 /// category boundary (GDPR Art. 9), Careaway exposes counts, timestamps,
 /// and hashes only, never a per-record listing. There is therefore no
 /// `by_id` index and no `/api/v1/registry/careaway-labels` or
-/// `/api/v1/registry/careaway-entity/:id` endpoint — building those would
+/// `/api/v1/registry/careaway-entity/:id` endpoint - building those would
 /// mean serving a permanently-empty stub, which the "no stubs" mandate
 /// forbids. If Careaway later ships a genuine per-record surface (e.g.
 /// the deferred verified-professional registry), extend this cache then.
@@ -678,12 +771,12 @@ pub struct CareawayManifestCache {
 /// Cached Ecosystem Deployment Console (EDC) public project directory.
 ///
 /// dcscan.io is the neutral, public index of every ecosystem project
-/// deployed through the EDC (spec v2.0 §8 — "dcscan.io integration").
+/// deployed through the EDC (spec v2.0 §8 - "dcscan.io integration").
 /// Each project runs its own sovereign EDC instance on its primary node;
 /// dcscan aggregates the *public cards* from every known instance so
 /// regulators and investors can discover projects in one place, then
 /// follow the `stakeholder_url` on each card for **disintermediated**,
-/// grant-scoped access to the project's live data — the data itself
+/// grant-scoped access to the project's live data - the data itself
 /// never transits through dcscan.
 ///
 /// Instance list comes from `EDC_DIRECTORY_URLS` (comma-separated base
@@ -710,6 +803,63 @@ fn edc_directory_urls() -> Vec<String> {
         .map(|s| s.trim().trim_end_matches('/').to_string())
         .filter(|s| !s.is_empty())
         .collect()
+}
+
+/// Returns true when the request carries an admin token that matches
+/// either `ECOSYSTEM_ADMIN_TOKEN` or `PROJECTS_ADMIN_TOKEN` from the
+/// process env. Both are supported so operators can either share the
+/// existing governance/projects token or provision a dedicated one for
+/// the ecosystem-visibility surface.
+///
+/// Recognised headers (case-insensitive, first non-empty wins):
+///   - `X-Ecosystem-Admin-Token`
+///   - `X-Admin-Token`
+///
+/// Fail-secure: when neither env var is set (or both are empty), this
+/// function always returns `false`. That preserves the existing default
+/// where admin-only features are disabled unless an operator explicitly
+/// provisions a token - the same posture as the node-requests and
+/// governance-review endpoints already in production.
+///
+/// The comparison uses `subtle::ConstantTimeEq` semantics via a
+/// hand-rolled constant-time byte compare so a timing side-channel
+/// cannot leak whether the token prefix matched.
+fn admin_token_matches(headers: &axum::http::HeaderMap) -> bool {
+    let candidate = headers
+        .get("x-ecosystem-admin-token")
+        .or_else(|| headers.get("x-admin-token"))
+        .and_then(|v| v.to_str().ok())
+        .map(str::trim)
+        .unwrap_or("");
+    if candidate.is_empty() {
+        return false;
+    }
+    let expected_ecosystem = std::env::var("ECOSYSTEM_ADMIN_TOKEN").unwrap_or_default();
+    let expected_projects = std::env::var("PROJECTS_ADMIN_TOKEN").unwrap_or_default();
+    for expected in [expected_ecosystem.trim(), expected_projects.trim()] {
+        if expected.is_empty() {
+            continue;
+        }
+        if ct_eq(candidate.as_bytes(), expected.as_bytes()) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Constant-time byte-slice equality. Returns `false` on length
+/// mismatch WITHOUT short-circuiting; the branch on length itself is
+/// unavoidable but reveals only the length of the expected secret,
+/// which is fixed for a given deployment.
+fn ct_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut diff: u8 = 0;
+    for i in 0..a.len() {
+        diff |= a[i] ^ b[i];
+    }
+    diff == 0
 }
 
 impl AppState {
@@ -741,8 +891,8 @@ pub struct TokenTxnCache {
 /// Each dc-explorer instance owns a private state directory
 /// (`DC_EXPLORER_STATE_DIR`, default `/var/lib/dc-explorer`) holding one
 /// JSON file per cache. Nothing is shared between nodes; a restart is
-/// warm instead of triggering a 10–30 min rescan from block 0. The
-/// holder/NFT/tx-count indices already persist this way — these helpers
+/// warm instead of triggering a 10-30 min rescan from block 0. The
+/// holder/NFT/tx-count indices already persist this way - these helpers
 /// extend the same pattern to the remaining in-memory caches.
 fn cache_state_path(name: &str) -> std::path::PathBuf {
     let dir = std::env::var("DC_EXPLORER_STATE_DIR")
@@ -774,7 +924,7 @@ fn load_json_cache<T: serde::de::DeserializeOwned>(name: &str) -> Option<T> {
 }
 
 /// Atomic write (tmp + rename) so a crash mid-write never corrupts the
-/// on-disk cache — the previous complete snapshot survives.
+/// on-disk cache - the previous complete snapshot survives.
 fn save_json_cache<T: serde::Serialize>(name: &str, value: &T) {
     let path = cache_state_path(name);
     if let Some(parent) = path.parent() {
@@ -830,7 +980,7 @@ async fn main() -> anyhow::Result<()> {
         );
     } else {
         tracing::info!(
-            "RPC: {} (no failover — set RPC_URL_SECONDARY to enable)",
+            "RPC: {} (no failover - set RPC_URL_SECONDARY to enable)",
             rpc_url
         );
     }
@@ -887,14 +1037,77 @@ async fn main() -> anyhow::Result<()> {
             }
             Err(e) => {
                 tracing::warn!(
-                    "Failed to connect to PostgreSQL: {} — agent data will be unavailable",
+                    "Failed to connect to PostgreSQL: {} - agent data will be unavailable",
                     e
                 );
                 None
             }
         },
         Err(_) => {
-            tracing::warn!("DATABASE_URL not set — agent data will be unavailable");
+            tracing::warn!("DATABASE_URL not set - agent data will be unavailable");
+            None
+        }
+    };
+
+    // ── Open the per-address transaction / log index (optional) ──────
+    //
+    // Read-only handle. `ADDR_INDEX_PATH` env var opts in; unset means
+    // dc-explorer keeps the pre-index behaviour bit-for-bit (legacy
+    // chunked `eth_getLogs` scan with a graceful `unavailable` timeout).
+    // The reader gracefully returns empty pages while the writer is
+    // still backfilling, so it is safe to open the store even if the
+    // indexer only just started.
+    let addr_index: Option<Arc<AddrIndex>> = match std::env::var("ADDR_INDEX_PATH") {
+        Ok(path_str) if !path_str.trim().is_empty() => {
+            let p = std::path::PathBuf::from(path_str.trim());
+            if !p.exists() {
+                tracing::warn!(
+                    path = %p.display(),
+                    "ADDR_INDEX_PATH is set but the directory does not exist yet - \
+                     falling back to legacy RPC scan for /api/v1/accounts/:addr/transactions. \
+                     Start `rope-addr-indexer.service` to populate it."
+                );
+                None
+            } else {
+                match AddrIndexStore::open_ro(&p) {
+                    Ok(store) => {
+                        let idx = AddrIndex::new(Arc::new(store));
+                                match idx.status() {
+                                    Ok(status) => tracing::info!(
+                                        path = %p.display(),
+                                        head_block = ?status.head_block,
+                                        backfill_low = ?status.backfill_low_water,
+                                        backfill_high = ?status.backfill_high_water,
+                                        "opened per-address index (read-only) - dc-explorer will prefer it \
+                                         over the legacy RPC scan on /api/v1/accounts/:addr/transactions",
+                                    ),
+                            Err(e) => tracing::warn!(
+                                path = %p.display(),
+                                error = ?e,
+                                "opened per-address index but could not read status - reader is \
+                                 still safe; empty pages will surface until the indexer catches up",
+                            ),
+                        }
+                        Some(Arc::new(idx))
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            path = %p.display(),
+                            error = ?e,
+                            "failed to open per-address index read-only - falling back to legacy \
+                             RPC scan. Check the on-disk schema version matches the code.",
+                        );
+                        None
+                    }
+                }
+            }
+        }
+        _ => {
+            tracing::info!(
+                "ADDR_INDEX_PATH not set - dc-explorer serves /api/v1/accounts/:addr/transactions \
+                 via the legacy chunked `eth_getLogs` scan. Set ADDR_INDEX_PATH and start \
+                 `rope-addr-indexer.service` to enable O(1)-per-page reads."
+            );
             None
         }
     };
@@ -911,6 +1124,7 @@ async fn main() -> anyhow::Result<()> {
         services_registry: RwLock::new(Vec::new()),
         verification_store: RwLock::new(std::collections::HashMap::new()),
         certifications_store: RwLock::new(std::collections::HashMap::new()),
+        certification_providers: certification_providers::CertificationProviderRegistry::load(),
         static_dir: static_dir.clone(),
         db_pool,
         // Warm-start both caches from the per-node state dir; the
@@ -919,7 +1133,7 @@ async fn main() -> anyhow::Result<()> {
         tokentxn_cache: RwLock::new(load_json_cache::<TokenTxnCache>("tokentxn_cache.json")),
         // Warm-start from disk so a restart during a Tanastok-side outage
         // (see TanastokManifestCache doc comment) doesn't zero out the
-        // registry mirror — the background refresher overwrites this
+        // registry mirror - the background refresher overwrites this
         // with a fresher payload as soon as the upstream recovers.
         tanastok_cache: RwLock::new(load_json_cache::<TanastokCache>("tanastok_cache.json")),
         tanastok_manifest_cache: RwLock::new(load_json_cache::<TanastokManifestCache>(
@@ -942,7 +1156,7 @@ async fn main() -> anyhow::Result<()> {
         )),
         ecosystem_directory_cache: RwLock::new(None),
         // Resume scan progress from disk so a restart doesn't reset the
-        // visible "transactions since genesis" count to ~0 for 10–30 min.
+        // visible "transactions since genesis" count to ~0 for 10-30 min.
         tx_count_cache: RwLock::new(load_tx_count_cache()),
         global_stats_cache: RwLock::new(None),
         block_number_cache: RwLock::new(None),
@@ -951,11 +1165,12 @@ async fn main() -> anyhow::Result<()> {
         holder_index: RwLock::new(load_holder_index()),
         nft_index: RwLock::new(load_nft_index()),
         api_keys: api_keys::ApiKeyStore::load(),
-        certification_providers: certification_providers::CertificationProviderRegistry::load(),
-        rate_limiter: rate_limit::RateLimiter::from_env(),
         mailer: mailer::Mailer::from_env(),
         cmc_cache: RwLock::new(None),
         supply_cache: RwLock::new(None),
+        stats_response_cache: Arc::new(swr::SwrCache::new("api_v1_stats")),
+        validators_response_cache: Arc::new(swr::SwrCache::new("api_v1_validators")),
+        addr_index,
     });
 
     // Persist API-key usage counters periodically (mint/revoke persist
@@ -971,7 +1186,7 @@ async fn main() -> anyhow::Result<()> {
     // ── Background CoinMarketCap refresh ─────────────────────────────
     // Updates `cmc_cache` every 5 minutes with live USD quotes for the
     // bridged stables and any other token symbol our `token_metadata()`
-    // map cares about. Becomes a no-op when `CMC_API_KEY` is not set —
+    // map cares about. Becomes a no-op when `CMC_API_KEY` is not set -
     // in that case the token pages keep using the static 2026-06-04
     // snapshot embedded in `token_metadata()` and label the data source
     // accordingly.
@@ -983,22 +1198,6 @@ async fn main() -> anyhow::Result<()> {
         loop {
             tokio::time::sleep(tokio::time::Duration::from_secs(5 * 60)).await;
             refresh_cmc_cache(&cmc_state).await;
-        }
-    });
-
-    // CERBER config-drift detector (new capability, 2026-07-25 audit
-    // remediation) — periodic background probe verifying that (a) this
-    // process's own RequestGuard blocklist is still active and (b) the
-    // connected rope-node backend still rejects destructive RPC methods
-    // for non-internal callers (the Phase-1 V11 gate). Every 10 minutes;
-    // warms once at startup so a fresh deploy is checked immediately
-    // rather than waiting for the first tick. WATCH only — findings are
-    // logged, never auto-remediated.
-    let drift_state = Arc::clone(&state);
-    tokio::spawn(async move {
-        loop {
-            security_guard::run_config_drift_probe(&drift_state).await;
-            tokio::time::sleep(tokio::time::Duration::from_secs(600)).await;
         }
     });
 
@@ -1056,7 +1255,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Start background Careaway entity-manifest cache refresh task
     // (every 5 min, matches upstream `s-maxage=300`). Mirrors
-    // `https://careaway.co/api/v1/careaway-entity-manifest` — same
+    // `https://careaway.co/api/v1/careaway-entity-manifest` - same
     // discipline as the two tasks above, aggregate-only payload.
     let careaway_manifest_state = Arc::clone(&state);
     tokio::spawn(async move {
@@ -1068,7 +1267,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Start background TangibleDC Goodies entity-manifest cache refresh
     // task (every 5 min, matches upstream `s-maxage=300`). Mirrors
-    // `https://dc.datachain.one/api/v1/tangibledc-entity-manifest` — same
+    // `https://dc.datachain.one/api/v1/tangibledc-entity-manifest` - same
     // discipline as the mirrors above, real per-entity coin/title records.
     let tangibledc_manifest_state = Arc::clone(&state);
     tokio::spawn(async move {
@@ -1156,67 +1355,11 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    // CORS layer — wildcard, used for the public, unauthenticated majority
-    // of routes below. Any site being able to read these responses
-    // cross-origin is intentional (dcscan.io stats/labels/registry/etc.
-    // are meant to be embeddable by any ecosystem frontend).
+    // CORS layer
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
         .allow_headers(Any);
-
-    // M8 (2026-07-25 security audit): `/api/v1/keys` (list/create) and
-    // `/api/v1/keys/:id` (revoke) are gated on a Datachain ID Bearer token
-    // scoped to one signed-in owner (see api_keys.rs module doc) — nothing
-    // about these responses is meant to be read cross-origin, and the only
-    // real caller is dcscan.io's own same-origin frontend
-    // (`static/apis.html` uses relative `fetch('/api/v1/keys', ...)`,
-    // which needs no CORS grant at all since it's same-origin). A wildcard
-    // `Access-Control-Allow-Origin: *` on these three routes adds no
-    // functionality and only widens the read surface for a hypothetical
-    // attacker page that already holds a stolen bearer token (e.g. via
-    // XSS elsewhere, or a leaked token) to read a victim's key list or a
-    // freshly minted key's plaintext from an arbitrary third-party origin
-    // instead of only from dcscan.io/datachain.network. Restrict to the
-    // known Datachain frontends; override via the comma-separated
-    // `DCSCAN_KEYS_CORS_ORIGINS` env var for staging/local dev.
-    //
-    // `/api/v1/keys/verify` is deliberately kept on the wildcard `cors`
-    // layer above, not this one: it authenticates via `X-API-Key` (not
-    // Bearer) and is designed to be called from any third-party
-    // integrator's own site to self-check a key, matching the common
-    // API-key-verification UX pattern (e.g. Stripe-style key checks).
-    let keys_cors_origins: Vec<axum::http::HeaderValue> = std::env::var("DCSCAN_KEYS_CORS_ORIGINS")
-        .unwrap_or_else(|_| {
-            "https://dcscan.io,https://www.dcscan.io,https://datachain.network,https://www.datachain.network"
-                .to_string()
-        })
-        .split(',')
-        .map(|o| o.trim())
-        .filter(|o| !o.is_empty())
-        .filter_map(|o| axum::http::HeaderValue::from_str(o).ok())
-        .collect();
-    let keys_cors = CorsLayer::new()
-        .allow_origin(keys_cors_origins)
-        .allow_methods([
-            axum::http::Method::GET,
-            axum::http::Method::POST,
-            axum::http::Method::DELETE,
-        ])
-        .allow_headers([
-            axum::http::header::AUTHORIZATION,
-            axum::http::header::CONTENT_TYPE,
-        ]);
-    let keys_router: Router<Arc<AppState>> = Router::new()
-        .route(
-            "/api/v1/keys",
-            get(api_keys::list_keys).post(api_keys::create_key),
-        )
-        .route(
-            "/api/v1/keys/:id",
-            axum::routing::delete(api_keys::revoke_key),
-        )
-        .layer(keys_cors);
 
     // When static frontend is enabled (DCSCAN_STATIC or bundled static/), serve HTML; else add JSON root
     let mut app = Router::new();
@@ -1231,7 +1374,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/v1/stats", get(stats))
         .route("/api/v1/stats/charts/:chart_type", get(chart_data))
         // DC FAT supply reconciliation (Legacy Migration spec v2.0,
-        // Part A §9 + Part B §17–18). `reconciliation` is the full
+        // Part A §9 + Part B §17-18). `reconciliation` is the full
         // machine-checkable view; `circulating`/`total` are the bare
         // text/plain numbers CoinGecko's and CoinMarketCap's supply
         // forms consume directly.
@@ -1244,14 +1387,14 @@ async fn main() -> anyhow::Result<()> {
             get(market_data::supply_circulating),
         )
         .route("/api/v1/supply/total", get(market_data::supply_total))
-        // Strings (Knots — canon v1.1, formerly "Blocks" in EVM tooling)
+        // Strings (Knots - canon v1.1, formerly "Blocks" in EVM tooling)
         .route("/api/v1/strings", get(list_strings))
         .route("/api/v1/strings/latest", get(latest_strings))
         .route("/api/v1/strings/:id", get(get_string))
-        // Quipu Canon v1.2 — string registry (per-entity, NOT per-anchor)
+        // Quipu Canon v1.2 - string registry (per-entity, NOT per-anchor)
         .route("/api/v1/registry/strings", get(registry_list_strings))
         .route("/api/v1/registry/stats", get(registry_global_stats))
-        // Quipu Canon v1.2 — Phase 5 (Tanastok entity-manifest mirror).
+        // Quipu Canon v1.2 - Phase 5 (Tanastok entity-manifest mirror).
         // `manifest` returns the full ~1,626 entity payload with strong
         // caching headers. `labels` is a slim id→label map for fast
         // client lookup. `entity/:id` is the single-entity endpoint.
@@ -1265,7 +1408,7 @@ async fn main() -> anyhow::Result<()> {
             "/api/v1/registry/entity/:id",
             get(registry_tanastok_entity_by_id),
         )
-        // Mapstore entity-manifest mirror — same shape/caching contract
+        // Mapstore entity-manifest mirror - same shape/caching contract
         // as the Tanastok trio above, under a distinct `mapstore-`
         // route segment so the two ecosystems never collide on
         // `/api/v1/registry/manifest`. Populated by
@@ -1282,7 +1425,7 @@ async fn main() -> anyhow::Result<()> {
             "/api/v1/registry/mapstore-entity/:id",
             get(registry_mapstore_entity_by_id),
         )
-        // Careaway entity-manifest mirror. Single endpoint only — no
+        // Careaway entity-manifest mirror. Single endpoint only - no
         // `-labels` / `-entity/:id` siblings, because Careaway's payload
         // is aggregate-only by design (health-data special-category
         // boundary, GDPR Art. 9): `entities: []` always, so a labels/
@@ -1292,7 +1435,7 @@ async fn main() -> anyhow::Result<()> {
             "/api/v1/registry/careaway-manifest",
             get(registry_careaway_manifest),
         )
-        // TangibleDC Goodies entity-manifest mirror — same shape/caching
+        // TangibleDC Goodies entity-manifest mirror - same shape/caching
         // contract as the Tanastok/Mapstore trios above, under a distinct
         // `tangibledc-` route segment. Each entity is one physical coin
         // (NFC identity, DCNFT deed, ERC-3643 title, full history).
@@ -1315,7 +1458,7 @@ async fn main() -> anyhow::Result<()> {
         // The body is forwarded verbatim to the active RPC backend
         // chosen by `rpc_url_active()`.
         .route("/api/rpc", post(rpc_proxy))
-        // Node deployment requests — intake queue for the
+        // Node deployment requests - intake queue for the
         // datachain.network "Deploy a Node" get-started form. Requests
         // are appended to a durable JSONL queue and fulfilled by an
         // operator with `ropectl deploy-node` against the foundation's
@@ -1327,7 +1470,7 @@ async fn main() -> anyhow::Result<()> {
             "/api/v1/node-requests",
             post(node_request_submit).get(node_requests_list),
         )
-        // DCSwap bot activity — discovery surface for Moneymaker / DCSwap
+        // DCSwap bot activity - discovery surface for Moneymaker / DCSwap
         // bots interacting with known DCSwap contracts. Read-only; computed
         // from the recent-transaction window.
         .route("/api/v1/dcswap/bots", get(dcswap_bot_activity))
@@ -1372,7 +1515,7 @@ async fn main() -> anyhow::Result<()> {
             get(account_transactions),
         )
         .route("/api/v1/accounts/:address/tokens", get(account_tokens))
-        // Quipu Canon v1.1 §6(2) — canonical String → Knot[] → Tx-details
+        // Quipu Canon v1.1 §6(2) - canonical String → Knot[] → Tx-details
         // hierarchy for the wallet's public personal ledger view in DCScan.
         // Tries the rope-node native `rope_getStringWithKnots` RPC first;
         // falls back to a block-anchored grouping built from EVM tx data.
@@ -1397,7 +1540,7 @@ async fn main() -> anyhow::Result<()> {
         // "Market data source" footer with "Live (refreshed N min ago)"
         // vs "Snapshot")
         .route("/api/v1/cmc/status", get(cmc_status))
-        // NFT (ERC-721) — Tanastok DCNFT support
+        // NFT (ERC-721) - Tanastok DCNFT support
         .route("/api/v1/nfts/:address", get(get_nft_collection))
         .route("/api/v1/nfts/:address/holders", get(nft_holders))
         .route("/api/v1/nfts/:address/tokens", get(nft_inventory))
@@ -1422,7 +1565,7 @@ async fn main() -> anyhow::Result<()> {
             "/api/v1/ai-agents/:id/testimonies",
             get(agent_testimonies_live),
         )
-        // Global Databox Network — real self-service registry (registration,
+        // Global Databox Network - real self-service registry (registration,
         // heartbeat, per-type discovery routes). See databox_registry.rs.
         .route(
             "/api/v1/databoxes",
@@ -1488,14 +1631,21 @@ async fn main() -> anyhow::Result<()> {
             post(generate_wallets),
         )
         .route("/api/v1/communities/:id/vote", post(vote_community))
-        // Project Submissions (Start Building) — real persistence, chain
+        // Project Submissions (Start Building) - real persistence, chain
         // anchoring, EIP-191 signature verification, and live single-chain
         // (Rope-native) FAT balance-weighted voting. See governance_votes.rs.
         .route(
             "/api/v1/projects",
             get(governance_votes::list_projects).post(governance_votes::submit_project),
         )
-        .route("/api/v1/projects/:id", get(governance_votes::get_project))
+        .route(
+            "/api/v1/projects/:id",
+            get(governance_votes::get_project).patch(governance_votes::update_project),
+        )
+        .route(
+            "/api/v1/projects/:id/lifecycle",
+            post(governance_votes::project_lifecycle),
+        )
         .route(
             "/api/v1/projects/:id/vote",
             post(governance_votes::vote_project),
@@ -1504,12 +1654,45 @@ async fn main() -> anyhow::Result<()> {
             "/api/v1/projects/:id/review",
             post(governance_votes::review_project),
         )
+        .route(
+            "/api/v1/projects/:id/documents",
+            post(governance_votes::attach_project_document),
+        )
+        .route(
+            "/api/v1/projects/:id/media",
+            post(governance_votes::attach_project_media),
+        )
+        .route(
+            "/api/v1/projects/:id/nominations",
+            get(governance_votes::list_project_nominations)
+                .post(governance_votes::nominate_ngo_for_project),
+        )
+        .route(
+            "/api/v1/projects/:id/draw-jury",
+            post(ngo_pipeline::draw_jury_handler),
+        )
+        .route(
+            "/api/v1/projects/:id/finalize-cause",
+            post(ngo_pipeline::finalize_cause),
+        )
+        .route(
+            "/api/v1/projects/:id/register-treasury",
+            post(ngo_pipeline::register_treasury),
+        )
+        .route(
+            "/api/v1/projects/:id/execute-dc-grant",
+            post(ngo_pipeline::execute_dc_grant),
+        )
+        .route(
+            "/api/v1/projects/:id/grant-cause-token",
+            post(ngo_pipeline::grant_cause_token),
+        )
         .route("/api/v1/projects/categories", get(project_categories))
         .route(
             "/api/v1/projects/voting",
             get(governance_votes::voting_projects),
         )
-        // Governance Phase 2 — cross-chain (Ethereum + XDC legacy DC + Rope
+        // Governance Phase 2 - cross-chain (Ethereum + XDC legacy DC + Rope
         // native FAT) voting-weight aggregation and EIP-191 attestation
         // signing for VoteEscrow.sol. See cross_chain_weight.rs.
         .route(
@@ -1520,7 +1703,78 @@ async fn main() -> anyhow::Result<()> {
             "/api/v1/governance/attestor",
             get(cross_chain_weight::get_attestor_info),
         )
-        // Ecosystem Deployment Console — public directory (spec v2.0 §8).
+        // VoteEscrow on-chain reads + tx-prep helpers for governance UI.
+        .route(
+            "/api/v1/governance/escrow",
+            get(vote_escrow_api::escrow_info),
+        )
+        .route(
+            "/api/v1/governance/escrow/prepare/create",
+            get(vote_escrow_api::prepare_create),
+        )
+        .route(
+            "/api/v1/governance/escrow/prepare/cast",
+            get(vote_escrow_api::prepare_cast),
+        )
+        .route(
+            "/api/v1/governance/escrow/:vote_id",
+            get(vote_escrow_api::get_escrow_vote),
+        )
+        .route(
+            "/api/v1/governance/escrow/pay",
+            post(ngo_pipeline::escrow_pay),
+        )
+        .route(
+            "/api/v1/projects/:id/escrow/link",
+            axum::routing::post(vote_escrow_api::link_escrow_vote),
+        )
+        .route(
+            "/api/v1/governance/pool",
+            get(governance_votes::governance_pool_stats),
+        )
+        .route(
+            "/api/v1/governance/pool/join",
+            post(governance_votes::join_governance_pool),
+        )
+        // CriticalProtocol → MintingGovernance staged pipeline (AI → random
+        // governors → Foundation → Timelock). VoteEscrow never mints.
+        .route(
+            "/api/v1/governance/minting",
+            get(minting_governance_api::list_proposals),
+        )
+        .route(
+            "/api/v1/governance/minting/open-from-escrow",
+            post(minting_governance_api::open_from_escrow),
+        )
+        .route(
+            "/api/v1/governance/minting/:id",
+            get(minting_governance_api::get_proposal),
+        )
+        .route(
+            "/api/v1/governance/minting/:id/ai",
+            post(minting_governance_api::submit_ai),
+        )
+        .route(
+            "/api/v1/governance/minting/:id/governor",
+            post(minting_governance_api::submit_governor),
+        )
+        .route(
+            "/api/v1/governance/minting/:id/foundation",
+            post(minting_governance_api::submit_foundation),
+        )
+        .route(
+            "/api/v1/governance/minting/:id/timelock",
+            post(minting_governance_api::mark_timelock),
+        )
+        .route(
+            "/api/v1/governance/minting/:id/prepare-timelock",
+            get(minting_governance_api::prepare_timelock),
+        )
+        .route(
+            "/api/v1/governance/influence",
+            get(minting_governance_api::influence_leaderboard),
+        )
+        // Ecosystem Deployment Console - public directory (spec v2.0 §8).
         // Aggregated project cards from every sovereign EDC instance;
         // regulator / investor data access is disintermediated via each
         // card's stakeholder_url (dcscan never proxies the data itself).
@@ -1529,33 +1783,30 @@ async fn main() -> anyhow::Result<()> {
             "/api/v1/ecosystem/directory/:id",
             get(ecosystem_directory_project),
         )
-        // Votes — project ballots are real (see governance_votes.rs); other
+        // Votes - project ballots are real (see governance_votes.rs); other
         // target types (federation/community demo) remain out of scope.
         .route("/api/v1/votes", get(governance_votes::list_votes))
         .route(
             "/api/v1/votes/:target_type/:target_id",
             get(governance_votes::get_votes_for_target),
         )
-        // Self-service API keys (Datachain ID authenticated users).
-        // `/api/v1/keys` and `/api/v1/keys/:id` live in `keys_router`
-        // (merged below) with their own, non-wildcard CORS policy — see
-        // the M8 comment above `keys_cors`. Only `verify` (X-API-Key,
-        // not Bearer) stays on the wildcard-CORS public chain here.
+        // Self-service API keys (Datachain ID authenticated users)
+        .route(
+            "/api/v1/keys",
+            get(api_keys::list_keys).post(api_keys::create_key),
+        )
+        .route(
+            "/api/v1/keys/:id",
+            axum::routing::delete(api_keys::revoke_key),
+        )
         .route("/api/v1/keys/verify", get(api_keys::verify_key))
         // Contact-form relay (SendGrid) for datachain.network + dcscan.io
         .route("/api/v1/contact", axum::routing::post(mailer::contact))
-        .layer(cors)
-        // `keys_router` was built and layered with `keys_cors` BEFORE this
-        // merge, so merging it in here (rather than adding its routes via
-        // `.route()` above) means the wildcard `cors` layer just applied
-        // does NOT also wrap it — each route keeps exactly the CORS policy
-        // it was given. `track_usage` below is applied after the merge so
-        // it still wraps every route, keys included, same as before M8.
-        .merge(keys_router)
         .layer(axum::middleware::from_fn_with_state(
             Arc::clone(&state),
             api_keys::track_usage,
-        ));
+        ))
+        .layer(cors);
 
     let app = if static_dir.is_some() {
         app.route("/", get(serve_index))
@@ -1563,15 +1814,6 @@ async fn main() -> anyhow::Result<()> {
     } else {
         app
     };
-    // Outermost layer, added last so it wraps EVERY route above —
-    // including the static-frontend fallback routes just added, which
-    // sit outside the `cors`/`track_usage` layers applied earlier
-    // (finding H4, SECURITY_AUDIT_2026-07-25_FULL_WORKSPACE.md; see
-    // `rate_limit.rs` module doc for the full trust model).
-    let app = app.layer(axum::middleware::from_fn_with_state(
-        Arc::clone(&state),
-        rate_limit::rate_limit_middleware,
-    ));
     let app = app.with_state(state);
 
     let addr = format!("0.0.0.0:{}", port);
@@ -1674,9 +1916,9 @@ async fn fetch_from_xdcscan(client: &reqwest::Client) -> Result<PriceData, anyho
 /// Fetch and cache the DC FAT price through the canonical source chain
 /// (Legacy Migration spec v2.0, Part B §B.3):
 ///
-/// 1. **DCSwap canonical** (`{DCSWAP_API}/v1/prices`) — the ecosystem
+/// 1. **DCSwap canonical** (`{DCSWAP_API}/v1/prices`) - the ecosystem
 ///    source of truth (handover-canonical-fat-price-2026-03-14).
-/// 2. **GeckoTerminal** legacy XDC DC price via the CoinGecko Pro key —
+/// 2. **GeckoTerminal** legacy XDC DC price via the CoinGecko Pro key -
 ///    labelled `geckoterminal-xdc-legacy` so consumers can tell a
 ///    legacy-representation price from the canonical one.
 /// 3. **XDCScan** token API (the pre-2026-07 primary, now last live
@@ -1696,7 +1938,7 @@ async fn fetch_and_cache_price(state: &Arc<AppState>) -> Result<PriceData, anyho
         }
         Err(primary_err) => {
             tracing::warn!(
-                "DCSwap canonical price fetch failed: {} — trying GeckoTerminal",
+                "DCSwap canonical price fetch failed: {} - trying GeckoTerminal",
                 primary_err
             );
             match market_data::fetch_from_geckoterminal_legacy(&state.http_client).await {
@@ -1705,7 +1947,7 @@ async fn fetch_and_cache_price(state: &Arc<AppState>) -> Result<PriceData, anyho
                     data
                 }
                 Err(gt_err) => {
-                    tracing::warn!("GeckoTerminal fetch failed: {} — trying XDCScan", gt_err);
+                    tracing::warn!("GeckoTerminal fetch failed: {} - trying XDCScan", gt_err);
                     match fetch_from_xdcscan(&state.http_client).await {
                         Ok(data) => {
                             tracing::info!("Price from XDCScan: ${:.8}", data.price);
@@ -1750,7 +1992,7 @@ async fn fetch_and_cache_price(state: &Arc<AppState>) -> Result<PriceData, anyho
 }
 
 /// Generate pseudo-random variation (0.0 to 1.0). Retained for tests;
-/// production price paths no longer synthesize price variation — a stale
+/// production price paths no longer synthesize price variation - a stale
 /// real price is served instead (see `fetch_and_cache_price`).
 #[cfg(test)]
 fn rand_variation() -> f64 {
@@ -1814,10 +2056,15 @@ async fn serve_static_with_html_fallback(
         ("databases", "databases.html"),
         ("databoxes", "databoxes.html"),
     ];
-    let rewritten = path_rewrites
-        .iter()
-        .find(|(from, _)| path == *from)
-        .map(|(_, to)| to.to_string());
+    // /project/<id> → project.html (Kickstarter-style project detail).
+    let rewritten = if path == "project" || path.starts_with("project/") {
+        Some("project.html".to_string())
+    } else {
+        path_rewrites
+            .iter()
+            .find(|(from, _)| path == *from)
+            .map(|(_, to)| to.to_string())
+    };
 
     let (file_path, content_type) = if path.is_empty() {
         (base.join("index.html"), "text/html; charset=utf-8")
@@ -1944,33 +2191,54 @@ async fn status(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
 /// Public, key-material-free network descriptor for wallet "Add Network"
 /// buttons (EIP-3085 `wallet_addEthereumChain` shape) and for any tool that
 /// needs to auto-configure against Datachain Rope. Deliberately contains no
-/// secrets — this is safe to call from any client, unauthenticated, and is
+/// secrets - this is safe to call from any client, unauthenticated, and is
 /// the single source of truth other pages (create-wallet, dcscan-wallet.js
 /// callers, third-party integrators) should read instead of hardcoding the
 /// chain params in N different places.
 async fn network_config(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let chain_id_hex = format!("0x{:x}", state.chain_id);
+    // Ordered RPC list for EIP-3085: wallets (MetaMask et al.) try urls[0]
+    // first. Keep the stable public hostname first so DNS HA + nginx read
+    // failover work without the user editing network settings. Secondary
+    // hostname is a fallback only (same edge when DNS is healthy).
     Json(serde_json::json!({
         "eip3085": {
             "chainId": chain_id_hex,
             "chainName": state.network_name,
             "nativeCurrency": { "name": "DC FAT", "symbol": "FAT", "decimals": 18 },
-            "rpcUrls": ["https://erpc.datachain.network"],
-            "blockExplorerUrls": ["https://dcscan.io"]
+            "rpcUrls": [
+                "https://erpc.datachain.network",
+                "https://erpc.rope.network"
+            ],
+            "blockExplorerUrls": ["https://dcscan.io"],
+            // PNG first: MetaMask 12+ and most wallets prefer raster over
+            // SVG and silently skip SVG on some builds. Keep SVG as a
+            // scalable fallback for wallets that request higher resolution.
+            "iconUrls": [
+                "https://dcscan.io/assets/logo.png",
+                "https://dcscan.io/assets/logo.svg"
+            ]
         },
         "chainIdDecimal": state.chain_id,
         "wsUrl": "wss://ws.datachain.network",
+        "wsUrls": [
+            "wss://ws.datachain.network",
+            "wss://ws.rope.network"
+        ],
+        "fleetStatusUrl": "https://erpc.datachain.network/v1/fleet-status",
+        "healthzUrl": "https://erpc.datachain.network/healthz",
         "derivationPath": "m/44'/60'/0'/0/0",
         "createWalletUrl": "https://dcscan.io/create-wallet",
         "datawalletPlusUrl": "https://datawallet.plus",
         "dcswapUrl": "https://dcswap.net",
-        "docsUrl": "https://dcscan.io/apis"
+        "docsUrl": "https://dcscan.io/apis",
+        "note": "Clients must fetch this endpoint at connect time and push eip3085 via wallet_addEthereumChain - do not hardcode RPC URLs in dApp UIs."
     }))
 }
 
 /// JSON-RPC call to Datachain Rope node (Reth EVM execution layer) with
 /// automatic failover. The pre-`reth-blue-green` architecture used Anvil;
-/// Anvil was fully archived 2026-03-31 — see `reth-migration-2026-03-12.mdc`
+/// Anvil was fully archived 2026-03-31 - see `reth-migration-2026-03-12.mdc`
 /// and `reth-blue-green-ipfs-architecture.mdc`. The function name and
 /// failover semantics are unchanged because Reth is wire-compatible with the
 /// JSON-RPC interface this client speaks.
@@ -1978,7 +2246,7 @@ async fn network_config(State(state): State<Arc<AppState>>) -> Json<serde_json::
 /// configured endpoints before giving up.
 /// Number of times to retry a *connection/transport* failure against the
 /// same RPC URL before moving on to the next endpoint (or giving up, when
-/// there is only one configured — the common case, since RPC_URL_SECONDARY
+/// there is only one configured - the common case, since RPC_URL_SECONDARY
 /// failover is off by default). Without this, a single transient TCP hiccup
 /// against the sole rope-node RPC endpoint fails the call outright with no
 /// second chance, which surfaced in production as endpoints like
@@ -2044,7 +2312,7 @@ async fn rpc_call(
         }
     }
     Err(format!(
-        "all {} RPC endpoints failed — last: {}",
+        "all {} RPC endpoints failed - last: {}",
         n, last_err
     ))
 }
@@ -2132,12 +2400,29 @@ fn known_token(addr: &str) -> Option<TokenInfo> {
     // so the explorer keeps decoding correctly across redeployments.
     match addr.to_lowercase().as_str() {
         // ── WFAT ────────────────────────────────────────────────────────────
+        // Invariant: WFAT is the 1:1 DCR-20 wrap of native FAT (same as
+        // WETH:ETH). WFAT MUST NEVER have an independent price fixture —
+        // its price is always whatever the canonical FAT price is at
+        // that instant (`dcswap-canonical` / `dcswap-reserves`). The
+        // previous `usd_price: 0.01` here was a stale 2026-02-26
+        // deploy-time reserve estimate that caused a 3.7× under-report
+        // on dcscan's token list (2026-08-13 Andrew Neophytou incident:
+        // $10 buy → UI showed $2.65 instead of $10). The field is left
+        // at `0.0` as an unreachable fail-safe: **every** WFAT USD
+        // amount MUST be rendered via `PriceLens::price_for(&info)`
+        // (see the `PriceLens` doc block below `topic_to_address()`),
+        // which special-cases `symbol == "WFAT"` to inherit the live
+        // FAT price from `state.price_cache` (or the last-known-good
+        // stale price, or `FALLBACK_PRICE`). A future caller that
+        // dereferences this `.usd_price` directly for WFAT will
+        // render `$0.00` — an honest, obvious zero, instantly
+        // diagnosable in UI — rather than a subtly wrong peg.
         "0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4"  // 2026-02-26 (live)
         | "0xddbf887982a2a1c03cb8705fef9e09c46122fff6" // post-Reth (planned)
         | "0x90e2e170b0fc133343f0d7fde128c1fb716aab25" => Some(TokenInfo {
             symbol: "WFAT",
             decimals: 18,
-            usd_price: 0.01,
+            usd_price: 0.0,
         }),
         // ── USDC ────────────────────────────────────────────────────────────
         "0xb93bd8db94f1baff474aa9cba0739daaad01641f"  // 2026-02-26 (live)
@@ -2161,7 +2446,7 @@ fn known_token(addr: &str) -> Option<TokenInfo> {
             decimals: 6,
             usd_price: 1.08,
         }),
-        // ── LP TOKENS (DCSwap pools — also DCR-20, decimals 18) ────────────
+        // ── LP TOKENS (DCSwap pools - also DCR-20, decimals 18) ────────────
         // 2026-02-26 redeployment pools:
         "0xd9ebc3da001618a3ae90481d33ae7ef85e130317" => Some(TokenInfo {
             symbol: "FAT-USDC LP",
@@ -2226,9 +2511,121 @@ fn topic_to_address(topic: &str) -> String {
     }
 }
 
+/// Diffuses the canonical FAT price (and every live per-symbol price
+/// published by the DCSwap `/v1/prices` feed) into any code path that
+/// renders a USD value. This is the single point where price policy
+/// lives — every reader must go through a `PriceLens` snapshot rather
+/// than dereferencing `TokenInfo::usd_price` for market-priced tokens.
+///
+/// Invariants enforced here (not by convention at call sites):
+///   1. **WFAT price ≡ FAT price.** WFAT is the 1:1 DCR-20 wrap of
+///      native FAT (same mechanic as WETH:ETH). There is no path
+///      through this lens that can return a WFAT price different from
+///      the FAT price. Motivated by the 2026-08-13 Andrew Neophytou
+///      incident: `/api/v1/tokens` list showed WFAT at $0.01 (a
+///      2026-02-26 deploy-time reserve estimate) while `/v1/prices`
+///      canonical was $0.037/FAT — a 3.7× under-report on a real
+///      buyer's wallet display.
+///   2. **FAT and WFAT are NEVER priced at $0.** Ordering:
+///        a. live cache in `state.price_cache` (fed by
+///           `fetch_and_cache_price` from `dcswap.net /v1/prices` →
+///           GeckoTerminal → XDCScan → last-known-good);
+///        b. `FALLBACK_PRICE` (stale but non-zero) if the cache has
+///           NEVER been populated since process start.
+///      The lens itself never fabricates `$0.00` for FAT / WFAT.
+///   3. **Bridged stables (USDC / USDT / EUROD)** prefer the
+///      drift-aware live price from the DCSwap feed and fall back to
+///      the peg fixture in `TokenInfo::usd_price` (which is a real
+///      product invariant — a 1:1 backed stablecoin — not a market
+///      snapshot).
+///   4. **Unknown or LP-pair contracts** return `None` from
+///      `price_by_addr`, so callers can render `—` rather than $0.
+#[derive(Clone, Debug)]
+pub struct PriceLens {
+    fat_usd: f64,
+    fat_change_24h: Option<f64>,
+    fat_source: String,
+    live_symbols: std::collections::HashMap<String, (f64, Option<f64>)>,
+}
+
+impl PriceLens {
+    /// Take a single price snapshot. Cheap enough to call at the top
+    /// of a request handler; do NOT call inside per-log loops — pass
+    /// the snapshot down instead.
+    pub async fn snapshot(state: &AppState) -> Self {
+        let (fat_usd, fat_change, fat_source) = {
+            let cache = state.price_cache.read().await;
+            match cache.as_ref() {
+                Some(p) => (p.price, Some(p.change_24h), p.source.clone()),
+                None => (FALLBACK_PRICE, None, "fallback".to_string()),
+            }
+        };
+        let live_symbols = fetch_dcswap_token_prices(state).await;
+        Self {
+            fat_usd,
+            fat_change_24h: fat_change,
+            fat_source,
+            live_symbols,
+        }
+    }
+
+    /// USD/unit price to render for a `TokenInfo`. Never returns 0.0
+    /// for FAT / WFAT (they always inherit the canonical FAT price).
+    /// For stables, prefers the live drift-aware value; falls back to
+    /// the peg fixture. For any other known token whose symbol is not
+    /// in the live feed, returns the `TokenInfo::usd_price` (which is
+    /// `0.0` today for LP pair tokens — a truthful "unknown", not a
+    /// fake peg).
+    pub fn price_for(&self, info: &TokenInfo) -> f64 {
+        match info.symbol {
+            "WFAT" | "FAT" => self.fat_usd,
+            other => self
+                .live_symbols
+                .get(&other.to_uppercase())
+                .map(|(p, _)| *p)
+                .unwrap_or(info.usd_price),
+        }
+    }
+
+    /// Same as `price_for` but also returns the 24h change if known.
+    pub fn price_and_change_for(&self, info: &TokenInfo) -> (f64, Option<f64>) {
+        match info.symbol {
+            "WFAT" | "FAT" => (self.fat_usd, self.fat_change_24h),
+            other => self
+                .live_symbols
+                .get(&other.to_uppercase())
+                .copied()
+                .unwrap_or((info.usd_price, None)),
+        }
+    }
+
+    /// Best-effort USD/unit price by contract address. Returns `None`
+    /// for unknown contracts so callers can render `—` rather than
+    /// `$0.00`.
+    pub fn price_by_addr(&self, addr_lc: &str) -> Option<f64> {
+        known_token(addr_lc).map(|info| self.price_for(&info))
+    }
+
+    /// Canonical FAT (= WFAT) USD price.
+    pub fn fat_usd(&self) -> f64 {
+        self.fat_usd
+    }
+
+    /// 24h change for FAT, if available.
+    pub fn fat_change_24h(&self) -> Option<f64> {
+        self.fat_change_24h
+    }
+
+    /// Source label for the FAT price (e.g. `dcswap-canonical`,
+    /// `geckoterminal-xdc-legacy`, `xdcscan`, `fallback`).
+    pub fn fat_source(&self) -> &str {
+        &self.fat_source
+    }
+}
+
 /// Decode an ABI-encoded `string` return value (e.g. from `name()` / `symbol()`)
 /// from a hex-encoded `eth_call` response. Falls back to a `bytes32`-style
-/// decoding if the response is too short to be a dynamic string — some older
+/// decoding if the response is too short to be a dynamic string - some older
 /// DCR-20 / ERC-20 tokens encode symbol as a fixed `bytes32`.
 fn decode_abi_string(hex_data: &str) -> Option<String> {
     let clean = hex_data.trim_start_matches("0x");
@@ -2270,7 +2667,7 @@ fn decode_abi_string(hex_data: &str) -> Option<String> {
 async fn eth_call_token_method(state: &AppState, token: &str, selector: &str) -> Option<String> {
     // Reth's RPC connection pool sometimes drops on connection reset
     // (mostly during heavy holder-index scans). Retry a couple of times
-    // with a short backoff before giving up — getting `name()` /
+    // with a short backoff before giving up - getting `name()` /
     // `symbol()` / `totalSupply()` wrong on a stable token page is far
     // more visible to users than a small extra wait.
     for attempt in 0..3 {
@@ -2293,7 +2690,7 @@ async fn eth_call_token_method(state: &AppState, token: &str, selector: &str) ->
                         return Some(s.to_string());
                     }
                     // `0x` is a valid empty response (e.g. EOAs return
-                    // empty), so don't retry that — only retry on errors.
+                    // empty), so don't retry that - only retry on errors.
                     return Some(s.to_string());
                 }
             }
@@ -2432,7 +2829,10 @@ fn derive_token_holders_from_cache(
     entries
 }
 
-fn decode_token_transfers(logs: &[serde_json::Value]) -> (Vec<serde_json::Value>, String) {
+fn decode_token_transfers(
+    logs: &[serde_json::Value],
+    lens: &PriceLens,
+) -> (Vec<serde_json::Value>, String) {
     let mut transfers = Vec::new();
     let mut total_usd = 0.0f64;
     let mut summary_parts: Vec<String> = Vec::new();
@@ -2453,8 +2853,14 @@ fn decode_token_transfers(logs: &[serde_json::Value]) -> (Vec<serde_json::Value>
         let data = log.get("data").and_then(|v| v.as_str()).unwrap_or("0x0");
         let raw_amount = decode_hex_u256(data);
 
+        // Route every price through `PriceLens` — enforces WFAT ≡ FAT
+        // and non-zero FAT/WFAT floors in one place.
         let (symbol, decimals, usd_price) = match known_token(token_addr) {
-            Some(info) => (info.symbol.to_string(), info.decimals, info.usd_price),
+            Some(info) => (
+                info.symbol.to_string(),
+                info.decimals,
+                lens.price_for(&info),
+            ),
             None => ("UNKNOWN".to_string(), 18, 0.0),
         };
 
@@ -2475,7 +2881,7 @@ fn decode_token_transfers(logs: &[serde_json::Value]) -> (Vec<serde_json::Value>
         // tag the amount with a short contract suffix so the user sees that
         // SOMETHING moved (better than dropping it and showing "0 FAT").
         let display_symbol = if symbol == "UNKNOWN" {
-            // e.g. "0x644d…1441" — last 4 chars of address as a short tag
+            // e.g. "0x644d…1441" - last 4 chars of address as a short tag
             let short = if token_addr.len() >= 8 {
                 let prefix = &token_addr[..6];
                 let suffix = &token_addr[token_addr.len() - 4..];
@@ -2546,13 +2952,22 @@ async fn collect_txs_from_recent_blocks(
     // full-block fetch over `block_count` blocks is both slow (one HTTP
     // round-trip per block) and can still come up empty during quiet
     // periods. Instead: batch-scan tx *counts* (cheap,
-    // eth_getBlockTransactionCountByNumber, 200 per HTTP batch — same
+    // eth_getBlockTransactionCountByNumber, 200 per HTTP batch - same
     // technique as the tx+volume scanner above) walking backward from
     // head until we've identified enough non-empty blocks or exhausted
     // `max_scan_blocks`, then fetch full block bodies only for the
     // blocks that actually have transactions.
     let batch_size: u64 = 200;
-    let max_scan_blocks: u64 = block_count.max(20_000);
+    // Cap total scan window at what the caller asked (bounded by a hard 20K
+    // ceiling for safety). Previously used `.max(20_000)` which INFLATED the
+    // scan to at least 20K blocks regardless of what the caller requested -
+    // that turned e.g. `collect_txs_from_recent_blocks(state, 500, 8000)` into
+    // a 20K-block, 100-batch RPC scan which trivially exceeded nginx's 60s
+    // upstream timeout for active addresses (see 504s on /api/v1/personal-
+    // ledger/:migration_minter/string and /api/v1/accounts/:addr/transactions
+    // reported 2026-08-11). Honouring the caller's `block_count` restores the
+    // per-endpoint budget that each caller already sizes appropriately.
+    let max_scan_blocks: u64 = block_count.min(20_000);
     let mut hit_blocks: Vec<u64> = Vec::new();
     let mut scanned: u64 = 0;
     let mut cursor = head;
@@ -2570,7 +2985,7 @@ async fn collect_txs_from_recent_blocks(
             }));
         }
 
-        // A single flaky HTTP round-trip must not sink the whole scan —
+        // A single flaky HTTP round-trip must not sink the whole scan -
         // retry this chunk a couple of times before treating it as a gap
         // and moving on. Observed in production: `rpc_batch_call` failing
         // on one chunk out of ~100 was enough to make the endpoint
@@ -2613,7 +3028,7 @@ async fn collect_txs_from_recent_blocks(
             }
         } else {
             tracing::warn!(
-                "collect_txs_from_recent_blocks: batch RPC failed for blocks {}..{} after retries — skipping chunk, continuing scan",
+                "collect_txs_from_recent_blocks: batch RPC failed for blocks {}..{} after retries - skipping chunk, continuing scan",
                 batch_start,
                 batch_end
             );
@@ -2701,7 +3116,7 @@ fn classify_knot_event_type(tx: &serde_json::Value) -> &'static str {
         return "ContractCreation";
     }
     if input.len() < 10 {
-        // No function call data — pure value transfer
+        // No function call data - pure value transfer
         if value > 0 {
             "Transfer"
         } else {
@@ -2729,7 +3144,7 @@ fn classify_knot_event_type(tx: &serde_json::Value) -> &'static str {
     }
 }
 
-/// Quipu Canon v1.2 — TTL on the cached `rope_globalStats` snapshot.
+/// Quipu Canon v1.2 - TTL on the cached `rope_globalStats` snapshot.
 /// 5 s is plenty: strings are typically created on human timescales,
 /// not per-block, so the visible drift is negligible. The cache also
 /// shields the `/api/v1/stats` handler from rope-node RPC flakiness
@@ -2747,7 +3162,7 @@ const BLOCK_NUMBER_CACHE_TTL_SECS: i64 = 2;
 
 /// Get the current cord head (== `eth_blockNumber`) with a short TTL
 /// cache. Falls back to the last known good value if the live RPC
-/// call fails — this protects `/api/v1/stats` from transient drops
+/// call fails - this protects `/api/v1/stats` from transient drops
 /// that would otherwise paint `totalKnots: 0` on the dashboard.
 async fn fetch_block_number_cached(state: &AppState) -> u64 {
     let now = chrono::Utc::now().timestamp();
@@ -2768,7 +3183,7 @@ async fn fetch_block_number_cached(state: &AppState) -> u64 {
             head
         }
         Err(_) => {
-            // RPC failed — last known good beats zero.
+            // RPC failed - last known good beats zero.
             let cache = state.block_number_cache.read().await;
             cache.as_ref().map(|e| e.head).unwrap_or(0)
         }
@@ -2776,7 +3191,7 @@ async fn fetch_block_number_cached(state: &AppState) -> u64 {
 }
 
 /// Get `rope_globalStats` from the local cache when fresh, otherwise
-/// fetch & store. Returns `(total_strings, by_kind_value)` — falls
+/// fetch & store. Returns `(total_strings, by_kind_value)` - falls
 /// back to the previous cached value (regardless of age) if the live
 /// fetch fails, and only returns `(0, Null)` on a cold-cache miss.
 async fn fetch_global_stats_cached(
@@ -2806,7 +3221,7 @@ async fn fetch_global_stats_cached(
             (s, bk)
         }
         Err(_) => {
-            // Live call failed — return last known good if we have one,
+            // Live call failed - return last known good if we have one,
             // otherwise the cold-cache zero default.
             let cache = state.global_stats_cache.read().await;
             match cache.as_ref() {
@@ -2817,18 +3232,67 @@ async fn fetch_global_stats_cached(
     }
 }
 
+/// SWR wrapper around `stats_compute`. Serves the last cached response
+/// immediately when fresh; when stale, returns the stale copy and kicks
+/// off a background refresh (single-flight via `stats_refresh_lock`) so
+/// concurrent homepage loads share one recompute. On cold cache we run
+/// the compute inline with a hard 20 s timeout, and if that misses we
+/// return whatever stale value we still have (up to 5 min) rather than
+/// letting nginx surface a 504. This is what killed dcscan.io during
+/// the 2026-08-11 outage window.
 async fn stats(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    // SWR-wrapped via `swr::SwrCache` (2026-08-12, N+1 SWR helper). The
+    // three cache states (fresh / stale-but-servable / cold with hard
+    // timeout) and the single-flight guarantee for cold-cache computes
+    // are provided by the wrapper; see `crate::swr` for the full
+    // discussion. The three constants below (`STATS_RESPONSE_*_TTL_SECS`,
+    // `STATS_RESPONSE_COMPUTE_TIMEOUT_SECS`) still drive the per-endpoint
+    // `SwrConfig` values here.
+    let cfg = swr::SwrConfig {
+        fresh_ttl_secs: STATS_RESPONSE_FRESH_TTL_SECS,
+        stale_ttl_secs: STATS_RESPONSE_STALE_TTL_SECS,
+        compute_timeout_secs: STATS_RESPONSE_COMPUTE_TIMEOUT_SECS,
+        endpoint_name: "api_v1_stats",
+    };
+    let state_bg = Arc::clone(&state);
+    let payload = state
+        .stats_response_cache
+        .serve(
+            cfg,
+            move || {
+                let s = Arc::clone(&state_bg);
+                async move { stats_compute(s).await }
+            },
+            || {
+                serde_json::json!({
+                    "error": "stats compute timeout",
+                    "note": "the dc-explorer -> rope-node RPC forwarder is slow; retry shortly",
+                    "totalKnots": 0,
+                    "totalStrings": 0,
+                    "totalTransactions": 0
+                })
+            },
+        )
+        .await;
+    Json(payload)
+}
+
+/// Uncached compute path for `/api/v1/stats`. Preserved verbatim from the
+/// pre-SWR version except that it now returns `serde_json::Value`
+/// directly (previously wrapped in `Json`), so the SWR wrapper can
+/// cache the body and wrap it once at the caller.
+async fn stats_compute(state: Arc<AppState>) -> serde_json::Value {
     let price_cache = state.price_cache.read().await;
     let price_data = price_cache.clone().unwrap_or_default();
     let fat_price = format!("${:.6}", price_data.price);
     let market_cap = format!("${:.0}", price_data.price * 10_000_000_000.0);
 
-    // Quipu Canon v1.2 — pull from the TTL cache so the response is
+    // Quipu Canon v1.2 - pull from the TTL cache so the response is
     // never poisoned by a transient rope-node RPC drop.
     let (total_strings_real, by_kind_breakdown) =
         fetch_global_stats_cached(&state).await;
 
-    // Same TTL-cache strategy for the cord head — rope-node's Reth
+    // Same TTL-cache strategy for the cord head - rope-node's Reth
     // forwarder occasionally drops `eth_blockNumber` under burst load,
     // which would otherwise paint `totalKnots: 0` on the dashboard.
     let head = fetch_block_number_cached(&state).await;
@@ -2940,10 +3404,10 @@ async fn stats(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     };
 
     // (`total_strings_real` and `by_kind_breakdown` were computed at
-    // the top of this handler — see the Quipu Canon v1.2 note above.)
+    // the top of this handler - see the Quipu Canon v1.2 note above.)
 
-    Json(serde_json::json!({
-        // ── Quipu Canon v1.2 — knot/transaction/event hierarchy ──────────────
+    serde_json::json!({
+        // ── Quipu Canon v1.2 - knot/transaction/event hierarchy ──────────────
         // See .cursor/rules/quipu-canon-v1.2-knot-event-distinction.mdc
         // for the full canonical definition. Hierarchy from top to bottom:
         //   cord anchor knot  (~1.1 M)  ← cordAnchors
@@ -2961,7 +3425,7 @@ async fn stats(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
         "cordAnchors": head,
 
         // Count of EVM-shaped knots (transactions) inside cord anchors.
-        // A transaction is one type of knot — see canon §4 event_type.
+        // A transaction is one type of knot - see canon §4 event_type.
         "transactions": total_tx_cumulative,
 
         // Count of sub-transaction events scanned (Transfer / Approval /
@@ -2977,7 +3441,7 @@ async fn stats(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
         // Number of distinct entity strings in the v1.2 registry.
         "strings": total_strings_real,
 
-        // ── DEPRECATED ALIASES (v1.0/1.1 names — drop in v1.3) ───────────────
+        // ── DEPRECATED ALIASES (v1.0/1.1 names - drop in v1.3) ───────────────
         // These keep existing frontends working through one release. New
         // code should use the canonical names above.
         // - totalKnots was the cord anchor count (cordAnchors)
@@ -3022,7 +3486,7 @@ async fn stats(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
         "tps": format!("{:.1}", tps),
         "avgBlockTime": format!("{:.1}s", avg_block_time),
         "finalityTime": format!("{:.1}s", avg_block_time * 2.0)
-    }))
+    })
 }
 
 /// DC FAT Token Price endpoint
@@ -3168,7 +3632,7 @@ struct PaginationParams {
     filter: Option<String>,
 }
 
-/// Quipu Canon v1.2 — `/api/v1/registry/strings`.
+/// Quipu Canon v1.2 - `/api/v1/registry/strings`.
 ///
 /// Per-entity string registry. Thin proxy to `rope_listStrings` on the
 /// consensus node. Falls back to an empty page when the RPC is
@@ -3248,7 +3712,7 @@ async fn registry_global_stats(State(state): State<Arc<AppState>>) -> Json<serde
                     "by_kind": entry.by_kind,
                     "invariant_holds": total_knots >= entry.total_strings,
                     "stale_at": entry.fetched_at,
-                    "note": "served from local cache — rope_globalStats RPC briefly unavailable"
+                    "note": "served from local cache - rope_globalStats RPC briefly unavailable"
                 }))
             } else {
                 Json(serde_json::json!({
@@ -3490,7 +3954,8 @@ async fn enrich_tx_with_transfers(
                 })).collect()
                 })
                 .unwrap_or_default();
-            let (_, transfer_summary) = decode_token_transfers(&logs);
+            let lens = PriceLens::snapshot(state).await;
+            let (_, transfer_summary) = decode_token_transfers(&logs, &lens);
             if !transfer_summary.is_empty() {
                 summary["value"] = serde_json::json!(transfer_summary);
             }
@@ -3608,7 +4073,7 @@ async fn latest_transactions(State(state): State<Arc<AppState>>) -> Json<serde_j
 
     // Only cache a non-empty result. If the wide scan genuinely finds
     // nothing (e.g. a brand-new chain), don't lock in an empty response
-    // for the full TTL — let the next request try again immediately.
+    // for the full TTL - let the next request try again immediately.
     if !txs.is_empty() {
         *state.latest_tx_cache.write().await = Some(BotActivityCacheEntry {
             fetched_at: now,
@@ -3633,7 +4098,7 @@ const DCSWAP_CONTRACTS: &[(&str, &str)] = &[
     ("0xa5c55b0cb658dc5a651fcb0054a040a194433694", "DCSwap Factory (post-Reth)"),
 ];
 
-/// Quipu Canon v1.2 — DCSwap bot activity surface.
+/// Quipu Canon v1.2 - DCSwap bot activity surface.
 ///
 /// Scans the last `window` blocks (default ~24 h) and counts, per
 /// from-address, how many transactions touched a known DCSwap contract.
@@ -3780,7 +4245,7 @@ async fn dcswap_bot_activity(State(state): State<Arc<AppState>>) -> Json<serde_j
                 "totalTxCount": total,
                 "interactions": interactions,
                 // Reserved for the v1.2.1 enrichment when bots start
-                // emitting per-wallet knots — will populate
+                // emitting per-wallet knots - will populate
                 // string_id / head_knot_id / knot_count from rope_getString.
                 "v12String": serde_json::Value::Null,
             })
@@ -3834,7 +4299,7 @@ async fn dcswap_bot_activity(State(state): State<Arc<AppState>>) -> Json<serde_j
     Json(payload)
 }
 
-/// Per-contract caller list — generic version of the DCSwap-specific
+/// Per-contract caller list - generic version of the DCSwap-specific
 /// /api/v1/dcswap/bots endpoint. Returns the top callers of `address`
 /// in the recent block window.
 async fn contract_recent_callers(
@@ -3954,6 +4419,210 @@ async fn pending_transactions_live(State(state): State<Arc<AppState>>) -> Json<s
     Json(serde_json::json!({ "pending": txs, "total": total }))
 }
 
+/// Try to decode an EVM revert output. Handles the two Solidity-standard shapes:
+/// - `Error(string)` selector 0x08c379a0 -> returns the decoded reason string
+/// - `Panic(uint256)` selector 0x4e487b71 -> returns a named panic (e.g. "assert(false)",
+///    "arithmetic overflow", "division by zero") per Solidity 0.8's runtime panics.
+///
+/// Returns None if the output is empty, not ABI-shaped, or a custom error (0xNNNNNNNN
+/// followed by ABI-encoded args). Custom errors deliberately fall through to the raw
+/// runtime error (e.g. "out of gas: not enough gas for reentrancy sentry") that the
+/// callTracer already surfaces, which is the actionable signal for the reader.
+fn decode_revert_bytes(hex_str: &str) -> Option<String> {
+    let clean = hex_str.trim().trim_start_matches("0x");
+    if clean.is_empty() {
+        return None;
+    }
+    let bytes = hex::decode(clean).ok()?;
+    if bytes.len() < 4 {
+        return None;
+    }
+    let selector: [u8; 4] = bytes[0..4].try_into().ok()?;
+    match selector {
+        // Error(string)
+        [0x08, 0xc3, 0x79, 0xa0] => {
+            // ABI: bytes4 selector | uint256 offset | uint256 length | bytes data
+            if bytes.len() < 4 + 32 + 32 {
+                return None;
+            }
+            let len_bytes: [u8; 8] = bytes[4 + 32 + 24..4 + 32 + 32].try_into().ok()?;
+            let len = u64::from_be_bytes(len_bytes) as usize;
+            let data_start = 4 + 32 + 32;
+            if len == 0 || bytes.len() < data_start + len {
+                return None;
+            }
+            std::str::from_utf8(&bytes[data_start..data_start + len])
+                .ok()
+                .map(|s| s.to_string())
+        }
+        // Panic(uint256) - Solidity 0.8+ runtime panic
+        [0x4e, 0x48, 0x7b, 0x71] => {
+            if bytes.len() < 4 + 32 {
+                return None;
+            }
+            let code = bytes[4 + 31];
+            let msg = match code {
+                0x00 => "generic panic",
+                0x01 => "assert(false) triggered",
+                0x11 => "arithmetic overflow or underflow",
+                0x12 => "division or modulo by zero",
+                0x21 => "invalid enum value",
+                0x22 => "invalid encoded storage byte array access",
+                0x31 => "pop() on empty array",
+                0x32 => "array index out of bounds",
+                0x41 => "out of memory (too much allocation)",
+                0x51 => "invalid internal function call (uninitialized)",
+                _ => "unknown panic code",
+            };
+            Some(format!("Panic (0x{:02x}): {}", code, msg))
+        }
+        _ => None,
+    }
+}
+
+/// Walk a `debug_traceTransaction` callTracer tree and return the deepest frame that
+/// carries a non-empty `error` or `revertReason`. This is the crucial step: the root
+/// frame typically only says "execution reverted"; the true cause (e.g. `"out of gas:
+/// not enough gas for reentrancy sentry"` from UniswapV2's `lock` modifier, or a
+/// `require(x, "Amount too low")` string) lives on a deeper frame under `.calls[]`.
+///
+/// Returns `Some({ error, revertReason, to, output })` where every field is optional,
+/// or `None` when no frame in the tree carries a revert.
+fn deepest_revert_from_trace(node: &serde_json::Value) -> Option<serde_json::Value> {
+    if !node.is_object() {
+        return None;
+    }
+    let mut best: Option<serde_json::Value> = None;
+    let error = node
+        .get("error")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
+    let revert_reason = node
+        .get("revertReason")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
+    let output = node
+        .get("output")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let to = node
+        .get("to")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    if error.is_some() || revert_reason.is_some() {
+        best = Some(serde_json::json!({
+            "error": error,
+            "revertReason": revert_reason,
+            "to": to,
+            "output": if output.is_empty() || output == "0x" {
+                serde_json::Value::Null
+            } else {
+                serde_json::Value::String(output)
+            },
+        }));
+    }
+    if let Some(calls) = node.get("calls").and_then(|v| v.as_array()) {
+        for c in calls {
+            if let Some(child) = deepest_revert_from_trace(c) {
+                // Deeper frames overwrite. Depth-first, last-write-wins produces the
+                // deepest error message in the tree, which is the actionable one.
+                best = Some(child);
+            }
+        }
+    }
+    best
+}
+
+/// Best-effort fetch of a revert reason for a failed transaction using
+/// `debug_traceTransaction` with the callTracer. Bounded to 3s so a slow or
+/// unavailable trace endpoint never blocks the tx-detail page load, and only
+/// called on the failure path (status == "Failed") so the cost is paid exactly
+/// once per reverted tx viewed, never for successful traffic.
+///
+/// Returns a structured object suitable for the `revertReason` field of the
+/// `/api/v1/transactions/:hash` response, or `None` when the trace RPC is
+/// unavailable, timed out, or the trace tree carries no error frame.
+async fn revert_details_for_tx(state: &AppState, hash: &str) -> Option<serde_json::Value> {
+    let params = vec![
+        serde_json::json!(hash),
+        serde_json::json!({ "tracer": "callTracer" }),
+    ];
+    let trace = tokio::time::timeout(
+        std::time::Duration::from_secs(3),
+        rpc_call(state, "debug_traceTransaction", params),
+    )
+    .await
+    .ok()?
+    .ok()?;
+    let deepest = deepest_revert_from_trace(&trace);
+    let top_error = trace
+        .get("error")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
+    let top_output = trace
+        .get("output")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let deepest_error = deepest
+        .as_ref()
+        .and_then(|d| d.get("error"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let deepest_output = deepest
+        .as_ref()
+        .and_then(|d| d.get("output"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let deepest_frame = deepest
+        .as_ref()
+        .and_then(|d| d.get("to"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let deepest_revert_reason = deepest
+        .as_ref()
+        .and_then(|d| d.get("revertReason"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let decoded_deep = decode_revert_bytes(&deepest_output);
+    let decoded_top = decode_revert_bytes(&top_output);
+    // Preference order: a real Solidity Error(string)/Panic from the deepest frame beats
+    // one from the top frame; a raw runtime error (e.g. "out of gas...") from the deepest
+    // frame beats the generic "execution reverted" from the top; a bare revertReason
+    // beats the top runtime error.
+    let reason = decoded_deep
+        .clone()
+        .or_else(|| decoded_top.clone())
+        .or_else(|| deepest_revert_reason.clone())
+        .or_else(|| deepest_error.clone())
+        .or_else(|| top_error.clone());
+    // If no frame carries any signal, do not fabricate a reason - return None so the
+    // UI can render "Reverted (no reason available)" rather than an authoritative-looking
+    // but empty string.
+    reason.as_ref()?;
+    let output_field = if !deepest_output.is_empty() && deepest_output != "0x" {
+        serde_json::Value::String(deepest_output.clone())
+    } else if !top_output.is_empty() && top_output != "0x" {
+        serde_json::Value::String(top_output.clone())
+    } else {
+        serde_json::Value::Null
+    };
+    Some(serde_json::json!({
+        "reason": reason,
+        "topError": top_error,
+        "deepestError": deepest_error,
+        "deepestFrame": deepest_frame,
+        "decoded": decoded_deep.or(decoded_top),
+        "output": output_field,
+        "source": "debug_traceTransaction:callTracer",
+    }))
+}
+
 async fn get_transaction(
     State(state): State<Arc<AppState>>,
     Path(hash): Path<String>,
@@ -4022,6 +4691,20 @@ async fn get_transaction(
         .and_then(|r| r.get("gasUsed").and_then(|v| v.as_str()))
         .map(hex_to_u64)
         .unwrap_or(0);
+    // Original per-tx gas allowance (from the signed tx, not the receipt). This is the
+    // number that made the 2026-08-24 batch of Router swaps revert with "out of gas: not
+    // enough gas for reentrancy sentry" - the receipt-only view could not surface it, so
+    // dcscan.io users could not see the ceiling their tx crashed into.
+    let gas_limit = tx
+        .get("gas")
+        .and_then(|v| v.as_str())
+        .map(hex_to_u64)
+        .unwrap_or(0);
+    let gas_used_percent: Option<f64> = if gas_limit > 0 {
+        Some((gas_used as f64 / gas_limit as f64) * 100.0)
+    } else {
+        None
+    };
 
     let gas_price_wei = hex_to_u64(gas_price_hex);
     let gas_price_gwei = gas_price_wei as f64 / 1e9;
@@ -4043,12 +4726,22 @@ async fn get_transaction(
         })
         .unwrap_or_default();
 
-    let (token_transfers, transfer_value) = decode_token_transfers(&raw_logs);
+    let lens = PriceLens::snapshot(&state).await;
+    let (token_transfers, transfer_value) = decode_token_transfers(&raw_logs, &lens);
 
     let display_value = if !transfer_value.is_empty() {
         transfer_value.clone()
     } else {
         format_fat(value_fat)
+    };
+
+    // Only fetch the trace on the failure path. debug_traceTransaction is cheap
+    // (~250 ms in the wild for the reference tx) but is not free, and we do not
+    // want to pay it for every successful tx-detail page load.
+    let revert_reason = if status == "Failed" {
+        revert_details_for_tx(&state, &hash).await
+    } else {
+        None
     };
 
     let mut resp = serde_json::json!({
@@ -4060,6 +4753,8 @@ async fn get_transaction(
         "value": display_value,
         "nativeValue": format_fat(value_fat),
         "gasUsed": gas_used.to_string(),
+        "gasLimit": gas_limit.to_string(),
+        "gasUsedPercent": gas_used_percent,
         "gasPrice": format!("{:.4} gwei", gas_price_gwei),
         "timestamp": timestamp,
         "nonce": hex_to_u64(nonce_hex),
@@ -4067,7 +4762,8 @@ async fn get_transaction(
         "input": input,
         "logs": raw_logs,
         "tokenTransfers": token_transfers,
-        "transferValue": transfer_value
+        "transferValue": transfer_value,
+        "revertReason": revert_reason,
     });
     enrich_addr_field(&mut resp, from, "from");
     if let Some(to_addr) = to {
@@ -4350,13 +5046,45 @@ fn address_registry() -> &'static std::collections::HashMap<&'static str, Addres
         OnceLock::new();
     REGISTRY.get_or_init(|| {
         let mut m = std::collections::HashMap::new();
+        // 2026-08-11: previously labelled generically as "DC Treasury" and hidden.
+        // The wallet is the compromised deployer key (rotated 2026-06-11 security
+        // audit + DCSwap minter-rotation handover 2026-07-03). Roles are revoked
+        // on every DCSwap contract; residual balance is gas dust. Un-hidden so
+        // reviewers auditing the SRD paste-kit (see docs/cmc_srd_paste_kit_*.md
+        // §7.4.2 row #3) can verify it directly on dcscan.
         m.insert(
             "0x60fb32ef3a2381c2ed71613f34fd56d56fcf4195",
             AddressTag {
-                label: "DC Treasury",
+                label: "ROPE Compromised Deployer (rotated, gas dust only)",
                 category: "treasury",
-                icon: "fa-landmark",
-                hidden: true,
+                icon: "fa-triangle-exclamation",
+                hidden: false,
+            },
+        );
+        // Datachain Foundation operator wallet - genesis-supply reserve.
+        // Uncounted from circulating supply per Scenario A methodology
+        // (see market_data::UNCIRCULATED_BUILTIN and cmc_srd_paste_kit §7.4.2
+        // row #2). Labelling here also fixes external auto-linkers that
+        // otherwise resolve the bare address to unrelated Ethereum tokens.
+        m.insert(
+            "0xcf884c81ed55b150cb1aba8a69e2e9adf8f082eb",
+            AddressTag {
+                label: "Datachain Foundation Operator (genesis reserve)",
+                category: "treasury",
+                icon: "fa-building-columns",
+                hidden: false,
+            },
+        );
+        // CauseTokenFactory creator / grantor - Timelock-executed grants for
+        // NGO/cause winners of the on-chain governance vote. Gas-float only
+        // (see handover-governance-phase5-jury-ngo-live-2026-07-30.mdc).
+        m.insert(
+            "0x37a8ca3b828ec3402a6518d756791ed2dd02a038",
+            AddressTag {
+                label: "CauseTokenFactory Grantor (governance ops)",
+                category: "governance",
+                icon: "fa-scale-balanced",
+                hidden: false,
             },
         );
         m.insert(
@@ -4378,7 +5106,7 @@ fn address_registry() -> &'static std::collections::HashMap<&'static str, Addres
                 hidden: false,
             },
         );
-        // FATMigrationMinter — deployed 2026-07-08 (block 3024924, tx
+        // FATMigrationMinter - deployed 2026-07-08 (block 3024924, tx
         // 0xaeb17858…4355), owner = DCSwapTimelock, paused until the
         // Phase 1 audit gate clears. Escrow-releases native FAT 1:1 per
         // verified legacy DC burn (spec DC_FAT_LEGACY_MIGRATION_* v2.0).
@@ -4391,12 +5119,12 @@ fn address_registry() -> &'static std::collections::HashMap<&'static str, Addres
                 hidden: false,
             },
         );
-        // DCSwap Stablecoin BridgeMinter — Rope-side mint controller for the
+        // DCSwap Stablecoin BridgeMinter - Rope-side mint controller for the
         // lock-and-mint stablecoin bridge (USDC/USDT from Arbitrum, etc.).
         // owner = DCSwapTimelock, deployed PAUSED (audit F1); stays paused
         // until the origin vault is live and the mint path is fully wired.
-        // NOTE (audit §3 — CREATE address collision): the SAME address
-        // 0xBf01…6742 is a *different* contract on other chains — XdcOriginBurn
+        // NOTE (audit §3 - CREATE address collision): the SAME address
+        // 0xBf01…6742 is a *different* contract on other chains - XdcOriginBurn
         // on XDC (50) and OriginBridgeVault on Arbitrum (42161). This registry
         // is Rope-only (chainId 271828), so this label is correctly scoped;
         // never reuse it for the same bare address ingested from another chain.
@@ -4406,6 +5134,18 @@ fn address_registry() -> &'static std::collections::HashMap<&'static str, Addres
                 label: "DCSwap Stablecoin BridgeMinter (paused)",
                 category: "bridge",
                 icon: "fa-right-left",
+                hidden: false,
+            },
+        );
+        // Governance VoteEscrow - Phase 2 of GOVERNANCE_VOTING_CAUSE_PLATFORM_SPEC_V1.
+        // Timelock-owned; Cause is community-creatable (redeployed 2026-07-30).
+        // Supersedes 0xC5FfAbaF4128076d0FeE436993F44b4e3BA8079f (pre-Cause-community).
+        m.insert(
+            "0x3a567f7757717277dc16fd8758cca98f63f660ca",
+            AddressTag {
+                label: "Governance VoteEscrow (Burn/Return/Reward)",
+                category: "governance",
+                icon: "fa-check-to-slot",
                 hidden: false,
             },
         );
@@ -4637,7 +5377,7 @@ fn address_registry() -> &'static std::collections::HashMap<&'static str, Addres
                 hidden: false,
             },
         );
-        // Tanastok Private Pool USDC payout treasury — established 2026-06-04
+        // Tanastok Private Pool USDC payout treasury - established 2026-06-04
         // by DCSwap deployer 0x60FB32ef…4195 with an initial mint of
         // 50,000 DCR-20 USDC (tx 0xeb84fc1eb…f5c6, block 2025878). Sole
         // spender is tanastok-vps via PRIVATE_POOL_PAYOUT_PRIVATE_KEY,
@@ -4654,7 +5394,7 @@ fn address_registry() -> &'static std::collections::HashMap<&'static str, Addres
                 hidden: false,
             },
         );
-        // Careways Health Connect (careaway.io) operational treasury —
+        // Careways Health Connect (careaway.io) operational treasury -
         // established 2026-06-05 by ROPE deployer 0x60FB32ef…4195. Initial
         // funding: 1,000 native FAT (gas, tx 0xb524301b…6498), 200,000
         // DCR-20 USDC (mint, tx 0x113a23ba…58c4), and 6,259,010.3292 WFAT
@@ -4735,7 +5475,7 @@ fn is_hidden_address(addr: &str) -> bool {
 }
 
 /// Enrich a JSON object with label metadata for a from/to address field.
-/// Hidden addresses have their raw hex replaced with null — the address
+/// Hidden addresses have their raw hex replaced with null - the address
 /// never reaches the client.
 fn enrich_addr_field(json: &mut serde_json::Value, raw_addr: &str, field_prefix: &str) {
     let lower = raw_addr.to_lowercase();
@@ -5046,10 +5786,11 @@ async fn get_account(
     let tx_count = hex_to_u64(&nonce_hex);
     let is_contract = code != "0x" && code.len() > 2;
 
-    let fat_price = {
-        let cache = state.price_cache.read().await;
-        cache.as_ref().map(|p| p.price).unwrap_or(FALLBACK_PRICE)
-    };
+    // Native FAT balance × canonical FAT USD price. Routed through
+    // `PriceLens` so the account-overview USD number is guaranteed to
+    // match the WFAT balance USD number rendered elsewhere on the
+    // same address page (WFAT ≡ FAT invariant).
+    let fat_price = PriceLens::snapshot(&state).await.fat_usd();
     let balance_usd = balance_fat * fat_price;
 
     Json(serde_json::json!({
@@ -5072,14 +5813,165 @@ async fn account_transactions(
     let limit = params.limit.unwrap_or(20).min(100) as usize;
     let addr_lower = address.to_lowercase();
 
+    // Same total-request timeout guard as personal_ledger_string. Nginx
+    // upstream deadline is 60s; we cap the whole handler at 8s so the
+    // browser always receives a real JSON body (possibly empty/degraded)
+    // instead of an HTML 504 page it then tries to parse as JSON.
+    let deadline = std::time::Duration::from_secs(8);
+    match tokio::time::timeout(
+        deadline,
+        account_transactions_inner(&state, &address, &addr_lower, limit),
+    )
+    .await
+    {
+        Ok(payload) => Json(payload),
+        Err(_) => Json(serde_json::json!({
+            "address": address,
+            "transactions": [],
+            "scanWindowBlocks": 0,
+            "totalReturned": 0,
+            "source": "unavailable",
+            "note": "transaction scan exceeded time budget; showing empty view. Try again shortly or narrow the query.",
+        })),
+    }
+}
+
+/// Convert a `TxRef` from the per-address index to the same JSON shape
+/// `tx_summary_json` produces from a live `eth_getTransactionByHash`
+/// response. The index does NOT carry `input` bytes (it stores the tx
+/// hash and receipt-derived fields only) so `input` is emitted as `"0x"`
+/// - the frontend uses `to` + `value` for the common Transfer / Swap
+/// classification and follows the hash for full call-data view. Every
+/// other column (from/to/value/status/timestamp/knot) is authoritative.
+fn tx_summary_from_addr_index(txref: &AddrTxRef) -> serde_json::Value {
+    let hash_hex = format!("0x{}", hex::encode(txref.tx_hash));
+    let from_hex = format!("0x{}", hex::encode(txref.from));
+    let to_str = match txref.to {
+        Some(bytes) => format!("0x{}", hex::encode(bytes)),
+        None => "Contract Creation".to_string(),
+    };
+    let value_fat = wei_to_fat(&format!("0x{:x}", txref.value_wei));
+    let status_str = match txref.status {
+        1 => "Success",
+        0 => "Failed",
+        _ => "Pending",
+    };
+    let mut j = serde_json::json!({
+        "hash": hash_hex,
+        "from": from_hex,
+        "to": to_str,
+        "value": format_fat(value_fat),
+        "status": status_str,
+        "string": txref.block_number,
+        "knot": txref.block_number,
+        "knotIndex": txref.block_number,
+        "timestamp": txref.block_timestamp,
+        "input": "0x",
+        "role": match txref.role {
+            AddrTxRole::From => "from",
+            AddrTxRole::To => "to",
+            AddrTxRole::Both => "both",
+        },
+        "txIndex": txref.tx_index,
+        "gasUsed": txref.gas_used,
+    });
+    // Reuse the existing enrich_addr_field for label pill parity with
+    // the legacy path.
+    enrich_addr_field(&mut j, &from_hex, "from");
+    if let Some(bytes) = txref.to {
+        let to_hex = format!("0x{}", hex::encode(bytes));
+        enrich_addr_field(&mut j, &to_hex, "to");
+    }
+    j
+}
+
+/// Try to answer the transactions query from the persistent per-address
+/// index. Returns `Some(json)` when the index is available AND returns
+/// at least one row. Returns `None` when:
+///   - the index handle is absent (env var unset, store missing, etc.)
+///   - the index reader errored (schema drift, RocksDB IO, invalid addr)
+///   - the query returned zero rows (fall back so the legacy scan can
+///     probe the last 30k blocks in case the writer hasn't caught up yet
+///     for this specific address)
+/// Every failure mode is logged at INFO/WARN so the operator can spot
+/// widespread fallbacks without paging.
+async fn try_account_transactions_from_index(
+    state: &AppState,
+    address: &str,
+    limit: usize,
+) -> Option<serde_json::Value> {
+    let idx = state.addr_index.as_ref()?.clone();
+    let addr_owned = address.to_string();
+    // rocksdb calls are blocking so we hop to the blocking pool. The
+    // reader itself is fast (single seek + N sequential reads for N =
+    // limit) but we still don't want to hold the tokio worker.
+    let scan = tokio::task::spawn_blocking(move || idx.transactions(&addr_owned, limit, None))
+        .await;
+    let page = match scan {
+        Ok(Ok(page)) => page,
+        Ok(Err(e)) => {
+            tracing::warn!(
+                address = %address,
+                error = ?e,
+                "per-address index reader failed for /api/v1/accounts/:addr/transactions - \
+                 falling back to legacy RPC scan",
+            );
+            return None;
+        }
+        Err(join_err) => {
+            tracing::warn!(
+                address = %address,
+                error = ?join_err,
+                "per-address index blocking task panicked - falling back to legacy RPC scan",
+            );
+            return None;
+        }
+    };
+    if page.items.is_empty() {
+        // The writer may not have caught up to this address yet, or
+        // the address really has zero on-chain activity. In either
+        // case, letting the legacy scan run gives a strictly better
+        // answer at the cost of one bounded window sweep.
+        tracing::debug!(
+            address = %address,
+            "per-address index returned 0 rows - falling back to legacy scan"
+        );
+        return None;
+    }
+    let transactions: Vec<serde_json::Value> =
+        page.items.iter().map(tx_summary_from_addr_index).collect();
+    Some(serde_json::json!({
+        "address": address,
+        "transactions": transactions,
+        "totalReturned": transactions.len(),
+        "hasMore": page.next_cursor.is_some(),
+        "nextCursor": page.next_cursor,
+        "source": "addr-index",
+        "note": "served from rope-addr-indexer (per-address RocksDB index); newest first",
+    }))
+}
+
+async fn account_transactions_inner(
+    state: &AppState,
+    address: &str,
+    addr_lower: &str,
+    limit: usize,
+) -> serde_json::Value {
+    // Reader-first path: if the per-address index is open, prefer it.
+    // On any failure (index absent, reader error, or zero rows for this
+    // specific address) fall through silently to the legacy scan.
+    if let Some(v) = try_account_transactions_from_index(state, address, limit).await {
+        return v;
+    }
+
     // For known token contracts the meaningful "Transactions" view is
-    // every transaction that interacted with the contract — i.e. every
+    // every transaction that interacted with the contract - i.e. every
     // tx whose receipt contains a `Transfer` log from this address.
     // Falling back to the from/to walk would only pick up direct
     // `transfer()` calls and silently hide everything routed through
     // DCSwapRouter, the Permit handler, or any other proxying contract.
-    if known_token(&address).is_some() {
-        let head = rpc_block_number(&state).await.unwrap_or(0);
+    if known_token(address).is_some() {
+        let head = rpc_block_number(state).await.unwrap_or(0);
         if head > 0 {
             // Walk backwards in 2 K-block windows until we have enough
             // distinct tx hashes or hit a 30 K-block ceiling. Reth tends
@@ -5095,12 +5987,12 @@ async fn account_transactions(
             while cursor > oldest && tx_hashes.len() < limit {
                 let from_block = cursor.saturating_sub(chunk).max(oldest);
                 let logs_res = rpc_call(
-                    &state,
+                    state,
                     "eth_getLogs",
                     vec![serde_json::json!({
                         "fromBlock": format!("0x{:x}", from_block),
                         "toBlock":   format!("0x{:x}", cursor),
-                        "address":   &addr_lower,
+                        "address":   addr_lower,
                         "topics":    [TRANSFER_TOPIC],
                     })],
                 )
@@ -5139,7 +6031,7 @@ async fn account_transactions(
             let mut matched: Vec<serde_json::Value> = Vec::new();
             for (hash, block) in tx_hashes.iter() {
                 if let Ok(tx) = rpc_call(
-                    &state,
+                    state,
                     "eth_getTransactionByHash",
                     vec![serde_json::json!(hash)],
                 )
@@ -5150,7 +6042,7 @@ async fn account_transactions(
                             *t
                         } else {
                             let t = rpc_call(
-                                &state,
+                                state,
                                 "eth_getBlockByNumber",
                                 vec![
                                     serde_json::json!(format!("0x{:x}", block)),
@@ -5172,21 +6064,26 @@ async fn account_transactions(
                     }
                 }
             }
-            return Json(serde_json::json!({
+            return serde_json::json!({
                 "address": address,
                 "transactions": matched,
                 "scanWindowBlocks": max_lookback,
                 "totalReturned": matched.len(),
                 "source": "eth_getLogs (Transfer events, deduplicated by tx hash, chunked)",
-            }));
+            });
         }
     }
 
-    // Default path for EOAs / unknown contracts: walk the last 5 K blocks
-    // and filter by from/to. The previous 200-block window was too small
-    // for active wallets and silently hid contract pages — 5 K blocks is
-    // ≈4 hours of chain time and a reasonable browsing horizon.
-    let all_txs = collect_txs_from_recent_blocks(&state, 5_000, 100_000).await;
+    // Default path for EOAs / unknown contracts: walk the last 2 K blocks
+    // (~100 min at 3s knot cadence) filtering by from/to. A previous
+    // 5 K/100 K parameterisation, combined with a hidden .max(20_000) bug
+    // in `collect_txs_from_recent_blocks`, was scanning 20 K blocks per
+    // request and consistently blowing past the 60s nginx upstream timeout
+    // (see the /api/v1/accounts/:addr/transactions 504s on 2026-08-11).
+    // The scan cap now honours the caller (`.min(20_000)` inside the
+    // collector), and the caller here asks for something small enough to
+    // stay inside the 8s outer deadline even on active addresses.
+    let all_txs = collect_txs_from_recent_blocks(state, 2_000, 2_000).await;
     let matched: Vec<serde_json::Value> = all_txs
         .iter()
         .filter(|(tx, _, _)| {
@@ -5206,16 +6103,16 @@ async fn account_transactions(
         .map(|(tx, bn, ts)| tx_summary_json(tx, *bn, *ts))
         .collect();
 
-    Json(serde_json::json!({
+    serde_json::json!({
         "address": address,
         "transactions": matched,
-        "scanWindowBlocks": 5_000,
+        "scanWindowBlocks": 2_000,
         "totalReturned": matched.len(),
         "source": "from/to walk over recent blocks",
-    }))
+    })
 }
 
-/// Quipu Canon v1.1 §6(2) — Public personal-ledger view.
+/// Quipu Canon v1.1 §6(2) - Public personal-ledger view.
 ///
 /// Returns the canonical hierarchy for a wallet's sovereign String:
 ///
@@ -5245,7 +6142,7 @@ async fn account_transactions(
 /// ```
 ///
 /// Knots are listed newest-first by anchor block. Each knot groups all of
-/// the wallet's transactions confirmed at the same anchor — the natural
+/// the wallet's transactions confirmed at the same anchor - the natural
 /// "event" granularity for the public DCScan view. Per-tx details (event
 /// type, value, counterparty) are nested under the knot.
 async fn personal_ledger_string(
@@ -5256,17 +6153,49 @@ async fn personal_ledger_string(
     let limit = params.limit.unwrap_or(50).min(200) as usize;
     let addr_lower = address.to_lowercase();
 
+    // Total-request timeout: nginx upstream deadline is 60s; we cap at 8s so
+    // we always return a real (possibly empty/degraded) JSON body instead of
+    // a 504 with an HTML gateway page that the frontend then tries to parse
+    // as JSON (the observed 2026-08-11 symptom: `Uncaught SyntaxError:
+    // Unexpected token '<', "<html>…" is not valid JSON`).
+    let deadline = std::time::Duration::from_secs(8);
+    match tokio::time::timeout(
+        deadline,
+        personal_ledger_string_inner(&state, &addr_lower, limit),
+    )
+    .await
+    {
+        Ok(payload) => Json(payload),
+        Err(_) => Json(serde_json::json!({
+            "wallet_address": addr_lower,
+            "string_id": addr_lower,
+            "knots": [],
+            "knot_count": 0,
+            "active_count": 0,
+            "tombstone_count": 0,
+            "source": "unavailable",
+            "note": "personal-ledger scan exceeded time budget; showing empty view. Native rope-node ledger not registered for this address and the Reth-anchored fallback would exceed the request deadline.",
+            "canon": "v1.1 §6(2)"
+        })),
+    }
+}
+
+async fn personal_ledger_string_inner(
+    state: &AppState,
+    addr_lower: &str,
+    limit: usize,
+) -> serde_json::Value {
     // Try the canonical native path first. If the rope-node has the personal
     // ledger subsystem online, this returns real String + Knot[] + tombstones.
     if let Ok(native) = rpc_call(
-        &state,
+        state,
         "rope_getStringWithKnots",
-        vec![serde_json::json!(addr_lower.clone())],
+        vec![serde_json::json!(addr_lower)],
     )
     .await
     {
         if native.is_object() && native.get("string_id").is_some() {
-            return Json(serde_json::json!({
+            return serde_json::json!({
                 "wallet_address": addr_lower,
                 "string_id": native.get("string_id").cloned().unwrap_or(serde_json::Value::Null),
                 "knots": native.get("knots").cloned().unwrap_or(serde_json::json!([])),
@@ -5274,15 +6203,17 @@ async fn personal_ledger_string(
                 "active_count": native.get("active_count").cloned().unwrap_or(serde_json::json!(0)),
                 "tombstone_count": native.get("tombstone_count").cloned().unwrap_or(serde_json::json!(0)),
                 "source": "native",
-                "canon": "v1.1 §6(2) — String → Knot[] → Transaction details (rope-node native path)"
-            }));
+                "canon": "v1.1 §6(2) - String → Knot[] → Transaction details (rope-node native path)"
+            });
         }
     }
 
     // Fallback: build a knot-grouped view from on-chain tx data.
     // Each anchor block where the wallet has activity = one knot on the
     // wallet's string. Per-tx details are listed under the knot.
-    let all_txs = collect_txs_from_recent_blocks(&state, 500, 8000).await;
+    // Bounded to 500 blocks (~25 min at 3s knot cadence) and 500 tx hits so
+    // this stays well within the outer 8s deadline even on active addresses.
+    let all_txs = collect_txs_from_recent_blocks(state, 500, 500).await;
     let mut by_anchor: std::collections::BTreeMap<u64, (i64, Vec<serde_json::Value>)> =
         std::collections::BTreeMap::new();
 
@@ -5355,7 +6286,7 @@ async fn personal_ledger_string(
         }));
     }
 
-    Json(serde_json::json!({
+    serde_json::json!({
         "wallet_address": addr_lower,
         // Public-ledger fallback uses the wallet address as the cord ID,
         // exactly per canon §6 mapping ("Primary cord = Wallet string").
@@ -5372,14 +6303,14 @@ async fn personal_ledger_string(
         // already notarizes every Reth tx onto the String Lattice, so this
         // grouping is a faithful canon §6(2) view either way.
         "source": "reth-anchored",
-        "canon": "v1.1 §6(2) — String → Knot[] → Transaction details (Reth EVM execution-layer view; native rope-node ledger view returned when available)"
-    }))
+        "canon": "v1.1 §6(2) - String → Knot[] → Transaction details (Reth EVM execution-layer view; native rope-node ledger view returned when available)"
+    })
 }
 
 /// Live balanceOf() across the known DCR-20 token set, plus native DC FAT
 /// via eth_getBalance, for a single address. Shared by `account_tokens`
 /// (the dedicated `/tokens` tab) and `account_overview_live` (the
-/// overview tab's `tokens`/`tokenCount`/`tokenHoldingsValueUsd` fields —
+/// overview tab's `tokens`/`tokenCount`/`tokenHoldingsValueUsd` fields -
 /// which previously hardcoded these to empty/zero on every request even
 /// though `/tokens` already computed the real answer). Only tokens with
 /// a non-zero balance are returned. The list of known tokens is the same
@@ -5397,10 +6328,12 @@ async fn compute_account_tokens(state: &AppState, addr_lc: &str) -> (Vec<serde_j
         ("0xc784ea07aae35b22630df7e3f3ae9e2ccc64f1aa", "EUROD", 6),
     ];
 
-    let fat_price = {
-        let cache = state.price_cache.read().await;
-        cache.as_ref().map(|p| p.price).unwrap_or(FALLBACK_PRICE)
-    };
+    // Snapshot the price lens once — same instance is used for both
+    // the native FAT row and every DCR-20 row (including WFAT) so
+    // every USD number on the address page reconciles against the
+    // same canonical FAT price (WFAT ≡ FAT invariant).
+    let lens = PriceLens::snapshot(state).await;
+    let fat_price = lens.fat_usd();
 
     let native_balance_hex = rpc_call(
         state,
@@ -5436,7 +6369,7 @@ async fn compute_account_tokens(state: &AppState, addr_lc: &str) -> (Vec<serde_j
             continue;
         }
         let info = known_token(token_addr);
-        let usd_unit = info.as_ref().map(|i| i.usd_price).unwrap_or(0.0);
+        let usd_unit = info.as_ref().map(|i| lens.price_for(i)).unwrap_or(0.0);
         let divisor = 10f64.powi(*decimals as i32);
         let bal_f = raw as f64 / divisor;
         let display_symbol = info.as_ref().map(|i| i.symbol).unwrap_or(*symbol);
@@ -5451,7 +6384,7 @@ async fn compute_account_tokens(state: &AppState, addr_lc: &str) -> (Vec<serde_j
             "decimals": *decimals,
             "balance": format_with_commas(bal_f),
             "balanceRaw": bal_f,
-            "usdValue": if usd_value > 0.0 { format!("${:.2}", usd_value) } else { "—".to_string() },
+            "usdValue": if usd_value > 0.0 { format!("${:.2}", usd_value) } else { "-".to_string() },
             "usdRaw": usd_value,
             "kind": "dcr20",
             "standard": "DCR-20",
@@ -5531,7 +6464,7 @@ const LIST_TOKENS_DCR20_ADDRS: &[(&str, &str, &str)] = &[
 ];
 
 /// Fetches per-symbol `{usd, change_24h}` from the canonical DCSwap price
-/// feed (`{DCSWAP_API}/v1/prices` — handover-canonical-fat-price-2026-03-14).
+/// feed (`{DCSWAP_API}/v1/prices` - handover-canonical-fat-price-2026-03-14).
 /// Real, live values; `None` per symbol (never a fabricated number) when
 /// the feed is unreachable or a symbol is absent from its payload.
 async fn fetch_dcswap_token_prices(
@@ -5562,13 +6495,13 @@ async fn fetch_dcswap_token_prices(
 /// pipeline `get_token()` uses, and a live price sourced from the
 /// canonical DCSwap feed (falling back to the `known_token()` USD peg for
 /// stables, or the WFAT price cache, only when the feed itself has no
-/// entry — never a hardcoded market number).
+/// entry - never a hardcoded market number).
 async fn list_tokens_summary(
     state: &Arc<AppState>,
     address: &str,
     fallback_name: &str,
     standard: &str,
-    prices: &std::collections::HashMap<String, (f64, Option<f64>)>,
+    lens: &PriceLens,
 ) -> serde_json::Value {
     let addr_lc = address.to_lowercase();
     let known = known_token(&addr_lc);
@@ -5595,10 +6528,12 @@ async fn list_tokens_summary(
     let divisor = 10f64.powi(decimals as i32);
     let total_supply_f = total_supply_raw as f64 / divisor;
 
-    let (price_usd, change_24h) = prices
-        .get(&symbol.to_uppercase())
-        .copied()
-        .unwrap_or_else(|| (known.as_ref().map(|i| i.usd_price).unwrap_or(0.0), None));
+    // Price via the diffusion lens. WFAT ≡ FAT is enforced there, so
+    // no per-symbol string comparisons are needed here.
+    let (price_usd, change_24h) = match known.as_ref() {
+        Some(info) => lens.price_and_change_for(info),
+        None => (0.0, None),
+    };
     let market_cap = price_usd * total_supply_f;
 
     let (holders_count, _transfer_count) = {
@@ -5648,16 +6583,13 @@ async fn list_tokens_summary(
 /// canonical DCSwap price feed / the same holder-index the token detail
 /// page already trusts.
 async fn list_tokens(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
-    let fat_price_cache = {
-        let cache = state.price_cache.read().await;
-        cache.as_ref().map(|p| (p.price, p.change_24h))
-    };
-    let prices = fetch_dcswap_token_prices(&state).await;
-
-    let (fat_price_usd, fat_change) = prices
-        .get("FAT")
-        .copied()
-        .unwrap_or_else(|| (fat_price_cache.map(|(p, _)| p).unwrap_or(FALLBACK_PRICE), fat_price_cache.map(|(_, c)| c)));
+    // Single snapshot for the whole response. Every price rendered
+    // below — native FAT header row AND every DCR-20 summary — goes
+    // through this lens, so WFAT is guaranteed to render at the FAT
+    // price.
+    let lens = PriceLens::snapshot(&state).await;
+    let fat_price_usd = lens.fat_usd();
+    let fat_change = lens.fat_change_24h();
 
     let native_supply = {
         let sc = state.supply_cache.read().await;
@@ -5688,11 +6620,11 @@ async fn list_tokens(State(state): State<Arc<AppState>>) -> Json<serde_json::Val
         .iter()
         .map(|&(addr, name, standard)| {
             let state = state.clone();
-            let prices = prices.clone();
+            let lens = lens.clone();
             let addr = addr.to_string();
             let name = name.to_string();
             let standard = standard.to_string();
-            async move { list_tokens_summary(&state, &addr, &name, &standard, &prices).await }
+            async move { list_tokens_summary(&state, &addr, &name, &standard, &lens).await }
         })
         .collect();
     let dcr20_summaries = futures::future::join_all(summary_futures).await;
@@ -5731,13 +6663,8 @@ async fn get_token(
     let is_native = addr_lc == "0x0000000000000000000000000000000000000000"
         || addr_lc == "0x0000000000000000000000000000000000000001";
     if is_native {
-        let fat_price = state
-            .price_cache
-            .read()
-            .await
-            .as_ref()
-            .map(|p| p.price)
-            .unwrap_or(FALLBACK_PRICE);
+        // Canonical FAT price via the diffusion lens (WFAT ≡ FAT).
+        let fat_price = PriceLens::snapshot(&state).await.fat_usd();
         let supply = 10_000_000_000.0_f64;
         let mc = supply * fat_price;
         return Json(serde_json::json!({
@@ -5802,25 +6729,12 @@ async fn get_token(
     let divisor = 10f64.powi(decimals as i32);
     let total_supply_f = total_supply_raw as f64 / divisor;
 
-    // Price + market cap. We trust `known_token()` for the USD peg of
-    // bridged stables and the FAT price cache for WFAT. Unknown tokens are
-    // intentionally returned with `priceUsd: 0` so the UI can show "—" rather
-    // than a fake value.
-    let price_usd: f64 = if let Some(info) = known.as_ref() {
-        if info.symbol == "WFAT" {
-            state
-                .price_cache
-                .read()
-                .await
-                .as_ref()
-                .map(|p| p.price)
-                .unwrap_or(FALLBACK_PRICE)
-        } else {
-            info.usd_price
-        }
-    } else {
-        0.0
-    };
+    // Price + market cap via the `PriceLens` — WFAT ≡ FAT and non-zero
+    // FAT/WFAT floors are enforced in one place. Unknown tokens are
+    // intentionally returned with `priceUsd: 0` so the UI can show "-"
+    // rather than a fake value.
+    let lens = PriceLens::snapshot(&state).await;
+    let price_usd: f64 = known.as_ref().map(|info| lens.price_for(info)).unwrap_or(0.0);
     let market_cap_usd = price_usd * total_supply_f;
 
     // Holder count + transfer count. Prefer the persistent holder index
@@ -5862,7 +6776,7 @@ async fn get_token(
     };
 
     // eth_getCode with the same connection-reset retry as
-    // eth_call_token_method — the token page hides the rich Profile
+    // eth_call_token_method - the token page hides the rich Profile
     // Summary on `isContract: false` so a single transient blip would
     // surface as "Wrapped DC FAT (loose page, no overview)" for users.
     let code_hex = {
@@ -5931,7 +6845,7 @@ async fn get_token(
                     "CoinMarketCap (live, refreshed {}Z)",
                     chrono::DateTime::<chrono::Utc>::from_timestamp(ts, 0)
                         .map(|d| d.format("%Y-%m-%d %H:%M").to_string())
-                        .unwrap_or_else(|| "—".into())
+                        .unwrap_or_else(|| "-".into())
                 ),
                 _ => m.data_source.to_string(),
             };
@@ -5945,15 +6859,15 @@ async fn get_token(
                 "globalMarketCapUsd": mcap,
                 "globalMarketCapStr": if mcap > 0.0 {
                     format!("${}", format_with_commas(mcap))
-                } else { "—".to_string() },
+                } else { "-".to_string() },
                 "globalVolume24hUsd": vol,
                 "globalVolume24hStr": if vol > 0.0 {
                     format!("${}", format_with_commas(vol))
-                } else { "—".to_string() },
+                } else { "-".to_string() },
                 "globalCirculatingSupply": circ,
                 "globalCirculatingSupplyStr": if circ > 0.0 {
                     format!("{} {}", format_with_commas(circ), symbol)
-                } else { "—".to_string() },
+                } else { "-".to_string() },
                 "globalPriceUsd": live_price,
                 "globalPercentChange24h": pct_24h,
                 "isLive": live_cmc.is_some(),
@@ -5999,9 +6913,9 @@ async fn get_token(
         "holdersIsPartial": holders_is_partial,
         "transfers": transfer_count,
         "priceUsd": price_usd,
-        "price": if price_usd > 0.0 { format!("${:.6}", price_usd) } else { "—".to_string() },
+        "price": if price_usd > 0.0 { format!("${:.6}", price_usd) } else { "-".to_string() },
         "marketCap": market_cap_usd,
-        "marketCapStr": if market_cap_usd > 0.0 { format!("${}", format_with_commas(market_cap_usd)) } else { "—".to_string() },
+        "marketCapStr": if market_cap_usd > 0.0 { format!("${}", format_with_commas(market_cap_usd)) } else { "-".to_string() },
         "isContract": is_contract,
         "network": "Datachain Rope",
         "chainId": 271828,
@@ -6116,7 +7030,7 @@ async fn token_holders(
         "lastScannedBlock": last_scanned,
         "firstScannedBlock": first_scanned,
         "note": if is_partial {
-            "Holder index is still catching up to chain head — values reflect every Transfer up to the lastScannedBlock above."
+            "Holder index is still catching up to chain head - values reflect every Transfer up to the lastScannedBlock above."
         } else {
             "Live: holder index is current with chain head."
         },
@@ -6166,7 +7080,7 @@ async fn token_transfers(
 /// CID. The CIDs are the same set DCSwap pins on its IPFS gateway, so the
 /// UI can resolve them via either `dcscan.io/ipfs/<cid>` or
 /// `dcswap.net/ipfs/<cid>` interchangeably. EUROD also goes by the
-/// trade name "Hodo" in some markets — same contract, same logo.
+/// trade name "Hodo" in some markets - same contract, same logo.
 fn token_logo_cid(addr: &str) -> Option<&'static str> {
     match addr.to_lowercase().as_str() {
         // WFAT (every redeployment)
@@ -6186,7 +7100,7 @@ fn token_logo_cid(addr: &str) -> Option<&'static str> {
         | "0x73e3cc285b962c4c6b6b1503d8fd8ac745f6b1ef" => {
             Some("Qmchysx7eP2xMn9CvLeiVM4YCjNQGoSKcYq6rY2FUnkdj1")
         }
-        // EUROD (a.k.a. "Hodo") — same contract, both names refer to the
+        // EUROD (a.k.a. "Hodo") - same contract, both names refer to the
         // Tanastok-issued euro-denominated stablecoin.
         "0x24d6137807fa8a592888726d87ac748d018c6d4a"
         | "0xc784ea07aae35b22630df7e3f3ae9e2ccc64f1aa" => {
@@ -6220,7 +7134,7 @@ fn token_alt_name(addr: &str) -> Option<&'static str> {
 ///  - `creator_url`: the issuer's website
 ///  - `creator_addr`: the on-chain wallet that deployed the bridged
 ///    contract on Datachain Rope (NOT the global issuer's mainnet
-///    deployer — this is the local deploy origin)
+///    deployer - this is the local deploy origin)
 ///  - `project_url`, `social_url`: external links for the token info card
 ///  - `global_market_cap_usd`: hand-maintained snapshot of the global
 ///    upstream market cap so the UI can show the canonical "What this
@@ -6252,12 +7166,12 @@ struct TokenMetadata {
 ///    (`BridgeMinter.allowedOriginChain(42161)`, `OriginBridgeVault` on
 ///    Arbitrum holding native USDC `0xaf88…5831` / USDT `0xFd08…Cbb9`).
 ///    That rail is deployed but currently **paused** end-to-end (Rope
-///    `BridgeMinter.paused()==true`) — surfaced here as `bridgeStatus`
+///    `BridgeMinter.paused()==true`) - surfaced here as `bridgeStatus`
 ///    so the UI never implies a live, exercisable bridge.
 ///  - EUROD: no Arbitrum vault token is configured for it. It moves
 ///    over the older operator-mint flow
 ///    (`dcswap-api::handlers::bridge::SUPPORTED_ORIGIN_NETWORKS`),
-///    where the depositor picks Ethereum or XDC Network per request —
+///    where the depositor picks Ethereum or XDC Network per request -
 ///    there is no single canonical origin chain to report.
 ///  - WFAT / native FAT: not bridged at all; returns `None`.
 ///
@@ -6271,13 +7185,13 @@ fn bridged_token_origin(addr: &str) -> Option<(&'static str, Option<u64>, &'stat
         | "0x73e3cc285b962c4c6b6b1503d8fd8ac745f6b1ef" => Some((
             "Arbitrum",
             Some(42161),
-            "Bridge wired (BridgeMinter route + Arbitrum OriginBridgeVault) but currently paused — not yet accepting live deposits",
+            "Bridge wired (BridgeMinter route + Arbitrum OriginBridgeVault) but currently paused - not yet accepting live deposits",
         )),
         "0x24d6137807fa8a592888726d87ac748d018c6d4a"
         | "0xc784ea07aae35b22630df7e3f3ae9e2ccc64f1aa" => Some((
             "Ethereum / XDC Network (depositor-selected)",
             None,
-            "Legacy operator-mint bridge — origin chain chosen per deposit, no single canonical origin",
+            "Legacy operator-mint bridge - origin chain chosen per deposit, no single canonical origin",
         )),
         _ => None,
     }
@@ -6301,7 +7215,7 @@ fn token_metadata(addr: &str) -> Option<TokenMetadata> {
     // Snapshot baseline taken 2026-06-04 from CoinMarketCap public market
     // data for USDC / USDT, from Tanastok issuer reporting for EUROD /
     // Hodo, and from rope-economics for DC FAT / WFAT. These numbers
-    // refresh whenever a release ships — the on-chain "bridged supply"
+    // refresh whenever a release ships - the on-chain "bridged supply"
     // figure is always live (read via eth_call) and is the canonical
     // value for anything happening on Datachain Rope.
     match addr.to_lowercase().as_str() {
@@ -6344,7 +7258,7 @@ fn token_metadata(addr: &str) -> Option<TokenMetadata> {
             global_circulating_supply: 187_529_700_105.0,
             data_source: "CoinMarketCap (2026-06-04 snapshot)",
         }),
-        // ── EUROD (a.k.a. Hodo) — every known redeployment ───────────
+        // ── EUROD (a.k.a. Hodo) - every known redeployment ───────────
         "0x24d6137807fa8a592888726d87ac748d018c6d4a"
         | "0xc784ea07aae35b22630df7e3f3ae9e2ccc64f1aa" => Some(TokenMetadata {
             description: "EUROD (formerly trading as Hodo) is a euro-pegged \
@@ -6429,7 +7343,7 @@ fn dead_token_replacement(addr: &str) -> Option<(&'static str, &'static str)> {
     }
 }
 
-/// `GET /api/v1/tokens/:addr/dex` — DEX overview for a token.
+/// `GET /api/v1/tokens/:addr/dex` - DEX overview for a token.
 ///
 /// Aggregates per-pool data from DCSwap's `/v1/pools` endpoint (filtered to
 /// pools that contain this token) and the most recent swaps from
@@ -6563,7 +7477,7 @@ async fn token_dex_overview(
     }))
 }
 
-/// `GET /api/v1/tokens/:addr/analytics` — token analytics.
+/// `GET /api/v1/tokens/:addr/analytics` - token analytics.
 ///
 /// Combines:
 /// 1. The persistent holder index for current holder count + transfer count.
@@ -6600,7 +7514,7 @@ async fn token_analytics(
     };
 
     // DEX volumes from DCSwap. Reuses the same /v1/pools call as the dex
-    // endpoint so we don't double-fetch — the data is small and DCSwap
+    // endpoint so we don't double-fetch - the data is small and DCSwap
     // serves it from a tight cache anyway.
     let dcswap_base = state.dcswap_api.trim_end_matches('/').to_string();
     let pools_url = format!("{}/v1/pools", dcswap_base);
@@ -6665,15 +7579,9 @@ async fn token_analytics(
         .unwrap_or(0);
     let total_supply_f = total_supply_raw as f64 / 10f64.powi(decimals as i32);
 
+    let lens = PriceLens::snapshot(&state).await;
     let price_usd = match known_token(&address) {
-        Some(info) if info.symbol == "WFAT" => state
-            .price_cache
-            .read()
-            .await
-            .as_ref()
-            .map(|p| p.price)
-            .unwrap_or(FALLBACK_PRICE),
-        Some(info) => info.usd_price,
+        Some(info) => lens.price_for(&info),
         None => 0.0,
     };
     let market_cap_usd = total_supply_f * price_usd;
@@ -6689,7 +7597,7 @@ async fn token_analytics(
             "marketCapUsd": market_cap_usd,
             "marketCapStr": if market_cap_usd > 0.0 {
                 format!("${}", format_with_commas(market_cap_usd))
-            } else { "—".to_string() },
+            } else { "-".to_string() },
         },
         "dex": {
             "poolCount": pool_count,
@@ -6717,7 +7625,7 @@ struct InternalTxsParams {
     depth: Option<u64>,
 }
 
-/// `GET /api/v1/accounts/:addr/internal-txs` — internal transactions for an
+/// `GET /api/v1/accounts/:addr/internal-txs` - internal transactions for an
 /// account, derived from `trace_block`.
 ///
 /// We walk the most recent N blocks (default 200, configurable via `?depth=`)
@@ -6850,10 +7758,10 @@ async fn account_internal_txs(
 }
 
 // =====================================================================
-// NFT (ERC-721) endpoints — Tanastok DCNFT support
+// NFT (ERC-721) endpoints - Tanastok DCNFT support
 // =====================================================================
 
-/// `GET /api/v1/nfts/:addr` — collection-level info for an ERC-721
+/// `GET /api/v1/nfts/:addr` - collection-level info for an ERC-721
 /// contract. Returns name/symbol/totalSupply via `eth_call`, owner
 /// distribution and historical transfer counts from the persistent
 /// `nft_index`, and the full Tanastok asset descriptor (hero image,
@@ -7012,7 +7920,7 @@ async fn get_nft_collection(
     }))
 }
 
-/// `GET /api/v1/nfts/:addr/holders` — top owners by token count.
+/// `GET /api/v1/nfts/:addr/holders` - top owners by token count.
 async fn nft_holders(
     Path(address): Path<String>,
     Query(params): Query<PaginationParams>,
@@ -7083,12 +7991,12 @@ async fn nft_holders(
         "lastScannedBlock": last_scanned,
         "source": "nft-index",
         "note": if is_partial {
-            "NFT index is still catching up to chain head — values reflect every Transfer up to the lastScannedBlock above."
+            "NFT index is still catching up to chain head - values reflect every Transfer up to the lastScannedBlock above."
         } else { "Live, up to chain head." },
     }))
 }
 
-/// `GET /api/v1/nfts/:addr/tokens` — inventory: every minted tokenId
+/// `GET /api/v1/nfts/:addr/tokens` - inventory: every minted tokenId
 /// with its current owner. Sorted by numeric tokenId ascending.
 async fn nft_inventory(
     Path(address): Path<String>,
@@ -7149,7 +8057,7 @@ async fn nft_inventory(
     }))
 }
 
-/// `GET /api/v1/nfts/:addr/transfers` — recent ERC-721 Transfer events
+/// `GET /api/v1/nfts/:addr/transfers` - recent ERC-721 Transfer events
 /// for this collection. Reads from the persistent NFT index's
 /// `recent_transfers` ring buffer (capped at 200 events per collection,
 /// newest first), so the response is instant regardless of how far in
@@ -7165,7 +8073,7 @@ async fn nft_transfers(
     let limit = params.limit.unwrap_or(25).min(200) as usize;
     let offset = (page - 1) * limit;
 
-    // 1) Fast path — read from the persistent index.
+    // 1) Fast path - read from the persistent index.
     let (cached, last_scanned, transfer_count, mint_count, burn_count) = {
         let r = state.nft_index.read().await;
         if let Some(c) = r.collections.get(&addr_lc) {
@@ -7225,7 +8133,7 @@ async fn nft_transfers(
         }));
     }
 
-    // 2) Fallback — collection not yet in the index, do a live scan.
+    // 2) Fallback - collection not yet in the index, do a live scan.
     let depth = params.depth.unwrap_or(2_000_000).min(10_000_000);
     let head = match rpc_block_number(&state).await {
         Ok(h) => h,
@@ -7319,11 +8227,11 @@ async fn nft_transfers(
         "offset": offset,
         "depth": depth,
         "items": items,
-        "source": "eth_getLogs (live fallback — collection not in NFT index)",
+        "source": "eth_getLogs (live fallback - collection not in NFT index)",
     }))
 }
 
-/// `GET /api/v1/accounts/:addr/nfts` — every DCNFT (or other ERC-721)
+/// `GET /api/v1/accounts/:addr/nfts` - every DCNFT (or other ERC-721)
 /// currently owned by this account, derived from the persistent
 /// `nft_index`. Includes the Tanastok asset metadata (hero image, name,
 /// type) for each held DCNFT so the address page can show a rich
@@ -7404,7 +8312,7 @@ async fn account_nfts(
     }))
 }
 
-/// `GET /api/v1/accounts/:addr/nft-transfers` — every ERC-721 transfer
+/// `GET /api/v1/accounts/:addr/nft-transfers` - every ERC-721 transfer
 /// where this account appears as `from` or `to`. Reads from the
 /// persistent NFT index's `recent_transfers` ring buffer first (covers
 /// the entire mint+transfer history of every Tanastok DCNFT once the
@@ -7420,7 +8328,7 @@ async fn account_nft_transfers(
     let limit = params.limit.unwrap_or(25).min(200) as usize;
     let offset = (page - 1) * limit;
 
-    // 1) Fast path — walk the persistent index across every collection
+    // 1) Fast path - walk the persistent index across every collection
     // looking for transfers where this address appears.
     let mut all: Vec<serde_json::Value> = Vec::new();
     let zero_addr = "0x0000000000000000000000000000000000000000";
@@ -7472,7 +8380,7 @@ async fn account_nft_transfers(
         }));
     }
 
-    // 2) Fallback — index empty (first boot). Live walk like before.
+    // 2) Fallback - index empty (first boot). Live walk like before.
     let depth = params.depth.unwrap_or(2_000_000).min(10_000_000);
     let head = match rpc_block_number(&state).await {
         Ok(h) => h,
@@ -7632,6 +8540,10 @@ async fn refresh_tokentxn_cache(state: &Arc<AppState>) {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
+    // Snapshot the price lens once per cache refresh so the recent-
+    // transfers table on the tokens page renders WFAT USD volume at
+    // the live FAT price (WFAT ≡ FAT invariant).
+    let lens = PriceLens::snapshot(state).await;
 
     for bn in (start..=head).rev() {
         if all_transfers.len() >= 50 {
@@ -7722,7 +8634,11 @@ async fn refresh_tokentxn_cache(state: &Arc<AppState>) {
 
                 let token_addr = log.get("address").and_then(|v| v.as_str()).unwrap_or("");
                 let (symbol, decimals, usd_price) = match known_token(token_addr) {
-                    Some(info) => (info.symbol.to_string(), info.decimals, info.usd_price),
+                    Some(info) => (
+                        info.symbol.to_string(),
+                        info.decimals,
+                        lens.price_for(&info),
+                    ),
                     None => continue,
                 };
                 unique_tokens.insert(symbol.clone());
@@ -7821,22 +8737,79 @@ async fn refresh_tokentxn_cache(state: &Arc<AppState>) {
     );
 }
 
+/// Serves DCR-20 token-transfer stats + recent transfers. The heavy log-scan
+/// work happens in a background task that maintains `state.tokentxn_cache`
+/// (see `refresh_tokentxn_cache` for the scan loop), so this handler is a
+/// pure lock-free cache read - it CANNOT 504 by itself. The only failure
+/// mode is a cold cache (fresh process, cache not yet populated), which we
+/// now surface explicitly via `source: "cache-warming"` so the frontend can
+/// distinguish "genuinely empty" from "just booted, please retry".
+///
+/// N+2 SWR extension deliberately keeps this as a cache-read (not
+/// SWR-wrapped compute) because the cache already gives the SWR property:
+/// steady-state is a Vec<TokenTransfer> clone, cold-cache falls back to a
+/// well-formed empty payload, and the background refresh is single-flight
+/// via `state.tokentxn_cache` write-lock.
 async fn list_token_transfers_live(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let cache = state.tokentxn_cache.read().await;
     if let Some(ref c) = *cache {
         return Json(serde_json::json!({
             "stats": c.stats,
             "transfers": c.transfers,
+            "source": "cache"
         }));
     }
     drop(cache);
     Json(serde_json::json!({
         "stats": { "totalTransfers": 0, "transfers24h": 0, "uniqueTokens": 0, "avgTransferValue": "$0.00" },
         "transfers": [],
+        "source": "cache-warming",
+        "note": "token transfer cache is warming after a fresh restart; retry in ~30 s"
     }))
 }
 
+/// SWR wrapper around `list_validators_compute`. Same rationale as
+/// `stats` above: the compute path issues sequential RPC + external
+/// HTTP calls per canonical validator, which can push past nginx's
+/// 60 s `proxy_read_timeout` under bursts. The SWR cache means steady
+/// state is a lock-free clone, refreshes are single-flight, and a slow
+/// upstream never surfaces a 504 to the browser.
 async fn list_validators(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    // SWR-wrapped via `swr::SwrCache` (2026-08-12, N+1 SWR helper). Same
+    // shape as `stats()`; see that handler for the full rationale.
+    let cfg = swr::SwrConfig {
+        fresh_ttl_secs: VALIDATORS_RESPONSE_FRESH_TTL_SECS,
+        stale_ttl_secs: VALIDATORS_RESPONSE_STALE_TTL_SECS,
+        compute_timeout_secs: VALIDATORS_RESPONSE_COMPUTE_TIMEOUT_SECS,
+        endpoint_name: "api_v1_validators",
+    };
+    let state_bg = Arc::clone(&state);
+    let payload = state
+        .validators_response_cache
+        .serve(
+            cfg,
+            move || {
+                let s = Arc::clone(&state_bg);
+                async move { list_validators_compute(s).await }
+            },
+            || {
+                serde_json::json!({
+                    "error": "validators compute timeout",
+                    "note": "the dc-explorer -> rope-node RPC forwarder is slow; retry shortly",
+                    "validators": [],
+                    "activeCount": 0,
+                    "totalStaked": 0,
+                    "avgUptime": 0,
+                    "validationsToday": 0
+                })
+            },
+        )
+        .await;
+    Json(payload)
+}
+
+/// Uncached compute path for `/api/v1/validators`.
+async fn list_validators_compute(state: Arc<AppState>) -> serde_json::Value {
     let head_hex = rpc_call(&state, "eth_blockNumber", vec![])
         .await
         .ok()
@@ -8057,7 +9030,7 @@ async fn list_validators(State(state): State<Arc<AppState>>) -> Json<serde_json:
         0.0
     };
 
-    Json(serde_json::json!({
+    serde_json::json!({
         "validators": validators,
         "totalValidators": validator_count,
         "activeCount": active_count,
@@ -8065,7 +9038,7 @@ async fn list_validators(State(state): State<Arc<AppState>>) -> Json<serde_json:
         "validationsToday": total_validations,
         "totalStaked": format!("{:.0}", total_staked),
         "blockHeight": head
-    }))
+    })
 }
 
 async fn get_validator(
@@ -8196,7 +9169,7 @@ async fn agent_row_to_json(state: &AppState, a: &db::AgentRow) -> serde_json::Va
         let m = (uptime_secs % 3600) / 60;
         format!("{}h {}m", h, m)
     } else {
-        "—".to_string()
+        "-".to_string()
     };
 
     serde_json::json!({
@@ -8222,7 +9195,7 @@ async fn agent_row_to_json(state: &AppState, a: &db::AgentRow) -> serde_json::Va
         "rewardRate": format!("{} FAT/testimony", a.reward_rate_fat),
         "txCount": tx_count,
         "uptime": uptime_str,
-        "updated": if total_testimonies > 0 || uptime_secs > 0 { "recently" } else { "—" },
+        "updated": if total_testimonies > 0 || uptime_secs > 0 { "recently" } else { "-" },
         "createdAt": a.created_at.timestamp(),
         "createdAgo": format!("{}d ago", created_ago.num_days()),
         "health": health
@@ -8278,7 +9251,7 @@ const CANONICAL_AGENT_WALLETS: [(&str, &str, &str, &str, Option<&str>); 5] = [
 /// insurance pass) with margin.
 const AGENT_ACTIVE_WINDOW_SECS: i64 = 7_200;
 
-/// `rope_getString` with retries — the loopback rope-node connection is
+/// `rope_getString` with retries - the loopback rope-node connection is
 /// occasionally reset under load ("connection closed before message
 /// completed"), and a single failed call must not drop an agent from the
 /// validators / testimonies views.
@@ -8320,7 +9293,7 @@ async fn agent_health_ok(state: &Arc<AppState>, url: Option<&str>) -> bool {
 /// rule (DCScan Frontend-Backend Fixes 2026-03-07). When the explorer's
 /// optional Postgres `DATABASE_URL` is wired up, the live list comes
 /// from the `agents` table and supersedes this fallback. When it isn't
-/// — which is the case on every production node today — this fallback
+/// - which is the case on every production node today - this fallback
 /// makes sure `/api/v1/ai-agents` and `/agents` still surface the
 /// canonical agent set instead of returning an empty array.
 fn canonical_ai_agents() -> Vec<serde_json::Value> {
@@ -8551,10 +9524,71 @@ async fn agent_testimonies_live(
 }
 
 /// Account overview enriched with AI Agent data when the address is an agent wallet.
+/// Public `account_overview_live` handler. Wraps the real compute in a
+/// hard timeout so a wedged rope-node / RPC forwarder cannot bubble a
+/// nginx 504 up to the browser. See `ACCOUNT_OVERVIEW_COMPUTE_TIMEOUT_SECS`
+/// docs for the design rationale (2026-08-12, Session N+2 SWR extension).
 async fn account_overview_live(
     Path(address): Path<String>,
     State(state): State<Arc<AppState>>,
 ) -> Json<serde_json::Value> {
+    let addr_for_fallback = address.clone();
+    let hidden_for_fallback = is_hidden_address(&addr_for_fallback);
+    let state_for_compute = Arc::clone(&state);
+    let address_for_compute = address.clone();
+
+    match tokio::time::timeout(
+        std::time::Duration::from_secs(ACCOUNT_OVERVIEW_COMPUTE_TIMEOUT_SECS),
+        account_overview_compute(state_for_compute, address_for_compute),
+    )
+    .await
+    {
+        Ok(payload) => Json(payload),
+        Err(_) => {
+            // Timeout: rope-node RPC path is wedged past our budget. Return a
+            // graceful, well-formed JSON payload the frontend can render as
+            // "loading / unavailable" instead of nginx 504-ing the request.
+            // We deliberately include the address (unless hidden) so the
+            // address page can still show the header pill; balances stay 0
+            // with a source marker so the browser knows this is a fallback.
+            tracing::warn!(
+                "account_overview: compute timeout after {}s for address={} - returning graceful fallback",
+                ACCOUNT_OVERVIEW_COMPUTE_TIMEOUT_SECS,
+                addr_for_fallback
+            );
+            Json(serde_json::json!({
+                "address": if hidden_for_fallback {
+                    serde_json::Value::Null
+                } else {
+                    serde_json::json!(&addr_for_fallback)
+                },
+                "fatBalance": "0",
+                "fatValueUsd": "0.00",
+                "transactionCount": 0,
+                "isContract": false,
+                "tokenHoldingsValueUsd": "0.00",
+                "tokenCount": 0,
+                "tokens": [],
+                "recentTransactions": [],
+                "isAgent": false,
+                "hidden": hidden_for_fallback,
+                "source": "unavailable",
+                "note": format!(
+                    "account overview compute exceeded {}s budget - rope-node RPC forwarder likely under contention; retry shortly",
+                    ACCOUNT_OVERVIEW_COMPUTE_TIMEOUT_SECS
+                )
+            }))
+        }
+    }
+}
+
+/// Inner compute path for `account_overview_live`. Kept as a separate
+/// function so the timeout wrapper above stays readable. All I/O work
+/// (RPC calls, token fan-out, DB lookup) happens here.
+async fn account_overview_compute(
+    state: Arc<AppState>,
+    address: String,
+) -> serde_json::Value {
     let balance_hex = rpc_call(
         &state,
         "eth_getBalance",
@@ -8599,7 +9633,7 @@ async fn account_overview_live(
     let hidden = is_hidden_address(&address);
 
     // Real token holdings (DCR-20 balanceOf + native FAT), same source as
-    // the dedicated `/tokens` tab — previously hardcoded to empty/zero
+    // the dedicated `/tokens` tab - previously hardcoded to empty/zero
     // here regardless of the wallet's actual holdings.
     let addr_lc_tokens = address.to_lowercase();
     let (tokens, tokens_usd) = compute_account_tokens(&state, &addr_lc_tokens).await;
@@ -8620,7 +9654,8 @@ async fn account_overview_live(
         // /api/v1/accounts/:addr/transactions separately for that tab).
         "recentTransactions": [],
         "isAgent": false,
-        "hidden": hidden
+        "hidden": hidden,
+        "source": "live"
     });
 
     if let Some(tag_label) = known_label(&address) {
@@ -8640,7 +9675,7 @@ async fn account_overview_live(
         }
     }
 
-    Json(resp)
+    resp
 }
 
 /// Fetch on-chain testimonies for an agent identified by wallet address.
@@ -8932,7 +9967,7 @@ async fn refresh_testimony_cache(state: &Arc<AppState>) {
     let pool = match &state.db_pool {
         Some(p) => p,
         None => {
-            // No Postgres on production nodes — derive testimonies from the
+            // No Postgres on production nodes - derive testimonies from the
             // canonical agents' personal-ledger knots on rope-node instead.
             refresh_testimony_cache_from_rope(state).await;
             return;
@@ -9253,15 +10288,15 @@ fn push_search_result(
 
 /// Real, ecosystem-wide search. Previously this endpoint only classified
 /// the query *by shape* (tx-hash length / address length / numeric) and
-/// echoed it back with no actual lookup — anything that wasn't a raw
+/// echoed it back with no actual lookup - anything that wasn't a raw
 /// address, tx hash, or string number (including the native "FAT" ticker
 /// itself, any DCR-20 token name/symbol, any Tanastok tokenized-asset name,
 /// any known contract label, or any ecosystem project name) fell straight
 /// through to the frontend's "No results" alert.
 ///
 /// This now searches, in order:
-///   1. Direct shape match — tx hash / EVM address / string (cord anchor)
-///      number — fast path, single result, same convention the frontend
+///   1. Direct shape match - tx hash / EVM address / string (cord anchor)
+///      number - fast path, single result, same convention the frontend
 ///      already uses client-side for these three shapes.
 ///   2. Exact symbol match against native DC FAT + every known DCR-20 /
 ///      LP token (so "FAT", "USDC", "USDT", "EUROD", "WFAT" all resolve).
@@ -9274,8 +10309,10 @@ fn push_search_result(
 ///      Tanastok, Mapstore, Careaway, ...).
 async fn search(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     Query(query): Query<SearchQuery>,
 ) -> Json<serde_json::Value> {
+    let is_admin = admin_token_matches(&headers);
     let raw = query.q.trim().to_string();
     let q_lower = raw.to_lowercase();
 
@@ -9335,7 +10372,7 @@ async fn search(
     let mut results: Vec<serde_json::Value> = Vec::new();
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
 
-    // 2a. Native FAT + every known DCR-20 / LP token — exact symbol match
+    // 2a. Native FAT + every known DCR-20 / LP token - exact symbol match
     // wins outright (this is what makes searching "FAT" resolve to the
     // native token instead of falling through to nothing, and keeps it
     // from being shadowed by "WFAT" on a substring match).
@@ -9416,7 +10453,7 @@ async fn search(
             }
         }
 
-        // 2c. Full Tanastok entity manifest — ecosystems, applications,
+        // 2c. Full Tanastok entity manifest - ecosystems, applications,
         // organizations, partners, DIDs, and any contract/asset not
         // already surfaced via the tokenized-asset cache above.
         {
@@ -9473,14 +10510,29 @@ async fn search(
             }
         }
 
-        // 2e. Ecosystem project directory — every interfaced platform
+        // 2e. Ecosystem project directory - every interfaced platform
         // (DCSwap, Tanastok, Mapstore, Careaway, ...).
+        //
+        // Visibility rules (see ecosystem_canonical::Visibility):
+        //   - `private_hidden`: skipped entirely for non-admin viewers so
+        //     the project cannot even be discovered by keyword search.
+        //   - `private_visible`: still surfaced (owner wants the name +
+        //     description visible), but the search snippet is annotated
+        //     so the frontend can render the closed-eye pill.
+        //   - `public`: unchanged, always searchable.
         {
             let cache = state.ecosystem_directory_cache.read().await;
             if let Some(c) = cache.as_ref() {
                 for p in &c.projects {
                     let name = p.get("name").and_then(|v| v.as_str()).unwrap_or("");
                     if name.is_empty() {
+                        continue;
+                    }
+                    let visibility = p
+                        .get("visibility")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("public");
+                    if !is_admin && visibility == "private_hidden" {
                         continue;
                     }
                     let tags = p
@@ -9496,6 +10548,11 @@ async fn search(
                     let haystack = format!("{} {}", name, tags).to_lowercase();
                     if haystack.contains(&q_lower) {
                         let id = p.get("id").and_then(|v| v.as_str()).unwrap_or(name);
+                        let hint = if !is_admin && visibility == "private_visible" {
+                            Some("Interfaced platform (restricted view)")
+                        } else {
+                            Some("Interfaced platform")
+                        };
                         push_search_result(
                             &mut results,
                             &mut seen,
@@ -9503,7 +10560,7 @@ async fn search(
                             name.to_string(),
                             id.to_string(),
                             "/ecosystem".to_string(),
-                            Some("Interfaced platform"),
+                            hint,
                         );
                     }
                 }
@@ -9588,7 +10645,7 @@ async fn gas_oracle(State(state): State<Arc<AppState>>) -> Json<serde_json::Valu
 //
 // STATUS: no live backing store exists for this feature yet (no
 // persistence, no on-chain string emission, no frontend page consumes
-// any of these 12 endpoints — verified against every file in `static/`).
+// any of these 12 endpoints - verified against every file in `static/`).
 // Previously every one of these fabricated realistic-looking demo data
 // (fake org names, vote tallies, wallet addresses) on every call and
 // pretended every create/vote mutation succeeded and persisted, which
@@ -9603,7 +10660,7 @@ fn federation_not_implemented() -> (StatusCode, Json<serde_json::Value>) {
         StatusCode::NOT_IMPLEMENTED,
         Json(serde_json::json!({
             "success": false,
-            "error": "Federation/Community generation has no live backend yet — this endpoint is reserved for a future release and intentionally does not fabricate a success response.",
+            "error": "Federation/Community generation has no live backend yet - this endpoint is reserved for a future release and intentionally does not fabricate a success response.",
         })),
     )
 }
@@ -9619,7 +10676,7 @@ async fn list_federations(Query(params): Query<PaginationParams>) -> Json<serde_
     }))
 }
 
-/// Create new federation (requires DC FAT stake) — not yet implemented.
+/// Create new federation (requires DC FAT stake) - not yet implemented.
 #[derive(Deserialize)]
 #[allow(dead_code)]
 struct CreateFederationRequest {
@@ -9640,14 +10697,14 @@ async fn create_federation(
     federation_not_implemented()
 }
 
-/// Get federation by ID — no federation registry exists yet.
+/// Get federation by ID - no federation registry exists yet.
 async fn get_federation(Path(id): Path<String>) -> (StatusCode, Json<serde_json::Value>) {
     (
         StatusCode::NOT_FOUND,
         Json(serde_json::json!({
             "id": id,
             "found": false,
-            "error": "Federation generation has no live backend yet — no federation records exist.",
+            "error": "Federation generation has no live backend yet - no federation records exist.",
         })),
     )
 }
@@ -9661,7 +10718,7 @@ async fn federation_communities(Path(id): Path<String>) -> Json<serde_json::Valu
     }))
 }
 
-/// Vote on federation / community — shared request shape.
+/// Vote on federation / community - shared request shape.
 #[derive(Deserialize)]
 #[allow(dead_code)]
 struct VoteRequest {
@@ -9687,7 +10744,7 @@ async fn list_communities(Query(params): Query<PaginationParams>) -> Json<serde_
     }))
 }
 
-/// Create new community — not yet implemented.
+/// Create new community - not yet implemented.
 #[derive(Deserialize)]
 #[allow(dead_code)]
 struct CreateCommunityRequest {
@@ -9705,14 +10762,14 @@ async fn create_community(
     federation_not_implemented()
 }
 
-/// Get community by ID — no community registry exists yet.
+/// Get community by ID - no community registry exists yet.
 async fn get_community(Path(id): Path<String>) -> (StatusCode, Json<serde_json::Value>) {
     (
         StatusCode::NOT_FOUND,
         Json(serde_json::json!({
             "id": id,
             "found": false,
-            "error": "Community generation has no live backend yet — no community records exist.",
+            "error": "Community generation has no live backend yet - no community records exist.",
         })),
     )
 }
@@ -9727,7 +10784,7 @@ async fn community_wallets(Path(id): Path<String>) -> Json<serde_json::Value> {
     }))
 }
 
-/// Generate wallets for community — not yet implemented. Previously
+/// Generate wallets for community - not yet implemented. Previously
 /// fabricated up to 100 fake wallet addresses (`format!("0x{:040x}", ...)`)
 /// with no key material and no persistence, which is actively dangerous
 /// if a caller ever mistook them for real, funded wallets.
@@ -9758,7 +10815,7 @@ async fn vote_community(
 //
 // Real, chain-anchored implementations (list_projects, submit_project,
 // get_project, vote_project, review_project, voting_projects, list_votes,
-// get_votes_for_target) live in `governance_votes.rs` — see that module's
+// get_votes_for_target) live in `governance_votes.rs` - see that module's
 // doc comment for the full design (persistence, EIP-191 signature
 // verification, single-chain FAT balance-weighted voting). Only the
 // static category taxonomy stays here.
@@ -9821,9 +10878,9 @@ async fn refresh_tx_count_cache(state: &AppState) {
         return;
     }
 
-    // Knot-counting strategy (Quipu Canon v1.2 — see knot-event-distinction rule):
+    // Knot-counting strategy (Quipu Canon v1.2 - see knot-event-distinction rule):
     //   • TRANSACTIONS (one type of knot): fetched via JSON-RPC batched
-    //     `eth_getBlockTransactionCountByNumber` — Reth returns just the
+    //     `eth_getBlockTransactionCountByNumber` - Reth returns just the
     //     tx count per block (a few bytes), so 200 calls go in ONE HTTP
     //     batch. ~200× faster than the legacy per-block sequential loop.
     //   • EVENTS (sub-transaction sub-knots): fetched via a single
@@ -9837,7 +10894,7 @@ async fn refresh_tx_count_cache(state: &AppState) {
     //
     // With this layout, the only thing the scan has to do is call
     // `eth_getBlockTransactionCountByNumber` in batches and aggregate
-    // Transfer logs — both of which are trivial for a Reth node.
+    // Transfer logs - both of which are trivial for a Reth node.
     let batch_limit = 50_000u64;
     let end = head.min(start + batch_limit);
     let mut cumulative = cache.total_transactions;
@@ -9886,6 +10943,9 @@ async fn refresh_tx_count_cache(state: &AppState) {
     // Aggregate DCR-20 Transfer volume in the same scan window.
     // Single eth_getLogs call filtered on the Transfer topic; we enrich
     // each log with `known_token()` to pick up the right symbol/decimals/$.
+    // Price snapshot lives on the `PriceLens` (WFAT ≡ FAT invariant),
+    // taken once for the whole scan window instead of per-log.
+    let vol_lens = PriceLens::snapshot(state).await;
     let mut delta_volume_usd = 0.0f64;
     let mut delta_volume_fat = 0.0f64;
     let mut delta_events = 0u64;
@@ -9916,7 +10976,7 @@ async fn refresh_tx_count_cache(state: &AppState) {
                 delta_events += 1;
                 if let Some(info) = known_token(token_addr) {
                     let amount = raw_amount as f64 / 10f64.powi(info.decimals as i32);
-                    delta_volume_usd += amount * info.usd_price;
+                    delta_volume_usd += amount * vol_lens.price_for(&info);
                     if info.symbol == "WFAT" {
                         delta_volume_fat += amount;
                     }
@@ -10100,13 +11160,13 @@ async fn refresh_holder_index(state: &Arc<AppState>) {
                         continue;
                     } else if !is_overflow && transient_retries < max_transient_retries {
                         // Transient (RPC blip / connection reset). Wait a short
-                        // beat and retry the same range — the rope-node forwarder
+                        // beat and retry the same range - the rope-node forwarder
                         // recovers within a few hundred ms.
                         transient_retries += 1;
                         tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
                         continue;
                     } else {
-                        // Non-overflow error after retries — break out
+                        // Non-overflow error after retries - break out
                         // and try again on the next 60 s tick. Don't advance
                         // cursor so we don't lose data.
                         tracing::warn!(
@@ -10191,15 +11251,15 @@ async fn nft_index_collection_set(state: &Arc<AppState>) -> Vec<String> {
 ///
 /// Three correctness properties:
 ///
-/// 1. **Topic count disambiguation** — ERC-20 and ERC-721 share the same
+/// 1. **Topic count disambiguation** - ERC-20 and ERC-721 share the same
 ///    `Transfer` topic-0 hash. We skip any log whose topics array length
-///    is not exactly four — that's the canonical ERC-721 shape (topic0
+///    is not exactly four - that's the canonical ERC-721 shape (topic0
 ///    + from + to + tokenId, all indexed).
-/// 2. **Per-tokenId state** — instead of running u128 balances we
+/// 2. **Per-tokenId state** - instead of running u128 balances we
 ///    maintain `tokenId → owner`. Mints (`from == 0x0`) bump
 ///    `mint_count`; burns (`to == 0x0`) bump `burn_count` and remove
 ///    the tokenId.
-/// 3. **Per-collection cursors** — we scan from the **min** `last_scanned`
+/// 3. **Per-collection cursors** - we scan from the **min** `last_scanned`
 ///    across all collections to chain head, but each collection's
 ///    `last_scanned_block` is updated only when we've actually queried
 ///    a chunk that covers it. (In practice every collection runs at
@@ -10213,7 +11273,7 @@ async fn refresh_nft_index(state: &Arc<AppState>) {
 
     let collection_set = nft_index_collection_set(state).await;
     if collection_set.is_empty() {
-        return; // Tanastok cache not warm yet — wait for the next tick.
+        return; // Tanastok cache not warm yet - wait for the next tick.
     }
 
     // Per-tick block budget. 2 M blocks per tick is enough to chew
@@ -10236,7 +11296,7 @@ async fn refresh_nft_index(state: &Arc<AppState>) {
             .collect()
     };
 
-    // Compute the global scan range — from the lowest already-scanned
+    // Compute the global scan range - from the lowest already-scanned
     // block to chain head, capped by per_tick_block_budget.
     let global_last_scanned = col_states
         .values()
@@ -10256,7 +11316,7 @@ async fn refresh_nft_index(state: &Arc<AppState>) {
     let scan_to = head.min(scan_from + per_tick_block_budget);
 
     // Adaptive chunk size. 100 K blocks is generous: with 413 sparse
-    // contracts, expected log count per chunk is ~0–10. Halve on
+    // contracts, expected log count per chunk is ~0-10. Halve on
     // overflow, floor 5 K.
     let mut chunk_size: u64 = 100_000;
     let min_chunk: u64 = 5_000;
@@ -10424,15 +11484,15 @@ const TANASTOK_API: &str = "https://tanastok.io/api/v1/tokenized-assets";
 
 /// CoinMarketCap REST endpoint for spot quotes. We use the v1 endpoint
 /// because it's available on the free Basic tier (10 K credits /
-/// month, 30 calls / minute — plenty of headroom for one batched call
+/// month, 30 calls / minute - plenty of headroom for one batched call
 /// every 5 minutes).
 const CMC_QUOTES_URL: &str =
     "https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest";
 
-/// Symbols we care about — the bridged DCR-20 stables plus DC FAT.
+/// Symbols we care about - the bridged DCR-20 stables plus DC FAT.
 /// We keep this list small so a single batched CMC request covers
 /// every token page on dcscan.io. EUROD has no CMC listing yet, so it
-/// is intentionally excluded; its global cap stays "—" until it lists
+/// is intentionally excluded; its global cap stays "-" until it lists
 /// publicly.
 const CMC_SYMBOLS: &[&str] = &["USDC", "USDT"];
 
@@ -10453,7 +11513,7 @@ async fn refresh_cmc_cache(state: &Arc<AppState>) {
         Some(k) => k,
         None => {
             tracing::debug!(
-                "CMC_API_KEY / COINMARKETCAP_API_KEY not set — skipping CoinMarketCap refresh, falling back to static snapshot"
+                "CMC_API_KEY / COINMARKETCAP_API_KEY not set - skipping CoinMarketCap refresh, falling back to static snapshot"
             );
             return;
         }
@@ -10513,7 +11573,7 @@ async fn refresh_cmc_cache(state: &Arc<AppState>) {
         std::collections::HashMap::new();
     for (symbol, entry) in data.iter() {
         // Each symbol maps to either an array of coin objects (when
-        // there are duplicates — USDC has two CMC IDs across chains)
+        // there are duplicates - USDC has two CMC IDs across chains)
         // or a single object. Walk both shapes and pick the entry with
         // the highest market cap (= the canonical mainnet listing).
         let candidates: Vec<&serde_json::Value> = match entry {
@@ -10595,7 +11655,7 @@ fn cmc_symbol_for_address(addr: &str) -> Option<&'static str> {
     }
 }
 
-/// `GET /api/v1/cmc/status` — exposes provenance for the live CMC
+/// `GET /api/v1/cmc/status` - exposes provenance for the live CMC
 /// cache so the dcscan UI (or anyone debugging) can tell at a glance
 /// whether the page is reading live numbers or falling back to the
 /// hand-curated snapshot.
@@ -10634,7 +11694,7 @@ async fn cmc_status(State(state): State<Arc<AppState>>) -> Json<serde_json::Valu
             "live": false,
             "apiKeyConfigured": key_set,
             "reason": if key_set {
-                "CMC cache empty — first refresh in progress, or last attempt failed"
+                "CMC cache empty - first refresh in progress, or last attempt failed"
             } else {
                 "CMC_API_KEY not set in environment; using static 2026-06-04 snapshot from token_metadata()"
             },
@@ -10722,16 +11782,19 @@ async fn refresh_ecosystem_directory_cache(state: &AppState) {
         }
     }
 
-    if !any_ok && state.ecosystem_directory_cache.read().await.is_some() {
-        tracing::warn!(
-            "EDC directory refresh: all {} instance(s) unreachable — keeping previous cache",
-            bases.len()
-        );
-        return;
-    }
+    // Merge in the canonical Datachain ecosystem registry so the page is
+    // never empty even when zero EDC instances are reachable (per
+    // handover-from-dcswap-dcscan-address-parity-fixes-2026-08-11 ecosystem
+    // followup: /api/v1/ecosystem/directory was returning
+    // {count:0, projects:[]} because the only configured EDC instance
+    // (console.datachain.network) had no registered projects).
+    //
+    // Rule: EDC entries always win on id collision because they represent
+    // a live self-registered deployment. Canonical entries only fill gaps.
+    let canonical_cards = ecosystem_canonical::canonical_project_cards();
+    let canonical_len = canonical_cards.len();
 
-    // Newest first; dedupe by id (an instance restart re-listing the same
-    // project must not create duplicates across instances either).
+    // First pass: dedupe EDC-only, preserving newest-first sort.
     projects.sort_by_key(|p| {
         std::cmp::Reverse(p.get("created_at").and_then(|v| v.as_i64()).unwrap_or(0))
     });
@@ -10749,6 +11812,94 @@ async fn refresh_ecosystem_directory_cache(state: &AppState) {
         by_id.insert(id, deduped.len());
         deduped.push(card);
     }
+    let edc_count = deduped.len();
+
+    // Second pass: canonical fills gaps only.
+    let mut canonical_added = 0usize;
+    for card in canonical_cards {
+        let id = card
+            .get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_lowercase();
+        if id.is_empty() || by_id.contains_key(&id) {
+            continue;
+        }
+        by_id.insert(id, deduped.len());
+        deduped.push(card);
+        canonical_added += 1;
+    }
+
+    // Third pass: overlay entries fill remaining gaps only. Overlay is
+    // populated by the autonomous rope-ecosystem-discovery script (spec at
+    // docs/ECOSYSTEM_OVERLAY_JSONL_SPEC_V1.md). Precedence stays
+    // EDC > canonical > overlay - the loader itself does NOT dedupe
+    // against canonical/EDC, that's this loop's job. Visibility
+    // precedence (canonical PRIVATE_HIDDEN_IDS / PRIVATE_VISIBLE_IDS
+    // beats whatever the overlay declares) IS enforced by the loader,
+    // so an attacker writing to the overlay file cannot un-hide a
+    // canonical hidden project.
+    let overlay_cards = ecosystem_overlay::load_overlay_cards();
+    let overlay_total = overlay_cards.len();
+    let mut overlay_added = 0usize;
+    for card in overlay_cards {
+        let id = card
+            .get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_lowercase();
+        if id.is_empty() || by_id.contains_key(&id) {
+            continue;
+        }
+        by_id.insert(id, deduped.len());
+        deduped.push(card);
+        overlay_added += 1;
+    }
+
+    // Re-sort the merged list by created_at DESC so canonical + EDC
+    // entries interleave chronologically on the UI. Rebuild by_id so
+    // its indices match the final position of each card.
+    deduped.sort_by_key(|p| {
+        std::cmp::Reverse(p.get("created_at").and_then(|v| v.as_i64()).unwrap_or(0))
+    });
+    by_id.clear();
+    for (idx, card) in deduped.iter().enumerate() {
+        if let Some(id) = card.get("id").and_then(|v| v.as_str()) {
+            by_id.insert(id.to_lowercase(), idx);
+        }
+    }
+
+    // Add a synthetic source row so the /ecosystem UI can show that
+    // canonical entries were merged in.
+    sources.push(serde_json::json!({
+        "base": "builtin:datachain-canonical-registry",
+        "ok": true,
+        "projects": canonical_added,
+        "total_candidates": canonical_len,
+        "note": "hand-curated Datachain ecosystem entries; EDC entries take precedence on id collision"
+    }));
+
+    // Also add a synthetic source row for the overlay so operators can
+    // see at a glance how many auto-discovered entries were merged in
+    // and how many were dropped due to id collisions with EDC/canonical.
+    // Row is emitted even when count is zero so the presence of the
+    // overlay pipeline is always visible on the sources array.
+    sources.push(serde_json::json!({
+        "base": "builtin:ecosystem-overlay",
+        "ok": true,
+        "projects": overlay_added,
+        "total_candidates": overlay_total,
+        "note": "auto-discovered by rope-ecosystem-discovery; canonical + EDC entries take precedence on id collision"
+    }));
+
+    if !any_ok {
+        tracing::info!(
+            "EDC directory refresh: all {} EDC instance(s) unreachable; \
+             serving {canonical_added} canonical + {overlay_added} overlay \
+             Datachain ecosystem entries as fallback",
+            bases.len()
+        );
+    }
 
     let count = deduped.len();
     *state.ecosystem_directory_cache.write().await = Some(EcosystemDirectoryCache {
@@ -10757,22 +11908,43 @@ async fn refresh_ecosystem_directory_cache(state: &AppState) {
         sources,
         fetched_at: chrono::Utc::now().timestamp(),
     });
-    tracing::debug!("EDC directory refreshed: {count} project(s) from {} instance(s)", bases.len());
+    tracing::debug!(
+        "EDC directory refreshed: {count} total ({edc_count} EDC + {canonical_added} canonical + {overlay_added} overlay) from {} EDC instance(s)",
+        bases.len()
+    );
 }
 
-/// `GET /api/v1/ecosystem/directory` — the aggregated EDC public
+/// `GET /api/v1/ecosystem/directory` - the aggregated EDC public
 /// project directory (spec v2.0 §8). Query params: `archetype`,
 /// `country`, `status`, `q` (free-text over name/tags/region).
+///
+/// Visibility handling (see `ecosystem_canonical::Visibility`):
+///   - `Public`         : always emitted with full card.
+///   - `PrivateVisible` : emitted publicly with name + description but
+///                        with `wallet` and `stakeholder_url` stripped
+///                        (so the frontend cannot render the "On-chain
+///                        String" chip or the "Open Project" button).
+///                        Admin token restores the full card.
+///   - `PrivateHidden`  : filtered out entirely for non-admin viewers.
+///                        Admin token includes them like any other card.
+///
+/// Admin authentication comes from `admin_token_matches(&headers)`:
+/// matches `ECOSYSTEM_ADMIN_TOKEN` or `PROJECTS_ADMIN_TOKEN` via
+/// `X-Ecosystem-Admin-Token` or `X-Admin-Token` header. Fail-secure
+/// when neither env var is set.
 async fn ecosystem_directory(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> Json<serde_json::Value> {
+    let is_admin = admin_token_matches(&headers);
     let cache = state.ecosystem_directory_cache.read().await;
     let Some(cache) = cache.as_ref() else {
         return Json(serde_json::json!({
             "count": 0,
             "projects": [],
             "sources": [],
+            "viewer": if is_admin { "admin" } else { "public" },
             "note": "directory cache warming; retry in <60s"
         }));
     };
@@ -10782,9 +11954,19 @@ async fn ecosystem_directory(
     let status = params.get("status").map(|s| s.to_lowercase());
     let q = params.get("q").map(|s| s.to_lowercase());
 
-    let filtered: Vec<&serde_json::Value> = cache
+    let filtered: Vec<serde_json::Value> = cache
         .projects
         .iter()
+        // Visibility gate FIRST: private_hidden entries never reach the
+        // filter chain for non-admin viewers, so they can't be found by
+        // enumerating query-param combinations either.
+        .filter(|p| {
+            if is_admin {
+                return true;
+            }
+            let v = p.get("visibility").and_then(|v| v.as_str()).unwrap_or("public");
+            v != "private_hidden"
+        })
         .filter(|p| {
             let get = |k: &str| {
                 p.get(k)
@@ -10826,6 +12008,21 @@ async fn ecosystem_directory(
             }
             true
         })
+        // Redact private_visible fields for non-admin viewers. The card
+        // stays in the list (with name + description + visibility flag)
+        // so the frontend can render the "closed-eye" pill, but the
+        // sensitive fields are stripped so the client cannot bypass by
+        // reading the JSON directly.
+        .map(|p| {
+            if is_admin {
+                return p.clone();
+            }
+            let v = p.get("visibility").and_then(|v| v.as_str()).unwrap_or("public");
+            if v != "private_visible" {
+                return p.clone();
+            }
+            redact_private_visible_card(p)
+        })
         .collect();
 
     Json(serde_json::json!({
@@ -10833,33 +12030,151 @@ async fn ecosystem_directory(
         "projects": filtered,
         "sources": cache.sources,
         "fetched_at": cache.fetched_at,
+        "viewer": if is_admin { "admin" } else { "public" },
     }))
 }
 
-/// `GET /api/v1/ecosystem/directory/:id` — full public detail for one
+/// Return a redacted copy of an ecosystem card for a `PrivateVisible`
+/// project when the viewer is not authenticated. Keeps enough for the
+/// list view to render the name + description + visibility pill; strips
+/// the wallet (blocks the "On-chain String" chip) and stakeholder_url
+/// (blocks the "Open Project" button). The frontend also uses the
+/// preserved `visibility` field to hide the "Project Details" modal
+/// trigger.
+fn redact_private_visible_card(p: &serde_json::Value) -> serde_json::Value {
+    let mut out = serde_json::Map::new();
+    for k in [
+        "id",
+        "name",
+        "description",
+        "archetype",
+        "status",
+        "source",
+        "visibility",
+        "logo_url",
+        "created_at",
+        "region",
+        "country",
+    ] {
+        if let Some(v) = p.get(k) {
+            out.insert(k.to_string(), v.clone());
+        }
+    }
+    // Sentinel value so the frontend can render "Redacted" instead of
+    // an empty field, without having to conditionally omit rows.
+    out.insert(
+        "redacted".to_string(),
+        serde_json::json!(["wallet", "stakeholder_url", "tags", "edc_base"]),
+    );
+    serde_json::Value::Object(out)
+}
+
+/// `GET /api/v1/ecosystem/directory/:id` - full public detail for one
 /// project, proxied live from its own EDC instance so the response
 /// includes the current public grants and the stakeholder API base URL
 /// (the disintermediated access path for regulators / investors).
+///
+/// Visibility handling (see `ecosystem_canonical::Visibility`):
+///   - `Public`         : always served.
+///   - `PrivateVisible` : non-admin viewers get the redacted card only
+///                        (no stakeholder_api, no wallet, no grants,
+///                        note explaining the restriction). Admin token
+///                        restores the full detail view.
+///   - `PrivateHidden`  : non-admin viewers get 404 (indistinguishable
+///                        from a non-existent id). Admin token restores
+///                        the full detail view.
 async fn ecosystem_directory_project(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     Path(id): Path<String>,
 ) -> Response {
-    let base = {
+    let is_admin = admin_token_matches(&headers);
+
+    // Look up the card; capture both the edc_base (if any) and a clone
+    // of the card itself so we can serve canonical entries without a
+    // downstream fetch.
+    let (base, card) = {
         let cache = state.ecosystem_directory_cache.read().await;
-        cache.as_ref().and_then(|c| {
-            c.by_id.get(&id.to_lowercase()).and_then(|idx| {
-                c.projects[*idx]
-                    .get("edc_base")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string())
-            })
-        })
+        match cache.as_ref() {
+            Some(c) => match c.by_id.get(&id.to_lowercase()) {
+                Some(idx) => {
+                    let card = c.projects[*idx].clone();
+                    let base = card
+                        .get("edc_base")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+                    (base, Some(card))
+                }
+                None => (None, None),
+            },
+            None => (None, None),
+        }
     };
-    let Some(base) = base else {
+    let Some(card) = card else {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"error": "project not found in ecosystem directory"})),
         )
+            .into_response();
+    };
+
+    // Visibility gate. Fetch the visibility marker from the card
+    // (canonical entries emit "public" | "private_visible" |
+    // "private_hidden"; EDC-registered entries default to "public"
+    // because the visibility field is a canonical-only concept).
+    let visibility = card
+        .get("visibility")
+        .and_then(|v| v.as_str())
+        .unwrap_or("public")
+        .to_string();
+
+    if !is_admin {
+        match visibility.as_str() {
+            // Return 404 for hidden projects. Indistinguishable from a
+            // non-existent id, so an attacker cannot confirm the
+            // existence of a private project by probing this endpoint.
+            "private_hidden" => {
+                return (
+                    StatusCode::NOT_FOUND,
+                    Json(serde_json::json!({
+                        "error": "project not found in ecosystem directory"
+                    })),
+                )
+                    .into_response();
+            }
+            // Return the redacted card only, with an explanatory note.
+            // No downstream EDC fetch, no grants, no stakeholder_api -
+            // matches the frontend "Private-Visible" contract (name +
+            // description visible; details / on-chain string / open
+            // project button all gated).
+            "private_visible" => {
+                let redacted = redact_private_visible_card(&card);
+                return Json(serde_json::json!({
+                    "project": redacted,
+                    "public_grants": [],
+                    "stakeholder_api": null,
+                    "visibility": "private_visible",
+                    "note": "project owner has restricted public detail view; sign in with admin credentials to see full details"
+                }))
+                    .into_response();
+            }
+            _ => {}
+        }
+    }
+
+    // Canonical entries have no live EDC to proxy from - return the
+    // curated card with empty grants + no stakeholder_api so the
+    // frontend can render a "static overview" modal without a network
+    // round-trip. Admin viewers of `private_visible` also land here
+    // (they get the full card).
+    let Some(base) = base else {
+        return Json(serde_json::json!({
+            "project": card,
+            "public_grants": [],
+            "stakeholder_api": null,
+            "viewer": if is_admin { "admin" } else { "public" },
+            "note": "canonical Datachain ecosystem entry - no live EDC-registered node; visit the project URL for full details"
+        }))
             .into_response();
     };
 
@@ -10875,6 +12190,10 @@ async fn ecosystem_directory_project(
             Ok(mut body) => {
                 if let Some(obj) = body.as_object_mut() {
                     obj.insert("edc_base".to_string(), serde_json::json!(base));
+                    obj.insert(
+                        "viewer".to_string(),
+                        serde_json::json!(if is_admin { "admin" } else { "public" }),
+                    );
                 }
                 Json(body).into_response()
             }
@@ -11068,7 +12387,7 @@ async fn refresh_tanastok_manifest_cache(state: &AppState) {
         return;
     }
 
-    // Build the by-id index. Keys are lowercase, no `0x` prefix — matches
+    // Build the by-id index. Keys are lowercase, no `0x` prefix - matches
     // what `entity_labels::current().get(...)` expects on the rope-node
     // side, so the two layers stay symmetric.
     let mut by_id = std::collections::HashMap::with_capacity(entities_count);
@@ -11104,7 +12423,7 @@ async fn refresh_tanastok_manifest_cache(state: &AppState) {
     );
 }
 
-/// `GET /api/v1/registry/manifest` — full mirror of
+/// `GET /api/v1/registry/manifest` - full mirror of
 /// `https://tanastok.io/api/v1/tanastok-entity-manifest`.
 ///
 /// Sets `Cache-Control: public, max-age=60, s-maxage=300,
@@ -11163,12 +12482,12 @@ async fn registry_tanastok_manifest(
         .into_response()
 }
 
-/// `GET /api/v1/registry/labels` — slim `string_id → label` map for
-/// fast client-side lookup (typically ~80–120 KB on the wire vs the
+/// `GET /api/v1/registry/labels` - slim `string_id → label` map for
+/// fast client-side lookup (typically ~80-120 KB on the wire vs the
 /// ~750 KB full manifest).
 ///
 /// Optional query params:
-///   - `kind` — filter (`ecosystem|application|asset|contract|did`)
+///   - `kind` - filter (`ecosystem|application|asset|contract|did`)
 ///
 /// Useful for any frontend that wants to colour the Rope Graph by
 /// platform without parsing the full manifest body.
@@ -11253,7 +12572,7 @@ async fn registry_tanastok_labels(
         .into_response()
 }
 
-/// `POST /api/rpc` — same-origin JSON-RPC proxy.
+/// `POST /api/rpc` - same-origin JSON-RPC proxy.
 ///
 /// Forwards the request body verbatim to the active rope-node RPC
 /// backend (`rpc_url_active()`). Used by DCScan pages so they can
@@ -11307,7 +12626,7 @@ fn node_requests_path() -> String {
 /// Every "Deploy a Node" submission is anchored as a
 /// `NodeDeploymentRequested` knot on this string via `rope_appendToLedger`,
 /// which makes the queue durable, replicated across the fleet, and
-/// auditable on dcscan.io — the JSONL file is just a local read cache
+/// auditable on dcscan.io - the JSONL file is just a local read cache
 /// that can be rebuilt from the chain at any time.
 fn node_requests_ledger_wallet() -> String {
     std::env::var("NODE_REQUESTS_LEDGER_WALLET")
@@ -11383,7 +12702,7 @@ async fn anchor_node_request_on_rope(
 
 /// Rebuild the local JSONL cache from the rope when the file is missing
 /// or empty (fresh node, disk loss, bootstrap from IPFS snapshot). Uses
-/// the internal-only decrypted repatriation path — dc-explorer talks to
+/// the internal-only decrypted repatriation path - dc-explorer talks to
 /// the co-located rope-node over loopback, which the V11 auth model
 /// treats as internal.
 async fn rebuild_node_requests_from_rope(state: &Arc<AppState>) -> Vec<serde_json::Value> {
@@ -11473,7 +12792,7 @@ fn default_node_role() -> String {
     "relay".to_string()
 }
 
-/// `POST /api/v1/node-requests` — submit a "Deploy a Node" request from
+/// `POST /api/v1/node-requests` - submit a "Deploy a Node" request from
 /// the datachain.network get-started form. Validated, then appended to
 /// the durable JSONL queue for operator fulfilment via `ropectl`.
 async fn node_request_submit(
@@ -11560,7 +12879,7 @@ async fn node_request_submit(
             // Anchor the request on the rope: a `NodeDeploymentRequested`
             // knot on the queue wallet's string makes the request durable,
             // replicated across the fleet, and auditable on dcscan.io.
-            // Best-effort — the JSONL write above already succeeded, and
+            // Best-effort - the JSONL write above already succeeded, and
             // the anchor is retried implicitly on the next rebuild.
             let anchored_knot = anchor_node_request_on_rope(&state, &record).await;
             (
@@ -11594,7 +12913,7 @@ async fn node_request_submit(
     }
 }
 
-/// `GET /api/v1/node-requests` — operator-only listing of the request
+/// `GET /api/v1/node-requests` - operator-only listing of the request
 /// queue. Requires the `X-Admin-Token` header to match the
 /// `NODE_REQUESTS_ADMIN_TOKEN` environment variable; if the variable is
 /// unset the endpoint is disabled entirely (403).
@@ -11615,7 +12934,7 @@ async fn node_requests_list(
         .get("x-admin-token")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
-    // Constant-time comparison — this is an auth check.
+    // Constant-time comparison - this is an auth check.
     let matches = presented.len() == expected.len()
         && presented
             .bytes()
@@ -11640,7 +12959,7 @@ async fn node_requests_list(
         _ => Vec::new(),
     };
     // Local cache empty (fresh node / disk loss): the rope is the source
-    // of truth — rebuild the queue from the queue wallet's string.
+    // of truth - rebuild the queue from the queue wallet's string.
     if requests.is_empty() {
         requests = rebuild_node_requests_from_rope(&state).await;
     }
@@ -11654,12 +12973,12 @@ async fn node_requests_list(
     )
 }
 
-/// `GET /api/v1/registry/entity/:id` — single-entity lookup by Quipu
+/// `GET /api/v1/registry/entity/:id` - single-entity lookup by Quipu
 /// `string_id`. Accepts the id with or without the `0x` prefix and is
 /// case-insensitive.
 ///
 /// Falls back gracefully when the manifest cache is cold or the id is
-/// unknown — never panics, never blocks.
+/// unknown - never panics, never blocks.
 async fn registry_tanastok_entity_by_id(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
@@ -11761,7 +13080,7 @@ async fn refresh_mapstore_manifest_cache(state: &AppState) {
     // Unlike Tanastok's 1,626-entity manifest, Mapstore's marketplace
     // ledger can legitimately be empty (a fresh instance with zero
     // onboarded merchants/contracts). An explicit `degraded: true` from
-    // upstream is the real "something is wrong" signal — an empty-but-
+    // upstream is the real "something is wrong" signal - an empty-but-
     // healthy manifest must still populate the cache so callers see
     // `counts.total: 0` instead of a permanent 503.
     let upstream_degraded = body
@@ -11804,7 +13123,7 @@ async fn refresh_mapstore_manifest_cache(state: &AppState) {
     );
 }
 
-/// `GET /api/v1/registry/mapstore-manifest` — full mirror of
+/// `GET /api/v1/registry/mapstore-manifest` - full mirror of
 /// `https://mapstore.net/api/v1/mapstore-entity-manifest`.
 ///
 /// Same header contract as `registry_tanastok_manifest`: strong
@@ -11854,7 +13173,7 @@ async fn registry_mapstore_manifest(
         .into_response()
 }
 
-/// `GET /api/v1/registry/mapstore-labels` — slim `string_id → label`
+/// `GET /api/v1/registry/mapstore-labels` - slim `string_id → label`
 /// map. Optional `?kind=` filter (`asset|contract`).
 async fn registry_mapstore_labels(
     State(state): State<Arc<AppState>>,
@@ -11921,7 +13240,7 @@ async fn registry_mapstore_labels(
         .into_response()
 }
 
-/// `GET /api/v1/registry/mapstore-entity/:id` — single-entity lookup by
+/// `GET /api/v1/registry/mapstore-entity/:id` - single-entity lookup by
 /// Quipu `string_id`, case-insensitive, `0x`-prefix-tolerant (Mapstore's
 /// own ids are not `0x`-prefixed, e.g. `mapstore_business_v1:biz_...`,
 /// but the trim is harmless and keeps this handler byte-for-byte
@@ -11951,7 +13270,7 @@ async fn registry_mapstore_entity_by_id(
 
 // ---------------------------------------------------------------------------
 // Careaway entity-manifest mirror (aggregate-only healthcare coordination
-// stats — care-plan lifecycle, GDPR Art.17 erasure counters, DC-credit
+// stats - care-plan lifecycle, GDPR Art.17 erasure counters, DC-credit
 // ledger settlement volume)
 // ---------------------------------------------------------------------------
 //
@@ -11961,7 +13280,7 @@ async fn registry_mapstore_entity_by_id(
 // is aggregate-only by design, per the health-data special-category
 // boundary (GDPR Art. 9) negotiated in
 // `handover-request-data-apis-for-fat-pricing-and-titrization-from-rope-2026-07-24.mdc`
-// (Careaway workspace `.cursor/rules/`) — `entities` is always `[]`, so a
+// (Careaway workspace `.cursor/rules/`) - `entities` is always `[]`, so a
 // `-labels` / `-entity/:id` sibling would just be a permanent, pointless
 // stub. Only build those if Careaway ships a genuine per-record surface
 // later (e.g. the deferred verified-professional registry).
@@ -12049,7 +13368,7 @@ async fn refresh_careaway_manifest_cache(state: &AppState) {
     tracing::info!("Careaway manifest cache refreshed: version={}", version);
 }
 
-/// `GET /api/v1/registry/careaway-manifest` — full mirror of
+/// `GET /api/v1/registry/careaway-manifest` - full mirror of
 /// `https://careaway.co/api/v1/careaway-entity-manifest`.
 ///
 /// Same header contract as the Tanastok/Mapstore mirrors: strong
@@ -12102,15 +13421,15 @@ async fn registry_careaway_manifest(
 
 // ---------------------------------------------------------------------------
 // TangibleDC Goodies entity-manifest mirror (physical gold/silver
-// coin/title registry — dc.datachain.one)
+// coin/title registry - dc.datachain.one)
 // ---------------------------------------------------------------------------
 //
 // Mirrors `https://dc.datachain.one/api/v1/tangibledc-entity-manifest`
 // (alias `/api/v1/registry/manifest` on the TangibleDC side) under the
 // `/api/v1/registry/tangibledc-*` route family. Real per-entity records
-// (unlike Careaway's aggregate-only payload) — one entity per physical
+// (unlike Careaway's aggregate-only payload) - one entity per physical
 // coin, carrying its NFC chip identity, optional on-chain DCNFT deed +
-// ERC-3643 fractional title, and its full production→delivery history —
+// ERC-3643 fractional title, and its full production→delivery history -
 // so this gets the full three-endpoint mirror, same shape/caching
 // contract as Tanastok/Mapstore above.
 //
@@ -12174,7 +13493,7 @@ async fn refresh_tangibledc_manifest_cache(state: &AppState) {
         .and_then(|v| v.as_array())
         .map(|a| a.len())
         .unwrap_or(0);
-    // TangibleDC is a young, physical-goods marketplace — a fresh
+    // TangibleDC is a young, physical-goods marketplace - a fresh
     // deployment with zero minted coins is a legitimate, healthy state.
     // An explicit `degraded: true` from upstream (DB unreachable, etc.)
     // is the real "something is wrong" signal; an empty-but-healthy
@@ -12220,7 +13539,7 @@ async fn refresh_tangibledc_manifest_cache(state: &AppState) {
     );
 }
 
-/// `GET /api/v1/registry/tangibledc-manifest` — full mirror of
+/// `GET /api/v1/registry/tangibledc-manifest` - full mirror of
 /// `https://dc.datachain.one/api/v1/tangibledc-entity-manifest`.
 ///
 /// Same header contract as `registry_mapstore_manifest`: strong
@@ -12270,7 +13589,7 @@ async fn registry_tangibledc_manifest(
         .into_response()
 }
 
-/// `GET /api/v1/registry/tangibledc-labels` — slim `string_id → label`
+/// `GET /api/v1/registry/tangibledc-labels` - slim `string_id → label`
 /// map. Optional `?kind=` filter (`asset|contract`).
 async fn registry_tangibledc_labels(
     State(state): State<Arc<AppState>>,
@@ -12337,7 +13656,7 @@ async fn registry_tangibledc_labels(
         .into_response()
 }
 
-/// `GET /api/v1/registry/tangibledc-entity/:id` — single-entity lookup
+/// `GET /api/v1/registry/tangibledc-entity/:id` - single-entity lookup
 /// by Quipu `string_id`, case-insensitive, `0x`-prefix-tolerant.
 async fn registry_tangibledc_entity_by_id(
     State(state): State<Arc<AppState>>,
@@ -12448,5 +13767,104 @@ mod tests {
         let deserialized: PriceData = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.price, 0.00390);
         assert_eq!(deserialized.source, "test");
+    }
+
+    /// Build a synthetic `PriceLens` without touching `AppState` so we
+    /// can lock the invariants below in a unit test.
+    fn lens_with(fat: f64, live: &[(&str, f64)]) -> PriceLens {
+        let mut live_symbols = std::collections::HashMap::new();
+        for (sym, p) in live {
+            live_symbols.insert(sym.to_string(), (*p, None));
+        }
+        PriceLens {
+            fat_usd: fat,
+            fat_change_24h: None,
+            fat_source: "test".to_string(),
+            live_symbols,
+        }
+    }
+
+    /// **Regression guard for the 2026-08-13 Andrew Neophytou incident.**
+    /// dcscan's `/api/v1/tokens` list showed WFAT at $0.01 (a
+    /// 2026-02-26 deploy-time reserve estimate) while `/v1/prices`
+    /// canonical was $0.037/FAT — a 3.7× under-report on a real
+    /// buyer's wallet display. Any future change that lets the lens
+    /// return a WFAT price different from the FAT price MUST fail
+    /// here, not on a user's wallet.
+    #[test]
+    fn price_lens_wfat_equals_fat_always() {
+        // Live feed publishes only `FAT` (the historical shape).
+        let lens = lens_with(0.03708851, &[("FAT", 0.03708851)]);
+
+        let wfat = known_token("0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4")
+            .expect("WFAT must be a known token");
+        assert_eq!(wfat.symbol, "WFAT");
+        assert_eq!(
+            lens.price_for(&wfat),
+            0.03708851,
+            "WFAT MUST inherit the live FAT price; feed only has `FAT`"
+        );
+
+        // Even if a future feed publishes `WFAT` as a different number
+        // (which would itself be a bug at the feed layer), the lens
+        // resolves WFAT via the FAT price — the wrap contract cannot
+        // trade independently of its underlying.
+        let lens_lying = lens_with(0.03708851, &[("FAT", 0.03708851), ("WFAT", 0.01)]);
+        assert_eq!(
+            lens_lying.price_for(&wfat),
+            0.03708851,
+            "lens must reject a divergent WFAT feed price and use FAT"
+        );
+    }
+
+    /// FAT and WFAT are NEVER priced at $0. Even on a cold-start with
+    /// zero price cache, we return `FALLBACK_PRICE` (stale but
+    /// non-zero), never a fabricated zero.
+    #[test]
+    fn price_lens_fat_and_wfat_never_zero() {
+        // The synthetic lens still requires a non-zero FAT; that
+        // reflects `PriceLens::snapshot`'s behaviour (`FALLBACK_PRICE`
+        // on cold cache). Verify the fixture invariant.
+        assert!(FALLBACK_PRICE > 0.0, "FALLBACK_PRICE must never be zero");
+
+        let cold = lens_with(FALLBACK_PRICE, &[]);
+        assert!(cold.fat_usd() > 0.0);
+        let wfat = known_token("0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4").unwrap();
+        assert!(
+            cold.price_for(&wfat) > 0.0,
+            "WFAT price must never be $0 — worst case is FALLBACK_PRICE"
+        );
+    }
+
+    /// The WFAT `TokenInfo::usd_price` fixture is intentionally 0.0
+    /// so any code path that forgets to route through `PriceLens`
+    /// renders an obvious `$0.00` (immediately diagnosable) instead
+    /// of a stale peg. Lock the fixture.
+    #[test]
+    fn wfat_fixture_price_is_fail_safe_zero_not_stale_peg() {
+        let wfat = known_token("0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4").unwrap();
+        assert_eq!(
+            wfat.usd_price, 0.0,
+            "WFAT TokenInfo.usd_price must be the fail-safe 0.0 fixture — a non-zero here reintroduces the 2026-08-13 incident"
+        );
+    }
+
+    /// Bridged stables prefer the live feed (drift-aware) but fall
+    /// back to their peg fixture when the feed is unreachable. Both
+    /// must be non-zero for USDC/USDT/EUROD.
+    #[test]
+    fn price_lens_stables_prefer_live_fall_back_to_peg() {
+        let usdc = known_token("0xb93bd8db94f1baff474aa9cba0739daaad01641f")
+            .expect("USDC must be a known token");
+        assert_eq!(usdc.symbol, "USDC");
+        assert!(usdc.usd_price > 0.9 && usdc.usd_price < 1.1, "USDC peg fixture");
+
+        // With no live feed: peg fixture wins.
+        let cold = lens_with(0.037, &[]);
+        assert_eq!(cold.price_for(&usdc), usdc.usd_price);
+
+        // With a live drift value: live wins.
+        let live = lens_with(0.037, &[("USDC", 0.9994)]);
+        assert!((live.price_for(&usdc) - 0.9994).abs() < 1e-9);
     }
 }

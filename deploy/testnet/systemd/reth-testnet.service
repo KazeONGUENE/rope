@@ -1,0 +1,18 @@
+[Unit]
+Description=Reth - Datachain Rope TESTNET EVM (chainId 271829, --dev auto-mine 3s)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+ExecStart=/usr/local/bin/reth node   --chain /opt/datachain-rope/testnet/reth/genesis.json   --datadir /opt/datachain-rope/testnet/reth/data   --dev   --dev.block-time 3s   --http   --http.addr 127.0.0.1   --http.port 8598   --http.api eth,net,web3,txpool,debug,trace   --http.corsdomain "*"   --ws   --ws.addr 127.0.0.1   --ws.port 8548   --ws.api eth,net,web3   --authrpc.addr 127.0.0.1   --authrpc.port 8554   --port 30306   --metrics 127.0.0.1:9003   --disable-discovery   --log.file.directory /opt/datachain-rope/testnet/reth/logs
+Restart=always
+RestartSec=10
+LimitNOFILE=65536
+MemoryMax=6G
+Environment=RUST_LOG=info
+
+[Install]
+WantedBy=multi-user.target

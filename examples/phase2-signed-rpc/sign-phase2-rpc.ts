@@ -3,11 +3,21 @@
 // Run as a Node 20+ script:
 //
 //   npm i viem
-//   ts-node sign-phase2-rpc.ts 0x<priv-key-hex>
+//   ts-node sign-phase2-rpc.ts 0x<priv-key-hex> [rpc-url] [chain-id]
 //
 // or copy the helpers into your own SDK. They have no dependency on
 // rope-node; they re-implement the canonical-message construction so the
 // example is self-contained for partner integrations.
+//
+// Chain scoping (Phase 0, 2026-08-30):
+//   The domain-separation tag is derived from `chainId`. Mainnet (271828)
+//   keeps the fixed legacy tag for backward compatibility with every
+//   Phase-2 client already in production (DCSwap `quipuEmitter.ts` etc.).
+//   Every other chain gets a tag of the shape
+//   `DCROPE/destructive-rpc/v1/{chainId}\0`, so a signature minted for
+//   testnet (271829) cannot be replayed against mainnet and vice versa.
+//   Byte-for-byte parity with rope-node is enforced by
+//   `crates/rope-node/src/rpc_signature.rs::chain_domain_tag`.
 //
 // See `docs/PHASE2_SIGNED_DESTRUCTIVE_RPC_SPEC.md` for the spec.
 
@@ -18,14 +28,28 @@ import {
 import {
   bytesToHex,
   hexToBytes,
-  keccak256,
-  toBytes,
-  toHex,
   type Hex,
 } from "viem";
 
-const DOMAIN_TAG = new TextEncoder().encode("DCROPE/destructive-rpc/v1\0");
+const MAINNET_CHAIN_ID = 271828n;
 const NONCE_LEN = 16;
+
+/** Build the domain-separation tag for `chainId`.
+ *
+ *  * Mainnet (271828) returns the fixed legacy bytes
+ *    `DCROPE/destructive-rpc/v1\0` verbatim.
+ *  * Every other chain returns `DCROPE/destructive-rpc/v1/{chainId}\0`
+ *    encoded as UTF-8 with a trailing NUL byte.
+ *
+ *  Must byte-for-byte match
+ *  `crates/rope-node/src/rpc_signature.rs::chain_domain_tag`. */
+export function chainDomainTag(chainId: bigint): Uint8Array {
+  const enc = new TextEncoder();
+  if (chainId === MAINNET_CHAIN_ID) {
+    return enc.encode("DCROPE/destructive-rpc/v1\0");
+  }
+  return enc.encode(`DCROPE/destructive-rpc/v1/${chainId.toString()}\0`);
+}
 
 function u32be(n: number): Uint8Array {
   const b = new Uint8Array(4);
@@ -51,8 +75,10 @@ function concat(...parts: Uint8Array[]): Uint8Array {
 }
 
 /** Build the canonical message bytes the rope-node verifier hashes. Must
- *  byte-for-byte match `crates/rope-node/src/rpc_signature.rs::canonical_message`. */
+ *  byte-for-byte match
+ *  `crates/rope-node/src/rpc_signature.rs::canonical_message_with_chain`. */
 export function canonicalMessage(
+  chainId: bigint,
   method: string,
   paramsWithoutAuth: unknown,
   signedAt: bigint,
@@ -64,7 +90,7 @@ export function canonicalMessage(
   const methodBytes = new TextEncoder().encode(method);
   const paramsJson = new TextEncoder().encode(JSON.stringify(paramsWithoutAuth));
   return concat(
-    DOMAIN_TAG,
+    chainDomainTag(chainId),
     u32be(methodBytes.length),
     methodBytes,
     u32be(paramsJson.length),
@@ -107,12 +133,26 @@ export function buildAuth(params: {
 async function main() {
   const pk = process.argv[2];
   const rpcUrl = process.argv[3] ?? "https://erpc.datachain.network";
+  // Fourth positional arg overrides the chain id. Defaults to mainnet
+  // (271828) so existing invocations keep working. Set to 271829 (or any
+  // other chain) to sign under a chain-scoped tag.
+  const chainId = process.argv[4] ? BigInt(process.argv[4]) : MAINNET_CHAIN_ID;
   if (!pk) {
-    console.error("usage: ts-node sign-phase2-rpc.ts <0x-priv-key> [rpc-url]");
+    console.error(
+      "usage: ts-node sign-phase2-rpc.ts <0x-priv-key> [rpc-url] [chain-id]",
+    );
     process.exit(1);
   }
   const account = privateKeyToAccount(pk as Hex);
   console.log(`signer address: ${account.address}`);
+  console.log(`chain id      : ${chainId}`);
+  const tag = chainDomainTag(chainId);
+  // Trim trailing NUL for pretty-printing only.
+  const printableTag =
+    tag[tag.length - 1] === 0
+      ? new TextDecoder().decode(tag.subarray(0, tag.length - 1))
+      : new TextDecoder().decode(tag);
+  console.log(`domain tag    : ${printableTag}`);
 
   const now = BigInt(Math.floor(Date.now() / 1000));
   const nonce = crypto.getRandomValues(new Uint8Array(NONCE_LEN));
@@ -127,7 +167,13 @@ async function main() {
     },
   ];
 
-  const canonical = canonicalMessage(method, paramsWithoutAuth, now, nonce);
+  const canonical = canonicalMessage(
+    chainId,
+    method,
+    paramsWithoutAuth,
+    now,
+    nonce,
+  );
   const sig = await signEip191(account, canonical);
   const auth = buildAuth({ signedAt: now, nonce, signature: sig });
 

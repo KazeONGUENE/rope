@@ -1,0 +1,59 @@
+[Unit]
+Description=Rope Ecosystem Discovery (autonomous overlay writer for dcscan.io/ecosystem)
+Documentation=file:///opt/datachain-rope/docs/ROPE_ECOSYSTEM_DISCOVERY_RUNBOOK.md
+After=network-online.target dc-explorer.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/datachain-rope
+Environment="PATH=/home/ubuntu/.cargo/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="RUST_LOG=rope_ecosystem_discovery=info,warn"
+EnvironmentFile=-/opt/datachain-rope/code/deploy/rope-ecosystem-discovery.env
+
+ExecStart=/home/ubuntu/datachain-rope/target/release/rope-ecosystem-discovery \
+    --config /etc/rope-ecosystem-discovery.toml
+
+Restart=on-failure
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=rope-ecosystem-discovery
+
+# Filesystem sandbox. The daemon needs:
+#   - read access to /etc/rope-ecosystem-discovery.toml (implicit under ProtectSystem=strict)
+#   - read access to /opt/datachain-rope/.cursor/rules/ (for the handover scanner, when enabled)
+#   - write access to /var/lib/rope-ecosystem-discovery/ (overlay JSONL output)
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+ReadWritePaths=/var/lib/rope-ecosystem-discovery
+# The default overlay output path also matches what dc-explorer reads via
+# ECOSYSTEM_OVERLAY_PATH. Keep the two paths in sync.
+
+# Kernel + IPC hardening (same posture as rope-addr-indexer + dc-explorer per
+# the 2026-07-25 audit).
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RemoveIPC=yes
+
+# Resource ceiling. Each pass loads a few thousand labels + optional handover
+# text, then writes a JSONL file that today caps well under 1 MB. Ceiling is
+# deliberately generous so a large partner-API response cannot OOM the
+# process mid-write.
+MemoryMax=512M
+TasksMax=32
+
+[Install]
+WantedBy=multi-user.target

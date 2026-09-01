@@ -57,14 +57,19 @@ describe("DatawalletClaimIssuer", function () {
   });
 
   describe("signClaim()", function () {
-    it("should produce a signature for a supported topic", async function () {
+    // 2026-07-26 counter-audit fix: signClaim() is now a pure `view` digest
+    // helper (a contract cannot itself hold/use signingKey's private key),
+    // so it resolves directly to the returned bytes instead of a mined
+    // transaction — no more tx.wait().
+    it("should return the digest to be signed off-chain for a supported topic", async function () {
       const data = ethers.AbiCoder.defaultAbiCoder().encode(
         ["uint256", "uint256"],
         [Date.now(), 3]
       );
-      const tx = await claimIssuer.signClaim(investor.address, KYC_VALIDATED, data);
-      const receipt = await tx.wait();
-      expect(receipt.status).to.equal(1);
+      const digest = await claimIssuer.signClaim(investor.address, KYC_VALIDATED, data);
+      const expected = await claimIssuer.claimDigest(investor.address, KYC_VALIDATED, data);
+      expect(digest).to.equal(expected);
+      expect(ethers.dataLength(digest)).to.equal(32);
     });
 
     it("should revert for unsupported topic", async function () {
@@ -79,6 +84,97 @@ describe("DatawalletClaimIssuer", function () {
       await expect(
         claimIssuer.connect(investor).signClaim(investor.address, KYC_VALIDATED, data)
       ).to.be.reverted;
+    });
+  });
+
+  describe("issueClaimToIdentity() / isClaimValid() — 2026-07-26 counter-audit fix", function () {
+    // signingKey was set to `admin.address` in beforeEach(); sign with the
+    // matching Hardhat private key so ecrecover(...) == signingKey.
+    async function signDigest(digest: string): Promise<string> {
+      return admin.signMessage(ethers.getBytes(digest));
+    }
+
+    it("should issue a claim with a real signingKey-recoverable signature", async function () {
+      // issueClaimToIdentity() ends by calling identity.addClaim(...), which
+      // per ERC-735 is `onlyClaimKey` — the claimIssuer contract itself must
+      // hold a CLAIM_SIGNER_KEY (purpose 3) on the target Identity. Deploy a
+      // real @onchain-id/solidity Identity for `investor` and grant the
+      // claimIssuer contract that key, exactly as Datawallet+ onboarding
+      // would (the identity owner delegates claim-writing to the issuer it
+      // trusts).
+      const Identity = await ethers.getContractFactory("Identity");
+      const identity = await Identity.deploy(investor.address, false);
+      await identity.waitForDeployment();
+      const claimIssuerAddress = await claimIssuer.getAddress();
+      const claimIssuerKey = ethers.keccak256(
+        ethers.AbiCoder.defaultAbiCoder().encode(["address"], [claimIssuerAddress])
+      );
+      await identity.connect(investor).addKey(claimIssuerKey, 3, 1);
+
+      const data = ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [1]);
+      const identityAddress = await identity.getAddress();
+      const digest = await claimIssuer.claimDigest(identityAddress, KYC_VALIDATED, data);
+      const signature = await signDigest(digest);
+
+      await expect(
+        claimIssuer.issueClaimToIdentity(identityAddress, KYC_VALIDATED, data, signature)
+      ).to.emit(claimIssuer, "ClaimIssued");
+    });
+
+    it("should reject a forged 32-byte digest-as-signature (the pre-fix exploit)", async function () {
+      const data = ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [2]);
+      const digest = await claimIssuer.claimDigest(investor.address, KYC_VALIDATED, data);
+      // Attacker who does NOT hold signingKey's private key, but can
+      // compute the digest itself, submits the raw digest as "signature".
+      await expect(
+        claimIssuer.issueClaimToIdentity(investor.address, KYC_VALIDATED, data, digest)
+      ).to.be.reverted;
+    });
+
+    it("should reject a signature from a non-signingKey wallet", async function () {
+      const data = ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [3]);
+      const digest = await claimIssuer.claimDigest(investor.address, KYC_VALIDATED, data);
+      const wrongSignature = await investor.signMessage(ethers.getBytes(digest));
+      await expect(
+        claimIssuer.issueClaimToIdentity(investor.address, KYC_VALIDATED, data, wrongSignature)
+      ).to.be.revertedWith("invalid claim signature");
+    });
+
+    it("isClaimValid() should accept only a real 65-byte signingKey signature", async function () {
+      const data = ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [4]);
+      const digest = await claimIssuer.claimDigest(investor.address, KYC_VALIDATED, data);
+      const signature = await signDigest(digest);
+
+      // Mock IIdentity is not needed: isClaimValid only reads _identity's
+      // address, never calls into it.
+      expect(
+        await claimIssuer.isClaimValid(investor.address, KYC_VALIDATED, signature, data)
+      ).to.be.true;
+
+      // Pre-fix exploit: raw 32-byte digest accepted as "valid".
+      expect(
+        await claimIssuer.isClaimValid(investor.address, KYC_VALIDATED, digest, data)
+      ).to.be.false;
+    });
+
+    it("revokeClaim() should invalidate the exact claim it was issued for", async function () {
+      const data = ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [5]);
+      const digest = await claimIssuer.claimDigest(investor.address, KYC_VALIDATED, data);
+      const signature = await signDigest(digest);
+
+      expect(
+        await claimIssuer.isClaimValid(investor.address, KYC_VALIDATED, signature, data)
+      ).to.be.true;
+
+      // claimDigest has no timestamp/nonce component, so this is exactly
+      // the id issueClaimToIdentity would have returned — the pre-fix bug
+      // was that isClaimValid recomputed a DIFFERENT (always-zero-timestamp)
+      // id, so revocation never actually blocked validation.
+      await claimIssuer.revokeClaim(digest);
+
+      expect(
+        await claimIssuer.isClaimValid(investor.address, KYC_VALIDATED, signature, data)
+      ).to.be.false;
     });
   });
 

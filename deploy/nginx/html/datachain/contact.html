@@ -240,6 +240,7 @@
             <div class="footer-links">
                 <a href="/about/">About</a>
                 <a href="https://dcscan.io/create-wallet">Create Wallet</a>
+                <a href="https://console.datachain.network/console/">Console</a>
                 <a href="https://dcscan.io">Explorer</a>
                 <a href="https://docs.datachain.network">Documentation</a>
                 <a href="https://github.com/KazeONGUENE/rope">GitHub</a>
@@ -252,7 +253,7 @@
     </footer>
 
     <script>
-        // Contact form — delivered through the ecosystem SendGrid relay
+        // Contact form - delivered through the ecosystem SendGrid relay
         // (POST /api/v1/contact on the dc-explorer backend).
         const CONTACT_ENDPOINT = 'https://dcscan.io/api/v1/contact';
         const SUBJECT_LABELS = {
@@ -288,7 +289,7 @@
                 });
                 const body = await res.json().catch(() => ({}));
                 if (!res.ok || !body.success) {
-                    throw new Error(body.error || 'Delivery failed — please email contact@datachain.one directly.');
+                    throw new Error(body.error || 'Delivery failed - please email contact@datachain.one directly.');
                 }
 
                 this.style.display = 'none';
@@ -299,7 +300,7 @@
                     document.getElementById('successMessage').classList.remove('show');
                 }, 5000);
             } catch (err) {
-                alert(err.message || 'Delivery failed — please email contact@datachain.one directly.');
+                alert(err.message || 'Delivery failed - please email contact@datachain.one directly.');
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = originalHtml;

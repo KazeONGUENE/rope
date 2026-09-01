@@ -66,8 +66,29 @@ contract VoteEscrowTest is Test {
             quorumWeight: 100 ether,
             approvalThresholdBps: 5100,
             rewardPoolFunder: address(0),
-            metadataHash: keccak256("proj-1")
+            metadataHash: keccak256("proj-1"),
+            eligibleVoterSet: VoteEscrow.EligibleVoterSet.AllHolders,
+            payToVoteFee: 0
         });
+    }
+
+    function _juryAndPayParams(VoteEscrow.VoteClass class_, VoteEscrow.Disposition disp, uint256 payFee)
+        internal
+        view
+        returns (VoteEscrow.CreateVoteParams memory)
+    {
+        VoteEscrow.CreateVoteParams memory p = _defaultParams(class_, disp);
+        p.eligibleVoterSet = VoteEscrow.EligibleVoterSet.JuryAndPay;
+        p.payToVoteFee = payFee;
+        return p;
+    }
+
+    function _createJuryAndPay(VoteEscrow.VoteClass class_, VoteEscrow.Disposition disp, uint256 payFee)
+        internal
+        returns (uint256 voteId)
+    {
+        vm.prank(creator);
+        voteId = escrow.createVote(_juryAndPayParams(class_, disp, payFee), 0, 0, "");
     }
 
     function _createAsCreator(VoteEscrow.VoteClass class_, VoteEscrow.Disposition disp, uint256 rewardValue)
@@ -127,9 +148,25 @@ contract VoteEscrowTest is Test {
         assertEq(escrow.votesLength(), id + 1);
     }
 
-    function test_createVote_causeByRandomWallet_reverts() public {
+    function test_createVote_causeByCommunity_withValidAttestation_succeeds() public {
+        // Cause is community-creatable (NGO/donation pipeline) — same
+        // attested-weight gate as Project / NonCriticalFeature.
+        uint256 weight = 2_000_000 ether;
+        uint256 expiresAt = block.timestamp + 300;
+        bytes memory attestation = _signCreate(voterA, weight, expiresAt);
+
         vm.prank(voterA);
-        vm.expectRevert(abi.encodeWithSelector(VoteEscrow.NotCreator.selector, voterA, creator));
+        uint256 id = escrow.createVote(
+            _defaultParams(VoteEscrow.VoteClass.Cause, VoteEscrow.Disposition.Return), weight, expiresAt, attestation
+        );
+        VoteEscrow.VoteConfig memory v = escrow.getVote(id);
+        assertEq(uint8(v.voteClass), uint8(VoteEscrow.VoteClass.Cause));
+        assertEq(v.creator, voterA);
+    }
+
+    function test_createVote_causeByRandomWallet_withoutAttestation_reverts() public {
+        vm.prank(voterA);
+        vm.expectRevert(); // InvalidAttestation / AttestationExpired — not NotCreator
         escrow.createVote(_defaultParams(VoteEscrow.VoteClass.Cause, VoteEscrow.Disposition.Burn), 0, 0, "");
     }
 
@@ -769,6 +806,162 @@ contract VoteEscrowTest is Test {
         uint256 id = _createAsCreator(VoteEscrow.VoteClass.Cause, VoteEscrow.Disposition.Reward, 10 ether);
         _voteWithStake(id, voterA, true, 5_000_000 ether, 5 ether);
         assertEq(escrow.escrowBalance(), 15 ether); // 10 reward pool + 5 locked
+    }
+
+    // ── Phase 5: JuryAndPay eligibility ───────────────────────────────
+
+    function test_createVote_allHolders_rejectsNonzeroPayFee() public {
+        VoteEscrow.CreateVoteParams memory p = _defaultParams(VoteEscrow.VoteClass.Cause, VoteEscrow.Disposition.Return);
+        p.payToVoteFee = 1 ether;
+        vm.prank(creator);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                VoteEscrow.BadPayFee.selector, 1 ether, VoteEscrow.EligibleVoterSet.AllHolders
+            )
+        );
+        escrow.createVote(p, 0, 0, "");
+    }
+
+    function test_createVote_juryAndPay_requiresPositivePayFee() public {
+        VoteEscrow.CreateVoteParams memory p = _juryAndPayParams(VoteEscrow.VoteClass.Cause, VoteEscrow.Disposition.Return, 0);
+        vm.prank(creator);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                VoteEscrow.BadPayFee.selector, 0, VoteEscrow.EligibleVoterSet.JuryAndPay
+            )
+        );
+        escrow.createVote(p, 0, 0, "");
+    }
+
+    function test_payToVote_grantsRightAndAccumulatesFees() public {
+        uint256 payFee = 2 ether;
+        uint256 id = _createJuryAndPay(VoteEscrow.VoteClass.Cause, VoteEscrow.Disposition.Return, payFee);
+
+        vm.deal(voterA, 10 ether);
+        vm.prank(voterA);
+        escrow.payToVote{value: payFee}(id);
+
+        assertTrue(escrow.hasPaidRight(id, voterA));
+        assertEq(escrow.payFeeAmount(id, voterA), payFee);
+        VoteEscrow.VoteConfig memory v = escrow.getVote(id);
+        assertEq(v.totalPayFees, payFee);
+    }
+
+    function test_payToVote_doublePay_reverts() public {
+        uint256 payFee = 1 ether;
+        uint256 id = _createJuryAndPay(VoteEscrow.VoteClass.Cause, VoteEscrow.Disposition.Return, payFee);
+
+        vm.deal(voterA, 10 ether);
+        vm.prank(voterA);
+        escrow.payToVote{value: payFee}(id);
+
+        vm.prank(voterA);
+        vm.expectRevert(abi.encodeWithSelector(VoteEscrow.AlreadyPaid.selector, id, voterA));
+        escrow.payToVote{value: payFee}(id);
+    }
+
+    function test_payToVote_wrongAmount_reverts() public {
+        uint256 id = _createJuryAndPay(VoteEscrow.VoteClass.Cause, VoteEscrow.Disposition.Return, 2 ether);
+
+        vm.deal(voterA, 10 ether);
+        vm.prank(voterA);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                VoteEscrow.BadPayFee.selector, 1 ether, VoteEscrow.EligibleVoterSet.JuryAndPay
+            )
+        );
+        escrow.payToVote{value: 1 ether}(id);
+    }
+
+    function test_setJury_byCreator_marksJurors() public {
+        uint256 id = _createJuryAndPay(VoteEscrow.VoteClass.Cause, VoteEscrow.Disposition.Return, 1 ether);
+        address[] memory jurors = new address[](2);
+        jurors[0] = voterA;
+        jurors[1] = voterB;
+
+        vm.prank(creator);
+        escrow.setJury(id, jurors);
+
+        assertTrue(escrow.isJuror(id, voterA));
+        assertTrue(escrow.isJuror(id, voterB));
+        assertFalse(escrow.isJuror(id, voterC));
+    }
+
+    function test_setJury_twice_reverts() public {
+        uint256 id = _createJuryAndPay(VoteEscrow.VoteClass.Cause, VoteEscrow.Disposition.Return, 1 ether);
+        address[] memory jurors = new address[](1);
+        jurors[0] = voterA;
+
+        vm.prank(creator);
+        escrow.setJury(id, jurors);
+
+        vm.prank(creator);
+        vm.expectRevert(abi.encodeWithSelector(VoteEscrow.JuryAlreadySet.selector, id));
+        escrow.setJury(id, jurors);
+    }
+
+    function test_castVote_juryAndPay_requiresJuryOrPaid() public {
+        uint256 id = _createJuryAndPay(VoteEscrow.VoteClass.Cause, VoteEscrow.Disposition.Return, 1 ether);
+        uint256 weight = 5_000_000 ether;
+        uint256 expiresAt = block.timestamp + 300;
+        bytes memory sig = _signCast(id, voterC, weight, expiresAt);
+
+        vm.prank(voterC);
+        vm.expectRevert(abi.encodeWithSelector(VoteEscrow.NotEligible.selector, id, voterC));
+        escrow.castVote(id, true, weight, expiresAt, sig);
+    }
+
+    function test_castVote_juryAndPay_jurorCanVoteWithoutPay() public {
+        uint256 id = _createJuryAndPay(VoteEscrow.VoteClass.Cause, VoteEscrow.Disposition.Return, 1 ether);
+        address[] memory jurors = new address[](1);
+        jurors[0] = voterA;
+        vm.prank(creator);
+        escrow.setJury(id, jurors);
+
+        _vote(id, voterA, true, 5_000_000 ether);
+        assertTrue(escrow.hasVoted(id, voterA));
+    }
+
+    function test_castVote_juryAndPay_paidVoterCanVote() public {
+        uint256 payFee = 1 ether;
+        uint256 id = _createJuryAndPay(VoteEscrow.VoteClass.Cause, VoteEscrow.Disposition.Return, payFee);
+
+        vm.deal(voterB, 10 ether);
+        vm.prank(voterB);
+        escrow.payToVote{value: payFee}(id);
+
+        _vote(id, voterB, true, 5_000_000 ether);
+        assertTrue(escrow.hasVoted(id, voterB));
+    }
+
+    function test_withdrawPayFee_returnDisposition_refundsAfterClose() public {
+        uint256 payFee = 3 ether;
+        uint256 id = _createJuryAndPay(VoteEscrow.VoteClass.Cause, VoteEscrow.Disposition.Return, payFee);
+
+        vm.deal(voterA, 10 ether);
+        vm.prank(voterA);
+        escrow.payToVote{value: payFee}(id);
+
+        vm.warp(block.timestamp + 8 days);
+        uint256 before = voterA.balance;
+        vm.prank(voterA);
+        escrow.withdrawPayFee(id);
+        assertEq(voterA.balance, before + payFee);
+    }
+
+    function test_burn_sweepIncludesPayFees() public {
+        uint256 payFee = 4 ether;
+        uint256 id = _createJuryAndPay(VoteEscrow.VoteClass.Cause, VoteEscrow.Disposition.Burn, payFee);
+
+        vm.deal(voterA, 10 ether);
+        vm.prank(voterA);
+        escrow.payToVote{value: payFee}(id);
+        _voteWithStake(id, voterA, true, 5_000_000 ether, 6 ether);
+
+        vm.warp(block.timestamp + 8 days);
+        uint256 sinkBefore = escrow.BURN_SINK().balance;
+        escrow.sweepBurn(id);
+        assertEq(escrow.BURN_SINK().balance, sinkBefore + 10 ether); // 6 locked + 4 pay fee
     }
 
     // ── internal test helpers ─────────────────────────────────────────

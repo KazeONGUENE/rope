@@ -101,13 +101,13 @@ pub fn run(args: StoreMixedArgs) -> Result<Report, String> {
                     sid[0] = tid as u8;
                     sid[1] = (op_idx & 0xFF) as u8;
                     sid[2] = ((op_idx >> 8) & 0xFF) as u8;
-                    store.append_to_chain(wallet, sid);
+                    let _ = store.append_to_chain(wallet, sid);
                     cnt_append.fetch_add(1, Ordering::Relaxed);
                 } else if r < cum_put {
                     let mut head = [0u8; 32];
                     head[..wallet.len().min(32)].copy_from_slice(&wallet[..wallet.len().min(32)]);
                     head[31] = (op_idx & 0xFF) as u8;
-                    store.put_descriptor(
+                    let _ = store.put_descriptor(
                         wallet,
                         StoredLedgerDescriptor {
                             wallet_address: wallet.to_vec(),

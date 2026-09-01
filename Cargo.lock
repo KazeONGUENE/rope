@@ -4999,6 +4999,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "rope-addr-index"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.21.7",
+ "bincode",
+ "clap",
+ "hex",
+ "parking_lot 0.12.5",
+ "reqwest",
+ "rocksdb",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "toml 0.8.23",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "rope-agent-runtime"
 version = "0.1.0"
 dependencies = [
@@ -5166,10 +5188,12 @@ dependencies = [
  "bytes",
  "chrono",
  "criterion",
+ "dashmap",
  "ed25519-dalek",
  "hashbrown 0.14.5",
  "hex",
  "indexmap 2.14.0",
+ "once_cell",
  "parking_lot 0.12.5",
  "petgraph",
  "proptest",
@@ -5217,14 +5241,18 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "base64 0.21.7",
  "chrono",
  "clap",
  "ed25519-dalek",
  "hex",
+ "hmac",
  "parking_lot 0.12.5",
  "reqwest",
  "serde",
  "serde_json",
+ "sha2",
+ "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "toml 0.8.23",
@@ -5259,6 +5287,27 @@ dependencies = [
  "serde_json",
  "thiserror 1.0.69",
  "tokio",
+]
+
+[[package]]
+name = "rope-ecosystem-discovery"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "clap",
+ "hex",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "toml 0.8.23",
+ "tracing",
+ "tracing-subscriber",
+ "url",
 ]
 
 [[package]]
@@ -5322,25 +5371,31 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum 0.7.9",
+ "base64 0.21.7",
  "blake3",
  "chrono",
  "clap",
  "config",
+ "ed25519-dalek",
  "futures",
  "hex",
  "k256",
  "rand 0.8.5",
  "reqwest",
+ "rope-addr-index",
  "rope-core",
  "rope-crypto",
  "rope-security",
  "serde",
  "serde_json",
+ "sha2",
  "sha3",
  "sqlx",
+ "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "tokio-util",
+ "toml 0.8.23",
  "tower 0.4.13",
  "tower-http",
  "tracing",
@@ -5500,6 +5555,7 @@ dependencies = [
  "dashmap",
  "ed25519-dalek",
  "futures",
+ "futures-util",
  "hashbrown 0.14.5",
  "hex",
  "k256",
@@ -5528,6 +5584,7 @@ dependencies = [
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
+ "tokio-tungstenite 0.21.0",
  "toml 0.8.23",
  "tonic",
  "tonic-build",
@@ -5572,6 +5629,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "tracing",
+ "url",
 ]
 
 [[package]]

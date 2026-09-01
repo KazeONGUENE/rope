@@ -1,4 +1,4 @@
-//! Console sign-in sessions — EIP-191 wallet-signature login for the
+//! Console sign-in sessions - EIP-191 wallet-signature login for the
 //! operator console.
 //!
 //! Why this exists: the console API identifies its caller by wallet

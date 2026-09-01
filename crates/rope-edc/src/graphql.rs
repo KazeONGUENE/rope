@@ -1,10 +1,10 @@
-//! GraphQL stakeholder endpoint — spec v1.0 §6.3: "REST and GraphQL
+//! GraphQL stakeholder endpoint - spec v1.0 §6.3: "REST and GraphQL
 //! endpoints" for disintermediated stakeholder access.
 //!
 //! One `POST /api/v1/ecosystem/stakeholder/graphql` route, authenticated
 //! exactly like the REST gateway (grant bearer token or EIP-191 wallet
-//! signature). The resolver set mirrors the REST facets — overview,
-//! readings, diagnoses, approvals, project card — and every field is
+//! signature). The resolver set mirrors the REST facets - overview,
+//! readings, diagnoses, approvals, project card - and every field is
 //! filtered to the grant scope, so a stakeholder can compose precisely
 //! the query they need in one round-trip instead of stitching REST calls.
 //!
@@ -40,7 +40,7 @@ impl GqlSession {
             .unwrap_or_default()
     }
 
-    /// The grant-scoped reading set — synthetic for sandbox sessions,
+    /// The grant-scoped reading set - synthetic for sandbox sessions,
     /// live-journal otherwise.
     fn scoped_readings(&self) -> Vec<TelemetryReading> {
         let raw: Vec<TelemetryReading> = if self.sandbox {

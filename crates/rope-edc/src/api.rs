@@ -1,15 +1,15 @@
-//! HTTP API — spec v2.0 §7.
+//! HTTP API - spec v2.0 §7.
 //!
 //! Three surfaces on one Axum router:
 //!
-//! * **Console API** (`/api/v1/ecosystem/*`) — the nine-step wizard, the
+//! * **Console API** (`/api/v1/ecosystem/*`) - the nine-step wizard, the
 //!   live dashboard, inventory bulk import, AI analytics, and grant
 //!   administration. Caller identity is the `X-Edc-Wallet` header; role
 //!   checks run against the project team. When `EDC_CONSOLE_TOKEN` is set,
 //!   every console request must additionally carry it in
 //!   `X-Edc-Console-Token` (defense in depth for consoles exposed beyond
 //!   the owner's own network).
-//! * **Stakeholder gateway** (`/api/v1/ecosystem/stakeholder/*`) —
+//! * **Stakeholder gateway** (`/api/v1/ecosystem/stakeholder/*`) -
 //!   disintermediated access for regulators / investors / buyers /
 //!   the public. Authenticated by grant-minted bearer tokens OR an
 //!   EIP-191 wallet signature (`X-Edc-Address` + `X-Edc-Timestamp` +
@@ -17,7 +17,7 @@
 //!   filtered to the grant scope; every request is metered on the grant.
 //!   Sandbox keys (`edc_sbx_…`) are served from the project's
 //!   deterministic synthetic stream and never metered.
-//! * **Public directory** (`/api/v1/ecosystem/public/*`) — unauthenticated
+//! * **Public directory** (`/api/v1/ecosystem/public/*`) - unauthenticated
 //!   project cards for dcscan.io + QR/NFC tag resolution.
 
 use std::convert::Infallible;
@@ -63,9 +63,14 @@ fn timelock_delay_secs() -> i64 {
 pub struct AppState {
     pub registry: Arc<Registry>,
     pub ai: Arc<AiAnalytics>,
+    /// Shared cloud-provider registry (Exoscale + DigitalOcean + Local).
+    /// Built once at startup from the environment so every `/nodes`
+    /// route reuses the same in-memory state files and the same
+    /// reqwest client pool.
+    pub deployer: rope_deployer::ProviderRegistry,
 }
 
-type SharedState = Arc<AppState>;
+pub(crate) type SharedState = Arc<AppState>;
 
 pub fn router(state: SharedState) -> Router {
     Router::new()
@@ -89,6 +94,10 @@ pub fn router(state: SharedState) -> Router {
         .route("/api/v1/ecosystem/projects/:id/node-plan", get(get_node_plan))
         .route("/api/v1/ecosystem/projects/:id/deploy", post(deploy_project))
         .route("/api/v1/ecosystem/projects/:id/status", put(put_status))
+        // -- console: bare-node deployment (Deploy a Node wizard) --
+        .route("/api/v1/ecosystem/nodes", post(crate::nodes::provision_node).get(crate::nodes::list_nodes))
+        .route("/api/v1/ecosystem/nodes/:provider/:id", delete(crate::nodes::destroy_node))
+        .route("/api/v1/ecosystem/providers", get(crate::nodes::list_providers))
         // -- console: live data --
         .route("/api/v1/ecosystem/projects/:id/telemetry", post(post_telemetry))
         .route("/api/v1/ecosystem/projects/:id/diagnosis", post(post_diagnosis))
@@ -132,7 +141,17 @@ pub fn router(state: SharedState) -> Router {
 // Errors & auth helpers
 // ---------------------------------------------------------------------------
 
-struct ApiError(StatusCode, String);
+#[derive(Debug)]
+pub(crate) struct ApiError(StatusCode, String);
+
+impl ApiError {
+    /// Public-in-crate constructor so sibling modules (e.g. `nodes`)
+    /// can build the same JSON error shape without duplicating the
+    /// tuple layout.
+    pub(crate) fn new(status: StatusCode, msg: String) -> Self {
+        Self(status, msg)
+    }
+}
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> axum::response::Response {
@@ -160,18 +179,18 @@ fn unauthorized(msg: impl Into<String>) -> ApiError {
 /// 1. **Session token** (`X-Edc-Session`) minted by `POST
 ///    /api/v1/ecosystem/auth/session` after an EIP-191 console sign-in.
 ///    This is the path the hosted console UI uses.
-/// 2. **Per-request EIP-191 signature** — `X-Edc-Address` +
+/// 2. **Per-request EIP-191 signature** - `X-Edc-Address` +
 ///    `X-Edc-Timestamp` + `X-Edc-Signature` over the
 ///    `EDC-CONSOLE-AUTH` domain message (for scripted/API callers that
 ///    prefer not to hold a session).
-/// 3. **Bare `X-Edc-Wallet` header** — only when
+/// 3. **Bare `X-Edc-Wallet` header** - only when
 ///    `EDC_CONSOLE_REQUIRE_SIGNATURE` is not enabled. Suitable for
 ///    self-hosted single-operator instances; MUST be disabled on any
 ///    publicly reachable console.
 ///
 /// Independently of the above, when `EDC_CONSOLE_TOKEN` is set every
 /// console request must additionally carry it in `X-Edc-Console-Token`.
-fn console_wallet(headers: &HeaderMap) -> Result<String, ApiError> {
+pub(crate) fn console_wallet(headers: &HeaderMap) -> Result<String, ApiError> {
     if let Ok(expected) = std::env::var("EDC_CONSOLE_TOKEN") {
         if !expected.is_empty() {
             let presented = headers
@@ -194,7 +213,7 @@ fn console_wallet(headers: &HeaderMap) -> Result<String, ApiError> {
     // 1. Session token from a prior EIP-191 sign-in.
     if let Some(token) = headers.get("x-edc-session").and_then(|v| v.to_str().ok()) {
         return session::resolve(token, now_ts())
-            .ok_or_else(|| unauthorized("session expired or unknown — sign in again"));
+            .ok_or_else(|| unauthorized("session expired or unknown - sign in again"));
     }
 
     // 2. Per-request EIP-191 signature on the console domain.
@@ -210,7 +229,7 @@ fn console_wallet(headers: &HeaderMap) -> Result<String, ApiError> {
             .map_err(|e| unauthorized(format!("console signature rejected: {e}")));
     }
 
-    // 3. Bare wallet header — allowed only when signatures are not enforced.
+    // 3. Bare wallet header - allowed only when signatures are not enforced.
     if console_signature_required() {
         return Err(unauthorized(
             "this console requires wallet-signature sign-in (X-Edc-Session or \
@@ -245,7 +264,7 @@ struct CreateSessionBody {
     /// `EDC-CONSOLE-AUTH\n{address_lowercase}\n{timestamp}`. EIP-191 path.
     #[serde(default)]
     signature: Option<String>,
-    /// Datachain ID (id.datachain.network) bearer token — the Datawallet+
+    /// Datachain ID (id.datachain.network) bearer token - the Datawallet+
     /// credential sign-in path. Verified server-side against the identity
     /// gateway's introspection endpoint; the session is issued for the
     /// account's bound primary on-chain address.
@@ -304,14 +323,14 @@ async fn verify_datachain_id_token(token: &str) -> Result<String, ApiError> {
     address.ok_or_else(|| {
         ApiError(
             StatusCode::UNPROCESSABLE_ENTITY,
-            "your Datawallet+ account has no on-chain wallet bound yet — bind a wallet in \
+            "your Datawallet+ account has no on-chain wallet bound yet - bind a wallet in \
              Datawallet+, or connect an EVM wallet (e.g. MetaMask) to sign in"
                 .to_string(),
         )
     })
 }
 
-/// `POST /api/v1/ecosystem/auth/session` — exchange either an EIP-191
+/// `POST /api/v1/ecosystem/auth/session` - exchange either an EIP-191
 /// console signature or a verified Datachain ID (Datawallet+) token for
 /// a session token. The signature domain is distinct from the
 /// stakeholder gateway, so a captured stakeholder signature can never
@@ -366,7 +385,7 @@ async fn create_session(
     })))
 }
 
-/// `DELETE /api/v1/ecosystem/auth/session` — sign out (revokes the
+/// `DELETE /api/v1/ecosystem/auth/session` - sign out (revokes the
 /// presented session token).
 async fn delete_session(headers: HeaderMap) -> Result<Json<serde_json::Value>, ApiError> {
     let token = headers
@@ -400,7 +419,7 @@ fn require_member(project: &Project, wallet: &str) -> Result<Role, ApiError> {
 /// 1. **Bearer token** minted from a grant (`Authorization: Bearer edc_…`).
 ///    Sandbox keys (`edc_sbx_…`) resolve with `sandbox = true` and are
 ///    served from the deterministic synthetic stream, unmetered.
-/// 2. **EIP-191 wallet signature** — `X-Edc-Address`, `X-Edc-Timestamp`
+/// 2. **EIP-191 wallet signature** - `X-Edc-Address`, `X-Edc-Timestamp`
 ///    (unix seconds, ±300 s freshness), and `X-Edc-Signature` (65-byte
 ///    hex signature over `walletsig::auth_message`). Resolves to the
 ///    most recent usable grant naming that wallet.
@@ -446,7 +465,7 @@ fn stakeholder_auth(
 
 /// The reading source for a stakeholder session: the live journal for
 /// production credentials, the deterministic synthetic stream for
-/// sandbox keys (spec v1.0 §6.3 — sandbox never touches live data).
+/// sandbox keys (spec v1.0 §6.3 - sandbox never touches live data).
 fn session_readings(
     state: &AppState,
     project: &Project,
@@ -504,7 +523,7 @@ async fn create_project(
     if !body.template.is_empty() {
         if !simulation::apply_template(&mut project, &body.template) {
             return Err(bad(format!(
-                "unknown template '{}' — available: den_haag_escalators, agri_estate",
+                "unknown template '{}' - available: den_haag_escalators, agri_estate",
                 body.template
             )));
         }
@@ -524,7 +543,7 @@ async fn list_projects(
         .into_iter()
         .filter(|p| p.role_of(&wallet).is_some())
         .collect();
-    // Newest first — the console always surfaces the latest added project
+    // Newest first - the console always surfaces the latest added project
     // at the top of the sidebar list.
     mine.sort_by(|a, b| b.created_at.cmp(&a.created_at).then(b.id.cmp(&a.id)));
     Ok(Json(json!({ "count": mine.len(), "projects": mine })))
@@ -721,12 +740,12 @@ struct DeployBody {
     stakeholder_url: Option<String>,
 }
 
-/// Step 8/9 — confirm & deploy: freeze the node plan, provision the
+/// Step 8/9 - confirm & deploy: freeze the node plan, provision the
 /// nodes via rope-deployer, open the project's on-chain string, anchor
 /// the genesis + public card, flip status to Live.
 ///
 /// Simulation projects skip the KYB gate and cloud provisioning
-/// (spec v1.0 §6.3) — they go Live on synthetic streams immediately.
+/// (spec v1.0 §6.3) - they go Live on synthetic streams immediately.
 async fn deploy_project(
     State(state): State<SharedState>,
     headers: HeaderMap,
@@ -744,7 +763,7 @@ async fn deploy_project(
         return Err(bad("step 2 (definition) incomplete"));
     }
     if project.inventory.sensors.is_empty() {
-        return Err(bad("step 5 (inventory) has no sensors — nothing to monitor"));
+        return Err(bad("step 5 (inventory) has no sensors - nothing to monitor"));
     }
 
     let plan = NodePlan::recommend(
@@ -766,7 +785,7 @@ async fn deploy_project(
         .registry
         .update_project(&id, |p| p.status = ProjectStatus::Deploying)
         .ok_or_else(not_found)?;
-    let nodes = provision::provision_nodes(&project, &plan).await;
+    let nodes = provision::provision_nodes(&state.deployer, &project, &plan).await;
 
     // Anchor genesis on the project's own string (best-effort: local
     // persistence is the primary record; chain anchoring is replayable).
@@ -776,7 +795,7 @@ async fn deploy_project(
             &project.wallet,
             "EcosystemProjectGenesis",
             format!(
-                "Ecosystem project '{}' deployed via EDC — archetype {:?}, {} assets, {} sensors, tier {:?}",
+                "Ecosystem project '{}' deployed via EDC - archetype {:?}, {} assets, {} sensors, tier {:?}",
                 project.name(),
                 project.definition.as_ref().map(|d| d.archetype).unwrap(),
                 project.inventory.assets.len(),
@@ -1248,7 +1267,7 @@ async fn mint_grant_key(
         "grant_id": gid,
         "token": token,
         "sandbox": record.sandbox,
-        "note": "store this token now — it cannot be retrieved again",
+        "note": "store this token now - it cannot be retrieved again",
     })))
 }
 
@@ -1427,7 +1446,7 @@ async fn sh_stream(
                 }
                 let fresh: Vec<TelemetryReading> = if sandbox {
                     // Sandbox: the deterministic synthetic tick IS the
-                    // live stream — same generator as REST/GraphQL.
+                    // live stream - same generator as REST/GraphQL.
                     let now = now_ts();
                     if now <= cursor {
                         continue;
@@ -1512,7 +1531,7 @@ struct BackfillBody {
 
 /// Push deterministic synthetic history into a simulation project's live
 /// store so the console dashboard, dossier, and `/ask` all have data to
-/// work on. Only valid for `simulation = true` projects — live projects
+/// work on. Only valid for `simulation = true` projects - live projects
 /// must never receive synthetic readings.
 async fn simulate_backfill(
     State(state): State<SharedState>,

@@ -65,7 +65,13 @@
         .data-table tr:hover { background: var(--gray-50); cursor: pointer; }
         .mono { font-family: var(--font-mono); font-size: 12px; }
         .token-cell { display: flex; align-items: center; gap: 0.75rem; }
-        .token-icon { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; color: white; }
+        .token-icon { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; color: white; overflow: hidden; }
+        .token-icon img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; display: block; }
+        .native-fat-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 1.25rem; margin: 1.5rem 0 1rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+        .native-fat-left { display: flex; align-items: center; gap: 0.875rem; }
+        .native-fat-left img { width: 48px; height: 48px; border-radius: 50%; border: 1px solid var(--gray-200); object-fit: cover; background: #fff; }
+        .native-fat-kpis { display: flex; gap: 1.5rem; flex-wrap: wrap; font-size: 13px; color: var(--gray-600); }
+        .native-fat-kpis strong { display: block; color: var(--gray-900); font-family: var(--font-mono); font-size: 14px; }
         .token-info { }
         .token-name { font-weight: 600; margin-bottom: 0.125rem; }
         .token-symbol { font-size: 12px; color: var(--gray-500); }
@@ -96,10 +102,10 @@
 </head>
 <body>
     <div class="top-bar">
-        <div class="container top-bar-content">
+        <div class="container top-bar-container top-bar-content">
             <div class="top-bar-left">
-                <div class="top-bar-item"><span>DC FAT Price:</span><span class="top-bar-value">$0.00390</span><span style="color: #ef4444; margin-left: 0.25rem;">-2.94%</span></div>
-                <div class="top-bar-item"><span>Gas:</span><span class="top-bar-value">0.001 gwei</span></div>
+                <div class="top-bar-item"><span>DC FAT Price:</span><span class="top-bar-value" id="topbar-fat-price">-</span><span class="top-bar-change" id="topbar-fat-change"></span></div>
+                <div class="top-bar-item"><span>Gas:</span><span class="top-bar-value" id="topbar-gas">-</span></div>
             </div>
         </div>
     </div>
@@ -110,7 +116,7 @@
                 <span class="logo-text"><span>DC</span><span>Explorer</span></span>
             </a>
             <nav class="main-nav">
-                <div class="nav-item"><a href="#" class="nav-link">Smartchain <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link">Smartchain <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/strings" class="dropdown-item">View Strings</a>
                         <a href="/txs" class="dropdown-item">Transactions</a>
@@ -119,45 +125,48 @@
                         <a href="/contracts" class="dropdown-item">Verified Contracts</a>
                     </div>
                 </div>
-                <div class="nav-item"><a href="#" class="nav-link">AI Agents <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link">AI Agents <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/agents" class="dropdown-item">All Agents</a>
                         <a href="/testimonies" class="dropdown-item">Testimonies</a>
                         <a href="/validations" class="dropdown-item">Validators</a>
                     </div>
                 </div>
-                <div class="nav-item"><a href="#" class="nav-link active">Tokens <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link active">Tokens <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/tokens" class="dropdown-item">DCR-20 Tokens</a>
+                        <a href="/core/fat" class="dropdown-item">Native DC FAT</a>
                         <a href="/tokentxns" class="dropdown-item">Token Transfers</a>
                         <a href="/vote" class="dropdown-item">Vote</a>
                     </div>
                 </div>
-                <div class="nav-item"><a href="#" class="nav-link">Network <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link">Network <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/ecosystem" class="dropdown-item">Ecosystem Projects</a>
-                        <a href="/vote" class="dropdown-item" id="nav-governance-voting">Governance &amp; Voting</a>
+                        <a href="/vote" class="dropdown-item">Governance &amp; Voting</a>
                         <a href="/defi" class="dropdown-item">DeFi</a>
                         <a href="/supply" class="dropdown-item">Supply Reconciliation</a>
                         <a href="/validators" class="dropdown-item">Validators</a>
                         <a href="/databases" class="dropdown-item">Databases</a>
-                        <a href="/databoxes" class="dropdown-item" id="nav-databox-network">Global Databox Network</a>
-                        <a href="/stats" class="dropdown-item">Charts & Stats</a>
+                        <a href="/databoxes" class="dropdown-item">Global Databox Network</a>
+                        <a href="/stats" class="dropdown-item">Charts &amp; Stats</a>
                     </div>
                 </div>
-                <div class="nav-item"><a href="#" class="nav-link">More <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link">More <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/apis" class="dropdown-item">API Docs</a>
+                        <a href="/apis/exchange-integration" class="dropdown-item">Exchange Integration</a>
+                        <a href="/admin-tokens" class="dropdown-item">Admin Tokens</a>
                         <a href="/verify" class="dropdown-item">Verify Contract</a>
-                        <a href="/create-wallet" class="dropdown-item" id="nav-create-wallet">Create Wallet</a>
+                        <a href="/create-wallet" class="dropdown-item">Create Wallet</a>
                         <a href="/faucet" class="dropdown-item">Faucet</a>
-                        <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank">GitHub</a>
+                        <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank" rel="noopener">GitHub</a>
                         <a href="/partners" class="dropdown-item">Partners</a>
                         <a href="/contact" class="dropdown-item">Contact</a>
                     </div>
                 </div>
             </nav>
-            <button class="btn btn-secondary"><i class="fas fa-wallet"></i> Connect</button>
+            <div class="header-actions"><button class="btn btn-secondary"><i class="fa-solid fa-wallet"></i> Connect</button></div>
         </div>
     </header>
 
@@ -173,19 +182,19 @@
         <div class="stats-row">
             <div class="stat-card">
                 <div class="stat-label">Total Tokens</div>
-                <div class="stat-value" id="stat-total">—</div>
+                <div class="stat-value" id="stat-total">-</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Total Market Cap</div>
-                <div class="stat-value" id="stat-mcap">—</div>
+                <div class="stat-value" id="stat-mcap">-</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">24H Volume</div>
-                <div class="stat-value" id="stat-volume">—</div>
+                <div class="stat-value" id="stat-volume">-</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Unique Holders</div>
-                <div class="stat-value" id="stat-holders">—</div>
+                <div class="stat-value" id="stat-holders">-</div>
             </div>
         </div>
 
@@ -200,6 +209,22 @@
             <input type="text" class="filter-input" placeholder="Search by token name, symbol, or address...">
             <button class="filter-btn"><i class="fas fa-search"></i> Search</button>
         </div>
+
+        <a href="/core/fat" class="native-fat-card" id="native-fat-card">
+            <div class="native-fat-left">
+                <img src="/assets/tokens/fat.png" alt="DC FAT">
+                <div>
+                    <div class="token-name">Native DC FAT</div>
+                    <div class="token-symbol">Not a DCR-20 contract - live price, circulating supply, and DCSwap volume</div>
+                </div>
+            </div>
+            <div class="native-fat-kpis">
+                <div>Price<strong id="native-fat-price">-</strong></div>
+                <div>Market cap<strong id="native-fat-mcap">-</strong></div>
+                <div>24h volume<strong id="native-fat-vol">-</strong></div>
+                <div>Circulating<strong id="native-fat-circ">-</strong></div>
+            </div>
+        </a>
 
         <div class="table-card">
             <div class="table-header">
@@ -236,13 +261,21 @@
     </main>
 
     <footer>
-        <div class="container footer-content">
-            <div class="footer-brand"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 24px; height: 24px;"> DC Explorer - Powered by Datachain Rope</div>
+        <div class="footer-container container footer-content">
+            <div class="footer-brand">
+                <div class="logo-icon" style="width: 24px; height: 24px;">
+                    <img src="/assets/logo.svg" alt="DC Explorer Logo" style="width: 100%; height: 100%; object-fit: contain;">
+                </div>
+                DC Explorer - Powered by Datachain Rope
+            </div>
             <div class="footer-links">
                 <a href="https://datachain.network">Datachain</a>
                 <a href="/apis">API</a>
-                <a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a>
-                <a href="/partners">Partners</a><a href="/contact">Contact</a>
+                <a href="/apis/exchange-integration">Exchange Integration</a>
+                <a href="/admin-tokens">Admin Tokens</a>
+                <a href="https://github.com/KazeONGUENE/rope">GitHub</a>
+                <a href="/partners">Partners</a>
+                <a href="/contact">Contact</a>
             </div>
         </div>
     </footer>
@@ -266,7 +299,7 @@
         // `origin` object and render as "Native".
         function originBadge(origin) {
             if (!origin || !origin.originNetwork) {
-                return '<span class="origin-badge origin-native" title="Not bridged \u2014 native to Datachain Rope">Native</span>';
+                return '<span class="origin-badge origin-native" title="Not bridged - native to Datachain Rope">Native</span>';
             }
             var live = !/paused/i.test(origin.bridgeStatus || '');
             var dot = live ? 'background:#10b981;' : 'background:#f59e0b;';
@@ -277,18 +310,23 @@
         }
         function tokenRow(t, rank) {
             var addr = t.address || '0x0';
+            var href = t.coreUrl || ('/token/' + addr);
             var name = t.name || 'Token';
             var symbol = t.symbol || 'TKN';
-            var price = t.price != null && t.price > 0 ? '$' + Number(t.price).toFixed(t.price < 0.01 ? 6 : 4) : '—';
+            var price = t.price != null && t.price > 0 ? '$' + Number(t.price).toFixed(t.price < 0.01 ? 6 : 4) : '-';
             var changeClass = t.change != null ? (t.change >= 0 ? 'change-positive' : 'change-negative') : '';
-            var changeHtml = t.change != null ? '<i class="fas ' + (t.change >= 0 ? 'fa-caret-up' : 'fa-caret-down') + '"></i> ' + Math.abs(Number(t.change)).toFixed(2) + '%' : '—';
-            var vol = t.volume != null && t.volume > 0 ? fmtUsd(t.volume) : '—';
-            var mcap = (t.mcap != null || t.marketCap != null) && Number(t.mcap || t.marketCap) > 0 ? fmtUsd(Number(t.mcap || t.marketCap)) : '—';
-            var holders = (t.holders != null) ? Number(t.holders).toLocaleString() : '—';
+            var changeHtml = t.change != null ? '<i class="fas ' + (t.change >= 0 ? 'fa-caret-up' : 'fa-caret-down') + '"></i> ' + Math.abs(Number(t.change)).toFixed(2) + '%' : '-';
+            var vol = t.volume != null && t.volume > 0 ? fmtUsd(t.volume) : '-';
+            var mcap = (t.mcap != null || t.marketCap != null) && Number(t.mcap || t.marketCap) > 0 ? fmtUsd(Number(t.mcap || t.marketCap)) : '-';
+            var holders = (t.holders != null) ? Number(t.holders).toLocaleString() : '-';
             var stdHtml = standardBadge(t.standard, t.standardLabel);
-            return '<tr onclick="window.location=\'/token/' + addr + '\'">' +
+            var icon = t.logoUrl
+                ? '<img src="' + t.logoUrl + '" alt="">'
+                : (symbol.slice(0,2) || '-');
+            var iconStyle = t.logoUrl ? '' : ' style="background:var(--black);color:white;"';
+            return '<tr onclick="window.location=\'' + href + '\'">' +
                 '<td style="font-weight:600;">' + rank + '</td>' +
-                '<td><div class="token-cell"><div class="token-icon" style="background:var(--black);color:white;">' + (symbol.slice(0,2) || '—') + '</div><div class="token-info"><div class="token-name">' + name + '</div><div class="token-symbol">' + symbol + '</div></div></div></td>' +
+                '<td><div class="token-cell"><div class="token-icon"' + iconStyle + '>' + icon + '</div><div class="token-info"><div class="token-name">' + name + '</div><div class="token-symbol">' + symbol + '</div></div></div></td>' +
                 '<td>' + stdHtml + '</td>' +
                 '<td>' + originBadge(t.origin) + '</td>' +
                 '<td style="text-align:right;" class="mono">' + price + '</td>' +
@@ -298,9 +336,14 @@
                 '<td style="text-align:right;" class="mono">' + holders + '</td></tr>';
         }
         fetch('/api/v1/tokens').then(function(r) { return r.ok ? r.json() : {}; }).then(function(data) {
-            var list = data.tokens || [];
+            var full = data.tokens || [];
+            var list = full.filter(function(t) {
+                return (t && typeof t.standard === 'string')
+                    ? t.standard.toLowerCase() === 'dcr20'
+                    : false;
+            });
             var stats = data.stats || {};
-            document.getElementById('stat-total').textContent = Number(stats.totalTokens || list.length).toLocaleString();
+            document.getElementById('stat-total').textContent = Number(list.length).toLocaleString();
             document.getElementById('stat-mcap').textContent = fmtUsd(stats.totalMarketCap || 0);
             document.getElementById('stat-volume').textContent = fmtUsd(stats.totalVolume24h || 0);
             document.getElementById('stat-holders').textContent = Number(stats.totalHolders || 0).toLocaleString();
@@ -311,9 +354,17 @@
         }).catch(function() {
             document.getElementById('tokensTable').innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--gray-500);">Failed to load tokens</td></tr>';
         });
+        fetch('/api/v1/core/fat').then(function(r) { return r.ok ? r.json() : null; }).then(function(t) {
+            if (!t) return;
+            var price = (typeof t.priceUsd === 'number') ? t.priceUsd : Number(t.price);
+            document.getElementById('native-fat-price').textContent = (isFinite(price) && price > 0) ? ('$' + price.toFixed(6)) : '-';
+            document.getElementById('native-fat-mcap').textContent = t.marketCapStr || (t.marketCap > 0 ? fmtUsd(t.marketCap) : '-');
+            document.getElementById('native-fat-vol').textContent = (t.volume > 0) ? fmtUsd(t.volume) : '-';
+            document.getElementById('native-fat-circ').textContent = t.circulatingSupplyStr || '-';
+        }).catch(function() {});
     </script>
-<script src="/js/dcscan-stats.js"></script>
-    <script src="/js/dcscan-wallet.js?v=20260707b" defer></script>
+<script src="/js/dcscan-stats.js?v="></script>
+    <script src="/js/dcscan-wallet.js?v=20260730a" defer></script>
 </body>
 </html>
 

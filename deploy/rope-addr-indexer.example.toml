@@ -1,0 +1,45 @@
+# /etc/rope-addr-indexer.toml
+#
+# Configuration for rope-addr-indexer. Every field is optional; if the
+# whole file is missing, the binary falls back to the production defaults
+# below.
+#
+# See also:
+#   - `deploy/rope-addr-indexer.service` for the systemd unit.
+#   - `rope-addr-indexer --dry-run` prints the resolved config without
+#     touching RocksDB - use it after any edit.
+
+# Where the RocksDB store lives. The systemd unit's `ReadWritePaths`
+# must match this, and dc-explorer must read the SAME directory
+# (`ADDR_INDEX_PATH` in dc-explorer.env) for reads to see the writes.
+data_dir = "/var/lib/rope-addr-index"
+
+# Reth JSON-RPC endpoints, in failover order. BLUE loopback first (zero
+# hop, matches the writer-pin invariant from the 2026-07-26 handover),
+# then the read-failover ring so we can keep making forward progress
+# during a BLUE restart. Every URL is tried on every request; the first
+# that answers with a valid JSON-RPC envelope wins.
+rpc_urls = [
+    "http://127.0.0.1:8545",       # BLUE loopback (primary)
+    "http://92.243.25.119:8545",   # GREEN
+    "http://157.230.18.45:8545",   # DO-rpc-1
+    "http://167.172.106.174:8545", # DO-rpc-2
+]
+
+# Per-request HTTP + read timeout. Keep this small: the indexer's whole
+# point is to be able to notice a wedged node and try the next one.
+# 10s is plenty for the largest observed `eth_getBlockByNumber` payload
+# (Datachain Rope blocks are ~3s cadence, ~small).
+rpc_timeout_secs = 10
+
+# How often the tip follower polls `eth_blockNumber`. 2s trails the tip
+# by at most one block during normal operation and does not stress the
+# node. Increase to 5-10s if the RPC starts complaining about rate.
+tip_poll_secs = 2
+
+# Backfill floor. `0` walks the entire chain to genesis; set to a
+# specific block for a staged rollout ("index the last 100k blocks
+# first, prove the pipeline, then broaden"). The backfiller is
+# newest-first and persists progress after every block, so an
+# operator restart is cheap.
+backfill_floor = 0

@@ -1,4 +1,4 @@
-//! Scheduled bulk export — spec v1.0 §6.3: "Scheduled bulk export |
+//! Scheduled bulk export - spec v1.0 §6.3: "Scheduled bulk export |
 //! Batched CSV or Parquet extracts on a fixed schedule | Auditors and
 //! statutory reporting".
 //!
@@ -12,7 +12,7 @@
 //! (`GET /stakeholder/export?facet=…`) reuse the same CSV builders.
 //!
 //! CSV output is RFC-4180: CRLF line endings, quoting only where needed,
-//! stable column order — importable by Excel, pandas, and R without
+//! stable column order - importable by Excel, pandas, and R without
 //! options.
 
 use std::sync::Arc;

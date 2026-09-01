@@ -1,0 +1,37 @@
+[Unit]
+Description=Datachain CERBER mesh peer (Alteros identity — co-located until Alteros host ships)
+After=network-online.target cerber-mesh.service
+Wants=cerber-mesh.service
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/datachain-rope/cerber
+EnvironmentFile=-/etc/cerber-alert.env
+Environment=CERBER_PEER_ID=cerber-alteros
+Environment=CERBER_PEER_ROLE=alteros
+Environment=CERBER_IDENTITY_KEY=/var/lib/datachain-rope/cerber/alteros-identity.pem
+Environment=CERBER_AUDIT_DIR=/var/lib/datachain-rope/cerber/audit-alteros
+Environment=CERBER_PEERS_FILE=/opt/datachain-rope/cerber/config/peers.production.json
+Environment=CERBER_PEERS_RUNTIME=/var/lib/datachain-rope/cerber/peers.runtime.alteros.json
+Environment=CERBER_MESH_HOST=127.0.0.1
+Environment=CERBER_MESH_PORT=9108
+Environment=CERBER_PUBLIC_MESH_URL=http://127.0.0.1:9108
+Environment=CERBER_FLEET_STATUS_FILE=/opt/datachain-rope/code/deploy/nginx/html/fleet/fleet-status.json
+Environment=CERBER_FLEET_STATUS_SIG_FILE=/opt/datachain-rope/code/deploy/nginx/html/fleet/fleet-status.sig.json
+Environment=CERBER_ROPE_RPC=http://127.0.0.1:8545
+Environment=CERBER_TRUST_BOOTSTRAP=1
+Environment=CERBER_VERIFY_INTERVAL_MS=90000
+Environment=CERBER_HEARTBEAT_INTERVAL_MS=45000
+Environment=CERBER_REPORT_INTERVAL_MS=180000
+Environment=CERBER_ALERT_EMAIL=contact@onguene.com
+ExecStart=/usr/bin/node /opt/datachain-rope/cerber/bin/cerber-mesh.mjs serve
+Restart=always
+RestartSec=5
+Nice=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

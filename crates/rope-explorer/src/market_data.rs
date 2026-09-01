@@ -3,25 +3,25 @@
 //! Implements the public surfaces required by the DC FAT Legacy Migration
 //! specification v2.0 (`docs/DC_FAT_LEGACY_MIGRATION_AND_MARKET_VISIBILITY_SPEC_V2.md`):
 //!
-//! * **Part A §9 / §A.6** — the supply-reconciliation feed. Reads both
+//! * **Part A §9 / §A.6** - the supply-reconciliation feed. Reads both
 //!   legacy DC contracts live (`totalSupply()` on Ethereum and XDC), the
 //!   WFAT supply and treasury balances on Rope, and (once deployed) the
 //!   `FATMigrationMinter.totalMigratedSupply()`, then serves the invariant
 //!   as machine-checkable JSON at `/api/v1/supply/reconciliation`.
-//! * **Part B §17/§18** — the plain-numeric `circulating` / `total` supply
+//! * **Part B §17/§18** - the plain-numeric `circulating` / `total` supply
 //!   endpoints in the exact format the CoinGecko and CoinMarketCap supply
 //!   forms require (one bare number, `text/plain`).
-//! * **Part B §B.3** — the canonical price chain for dcscan's own
+//! * **Part B §B.3** - the canonical price chain for dcscan's own
 //!   surfaces: DCSwap canonical → GeckoTerminal (legacy XDC DC, via the
 //!   CoinGecko Pro key) → XDCScan → last-known-good cache.
 //!
 //! Env contract (all optional):
-//! * `ETH_RPC_URLS` — comma-separated Ethereum RPCs (default: public pair)
-//! * `XDC_RPC_URLS` — comma-separated XDC RPCs (default: public pair)
-//! * `MIGRATION_MINTER_ADDRESS` — Rope-side FATMigrationMinter, read for
+//! * `ETH_RPC_URLS` - comma-separated Ethereum RPCs (default: public pair)
+//! * `XDC_RPC_URLS` - comma-separated XDC RPCs (default: public pair)
+//! * `MIGRATION_MINTER_ADDRESS` - Rope-side FATMigrationMinter, read for
 //!   `totalMigratedSupply()` once Phase 0c deploys it
-//! * `COINGECKO_API_KEY` — CoinGecko **Pro** key (pro-api.coingecko.com)
-//! * `SUPPLY_UNCIRCULATED` — extra `label:address` pairs (comma-separated)
+//! * `COINGECKO_API_KEY` - CoinGecko **Pro** key (pro-api.coingecko.com)
+//! * `SUPPLY_UNCIRCULATED` - extra `label:address` pairs (comma-separated)
 //!   counted out of circulating supply on Rope
 
 use std::sync::Arc;
@@ -41,7 +41,7 @@ pub const WFAT_CONTRACT: &str = "0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4";
 /// Canonical unspendable burn sink used by `XdcOriginBurn._executeBurn`
 /// (dcswap/contracts/src/migration/XdcOriginBurn.sol). The XDC legacy token
 /// has no burn function, so migration burns `transferFrom(holder, sink, amt)`
-/// instead — `totalSupply()` on that token NEVER decreases, unlike the
+/// instead - `totalSupply()` on that token NEVER decreases, unlike the
 /// Ethereum ERC-777 leg where `operatorBurn` genuinely reduces it. Reading
 /// `burned = initial - totalSupply()` for XDC therefore always yields 0
 /// regardless of real burn volume; the correct read is `balanceOf(sink)`.
@@ -57,17 +57,67 @@ pub const NATIVE_MAX_SUPPLY_ASYMPTOTIC: f64 = 18_000_000_000.0;
 const SEL_TOTAL_SUPPLY: &str = "0x18160ddd";
 /// `balanceOf(address)` selector.
 const SEL_BALANCE_OF: &str = "0x70a08231";
-/// `totalMigratedSupply()` selector — `keccak256("totalMigratedSupply()")[..4]`
+/// `totalMigratedSupply()` selector - `keccak256("totalMigratedSupply()")[..4]`
 /// (verified with `cast sig "totalMigratedSupply()"`).
 const SEL_TOTAL_MIGRATED: &str = "0x86a3d596";
 
 /// Uncirculated Rope-side wallets excluded from circulating supply.
-/// The deployer EOA holds the operational treasury (funds bots, seeds
-/// pools, mints stables) and is not user-circulating.
-const UNCIRCULATED_BUILTIN: &[(&str, &str)] = &[(
-    "ROPE Deployer / Foundation operational treasury",
-    "0x60FB32ef3A2381c2Ed71613F34fd56D56fCF4195",
-)];
+///
+/// This set is the source of truth for `/api/v1/supply/circulating` and
+/// mirrors the Scenario A ("Conservative") CMC / CoinGecko methodology
+/// documented in `docs/cmc_srd_paste_kit_2026-08-10.md` §7.3 / §7.4.2 —
+/// the same wallets the operator declares on the SRD submission. Live
+/// balances are read once every 5 min via `eth_getBalance` in
+/// `refresh_supply_cache`; changing an entry here is enough to change
+/// what the endpoint returns on the next refresh cycle.
+///
+/// Before this list was extended (2026-08-11), the endpoint returned
+/// ~11.26 B FAT — i.e. it undercounted uncirculated by ~7.53 B, because
+/// only the compromised deployer was listed. That was inconsistent with
+/// the CMC paste-kit Scenario A number (~3.73 B FAT) and would have
+/// failed reviewer audit.
+///
+/// Additional operator wallets can still be layered on via the
+/// `SUPPLY_UNCIRCULATED` env var (comma-separated `label:address` pairs)
+/// without a redeploy.
+const UNCIRCULATED_BUILTIN: &[(&str, &str)] = &[
+    // Migration escrow (locked in smart contract): native FAT reserved for the
+    // 1:1 legacy-DC→FAT migration. Released only via `mintFromMigration` /
+    // `claimMigration` against a verified burn attestation. Not tradeable.
+    (
+        "DC FAT Migration Minter (native-FAT migration escrow)",
+        "0x70406ae110D6ccff9a73a2AC2b82d3B666B5a51a",
+    ),
+    // Foundation operator wallet holding the bulk of genesis supply. Public
+    // commitment: no scheduled market distribution; usage limited to refilling
+    // the migration escrow, protocol operational costs, and eventual Safe
+    // multisig migration in Roadmap Phase 6 (2027-Q1).
+    (
+        "Datachain Foundation operator (genesis reserve / operational treasury)",
+        "0xCF884C81Ed55b150CB1ABa8a69e2E9adf8F082Eb",
+    ),
+    // Legacy deployer key rotated per security audit 2026-06-11 and DCSwap
+    // minter-rotation handover 2026-07-03. Balance is residual gas dust; funds
+    // will be drained as part of Safe-multisig migration.
+    (
+        "ROPE compromised deployer (in-rotation, gas dust only)",
+        "0x60FB32ef3A2381c2Ed71613F34fd56D56fCF4195",
+    ),
+    // Ecosystem-partner operational wallet for the Tanastok Private Pool USDC
+    // payout mechanism. Holds ~5,000 FAT for gas + 5 M DCR-20 USDC for payouts
+    // (payout token is not FAT — only the gas float here is FAT).
+    (
+        "Tanastok Private Pool payout treasury (gas float)",
+        "0x63423bbc1275F973Eb00D6198B757797A8Db320B",
+    ),
+    // Operational wallet used by the CauseTokenFactory grant executor
+    // (Timelock-owned, `0xf55516EbD63d8e86710C9f39C92f76234517803f`) to fund
+    // NGO/cause grants voted through on-chain governance. Gas float only.
+    (
+        "CauseTokenFactory grantor (governance ops gas float)",
+        "0x37A8Ca3b828EC3402A6518d756791Ed2Dd02a038",
+    ),
+];
 
 fn eth_rpc_urls() -> Vec<String> {
     csv_env(
@@ -77,9 +127,19 @@ fn eth_rpc_urls() -> Vec<String> {
 }
 
 fn xdc_rpc_urls() -> Vec<String> {
+    // 2026-08-11: `https://erpc.xinfin.network` returns HTTP 403 (verified from
+    // multiple client paths incl. Sawyer's SafePal Load-failed incident,
+    // `handover-from-rope-legacy-migration-2026-07-08.mdc` follow-ups). Replaced
+    // with the working public endpoints already trusted by dcswap.net's XDC
+    // migration path (`dcswap/public/app.js` v=87+ post-Load-failed fix).
     csv_env(
         "XDC_RPC_URLS",
-        &["https://rpc.xinfin.network", "https://erpc.xinfin.network"],
+        &[
+            "https://rpc.xdcrpc.com",
+            "https://rpc.xdc.org",
+            "https://rpc.ankr.com/xdc",
+            "https://rpc.xinfin.network",
+        ],
     )
 }
 
@@ -103,7 +163,7 @@ pub struct LegacyBucket {
     pub standard: String,
     /// Live on-chain `totalSupply()`, whole tokens.
     pub total_supply: f64,
-    /// `initialSupply − totalSupply` — grows as migration burns execute.
+    /// `initialSupply − totalSupply` - grows as migration burns execute.
     pub burned: f64,
     pub classification: String,
 }
@@ -247,7 +307,7 @@ async fn fetch_legacy_bucket(
                 Some(hex) => hex_to_tokens(&hex).unwrap_or(0.0),
                 None => {
                     tracing::warn!(
-                        "supply: {} burn-sink balanceOf({}) unreadable — burned reported as 0",
+                        "supply: {} burn-sink balanceOf({}) unreadable - burned reported as 0",
                         chain, sink
                     );
                     0.0
@@ -347,7 +407,7 @@ pub async fn refresh_supply_cache(state: &Arc<AppState>) {
     };
 
     tracing::info!(
-        "supply: reconciliation refreshed — erc20={:?} xrc20={:?} wfat={:?} migrated={} circ={:.0}",
+        "supply: reconciliation refreshed - erc20={:?} xrc20={:?} wfat={:?} migrated={} circ={:.0}",
         snapshot.erc20.as_ref().map(|b| b.total_supply),
         snapshot.xrc20.as_ref().map(|b| b.total_supply),
         snapshot.wfat_supply,
@@ -376,7 +436,7 @@ fn bucket_json(b: &Option<LegacyBucket>) -> serde_json::Value {
     }
 }
 
-/// `GET /api/v1/supply/reconciliation` — the full machine-checkable view
+/// `GET /api/v1/supply/reconciliation` - the full machine-checkable view
 /// (spec §A.6). Public, CORS-open, 5-minute cache semantics.
 pub async fn supply_reconciliation(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
@@ -426,7 +486,7 @@ pub async fn supply_reconciliation(
         "invariant": {
             "formula": "logical_supply = erc20_circulating + xrc20_circulating + native_non_migrated + total_migrated; burned(eth)+burned(xdc) == total_migrated",
             "holds": invariant,
-            "note": if invariant.is_none() { "one or more origin chains unreachable this cycle — invariant unverifiable, not failed" } else { "verified against live on-chain reads" },
+            "note": if invariant.is_none() { "one or more origin chains unreachable this cycle - invariant unverifiable, not failed" } else { "verified against live on-chain reads" },
         },
         "methodology": "burn-and-mint (CoinGecko bridged-supply methodology); legacy representations excluded from headline market cap",
         "specification": "DC_FAT_LEGACY_MIGRATION_AND_MARKET_VISIBILITY_SPEC_V2 (2026-07-08)",
@@ -439,7 +499,7 @@ pub async fn supply_reconciliation(
         .into_response()
 }
 
-/// `GET /api/v1/supply/circulating` — bare number, `text/plain`. The exact
+/// `GET /api/v1/supply/circulating` - bare number, `text/plain`. The exact
 /// format the CoinGecko / CoinMarketCap supply forms require.
 pub async fn supply_circulating(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
@@ -447,7 +507,7 @@ pub async fn supply_circulating(
     plain_number(state, |s| s.circulating_supply).await
 }
 
-/// `GET /api/v1/supply/total` — bare number, `text/plain`.
+/// `GET /api/v1/supply/total` - bare number, `text/plain`.
 pub async fn supply_total(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
 ) -> axum::response::Response {
@@ -481,7 +541,7 @@ async fn plain_number(
 // Canonical price chain (spec Part B §B.3)
 // ============================================================================
 
-/// Source 1 — DCSwap canonical price feed (`/v1/prices`). The ecosystem
+/// Source 1 - DCSwap canonical price feed (`/v1/prices`). The ecosystem
 /// source of truth per the 2026-03-14 / 2026-05-10 handovers. Accepts any
 /// source string containing `dcswap-reserves` (the stable signal).
 pub async fn fetch_from_dcswap_canonical(
@@ -522,9 +582,9 @@ pub async fn fetch_from_dcswap_canonical(
     })
 }
 
-/// Source 2 — GeckoTerminal (via the CoinGecko Pro key) price of the
+/// Source 2 - GeckoTerminal (via the CoinGecko Pro key) price of the
 /// legacy XDC DC token. Labelled distinctly because it prices the LEGACY
-/// representation, not canonical FAT — used only when the canonical feed
+/// representation, not canonical FAT - used only when the canonical feed
 /// is down, and the label makes the provenance visible downstream.
 pub async fn fetch_from_geckoterminal_legacy(
     client: &reqwest::Client,

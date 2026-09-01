@@ -1,4 +1,4 @@
-/* Address label tag — styled chip shown when address is labelized */
+/* Address label tag - styled chip shown when address is labelized */
 .addr-label-tag {
   display: inline-flex;
   align-items: center;
@@ -22,7 +22,7 @@
 .addr-label-tag[data-cat="infrastructure"] { background: #e5e7eb; color: #374151; }
 .addr-label-tag[data-cat="trex"]           { background: #f3e8ff; color: #6b21a8; }
 
-/* Toggle button — small icon to switch between label and raw address */
+/* Toggle button - small icon to switch between label and raw address */
 .addr-toggle-btn {
   display: inline-flex;
   align-items: center;

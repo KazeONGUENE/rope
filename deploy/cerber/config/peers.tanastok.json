@@ -1,0 +1,42 @@
+{
+  "schema": "datachain.cerber.peers/v1",
+  "mesh_name": "datachain-ecosystem",
+  "notes": [
+    "Tanastok host overlay: cerber-rope points at rope-vps :9107 (not loopback).",
+    "cerber-tanastok listens locally; CERBER_PUBLIC_MESH_URL advertises 92.243.24.244:9107 to peers.",
+    "Distinct from Tanastok host CERBER (/opt/cerber Python orchestrator) - this is the ecosystem mesh peer only.",
+    "Rope pubkey pinned so inbound heartbeats verify before enroll."
+  ],
+  "peers": [
+    {
+      "id": "cerber-rope",
+      "role": "rope",
+      "url": "http://92.243.26.189:9107",
+      "public_url": "https://erpc.datachain.network/v1/cerber",
+      "public_key": "7acee395152891bcf45aee369a72d24dfb5259f056736e157e012f13416b787f",
+      "kid": "41fc8220fcc57c44"
+    },
+    {
+      "id": "cerber-dcswap",
+      "role": "dcswap",
+      "url": "http://92.243.26.114:9107",
+      "public_key": "dedef6a4df5ca315edf6913bc5df40591af7e51199018dfc5d3382ea7c6d96a9",
+      "kid": "ea70ef62d4c0d250"
+    },
+    {
+      "id": "cerber-tanastok",
+      "role": "tanastok",
+      "url": "http://127.0.0.1:9107",
+      "public_key": "ba3bbe0c956d86e338f042f92d506bc5b5fed6eda89a43f25d45547edc67504a",
+      "kid": "ba451eb4d2f5aeb6"
+    },
+    {
+      "id": "cerber-alteros",
+      "role": "alteros",
+      "url": "http://92.243.26.189:9108",
+      "public_key": "e527f92f0072b74025571e4cb8bb9e30183b0bc139ccbf4d00af91d5d4f6e5e8",
+      "kid": "74f5c0039c2055ec",
+      "note": "Alteros co-located on rope-vps :9108"
+    }
+  ]
+}

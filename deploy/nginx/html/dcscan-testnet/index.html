@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DC Explorer Testnet - Datachain Rope Testnet (271829)</title>
+<meta name="description" content="Datachain Rope Testnet explorer landing.  Chain ID 271829, xFAT gas token, public RPC and faucet." />
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23000'/><text x='16' y='22' font-family='JetBrains Mono,ui-monospace,Menlo,monospace' font-size='11' font-weight='700' fill='%23fff' text-anchor='middle'>DCT</text></svg>" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --black:#000;--white:#fff;
+  --gray-50:#fafafa;--gray-100:#f4f4f5;--gray-200:#e4e4e7;--gray-300:#d4d4d8;
+  --gray-500:#71717a;--gray-600:#52525b;--gray-700:#3f3f46;--gray-900:#18181b;
+  --success-bg:#dcfce7;--success-fg:#166534;
+  --warning-bg:#fef3c7;--warning-fg:#92400e;
+  --info-bg:#dbeafe;--info-fg:#1e40af;
+  --error-bg:#fee2e2;--error-fg:#991b1b;
+  --font-sans:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+  --font-mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
+  --radius-md:8px;--radius-lg:12px;
+  --shadow-sm:0 1px 2px 0 rgba(0,0,0,.05);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:var(--font-sans);font-size:14px;line-height:1.55;color:var(--gray-900);background:var(--gray-50);-webkit-font-smoothing:antialiased}
+a{color:var(--black);text-decoration:none}
+a:hover{color:var(--gray-600)}
+code{font-family:var(--font-mono)}
+.topbar{background:var(--gray-900);color:var(--white);font-size:12px;padding:.5rem 1.25rem;display:flex;justify-content:center;gap:1rem;flex-wrap:wrap}
+.topbar a{color:var(--white);opacity:.8}
+.topbar a:hover{opacity:1}
+.topbar strong{color:#fef3c7}
+.container{max-width:1080px;margin:0 auto;padding:2rem 1.25rem 4rem}
+.brand{display:flex;align-items:center;gap:.625rem;margin-bottom:2rem}
+.brand-mark{width:32px;height:32px;border-radius:6px;background:var(--black);color:var(--white);display:grid;place-items:center;font-family:var(--font-mono);font-weight:700;font-size:11px}
+.brand-name{font-weight:600;font-size:15px;color:var(--black)}
+.brand-name span{color:var(--gray-500);font-weight:400}
+h1{font-size:28px;font-weight:700;margin:0 0 .5rem;letter-spacing:-.01em}
+.subtitle{color:var(--gray-600);font-size:15px;margin-bottom:1.5rem}
+.pill-row{display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1.5rem}
+.badge{display:inline-flex;align-items:center;gap:.375rem;font-size:11.5px;font-weight:600;padding:.25rem .625rem;border-radius:20px}
+.badge-ok{background:var(--success-bg);color:var(--success-fg)}
+.badge-info{background:var(--info-bg);color:var(--info-fg)}
+.badge-warn{background:var(--warning-bg);color:var(--warning-fg)}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem}
+@media (max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:520px){.grid{grid-template-columns:1fr}}
+.card{background:var(--white);border:1px solid var(--gray-200);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);padding:1.25rem}
+.card h2{font-size:16px;font-weight:600;margin:0 0 1rem;color:var(--black);letter-spacing:-.005em}
+.metric-label{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:.375rem}
+.metric-value{font-family:var(--font-mono);font-size:20px;font-weight:600;color:var(--gray-900);word-break:break-all}
+.metric-value.small{font-size:13px;font-weight:500}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem}
+@media (max-width:800px){.two-col{grid-template-columns:1fr}}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:.5rem 1rem;font-size:13px}
+.kv dt{color:var(--gray-500);font-weight:500}
+.kv dd{margin:0;font-family:var(--font-mono);color:var(--gray-900);word-break:break-all}
+.btn{display:inline-flex;align-items:center;gap:.5rem;padding:.625rem 1rem;border-radius:var(--radius-md);font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--gray-300);background:var(--white);color:var(--gray-700);text-decoration:none;transition:background .12s,color .12s,border-color .12s}
+.btn:hover{background:var(--gray-100);color:var(--black)}
+.btn-primary{background:var(--gray-900);color:var(--white);border-color:var(--gray-900)}
+.btn-primary:hover{background:var(--gray-700);color:var(--white)}
+.btn-row{display:flex;gap:.625rem;flex-wrap:wrap;margin-top:1rem}
+.footer{margin-top:2.5rem;padding-top:1.5rem;border-top:1px solid var(--gray-200);color:var(--gray-500);font-size:12.5px}
+.footer p{margin:.375rem 0}
+.copy-btn{background:transparent;border:none;color:var(--gray-500);cursor:pointer;font-size:11px;padding:.125rem .375rem;margin-left:.25rem;font-family:var(--font-sans)}
+.copy-btn:hover{color:var(--black)}
+.note{background:var(--warning-bg);color:var(--warning-fg);padding:.75rem 1rem;border-radius:var(--radius-md);font-size:13px;margin-bottom:1.5rem}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span><strong>Testnet</strong> - chain 271829 - xFAT has no monetary value</span>
+  <a href="https://dcscan.io" rel="external">Switch to mainnet</a>
+</div>
+<div class="container">
+  <div class="brand">
+    <div class="brand-mark">DCT</div>
+    <div class="brand-name">DC Explorer <span>/ Testnet</span></div>
+  </div>
+
+  <h1>Datachain Rope Testnet</h1>
+  <p class="subtitle">Chain ID <code>271829</code> (<code>0x425d5</code>), native gas token <code>xFAT</code>.  Ephemeral - state may be reset at any time.  Do not send real FAT to any address on this network.</p>
+
+  <div class="pill-row">
+    <span class="badge badge-info"  id="net-badge">Loading network...</span>
+    <span class="badge badge-warn">Testnet - no monetary value</span>
+    <span class="badge badge-ok"    id="rpc-badge">RPC unknown</span>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="metric-label">Chain ID</div>
+      <div class="metric-value" id="m-chainid">271829</div>
+      <div class="metric-value small" style="color:var(--gray-500);margin-top:.25rem">0x425d5</div>
+    </div>
+    <div class="card">
+      <div class="metric-label">Latest Block</div>
+      <div class="metric-value" id="m-block">-</div>
+      <div class="metric-value small" style="color:var(--gray-500);margin-top:.25rem" id="m-block-age">-</div>
+    </div>
+    <div class="card">
+      <div class="metric-label">Gas Token</div>
+      <div class="metric-value">xFAT</div>
+      <div class="metric-value small" style="color:var(--gray-500);margin-top:.25rem">18 decimals</div>
+    </div>
+    <div class="card">
+      <div class="metric-label">Faucet Balance</div>
+      <div class="metric-value" id="m-faucet-bal">-</div>
+      <div class="metric-value small" style="color:var(--gray-500);margin-top:.25rem">reserves for drips</div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <h2>Get started</h2>
+      <p style="color:var(--gray-600);margin-top:0">Request 100 xFAT to any EVM address on the testnet, then deploy or call contracts through the public RPC.</p>
+      <div class="btn-row">
+        <a class="btn btn-primary" href="https://faucet.datachain.network/">Open Faucet</a>
+        <a class="btn" href="https://faucet.datachain.network/rpc" target="_blank" rel="noopener">RPC endpoint</a>
+        <a class="btn" href="https://datachain.network/docs" target="_blank" rel="noopener">Docs</a>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Network parameters</h2>
+      <dl class="kv">
+        <dt>Network</dt><dd>Datachain Rope Testnet</dd>
+        <dt>Chain ID</dt><dd>271829 (<code>0x425d5</code>) <button class="copy-btn" data-copy="271829">copy</button></dd>
+        <dt>Currency</dt><dd>xFAT <button class="copy-btn" data-copy="xFAT">copy</button></dd>
+        <dt>RPC URL</dt><dd><code>https://faucet.datachain.network/rpc</code> <button class="copy-btn" data-copy="https://faucet.datachain.network/rpc">copy</button></dd>
+        <dt>Faucet</dt><dd><code>https://faucet.datachain.network/</code></dd>
+        <dt>Explorer</dt><dd><code>https://testnet.dcscan.io/</code> (this page)</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:1.25rem">
+    <h2>Live JSON-RPC check</h2>
+    <p style="color:var(--gray-600);margin-top:0">The public testnet RPC exposes read methods and <code>eth_sendRawTransaction</code>.  Admin, debug, personal and engine methods are blocked at the edge.</p>
+    <dl class="kv">
+      <dt>eth_chainId</dt><dd id="rpc-chainid">-</dd>
+      <dt>eth_blockNumber</dt><dd id="rpc-block">-</dd>
+      <dt>net_version</dt><dd id="rpc-net">-</dd>
+      <dt>last check</dt><dd id="rpc-when">-</dd>
+    </dl>
+  </div>
+
+  <div class="footer">
+    <p><strong>Full transaction explorer.</strong>  A dedicated testnet block explorer UI is being deployed.  In the meantime, contract deployment and read/write traffic works through the RPC endpoint above.</p>
+    <p><strong>Mainnet is at <a href="https://dcscan.io">dcscan.io</a>.</strong>  This page is a testnet landing on <code>testnet.dcscan.io</code> - all data below reflects chain 271829, not mainnet.</p>
+  </div>
+</div>
+
+<script>
+(function(){
+  const RPC = "https://faucet.datachain.network/rpc";
+  const $ = (id) => document.getElementById(id);
+
+  async function rpc(method, params) {
+    const r = await fetch(RPC, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: Date.now(), method, params: params || [] }),
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    if (j.error) throw new Error(j.error.message || "rpc error");
+    return j.result;
+  }
+
+  let lastBlockAt = null;
+  async function refresh() {
+    try {
+      const [chainId, blockHex, netVer] = await Promise.all([
+        rpc("eth_chainId"),
+        rpc("eth_blockNumber"),
+        rpc("net_version"),
+      ]);
+      const cid = parseInt(chainId, 16);
+      const bn  = parseInt(blockHex, 16);
+      $("net-badge").className = "badge badge-info";
+      $("net-badge").textContent = "Datachain Rope Testnet (" + cid + ")";
+      $("rpc-badge").className = "badge badge-ok";
+      $("rpc-badge").textContent = "RPC online";
+      $("m-chainid").textContent = cid.toString();
+      $("m-block").textContent = "#" + bn.toLocaleString("en-US");
+      lastBlockAt = Date.now();
+      $("m-block-age").textContent = "just refreshed";
+      $("rpc-chainid").textContent = cid + " (" + chainId + ")";
+      $("rpc-block").textContent = bn + " (" + blockHex + ")";
+      $("rpc-net").textContent = netVer;
+      $("rpc-when").textContent = new Date().toISOString();
+    } catch (e) {
+      $("net-badge").className = "badge badge-warn";
+      $("net-badge").textContent = "RPC unreachable";
+      $("rpc-badge").className = "badge badge-warn";
+      $("rpc-badge").textContent = "RPC unreachable";
+      $("rpc-chainid").textContent = "error";
+      $("rpc-block").textContent   = "error";
+      $("rpc-net").textContent     = "error";
+      $("rpc-when").textContent = new Date().toISOString() + " (" + ((e && e.message) || "unknown") + ")";
+    }
+  }
+
+  async function refreshFaucet() {
+    try {
+      const r = await fetch("https://faucet.datachain.network/api/status", { cache: "no-store" });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const d = await r.json();
+      if (d.ok && d.faucetBalanceXfat != null) {
+        const num = Number(d.faucetBalanceXfat);
+        $("m-faucet-bal").textContent = Number.isFinite(num)
+          ? num.toLocaleString("en-US", { maximumFractionDigits: 2 }) + " xFAT"
+          : d.faucetBalanceXfat + " xFAT";
+      }
+    } catch { /* keep dash */ }
+  }
+
+  function bindCopy() {
+    document.querySelectorAll(".copy-btn[data-copy]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(btn.getAttribute("data-copy"));
+          const old = btn.textContent;
+          btn.textContent = "copied";
+          setTimeout(() => { btn.textContent = old; }, 1200);
+        } catch {}
+      });
+    });
+  }
+
+  function tickAge() {
+    if (!lastBlockAt) return;
+    const secs = Math.round((Date.now() - lastBlockAt) / 1000);
+    $("m-block-age").textContent = secs + "s ago";
+  }
+
+  bindCopy();
+  refresh();
+  refreshFaucet();
+  setInterval(refresh, 5000);
+  setInterval(refreshFaucet, 30000);
+  setInterval(tickAge, 1000);
+})();
+</script>
+</body>
+</html>

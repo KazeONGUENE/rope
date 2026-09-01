@@ -1,0 +1,58 @@
+# DNS failover watcher env patch
+#
+# Target file on DO-rpc-1: /etc/datachain-rope-dns-failover.env
+# Watcher unit:            erpc-dns-failover.service (reads EnvironmentFile= on next tick)
+#
+# Adds `ws:datachain.network` to the list of DNS names the watcher promotes /
+# reverts. Prior to this patch the watcher covered:
+#   ROPE_DNS_NAMES="erpc erpc:rope.network ws:rope.network"
+# which meant a BLUE outage would:
+#   - fail over erpc.datachain.network                → DO-rpc-1  ✅
+#   - fail over erpc.rope.network                      → DO-rpc-1  ✅
+#   - fail over ws.rope.network                        → DO-rpc-1  ✅
+#   - leave ws.datachain.network pinned to BLUE       → 90-second timeout ❌
+#
+# After this patch the watcher will also promote / revert
+# `ws.datachain.network` in lockstep with the other three A records, so
+# WebSocket clients survive a BLUE outage exactly the same way HTTP
+# JSON-RPC clients already do.
+#
+# ── Apply ──
+#
+#   sudo cp /etc/datachain-rope-dns-failover.env \
+#         /etc/datachain-rope-dns-failover.env.bak-pre-ws-datachain-2026-08-12
+#   sudo sed -i 's|^ROPE_DNS_NAMES=.*|ROPE_DNS_NAMES="erpc erpc:rope.network ws:rope.network ws:datachain.network"|' \
+#     /etc/datachain-rope-dns-failover.env
+#
+#   # verify
+#   grep ^ROPE_DNS_NAMES /etc/datachain-rope-dns-failover.env
+#
+# The next `erpc-dns-failover.service` tick (every 30 s) will pick up the
+# new EnvironmentFile automatically. No systemctl daemon-reload required
+# because `EnvironmentFile=` is re-read on every oneshot invocation.
+#
+# ── Rollback ──
+#
+#   sudo cp /etc/datachain-rope-dns-failover.env.bak-pre-ws-datachain-2026-08-12 \
+#         /etc/datachain-rope-dns-failover.env
+#
+# Alternatively:
+#
+#   sudo sed -i 's|^ROPE_DNS_NAMES=.*|ROPE_DNS_NAMES="erpc erpc:rope.network ws:rope.network"|' \
+#     /etc/datachain-rope-dns-failover.env
+#
+# ── Prerequisite ──
+#
+# Before applying this env patch, the nginx conf staged in
+# `datachain.network.conf` (this directory) MUST already be live on
+# DO-rpc-1 with a working `rope_ws_local` upstream and the WS vhost
+# pointing at it. Otherwise the DNS failover would send WS traffic to
+# DO-rpc-1 where it would still fail (WS vhost proxying to
+# rope_rpc_edge / port 8545 == the very bug this whole patch chain is
+# fixing).
+
+BEFORE:
+ROPE_DNS_NAMES="erpc erpc:rope.network ws:rope.network"
+
+AFTER:
+ROPE_DNS_NAMES="erpc erpc:rope.network ws:rope.network ws:datachain.network"

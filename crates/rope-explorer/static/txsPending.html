@@ -97,70 +97,65 @@
 </head>
 <body>
     <div class="top-bar">
-        <div class="top-bar-container">
+        <div class="container top-bar-container top-bar-content">
             <div class="top-bar-left">
-                <div class="top-bar-item"><i class="fa-solid fa-coins"></i> DC FAT Price: <span class="top-bar-value" id="topbar-price">—</span><span style="color: #ef4444; margin-left: 0.25rem;">—</span></div>
-                <div class="top-bar-item"><i class="fa-solid fa-gas-pump"></i> Gas: <span class="top-bar-value" id="topbar-gas">—</span></div>
-                <div class="top-bar-item"><i class="fa-solid fa-clock"></i> Finality: <span class="top-bar-value" id="topbar-finality">—</span></div>
+                <div class="top-bar-item"><span>DC FAT Price:</span><span class="top-bar-value" id="topbar-fat-price">-</span><span class="top-bar-change" id="topbar-fat-change"></span></div>
+                <div class="top-bar-item"><span>Gas:</span><span class="top-bar-value" id="topbar-gas">-</span></div>
             </div>
-            <div class="top-bar-right"><button class="theme-toggle"><i class="fa-solid fa-sun"></i></button></div>
         </div>
     </div>
     <header>
-        <div class="header-container">
+        <div class="container header-container">
             <a href="/" class="logo">
                 <div class="logo-icon"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 100%; height: 100%; object-fit: contain;"></div>
                 <span class="logo-text"><span>DC</span><span>Explorer</span></span>
             </a>
             <nav class="main-nav">
-                <div class="nav-item">
-                    <a href="#" class="nav-link active">Smartchain <i class="fa-solid fa-chevron-down"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link active">Smartchain <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/strings" class="dropdown-item">View Strings</a>
                         <a href="/txs" class="dropdown-item">Transactions</a>
                         <a href="/txsPending" class="dropdown-item">Pending Txns</a>
-                        <div class="dropdown-divider"></div>
                         <a href="/accounts" class="dropdown-item">Top Accounts</a>
                         <a href="/contracts" class="dropdown-item">Verified Contracts</a>
                     </div>
                 </div>
-                <div class="nav-item">
-                    <a href="#" class="nav-link">AI Agents <i class="fa-solid fa-chevron-down"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link">AI Agents <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/agents" class="dropdown-item">All Agents</a>
                         <a href="/testimonies" class="dropdown-item">Testimonies</a>
                         <a href="/validations" class="dropdown-item">Validators</a>
                     </div>
                 </div>
-                <div class="nav-item">
-                    <a href="#" class="nav-link">Tokens <i class="fa-solid fa-chevron-down"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link">Tokens <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/tokens" class="dropdown-item">DCR-20 Tokens</a>
+                        <a href="/core/fat" class="dropdown-item">Native DC FAT</a>
                         <a href="/tokentxns" class="dropdown-item">Token Transfers</a>
                         <a href="/vote" class="dropdown-item">Vote</a>
                     </div>
                 </div>
-                <div class="nav-item">
-                    <a href="#" class="nav-link">Network <i class="fa-solid fa-chevron-down"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link">Network <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/ecosystem" class="dropdown-item">Ecosystem Projects</a>
-                        <a href="/vote" class="dropdown-item" id="nav-governance-voting">Governance &amp; Voting</a>
+                        <a href="/vote" class="dropdown-item">Governance &amp; Voting</a>
                         <a href="/defi" class="dropdown-item">DeFi</a>
                         <a href="/supply" class="dropdown-item">Supply Reconciliation</a>
-                        <a href="/network/validators" class="dropdown-item">Validators</a>
+                        <a href="/validators" class="dropdown-item">Validators</a>
                         <a href="/databases" class="dropdown-item">Databases</a>
-                        <a href="/databoxes" class="dropdown-item" id="nav-databox-network">Global Databox Network</a>
-                        <a href="/stats" class="dropdown-item">Charts & Stats</a>
+                        <a href="/databoxes" class="dropdown-item">Global Databox Network</a>
+                        <a href="/stats" class="dropdown-item">Charts &amp; Stats</a>
                     </div>
                 </div>
-                <div class="nav-item">
-                    <a href="#" class="nav-link">More <i class="fa-solid fa-chevron-down"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link">More <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/apis" class="dropdown-item">API Docs</a>
+                        <a href="/apis/exchange-integration" class="dropdown-item">Exchange Integration</a>
+                        <a href="/admin-tokens" class="dropdown-item">Admin Tokens</a>
                         <a href="/verify" class="dropdown-item">Verify Contract</a>
-                        <a href="/create-wallet" class="dropdown-item" id="nav-create-wallet">Create Wallet</a>
+                        <a href="/create-wallet" class="dropdown-item">Create Wallet</a>
                         <a href="/faucet" class="dropdown-item">Faucet</a>
-                        <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank">GitHub</a>
+                        <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank" rel="noopener">GitHub</a>
                         <a href="/partners" class="dropdown-item">Partners</a>
                         <a href="/contact" class="dropdown-item">Contact</a>
                     </div>
@@ -182,22 +177,22 @@
         <div class="stats-row">
             <div class="stat-card">
                 <div class="stat-label">Pending Transactions</div>
-                <div class="stat-value" id="pendingCount">—</div>
+                <div class="stat-value" id="pendingCount">-</div>
                 <div class="stat-change" style="color:var(--gray-500);">Updated every 5 seconds</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Pending Value</div>
-                <div class="stat-value" id="pendingValue">—</div>
+                <div class="stat-value" id="pendingValue">-</div>
                 <div class="stat-change" style="color:var(--gray-500);" id="pendingValueSub"></div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Avg. Gas Price</div>
-                <div class="stat-value" id="avgGasPrice">—</div>
+                <div class="stat-value" id="avgGasPrice">-</div>
                 <div class="stat-change" style="color:var(--gray-500);" id="avgGasSub"></div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Block Time</div>
-                <div class="stat-value" id="blockTime">—</div>
+                <div class="stat-value" id="blockTime">-</div>
                 <div class="stat-change" style="color:var(--gray-500);">From chain stats</div>
             </div>
         </div>
@@ -230,33 +225,38 @@
                 <tbody id="pendingTable"></tbody>
             </table>
             <div class="pagination">
-                <div class="pagination-info" id="pagInfo">—</div>
+                <div class="pagination-info" id="pagInfo">-</div>
                 <div class="pagination-controls" id="pagControls"></div>
             </div>
         </div>
     </main>
 
     <footer>
-        <div class="footer-container">
+        <div class="footer-container container footer-content">
             <div class="footer-brand">
-                <div class="logo-icon" style="width: 24px; height: 24px;"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 100%; height: 100%; object-fit: contain;"></div>
+                <div class="logo-icon" style="width: 24px; height: 24px;">
+                    <img src="/assets/logo.svg" alt="DC Explorer Logo" style="width: 100%; height: 100%; object-fit: contain;">
+                </div>
                 DC Explorer - Powered by Datachain Rope
             </div>
             <div class="footer-links">
                 <a href="https://datachain.network">Datachain</a>
                 <a href="/apis">API</a>
-                <a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a>
-                <a href="/partners">Partners</a><a href="/contact">Contact</a>
+                <a href="/apis/exchange-integration">Exchange Integration</a>
+                <a href="/admin-tokens">Admin Tokens</a>
+                <a href="https://github.com/KazeONGUENE/rope">GitHub</a>
+                <a href="/partners">Partners</a>
+                <a href="/contact">Contact</a>
             </div>
         </div>
     </footer>
 
     <script src="/js/dcscan-labels.js"></script>
-    <script src="/js/dcscan-stats.js"></script>
+    <script src="/js/dcscan-stats.js?v="></script>
     <script>
         function shortHex(addr) {
             if (window.DCScanLabels && window.DCScanLabels.shortHex) return window.DCScanLabels.shortHex(addr, 6);
-            if (!addr) return '—';
+            if (!addr) return '-';
             return addr.length > 12 ? addr.slice(0, 12) + '...' : addr;
         }
         function loadPending() {
@@ -279,7 +279,7 @@
 
                 document.getElementById('pendingCount').textContent = total.toLocaleString();
                 document.getElementById('pendingValue').textContent = totalValue.toFixed(2) + ' FAT';
-                document.getElementById('avgGasPrice').textContent = avgGas > 0 ? avgGas.toFixed(4) + ' gwei' : '—';
+                document.getElementById('avgGasPrice').textContent = avgGas > 0 ? avgGas.toFixed(4) + ' gwei' : '-';
 
                 var txCount = document.getElementById('txCount');
                 if (txCount) txCount.textContent = total.toLocaleString();
@@ -290,10 +290,10 @@
                     var to = tx.to || '0x0';
                     var rawVal = tx.value || '0';
                     var value = (rawVal.indexOf('FAT') !== -1) ? rawVal : rawVal + ' FAT';
-                    var gasPrice = tx.gasPrice || '—';
-                    var gasLimit = tx.gasLimit != null ? Number(tx.gasLimit).toLocaleString() : '—';
-                    var nonce = tx.nonce != null ? tx.nonce : '—';
-                    var age = tx.timestamp ? (Math.max(0, Math.floor(Date.now() / 1000 - tx.timestamp)) + 's ago') : '—';
+                    var gasPrice = tx.gasPrice || '-';
+                    var gasLimit = tx.gasLimit != null ? Number(tx.gasLimit).toLocaleString() : '-';
+                    var nonce = tx.nonce != null ? tx.nonce : '-';
+                    var age = tx.timestamp ? (Math.max(0, Math.floor(Date.now() / 1000 - tx.timestamp)) + 's ago') : '-';
                     var fromHtml;
                     if (tx.fromHidden && tx.fromLabel) {
                         fromHtml = window.DCScanLabels && window.DCScanLabels.ready()
@@ -350,7 +350,7 @@
         loadBlockTime();
         setInterval(loadPending, 5000);
     </script>
-    <script src="/js/dcscan-wallet.js?v=20260707b" defer></script>
+    <script src="/js/dcscan-wallet.js?v=20260730a" defer></script>
 </body>
 </html>
 

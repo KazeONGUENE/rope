@@ -58,11 +58,38 @@ use rocksdb::{
 };
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::mpsc::{self, Sender};
+use std::sync::mpsc::{self, SyncSender, TrySendError};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 use thiserror::Error;
+
+/// Default capacity of the flusher enqueue channel.
+///
+/// 2026-07-27 residual-5xx critique: the previous `mpsc::channel` was
+/// **unbounded**. Combined with ack-after-enqueue that meant a wedged
+/// flusher turned into silent queue growth + false RPC 200s. A bounded
+/// channel + `try_send` converts that into an immediate
+/// [`RocksError::QueueFull`] so callers can return an honest overload
+/// error (JSON-RPC equivalent of HTTP 503 + Retry-After).
+///
+/// Override with `ROPE_LEDGER_QUEUE_CAP` (positive integer).
+pub const DEFAULT_QUEUE_CAP: usize = 8_192;
+
+/// Resolve the configured per-channel enqueue capacity. `pub(crate)`
+/// so the sibling `rocksdb_persistence_p2b` backend can inherit the
+/// same env-var contract.
+pub(crate) fn queue_cap() -> usize {
+    match std::env::var("ROPE_LEDGER_QUEUE_CAP") {
+        Ok(v) => v
+            .trim()
+            .parse::<usize>()
+            .ok()
+            .filter(|n| *n > 0)
+            .unwrap_or(DEFAULT_QUEUE_CAP),
+        Err(_) => DEFAULT_QUEUE_CAP,
+    }
+}
 
 /// Column family names. Kept module-public so tests can sanity-check
 /// the schema layout.
@@ -101,6 +128,13 @@ pub enum RocksError {
     MissingCf(&'static str),
     #[error("persistence flusher thread is no longer running")]
     FlusherStopped,
+    /// Enqueue channel is full — flusher is not draining as fast as
+    /// writers are producing. Callers MUST surface this as a retryable
+    /// overload (do not ack the write as durable or even as accepted).
+    #[error(
+        "ledger write queue full (capacity reached); flusher overloaded — retry after a short backoff"
+    )]
+    QueueFull,
     /// On-disk encoding does not match the expected schema. Almost
     /// always means the DB was opened by a newer/older version of the
     /// node, or hand-edited.
@@ -218,7 +252,7 @@ pub struct RecoveredState {
 /// channel and exit cleanly.
 pub struct RocksPersistence {
     db: Arc<DB>,
-    write_tx: Mutex<Option<Sender<PendingWrite>>>,
+    write_tx: Mutex<Option<SyncSender<PendingWrite>>>,
     next_seq: AtomicU64,
     durable_seq: Arc<AtomicU64>,
     /// Set true on Drop; flusher checks it as a belt-and-braces exit.
@@ -227,6 +261,8 @@ pub struct RocksPersistence {
     flusher: Mutex<Option<JoinHandle<()>>>,
     /// Notified after each successful flush — wakes [`wait_durable`].
     notify_pair: Arc<(Mutex<()>, Condvar)>,
+    /// Capacity of the bounded enqueue channel (for metrics / diagnostics).
+    queue_cap: usize,
 }
 
 /// Stats snapshot for metrics endpoints.
@@ -238,13 +274,75 @@ pub struct PersistenceStats {
     pub shutdown: bool,
 }
 
+/// Recovery-time flags for [`RocksPersistence::open_with_options`].
+///
+/// The default matches the legacy behaviour: every CF is loaded into
+/// [`RecoveredState`] at boot, including the potentially-large `strings`
+/// CF. Set `load_string_blobs = false` to defer knot payload
+/// deserialisation to on-demand reads.
+#[derive(Clone, Copy, Debug)]
+pub struct RecoveryOptions {
+    pub load_string_blobs: bool,
+}
+
+impl Default for RecoveryOptions {
+    fn default() -> Self {
+        // Eager by default: preserves the legacy startup semantics for
+        // any caller that doesn't opt into the lazy path.
+        Self { load_string_blobs: true }
+    }
+}
+
 impl RocksPersistence {
     /// Open or create a RocksDB instance at `path` and start the
     /// background flusher. Returns the handle plus a [`RecoveredState`]
     /// snapshot that the caller (typically `LedgerStore::open`) uses to
     /// rebuild its in-memory mirror.
     pub fn open(path: impl AsRef<Path>) -> Result<(Arc<Self>, RecoveredState), RocksError> {
+        Self::open_with_queue_cap(path, queue_cap())
+    }
+
+    /// Phase 1.6.1 (2026-08-11) — lazy variant of [`Self::open`]: same
+    /// on-disk format, same background flusher, but the returned
+    /// [`RecoveredState`] carries an **empty** `string_blobs` vector.
+    ///
+    /// Callers use this when they want to skip the ~5-minute /
+    /// multi-GB eager rehydration of every knot blob into memory at
+    /// boot and instead lazy-load blobs on demand via
+    /// [`Self::read_string_blob`] / [`Self::stream_string_blobs`].
+    ///
+    /// Everything else (descriptors, chains, reverse, pieces, heads,
+    /// tombstones, durable seq) is still recovered eagerly because
+    /// those maps are small in aggregate (chain ids are 32 bytes each
+    /// even at 5M knots ≈ 160 MB, and descriptors are one per wallet).
+    /// The knot payload blobs are the only OOM risk at scale — those
+    /// are what this API defers.
+    pub fn open_lazy(path: impl AsRef<Path>) -> Result<(Arc<Self>, RecoveredState), RocksError> {
+        Self::open_with_options(path, queue_cap(), RecoveryOptions { load_string_blobs: false })
+    }
+
+    /// Like [`Self::open`] but with an explicit enqueue capacity (tests /
+    /// operator tooling). Production callers should prefer [`Self::open`]
+    /// so `ROPE_LEDGER_QUEUE_CAP` is honoured.
+    pub fn open_with_queue_cap(
+        path: impl AsRef<Path>,
+        cap: usize,
+    ) -> Result<(Arc<Self>, RecoveredState), RocksError> {
+        Self::open_with_options(path, cap, RecoveryOptions::default())
+    }
+
+    /// Full-control open: choose queue capacity + which CFs to
+    /// eagerly load into [`RecoveredState`]. Callers who want lazy
+    /// blob loading should pass `RecoveryOptions { load_string_blobs:
+    /// false }` and use [`Self::read_string_blob`] /
+    /// [`Self::stream_string_blobs`] on demand.
+    pub fn open_with_options(
+        path: impl AsRef<Path>,
+        cap: usize,
+        opts: RecoveryOptions,
+    ) -> Result<(Arc<Self>, RecoveredState), RocksError> {
         let path = path.as_ref();
+        let cap = cap.max(1);
 
         let mut db_opts = Options::default();
         db_opts.create_if_missing(true);
@@ -273,10 +371,10 @@ impl RocksPersistence {
         let db = Arc::new(DB::open_cf_descriptors(&db_opts, path, cfs)?);
 
         // ---- Recovery: scan every CF and read back the watermark ----
-        let recovered = recover_from_db(&db)?;
+        let recovered = recover_from_db(&db, &opts)?;
 
-        // ---- Set up background flusher ----
-        let (write_tx, write_rx) = mpsc::channel::<PendingWrite>();
+        // ---- Set up background flusher (BOUNDED channel) ----
+        let (write_tx, write_rx) = mpsc::sync_channel::<PendingWrite>(cap);
         let durable_seq = Arc::new(AtomicU64::new(recovered.durable_seq));
         let shutdown = Arc::new(AtomicBool::new(false));
         let notify_pair = Arc::new((Mutex::new(()), Condvar::new()));
@@ -307,25 +405,34 @@ impl RocksPersistence {
                 shutdown,
                 flusher: Mutex::new(Some(flusher)),
                 notify_pair,
+                queue_cap: cap,
             }),
             recovered,
         ))
+    }
+
+    /// Configured enqueue capacity (see `ROPE_LEDGER_QUEUE_CAP`).
+    pub fn queue_cap(&self) -> usize {
+        self.queue_cap
     }
 
     /// Enqueue a write op. Returns the assigned sequence number, which
     /// callers may pass to [`Self::wait_durable`] to block until the op
     /// is fsync'd.
     ///
-    /// Returns [`RocksError::FlusherStopped`] if the persistence layer
-    /// has been dropped or the flusher panicked. In normal operation
-    /// this never errors.
+    /// Uses **non-blocking** `try_send` on a bounded channel:
+    /// - [`RocksError::QueueFull`] — flusher is behind; caller must
+    ///   surface a retryable overload (not a success).
+    /// - [`RocksError::FlusherStopped`] — persistence dropped / panicked.
     pub fn enqueue(&self, op: WriteOp) -> Result<u64, RocksError> {
         let seq = self.next_seq.fetch_add(1, Ordering::AcqRel);
         let guard = self.write_tx.lock();
         let tx = guard.as_ref().ok_or(RocksError::FlusherStopped)?;
-        tx.send(PendingWrite { seq, op })
-            .map_err(|_| RocksError::FlusherStopped)?;
-        Ok(seq)
+        match tx.try_send(PendingWrite { seq, op }) {
+            Ok(()) => Ok(seq),
+            Err(TrySendError::Full(_pending)) => Err(RocksError::QueueFull),
+            Err(TrySendError::Disconnected(_pending)) => Err(RocksError::FlusherStopped),
+        }
     }
 
     /// Block until the given sequence number is on durable disk, or
@@ -389,6 +496,95 @@ impl RocksPersistence {
             None => Ok(None),
             Some(bytes) => Ok(Some(bincode::deserialize(&bytes)?)),
         }
+    }
+
+    /// Read back a serialised RopeString blob for `string_id` directly
+    /// from disk.
+    ///
+    /// This is the point-read backing the lazy-rehydration path
+    /// introduced in 2026-08-11 P1 (see `handover-from-dcswap-dcscan-
+    /// address-parity-fixes-2026-08-11.mdc` §11.5). Returns `None` if
+    /// the id is not on disk (e.g. it was tombstoned, or it was never
+    /// persisted). Callers deserialise the blob themselves via
+    /// `bincode::deserialize::<rope_core::string::RopeString>`.
+    pub fn read_string_blob(
+        &self,
+        string_id: &[u8; 32],
+    ) -> Result<Option<Vec<u8>>, RocksError> {
+        let cf = self
+            .db
+            .cf_handle(CF_STRINGS)
+            .ok_or(RocksError::MissingCf(CF_STRINGS))?;
+        match self.db.get_cf(&cf, string_id)? {
+            None => Ok(None),
+            Some(bytes) => Ok(Some(bytes)),
+        }
+    }
+
+    /// Read back a tombstone directly from disk. Same shape as
+    /// [`Self::read_string_blob`] but for the tombstones CF.
+    pub fn read_tombstone(
+        &self,
+        string_id: &[u8; 32],
+    ) -> Result<Option<StoredTombstone>, RocksError> {
+        let cf = self
+            .db
+            .cf_handle(CF_TOMBSTONES)
+            .ok_or(RocksError::MissingCf(CF_TOMBSTONES))?;
+        match self.db.get_cf(&cf, string_id)? {
+            None => Ok(None),
+            Some(bytes) => Ok(Some(bincode::deserialize(&bytes)?)),
+        }
+    }
+
+    /// Stream every persisted knot blob from disk in on-disk key
+    /// order, in fixed-size batches, invoking `handler` with each
+    /// batch. Returns the total number of blobs streamed.
+    ///
+    /// Designed for background rehydration: the caller sleeps between
+    /// batches (via `sleep_between_batches`) so memory pressure and
+    /// disk I/O contention stay bounded. Set `sleep_between_batches`
+    /// to `Duration::ZERO` for a full-speed one-shot pass.
+    pub fn stream_string_blobs<F>(
+        &self,
+        batch_size: usize,
+        sleep_between_batches: std::time::Duration,
+        mut handler: F,
+    ) -> Result<usize, RocksError>
+    where
+        F: FnMut(Vec<([u8; 32], Vec<u8>)>) -> Result<(), RocksError>,
+    {
+        let cf = self
+            .db
+            .cf_handle(CF_STRINGS)
+            .ok_or(RocksError::MissingCf(CF_STRINGS))?;
+        let batch_size = batch_size.max(1);
+        let mut total = 0usize;
+        let mut batch: Vec<([u8; 32], Vec<u8>)> = Vec::with_capacity(batch_size);
+        for kv in self.db.iterator_cf(&cf, IteratorMode::Start) {
+            let (k, v) = kv?;
+            if k.len() != 32 {
+                return Err(RocksError::Corrupted(format!(
+                    "strings key malformed: expected 32 bytes, got {}",
+                    k.len()
+                )));
+            }
+            let mut sid = [0u8; 32];
+            sid.copy_from_slice(&k);
+            batch.push((sid, v.into_vec()));
+            if batch.len() >= batch_size {
+                total += batch.len();
+                handler(std::mem::take(&mut batch))?;
+                if !sleep_between_batches.is_zero() {
+                    std::thread::sleep(sleep_between_batches);
+                }
+            }
+        }
+        if !batch.is_empty() {
+            total += batch.len();
+            handler(batch)?;
+        }
+        Ok(total)
     }
 
     /// Read back the head pointer for `wallet` directly from disk.
@@ -612,7 +808,11 @@ fn flush_batch(db: &DB, ops: &[PendingWrite], durable_seq: &AtomicU64) -> Result
 /// Big-endian on the seq half so that lexicographic order over RocksDB
 /// keys equals append order — recovery just walks the prefix in the
 /// natural iterator order.
-fn chain_key(wallet: &[u8], seq_in_wallet: u64) -> Vec<u8> {
+///
+/// `pub(crate)` so the sibling `rocksdb_persistence_p2b` backend uses
+/// the exact same on-disk key layout — reopen compatibility is
+/// non-negotiable.
+pub(crate) fn chain_key(wallet: &[u8], seq_in_wallet: u64) -> Vec<u8> {
     let mut k = Vec::with_capacity(wallet.len() + 8);
     k.extend_from_slice(wallet);
     k.extend_from_slice(&seq_in_wallet.to_be_bytes());
@@ -623,7 +823,7 @@ fn chain_key(wallet: &[u8], seq_in_wallet: u64) -> Vec<u8> {
 // Recovery
 // ============================================================================
 
-fn recover_from_db(db: &DB) -> Result<RecoveredState, RocksError> {
+fn recover_from_db(db: &DB, opts: &RecoveryOptions) -> Result<RecoveredState, RocksError> {
     use std::collections::HashMap;
 
     let cf_descriptors = db
@@ -720,17 +920,25 @@ fn recover_from_db(db: &DB) -> Result<RecoveredState, RocksError> {
         state.pieces.push((sid, pm));
     }
 
-    for kv in db.iterator_cf(&cf_strings, IteratorMode::Start) {
-        let (k, v) = kv?;
-        if k.len() != 32 {
-            return Err(RocksError::Corrupted(format!(
-                "strings key malformed: expected 32 bytes, got {}",
-                k.len()
-            )));
+    if opts.load_string_blobs {
+        for kv in db.iterator_cf(&cf_strings, IteratorMode::Start) {
+            let (k, v) = kv?;
+            if k.len() != 32 {
+                return Err(RocksError::Corrupted(format!(
+                    "strings key malformed: expected 32 bytes, got {}",
+                    k.len()
+                )));
+            }
+            let mut sid = [0u8; 32];
+            sid.copy_from_slice(&k);
+            state.string_blobs.push((sid, v.into_vec()));
         }
-        let mut sid = [0u8; 32];
-        sid.copy_from_slice(&k);
-        state.string_blobs.push((sid, v.into_vec()));
+    } else {
+        // Lazy path: caller (LedgerStore::open_with_recovery_lazy) will
+        // demand-load blobs later via RocksPersistence::read_string_blob
+        // or stream them in background via
+        // RocksPersistence::stream_string_blobs. We do NOT even touch the
+        // CF here so we do not pay for a linear iterator scan at boot.
     }
 
     for kv in db.iterator_cf(&cf_tombstones, IteratorMode::Start) {
@@ -1035,5 +1243,38 @@ mod tests {
         assert_eq!(chain[49][0], 49);
         // Watermark must reflect the final flush.
         assert!(recovered.durable_seq >= 50);
+    }
+
+    #[test]
+    fn enqueue_returns_queue_full_when_channel_saturated() {
+        let dir = TempDir::new().unwrap();
+        let (p, _) = RocksPersistence::open_with_queue_cap(dir.path(), 8).unwrap();
+
+        // Replace the live sender with a capacity-1 channel that is
+        // already full and whose receiver is held (not draining). This
+        // isolates the try_send → QueueFull mapping from flusher races.
+        let (tx, rx) = mpsc::sync_channel(1);
+        tx.try_send(PendingWrite {
+            seq: 0,
+            op: WriteOp::DeleteStringBlob {
+                string_id: [0u8; 32],
+            },
+        })
+        .unwrap();
+        {
+            let mut guard = p.write_tx.lock();
+            *guard = Some(tx);
+        }
+
+        let err = p
+            .enqueue(WriteOp::DeleteStringBlob {
+                string_id: [1u8; 32],
+            })
+            .unwrap_err();
+        assert!(
+            matches!(err, RocksError::QueueFull),
+            "expected QueueFull, got {err:?}"
+        );
+        drop(rx);
     }
 }

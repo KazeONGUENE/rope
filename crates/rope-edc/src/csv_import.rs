@@ -1,5 +1,5 @@
 //! RFC-4180 CSV parsing for the bulk inventory import wizard
-//! (spec v1.0 §4.5 — "bulk import via CSV or API against this exact schema").
+//! (spec v1.0 §4.5 - "bulk import via CSV or API against this exact schema").
 //!
 //! Self-contained parser: quoted fields, escaped quotes (`""`), embedded
 //! commas and newlines inside quotes, CRLF and LF line endings.

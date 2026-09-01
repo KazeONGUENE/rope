@@ -52,6 +52,7 @@
 //! | **WATCH** — blocked-signer / blocked-IP rejection | [`guard::RequestGuard::check_signer`], [`guard::RequestGuard::check_ip`] | `rope-node` RPC dispatch, `rope-explorer` |
 //! | **Boot-time dispatcher-completeness check** (new) | [`dispatcher_completeness::verify`] | `rope-node` startup, fail-closed |
 //! | **Config-drift detector** (new) | [`config_drift::compare`] | `rope-explorer` periodic background task |
+//! | **WATCH** — SSRF guard on server-issued outbound URLs (new, 2026-07-26 counter-audit) | [`ssrf_guard::validate_outbound_url`] | `rope-explorer` service/databox registration + health-check fetch |
 //! | Offline static/dynamic/anomaly scanning (pre-existing) | [`CerberAgent`] | ad hoc / CI, not request-path |
 //!
 //! DECEIVE (honeypot/decoy responses to a detected attacker) and STRIKE
@@ -78,19 +79,22 @@ pub mod guard;
 pub mod monitor;
 pub mod reputation;
 pub mod scanner;
+pub mod ssrf_guard;
 
 // Re-exports
 pub use analyzer::*;
 pub use monitor::*;
 pub use reputation::*;
 pub use scanner::*;
-// `guard`, `dispatcher_completeness`, and `config_drift` are deliberately
-// NOT glob re-exported: their symbol names (`RequestGuard`, `verify`,
-// `compare`, ...) are common enough that a glob export would risk
-// ambiguous-name collisions with `analyzer`/`monitor`/`scanner` as those
-// grow. Callers should use `rope_security::guard::RequestGuard`,
-// `rope_security::dispatcher_completeness::verify`, and
-// `rope_security::config_drift::compare` explicitly.
+// `guard`, `dispatcher_completeness`, `config_drift`, and `ssrf_guard` are
+// deliberately NOT glob re-exported: their symbol names (`RequestGuard`,
+// `verify`, `compare`, `SsrfError`, ...) are common enough that a glob
+// export would risk ambiguous-name collisions with
+// `analyzer`/`monitor`/`scanner` as those grow. Callers should use
+// `rope_security::guard::RequestGuard`,
+// `rope_security::dispatcher_completeness::verify`,
+// `rope_security::config_drift::compare`, and
+// `rope_security::ssrf_guard::validate_outbound_url` explicitly.
 
 /// Security severity levels
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]

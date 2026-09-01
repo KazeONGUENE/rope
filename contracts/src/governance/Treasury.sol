@@ -232,6 +232,21 @@ contract DatachainTreasury is AccessControl, ReentrancyGuard, Pausable {
 
     /**
      * @notice Emergency withdrawal (guardian only)
+     * @dev SECURITY (2026-07-26 counter-audit): this function is intentionally
+     *      exempt from `spendingLimit`/`dailyLimit` so a guardian can move funds
+     *      to safety fast during a live incident (e.g. a bug draining the
+     *      treasury through some other path). That flexibility previously came
+     *      with no precondition at all, meaning a single compromised
+     *      GUARDIAN_ROLE key could silently drain 100% of the treasury to an
+     *      attacker address in one transaction with no on-chain signal and no
+     *      governance visibility — inconsistent with every other guardian role
+     *      in this codebase (VoteEscrow, BridgeMinter, FATMigrationMinter),
+     *      which are all pause-only. `whenPaused` now forces the guardian to
+     *      first call `pause()` (a separate, publicly observable transaction)
+     *      before any emergency withdrawal can execute, giving governance and
+     *      any off-chain monitor (e.g. CERBER's config-drift/WATCH detectors)
+     *      a mandatory, visible signal before funds move, without removing the
+     *      guardian's ability to react without waiting on a timelock delay.
      * @param token The token address (0x0 for native)
      * @param recipient The recipient address
      * @param amount The amount to withdraw
@@ -240,7 +255,7 @@ contract DatachainTreasury is AccessControl, ReentrancyGuard, Pausable {
         address token,
         address payable recipient,
         uint256 amount
-    ) external onlyRole(GUARDIAN_ROLE) nonReentrant {
+    ) external onlyRole(GUARDIAN_ROLE) nonReentrant whenPaused {
         require(recipient != address(0), "Invalid recipient");
         
         if (token == address(0)) {

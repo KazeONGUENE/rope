@@ -27,6 +27,8 @@ members = [
     "crates/rope-edc",
     "crates/rope-idp",
     "crates/rope-engine-driver",
+    "crates/rope-addr-index",
+    "crates/rope-ecosystem-discovery",
 ]
 resolver = "2"
 
@@ -46,30 +48,55 @@ futures = "0.3"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+# preserve_order (indexmap-backed Value::Object) is REQUIRED, not cosmetic:
+# rope-node/src/rpc_signature.rs::canonical_message() re-serializes the
+# parsed `params_without_auth` Value via `serde_json::to_vec` to reconstruct
+# the EIP-191 signing bytes for Phase-2 signed destructive RPCs. Without
+# preserve_order, Value::Object is a BTreeMap and gets alphabetically
+# re-sorted on that re-serialization, producing different bytes than any
+# real (non-Rust) client signed with insertion-order JSON.stringify — every
+# Phase-2 call whose params contain an object (i.e. every rope_appendToLedger
+# call) fails signature recovery. Found 2026-07-26 while debugging DCSwap's
+# Quipu emitter Phase-2 integration; see rpc_signature.rs tests
+# `canonical_message_round_trips_object_key_order_from_json_text`.
+serde_json = { version = "1.0", features = ["preserve_order"] }
 bincode = "1.3"
 prost = "0.12"
 prost-types = "0.12"
 
 # Cryptography - Classical
-ring = "0.17"
-ed25519-dalek = { version = "2.1", features = ["serde"] }
-x25519-dalek = { version = "2.0", features = ["serde", "static_secrets"] }
-blake3 = "1.5"
-zeroize = { version = "1.7", features = ["derive"] }
+#
+# SECURITY (crypto version pinning, 2026-07-26 counter-audit): every crate in
+# this section and the "Post-Quantum" section below is pinned to an EXACT
+# version (`=x.y.z`, matching what is already resolved in Cargo.lock) rather
+# than a caret range. `cargo update` (run routinely by CI dependency bumps,
+# Dependabot, or `cargo audit`-driven remediation) is a no-op for these
+# crates unless a human deliberately edits the version bound here. Classical
+# and post-quantum primitives are exactly the dependencies where an
+# unreviewed transitive bump could silently change constant-time behaviour,
+# side-channel resistance, or key-derivation output — so they get a stricter
+# supply-chain bar than the rest of the workspace. Bumping any pin below
+# MUST be a deliberate, reviewed commit (not a side-effect of `cargo update`).
+ring = "=0.17.14"
+ed25519-dalek = { version = "=2.2.0", features = ["serde"] }
+x25519-dalek = { version = "=2.0.1", features = ["serde", "static_secrets"] }
+blake3 = "=1.8.2"
+zeroize = { version = "=1.8.2", features = ["derive"] }
 serde_bytes = "0.11"
 # secp256k1 ECDSA-with-recovery (Ethereum-compatible) — used by Phase-2
 # signed-payload destructive-RPC verifier (rope-node/src/rpc_signature.rs).
 # `k256` is RustCrypto's pure-Rust secp256k1 implementation; the same crate
 # alloy / ethers-rs / reth use in production. No `unsafe`, no FFI.
-k256 = { version = "0.13", features = ["ecdsa", "sha2", "arithmetic"] }
-sha3 = "0.10"
+k256 = { version = "=0.13.4", features = ["ecdsa", "sha2", "arithmetic"] }
+sha2 = "0.10"
+sha3 = "=0.10.9"
+hmac = "0.12"
 
-# Cryptography - Post-Quantum (NIST PQ-3)
-pqcrypto = "0.17"
-pqcrypto-dilithium = "0.5"
-pqcrypto-kyber = "0.8"
-pqcrypto-traits = "0.3"
+# Cryptography - Post-Quantum (NIST PQ-3) — see pinning rationale above.
+pqcrypto = "=0.17.0"
+pqcrypto-dilithium = "=0.5.0"
+pqcrypto-kyber = "=0.8.1"
+pqcrypto-traits = "=0.3.5"
 
 # Reed-Solomon Erasure Coding
 reed-solomon-erasure = "6.0"
@@ -150,6 +177,26 @@ lto = "thin"
 codegen-units = 1
 panic = "abort"
 strip = "symbols"
+
+# 2026-07-27 P1 — forensic / hang-dump builds. Same optimisations as
+# release but keep symbols so watchdog `addr2line` can resolve PCs.
+#
+# Build ONCE and split — two separate `cargo build` invocations produce
+# different binaries, so addr2line against a second-profile `rope.syms`
+# can give wrong line numbers for the binary that actually crashed:
+#
+#   cargo build --profile release-syms -p rope-cli
+#   objcopy --only-keep-debug target/release-syms/rope rope.syms
+#   objcopy --strip-debug --add-gnu-debuglink=rope.syms \
+#     target/release-syms/rope target/release/rope
+#   # keep previous rope + rope.syms for rollback
+#
+# Prefer building off the production VPS (or nice/taskset) — a full
+# release build on BLUE can itself provoke the hang under diagnosis.
+[profile.release-syms]
+inherits = "release"
+strip = "none"
+debug = 1
 
 [profile.bench]
 inherits = "release"

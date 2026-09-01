@@ -87,28 +87,68 @@ contract DatawalletClaimIssuer is IDatawalletClaimIssuer, AccessControl {
         address _identity,
         uint256 _topic,
         bytes memory _data
-    ) external override(IDatawalletClaimIssuer) onlyRole(ISSUER_ROLE) returns (bytes memory) {
+    ) external view override(IDatawalletClaimIssuer) onlyRole(ISSUER_ROLE) returns (bytes memory) {
         require(_supportedTopicMap[_topic], "unsupported topic");
-        bytes32 dataHash = keccak256(abi.encode(_identity, _topic, _data));
-        return abi.encodePacked(dataHash);
+        // SECURITY (2026-07-26 counter-audit fix, finding #1 "forgeable
+        // signatures + broken revocation"): this is a *digest*, not a
+        // signature — a smart contract cannot hold or use `signingKey`'s
+        // private key, so it can never itself produce a real ECDSA
+        // signature. The caller (Datawallet+'s backend/HSM, which does
+        // hold the private key) must EIP-191-sign this exact digest
+        // off-chain and pass the resulting 65-byte signature into
+        // {issueClaimToIdentity}. Anyone with view access can compute
+        // this value themselves (it is not secret) — it was never safe
+        // to accept it back as a "signature", which is exactly the bug
+        // this fix closes in {isClaimValid}.
+        return abi.encodePacked(claimDigest(_identity, _topic, _data));
+    }
+
+    /// @notice Deterministic claim id / signing digest. Intentionally has
+    ///         NO timestamp or nonce component: {issueClaimToIdentity} and
+    ///         {isClaimValid} must derive the identical id from the same
+    ///         (identity, topic, data) tuple so that {revokeClaim} — keyed
+    ///         on this same id — actually revokes the claim it targets.
+    ///         Before this fix, `issueClaimToIdentity` claimed
+    ///         `keccak256(..., block.timestamp)` while `isClaimValid`
+    ///         independently recomputed `keccak256(..., uint256(0))`; the
+    ///         two values could only coincide if a claim were issued in
+    ///         block 0, so `revokeClaim` was a silent no-op against every
+    ///         real claim.
+    function claimDigest(
+        address _identity,
+        uint256 _topic,
+        bytes memory _data
+    ) public pure returns (bytes32) {
+        return keccak256(abi.encode(_identity, _topic, _data));
     }
 
     /// @inheritdoc IDatawalletClaimIssuer
     function issueClaimToIdentity(
         address _identity,
         uint256 _topic,
-        bytes memory _data
+        bytes memory _data,
+        bytes memory _signature
     ) external override(IDatawalletClaimIssuer) onlyRole(ISSUER_ROLE) returns (bytes32 claimId) {
         require(_identity != address(0), "identity = 0");
         require(_supportedTopicMap[_topic], "unsupported topic");
 
-        claimId = keccak256(abi.encode(_identity, _topic, _data, block.timestamp));
+        claimId = claimDigest(_identity, _topic, _data);
+        require(!revokedClaims[claimId], "claim id revoked");
 
-        bytes32 dataHash = keccak256(abi.encode(_identity, _topic, _data));
-        bytes memory sig = abi.encodePacked(dataHash);
+        // SECURITY (2026-07-26 counter-audit fix): require a real,
+        // signingKey-recoverable ECDSA signature before this claim is
+        // written to the identity. Previously this function fabricated
+        // its own "signature" on-chain (`abi.encodePacked(dataHash)`),
+        // which meant `ISSUER_ROLE` alone — not possession of
+        // `signingKey`'s private key — was the entire trust boundary, and
+        // `isClaimValid` additionally accepted that same fabricated value
+        // directly from ANY caller with no role check at all (see the
+        // `_sig.length == 32` branch removed from {isClaimValid} below).
+        bytes32 ethHash = claimId.toEthSignedMessageHash();
+        require(ethHash.recover(_signature) == signingKey, "invalid claim signature");
 
         IIdentity identity = IIdentity(_identity);
-        identity.addClaim(_topic, 1, address(this), sig, _data, "");
+        identity.addClaim(_topic, 1, address(this), _signature, _data, "");
 
         emit ClaimIssued(_identity, _topic, claimId, _data, block.timestamp);
     }
@@ -133,22 +173,21 @@ contract DatawalletClaimIssuer is IDatawalletClaimIssuer, AccessControl {
     ) external view override(IDatawalletClaimIssuer) returns (bool) {
         if (!_supportedTopicMap[_claimTopic]) return false;
 
-        bytes32 dataHash = keccak256(abi.encode(address(_identity), _claimTopic, _data));
-        bytes32 claimId = keccak256(abi.encode(address(_identity), _claimTopic, _data, uint256(0)));
-
+        bytes32 claimId = claimDigest(address(_identity), _claimTopic, _data);
         if (revokedClaims[claimId]) return false;
 
-        if (_sig.length == 32) {
-            return bytes32(_sig) == dataHash;
-        }
-
-        if (_sig.length == 65) {
-            bytes32 ethHash = dataHash.toEthSignedMessageHash();
-            address recovered = ethHash.recover(_sig);
-            return recovered == signingKey;
-        }
-
-        return false;
+        // SECURITY (2026-07-26 counter-audit fix): the previous
+        // `_sig.length == 32` branch accepted `bytes32(_sig) == dataHash`
+        // as proof of validity — i.e. it accepted the *unsigned digest
+        // itself* as a "signature". Anyone can compute
+        // `keccak256(abi.encode(identity, topic, data))` without ever
+        // touching `signingKey`'s private key, so that branch let ANY
+        // caller manufacture an "authentic" claim for ANY identity/topic,
+        // completely bypassing issuer control. Only a real 65-byte
+        // ECDSA signature recoverable to `signingKey` is accepted now.
+        if (_sig.length != 65) return false;
+        bytes32 ethHash = claimId.toEthSignedMessageHash();
+        return ethHash.recover(_sig) == signingKey;
     }
 
     /// @inheritdoc IDatawalletClaimIssuer

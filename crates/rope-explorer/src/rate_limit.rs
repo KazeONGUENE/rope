@@ -4,12 +4,12 @@
 //! Added 2026-07-25 (finding H4 of
 //! `docs/SECURITY_AUDIT_2026-07-25_FULL_WORKSPACE.md`). Before this
 //! module, `rope-explorer` had NO rate limiting anywhere in its request
-//! path — every one of its ~100 public `/api/v1/*` routes (including
+//! path - every one of its ~100 public `/api/v1/*` routes (including
 //! expensive ones backed by Postgres queries, upstream HTTP calls, or
 //! full-manifest JSON serialization) could be hammered by a single
 //! client with no server-side throttling at all, only whatever nginx
 //! happens to enforce in front of it (which, per the audit, is
-//! inconsistent across vhosts — see finding H8).
+//! inconsistent across vhosts - see finding H8).
 //!
 //! # Trust model (mirrors `rope_auth::effective_client_ip` in `rope-node`)
 //!
@@ -17,7 +17,7 @@
 //! terminates the internet-facing connection and opens its own loopback
 //! connection to this process. So the raw TCP peer address
 //! (`ConnectInfo<SocketAddr>`) is nginx's own address for nearly all
-//! traffic — keying a limiter on that alone would collapse every
+//! traffic - keying a limiter on that alone would collapse every
 //! distinct internet client into one shared bucket. Instead:
 //!
 //! - If the TCP peer is loopback AND `X-Forwarded-For`/`X-Real-IP` is
@@ -26,7 +26,7 @@
 //!   they would have to BE the loopback peer, which they cannot be
 //!   without already having a foothold on the box.
 //! - Otherwise, key on the raw peer address. A direct (non-proxied)
-//!   caller who forges the header gains nothing — their real source IP
+//!   caller who forges the header gains nothing - their real source IP
 //!   is used instead.
 //!
 //! # Bounding memory
@@ -47,7 +47,7 @@ use tokio::sync::RwLock;
 /// Requests allowed per second, sustained, per effective client IP.
 /// Overridable via `DCSCAN_RATE_LIMIT_RPS` for operator tuning (e.g. to
 /// raise the budget for a known, high-traffic integration partner IP
-/// range at the nginx layer instead — this is a blunt, uniform limit by
+/// range at the nginx layer instead - this is a blunt, uniform limit by
 /// design, not a per-route policy engine).
 const DEFAULT_REQUESTS_PER_SECOND: u32 = 20;
 /// Additional burst allowance on top of the sustained rate, so a normal
@@ -184,7 +184,7 @@ pub async fn rate_limit_middleware(
             Json(serde_json::json!({
                 "success": false,
                 "error": "rate_limited",
-                "message": "Too many requests — please slow down and retry shortly."
+                "message": "Too many requests - please slow down and retry shortly."
             })),
         )
             .into_response();

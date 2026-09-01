@@ -1,10 +1,10 @@
-//! Quantitative analytics engine — spec v2.0 §6.
+//! Quantitative analytics engine - spec v2.0 §6.
 //!
 //! Every known family of data-analytics methods relevant to telemetry,
 //! predictive maintenance, and environmental monitoring is implemented
 //! here as a deterministic computation. The AI layer (`ai.rs`) NEVER
 //! invents numbers: it selects methods from this catalogue, runs them,
-//! and narrates the results — every figure in an AI answer traces back
+//! and narrates the results - every figure in an AI answer traces back
 //! to a function in this module applied to on-chain-anchored readings.
 //!
 //! Catalogue:
@@ -413,7 +413,7 @@ pub fn zscore_anomalies(series: &[Sample], threshold: f64) -> Vec<Anomaly> {
         .collect()
 }
 
-/// Modified z-score using the median absolute deviation — robust to the
+/// Modified z-score using the median absolute deviation - robust to the
 /// outliers it is hunting. Conventional threshold 3.5.
 pub fn mad_anomalies(series: &[Sample], threshold: f64) -> Vec<Anomaly> {
     let values: Vec<f64> = series.iter().map(|(_, v)| *v).collect();
@@ -1284,7 +1284,7 @@ mod tests {
         s.extend((40..80).map(|i| (i, 14.0 + (i % 3) as f64 * 0.1)));
         let drifts = cusum_drift(&s, 0.5, 4.0);
         // Against the global mean, the pre-shift segment registers as a
-        // downward excursion and the post-shift segment as upward — both
+        // downward excursion and the post-shift segment as upward - both
         // must be present, and the upward one must land after the shift.
         assert!(!drifts.is_empty());
         let upward: Vec<_> = drifts.iter().filter(|d| d.direction == "upward").collect();

@@ -235,7 +235,7 @@ enum Commands {
     /// Examples:
     ///   rope genesis                        Create genesis with 21 validators
     ///   rope genesis -v 7                   Create with 7 validators
-    ///   rope genesis --chain-id 314159     Use custom chain ID
+    ///   rope genesis --chain-id 271828     Datachain Rope mainnet chain ID
     #[command(after_help = "Genesis file defines the initial network state")]
     Genesis {
         /// Number of initial validators (typically 7, 13, or 21 for BFT)

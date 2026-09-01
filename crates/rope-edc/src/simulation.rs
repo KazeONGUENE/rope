@@ -1,4 +1,4 @@
-//! Simulation / sandbox mode — spec v1.0 §6.3 ("A sandbox mode, served
+//! Simulation / sandbox mode - spec v1.0 §6.3 ("A sandbox mode, served
 //! from historical or synthetic data, lets a regulator or investor
 //! validate their integration before it touches the live stream") plus
 //! the community-testing extension in spec v2.0 §9.
@@ -8,7 +8,7 @@
 //! 1. **Simulation projects** (`Project.simulation == true`): a community
 //!    tester walks the full nine-step wizard, deploys, ingests synthetic
 //!    telemetry, exercises the AI analytics, grants, keys, and SSE
-//!    streams — without KYB, without cloud provisioning, and without ever
+//!    streams - without KYB, without cloud provisioning, and without ever
 //!    appearing in the real dcscan.io directory. Ready-made archetype
 //!    templates populate a realistic inventory in one call.
 //!
@@ -22,7 +22,7 @@
 //!
 //! Everything here is a pure function of `(project, sensor, timestamp)`.
 //! The noise source is blake3-based, so two nodes (or two test runs)
-//! generate byte-identical series — no hidden RNG state, fully
+//! generate byte-identical series - no hidden RNG state, fully
 //! reproducible, air-gap friendly.
 
 use crate::types::{
@@ -73,11 +73,11 @@ fn model_for(sensor: &SensorRecord) -> SensorModel {
     }
 }
 
-/// Synthetic value for `sensor` at `ts` — deterministic, seeded from the
+/// Synthetic value for `sensor` at `ts` - deterministic, seeded from the
 /// project + sensor ids. Composition:
 ///
 /// * daily sinusoidal seasonality (phase differs per sensor),
-/// * slow linear drift (positive or negative per sensor — gives the
+/// * slow linear drift (positive or negative per sensor - gives the
 ///   degradation-slope / RUL analytics something real to detect),
 /// * blake3 pseudo-noise at 10 % of the optimum half-width,
 /// * ~2 % of readings are injected excursions beyond the warning band so
@@ -162,7 +162,7 @@ pub fn synth_history(
     out
 }
 
-/// One synthetic reading per sensor at `ts` — the sandbox live-stream
+/// One synthetic reading per sensor at `ts` - the sandbox live-stream
 /// tick used by the SSE path for sandbox keys.
 pub fn synth_tick(project: &Project, ts: i64) -> Vec<TelemetryReading> {
     project
@@ -174,7 +174,7 @@ pub fn synth_tick(project: &Project, ts: i64) -> Vec<TelemetryReading> {
 }
 
 // ---------------------------------------------------------------------------
-// Archetype templates — one-call realistic inventories for community testing
+// Archetype templates - one-call realistic inventories for community testing
 // ---------------------------------------------------------------------------
 
 /// Template identifiers accepted by `POST /projects { template: … }`.
@@ -249,7 +249,7 @@ pub fn apply_template(project: &mut Project, template: &str) -> bool {
                 let aid = format!("esc-{i:03}");
                 project.inventory.assets.push(asset(
                     &aid,
-                    &format!("Escalator {i} — Den Haag Centraal"),
+                    &format!("Escalator {i} - Den Haag Centraal"),
                     "Cities",
                     "escalator",
                     [52.0705 + i as f64 * 0.0002, 4.3007],
@@ -359,7 +359,7 @@ pub fn apply_template(project: &mut Project, template: &str) -> bool {
 
 /// Every `EDC_SIM_TICK_SECS` (default 60 s, min 5 s), tie one synthetic
 /// reading per sensor into the live store of every Live simulation
-/// project — so the console dashboard, dossier, and SSE streams of a
+/// project - so the console dashboard, dossier, and SSE streams of a
 /// sandbox project keep moving exactly like a real deployment's.
 /// Live (non-simulation) projects are never touched.
 pub async fn run_simulation_ticker(registry: std::sync::Arc<crate::registry::Registry>) {

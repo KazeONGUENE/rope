@@ -1,0 +1,43 @@
+== baseline v4 daemon start 2026-08-12T13:41:44Z pid=62557 out=/Users/kazealphonseonguene/Downloads/DATACHAIN ROPE/datachain-rope/deploy/p2b-baseline-v3-20260812T133941Z target=https://erpc.datachain.network samples=30 interval=60s ==
+[2026-08-12T13:41:44Z] sample 1/30 OK http=200 elapsed=0.150s head_guard_hold[max=?, mean=?]
+[2026-08-12T13:42:59Z] sample 2/30 FAIL rc=28 elapsed=15.023s stderr=curl: (28) Operation timed out after 15005 milliseconds with 0 bytes received
+
+[2026-08-12T13:43:59Z] sample 3/30 OK http=200 elapsed=0.176s head_guard_hold[max=?, mean=?]
+[2026-08-12T13:44:59Z] sample 4/30 OK http=200 elapsed=0.224s head_guard_hold[max=?, mean=?]
+[2026-08-12T13:46:00Z] sample 5/30 OK http=200 elapsed=0.321s head_guard_hold[max=?, mean=?]
+[2026-08-12T13:47:11Z] sample 6/30 PARSE-FAIL elapsed=11.447s err=Expecting value: line 1 column 1 (char 0) body_head=<html>
+<head><title>502 Bad Gateway</title></head>
+<body>
+<center><h1>502 Bad Gateway</h1></cente
+[2026-08-12T13:48:21Z] sample 7/30 OK http=200 elapsed=9.958s head_guard_hold[max=?, mean=?]
+[2026-08-12T13:49:21Z] sample 8/30 OK http=200 elapsed=0.200s head_guard_hold[max=?, mean=?]
+[2026-08-12T13:50:21Z] sample 9/30 OK http=200 elapsed=0.161s head_guard_hold[max=?, mean=?]
+[2026-08-12T13:51:29Z] sample 10/30 OK http=200 elapsed=7.948s head_guard_hold[max=?, mean=?]
+[2026-08-12T13:52:30Z] sample 11/30 OK http=200 elapsed=0.157s head_guard_hold[max=?, mean=?]
+[2026-08-12T13:53:30Z] sample 12/30 OK http=200 elapsed=0.222s head_guard_hold[max=?, mean=?]
+[2026-08-12T13:54:45Z] sample 13/30 FAIL rc=28 elapsed=15.027s stderr=curl: (28) Operation timed out after 15006 milliseconds with 0 bytes received
+
+[2026-08-12T13:55:52Z] sample 14/30 OK http=200 elapsed=6.715s head_guard_hold[max=?, mean=?]
+[2026-08-12T13:56:52Z] sample 15/30 OK http=200 elapsed=0.162s head_guard_hold[max=?, mean=?]
+[2026-08-12T13:57:52Z] sample 16/30 OK http=200 elapsed=0.425s head_guard_hold[max=?, mean=?]
+[2026-08-12T13:58:52Z] sample 17/30 OK http=200 elapsed=0.145s head_guard_hold[max=?, mean=?]
+[2026-08-12T13:59:52Z] sample 18/30 OK http=200 elapsed=0.203s head_guard_hold[max=?, mean=?]
+[2026-08-12T14:00:54Z] sample 19/30 OK http=200 elapsed=1.907s head_guard_hold[max=?, mean=?]
+[2026-08-12T14:02:09Z] sample 20/30 FAIL rc=28 elapsed=15.026s stderr=curl: (28) Operation timed out after 15002 milliseconds with 0 bytes received
+
+[2026-08-12T14:03:10Z] sample 21/30 OK http=200 elapsed=0.184s head_guard_hold[max=?, mean=?]
+[2026-08-12T14:04:22Z] sample 22/30 OK http=200 elapsed=12.177s head_guard_hold[max=?, mean=?]
+[2026-08-12T14:05:33Z] sample 23/30 OK http=200 elapsed=11.094s head_guard_hold[max=?, mean=?]
+[2026-08-12T14:06:34Z] sample 24/30 OK http=200 elapsed=0.656s head_guard_hold[max=?, mean=?]
+[2026-08-12T14:07:49Z] sample 25/30 FAIL rc=28 elapsed=15.023s stderr=curl: (28) Operation timed out after 15005 milliseconds with 0 bytes received
+
+[2026-08-12T14:08:49Z] sample 26/30 PARSE-FAIL elapsed=0.147s err=Expecting value: line 1 column 1 (char 0) body_head=<html>
+<head><title>502 Bad Gateway</title></head>
+<body>
+<center><h1>502 Bad Gateway</h1></cente
+[2026-08-12T14:09:52Z] sample 27/30 OK http=200 elapsed=3.375s head_guard_hold[max=?, mean=?]
+[2026-08-12T14:11:07Z] sample 28/30 FAIL rc=28 elapsed=15.024s stderr=curl: (28) Operation timed out after 15001 milliseconds with 0 bytes received
+
+[2026-08-12T14:12:07Z] sample 29/30 OK http=200 elapsed=0.153s head_guard_hold[max=?, mean=?]
+[2026-08-12T14:13:08Z] sample 30/30 OK http=200 elapsed=0.613s head_guard_hold[max=?, mean=?]
+== baseline v4 daemon done 2026-08-12T14:13:08Z successes=23/30 failures=7 total_elapsed=1884.1s summary=/Users/kazealphonseonguene/Downloads/DATACHAIN ROPE/datachain-rope/deploy/p2b-baseline-v3-20260812T133941Z/summary.json ==

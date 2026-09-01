@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/assets/logo.svg">
+    <title>Admin Tokens - Self-service | DC Explorer</title>
+    <meta name="description" content="Self-service issuance of Datachain Rope admin tokens. Email-bound, 7-day TTL, auto-renewed. Replaces the legacy static environment-variable admin gates.">
+    <meta property="og:title" content="Datachain Rope - Admin Tokens (self-service)">
+    <meta property="og:description" content="Request a project-admin or node-admin token by email. Bound to a single email, 7-day TTL, auto-renewed while active.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://dcscan.io/admin-tokens">
+    <meta property="og:image" content="https://dcscan.io/assets/logo.svg">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Datachain Rope - Admin Tokens (self-service)">
+    <meta name="twitter:description" content="Email-bound, 7-day-TTL admin tokens for Datachain Rope. Auto-renewed. No shared secrets.">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root { --black: #000; --white: #fff; --gray-50: #fafafa; --gray-100: #f4f4f5; --gray-200: #e4e4e7; --gray-300: #d4d4d8; --gray-400: #a1a1aa; --gray-500: #71717a; --gray-600: #52525b; --gray-700: #3f3f46; --gray-800: #27272a; --gray-900: #18181b; --success: #22c55e; --info: #3b82f6; --warning: #f59e0b; --danger: #ef4444; --font-sans: 'Inter', sans-serif; --font-mono: 'JetBrains Mono', monospace; --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: var(--font-sans); background: var(--gray-50); color: var(--gray-900); font-size: 14px; }
+        a { color: var(--info); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 0 1rem; }
+        .top-bar { background: var(--gray-900); color: var(--white); padding: 0.5rem 0; font-size: 12px; }
+        .top-bar-content { display: flex; justify-content: space-between; }
+        .top-bar-left { display: flex; gap: 1.5rem; }
+        .top-bar-item { display: flex; gap: 0.375rem; color: #a1a1aa; }
+        .top-bar-value { color: var(--white); font-weight: 500; }
+        .top-bar-change.pos { color: #86efac; }
+        .top-bar-change.neg { color: #fca5a5; }
+        header { background: var(--white); border-bottom: 1px solid var(--gray-200); position: sticky; top: 0; z-index: 100; }
+        .header-container { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+        .logo { display: flex; align-items: center; gap: 0.625rem; font-weight: 450; font-size: 1rem; color: #000; line-height: 1.2; }
+        .logo-text { display: flex; flex-direction: column; }
+        .logo-icon { width: 32px; height: 32px; }
+        .main-nav { display: flex; align-items: center; gap: 0.25rem; }
+        .nav-item { position: relative; }
+        .nav-link { display: flex; align-items: center; gap: 0.375rem; padding: 0.5rem 0.875rem; color: var(--gray-600); font-weight: 500; font-size: 13px; border-radius: var(--radius-md); transition: all 0.15s; }
+        .nav-link:hover { color: var(--black); background: var(--gray-100); text-decoration: none; }
+        .nav-link.active { background: var(--gray-100); color: var(--black); }
+        .nav-link i { font-size: 11px; }
+        .nav-dropdown { position: absolute; top: 100%; left: 0; min-width: 220px; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); padding: 0.5rem; opacity: 0; visibility: hidden; transform: translateY(10px); transition: all 0.2s; z-index: 200; }
+        .nav-item:hover .nav-dropdown { opacity: 1; visibility: visible; transform: translateY(0); }
+        .dropdown-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.625rem 0.75rem; color: var(--gray-700); border-radius: var(--radius-sm); font-size: 13px; }
+        .dropdown-item:hover { background: var(--gray-100); color: var(--black); text-decoration: none; }
+        .header-actions { display: flex; align-items: center; gap: 0.75rem; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.375rem; padding: 0.5rem 1rem; font-size: 13px; font-weight: 600; border-radius: var(--radius-md); border: none; cursor: pointer; transition: all 0.15s; font-family: inherit; }
+        .btn-secondary { background: var(--gray-100); color: var(--gray-700); }
+        .btn-secondary:hover { background: var(--gray-200); text-decoration: none; }
+        .btn-primary { background: var(--black); color: var(--white); }
+        .btn-primary:hover { background: var(--gray-800); text-decoration: none; }
+        .btn-danger { background: #fef2f2; color: #991b1b; }
+        .btn-danger:hover { background: #fee2e2; text-decoration: none; }
+        .btn i { font-size: 12px; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .page-header { background: linear-gradient(135deg, var(--gray-900), var(--gray-800)); color: var(--white); padding: 3rem 0; }
+        .page-header .breadcrumb { color: #a1a1aa; font-size: 12px; margin-bottom: 0.5rem; }
+        .page-header .breadcrumb a { color: #d4d4d8; }
+        .page-title { font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; }
+        .page-subtitle { color: #a1a1aa; max-width: 780px; margin-bottom: 1rem; }
+        .page-meta { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
+        .badge-live { background: #dcfce7; color: #166534; padding: 0.25rem 0.625rem; border-radius: 999px; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 0.375rem; }
+        .badge-live::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #22c55e; }
+        .badge-version { background: rgba(255,255,255,0.1); color: var(--white); padding: 0.25rem 0.625rem; border-radius: 999px; font-size: 11px; font-weight: 600; font-family: var(--font-mono); }
+        .badge-chain { background: rgba(59,130,246,0.15); color: #93c5fd; padding: 0.25rem 0.625rem; border-radius: 999px; font-size: 11px; font-weight: 600; font-family: var(--font-mono); }
+        .content-grid { display: grid; grid-template-columns: 280px 1fr; gap: 2rem; margin-top: 2rem; }
+        .sidebar { position: sticky; top: 80px; height: fit-content; max-height: calc(100vh - 96px); overflow-y: auto; }
+        .sidebar-section { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 1rem; margin-bottom: 1rem; }
+        .sidebar-title { font-weight: 600; font-size: 12px; text-transform: uppercase; color: var(--gray-500); margin-bottom: 0.75rem; letter-spacing: 0.05em; }
+        .sidebar-link { display: block; padding: 0.5rem 0.75rem; color: var(--gray-600); border-radius: var(--radius-md); font-size: 13px; margin-bottom: 0.125rem; }
+        .sidebar-link:hover { background: var(--gray-100); color: var(--black); text-decoration: none; }
+        .api-section { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 1.5rem; margin-bottom: 1.5rem; scroll-margin-top: 80px; }
+        .section-title { font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; }
+        .section-title .section-num { color: var(--gray-400); font-family: var(--font-mono); font-weight: 500; font-size: 1rem; }
+        .section-subtitle { font-size: 1rem; font-weight: 600; margin: 1.25rem 0 0.5rem; color: var(--gray-800); }
+        .section-desc { color: var(--gray-700); line-height: 1.6; margin-bottom: 0.75rem; }
+        p { line-height: 1.6; color: var(--gray-700); margin-bottom: 0.75rem; }
+        p:last-child { margin-bottom: 0; }
+        ul, ol { margin: 0 0 0.75rem 1.25rem; color: var(--gray-700); line-height: 1.6; }
+        ul li, ol li { margin-bottom: 0.25rem; }
+        strong { color: var(--gray-900); font-weight: 600; }
+        code { font-family: var(--font-mono); font-size: 12px; background: var(--gray-100); padding: 0.125rem 0.375rem; border-radius: 4px; color: var(--gray-800); word-break: break-all; }
+        .code-block { background: var(--gray-900); color: #e5e7eb; border-radius: var(--radius-md); padding: 1rem; font-family: var(--font-mono); font-size: 12px; overflow-x: auto; margin: 0.75rem 0; line-height: 1.6; white-space: pre; }
+        .code-block .keyword { color: #f472b6; }
+        .code-block .string { color: #a5d6ff; }
+        .code-block .comment { color: #8b949e; }
+        .code-block .number { color: #d2a8ff; }
+        table.data { width: 100%; border-collapse: collapse; font-size: 13px; margin: 0.75rem 0; }
+        table.data th { text-align: left; font-size: 11px; text-transform: uppercase; color: var(--gray-500); padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--gray-200); letter-spacing: 0.03em; font-weight: 600; background: var(--gray-50); }
+        table.data td { padding: 0.625rem 0.75rem; border-bottom: 1px solid var(--gray-100); vertical-align: top; color: var(--gray-700); }
+        table.data td.mono, table.data td code { font-family: var(--font-mono); font-size: 12px; }
+        table.data tr:last-child td { border-bottom: none; }
+        /* Flat text-block callouts.
+           Left-border accents on text blocks are a forbidden stylistic
+           effect across Datachain workspaces (see .cursor rule
+           ban-left-border-text-block-callouts). Semantic status is
+           carried by the background tint + icon color on the title
+           only. */
+        .callout { background: #eff6ff; padding: 0.875rem 1rem; border-radius: var(--radius-md); margin: 0.75rem 0; }
+        .callout-title { font-weight: 600; color: #1e40af; font-size: 13px; margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.375rem; }
+        .callout p { color: var(--gray-700); margin-bottom: 0; font-size: 13px; }
+        .callout.warn { background: #fffbeb; }
+        .callout.warn .callout-title { color: #92400e; }
+        .callout.ok { background: #f0fdf4; }
+        .callout.ok .callout-title { color: #166534; }
+        .callout.danger { background: #fef2f2; }
+        .callout.danger .callout-title { color: #991b1b; }
+        .cta-row { display: flex; gap: 0.75rem; margin-top: 1rem; flex-wrap: wrap; }
+        .cta-row .btn { padding: 0.625rem 1.25rem; }
+        footer { background: var(--white); border-top: 1px solid var(--gray-200); padding: 2rem 0; margin-top: 3rem; }
+        .footer-content { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+        .footer-brand { display: flex; align-items: center; gap: 0.5rem; color: var(--gray-500); font-size: 13px; }
+        .footer-links { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+        .footer-links a { font-size: 12px; color: var(--gray-500); }
+        .footer-links a:hover { color: var(--black); text-decoration: none; }
+        hr { border: 0; border-top: 1px solid var(--gray-200); margin: 1.25rem 0; }
+        @media (max-width: 1024px) { .content-grid { grid-template-columns: 1fr; } .sidebar { position: static; max-height: none; } }
+        @media (max-width: 640px) { .page-title { font-size: 1.5rem; } .top-bar-left { gap: 0.75rem; } .main-nav { display: none; } .header-container { justify-content: space-between; } }
+
+        /* --------- Self-service forms --------- */
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.875rem; }
+        .form-grid.full { grid-template-columns: 1fr; }
+        .form-field { display: flex; flex-direction: column; gap: 0.3125rem; }
+        .form-field.span-2 { grid-column: 1 / -1; }
+        .form-label { font-size: 12px; font-weight: 600; color: var(--gray-700); }
+        .form-label .req { color: var(--danger); }
+        .form-hint { font-size: 11px; color: var(--gray-500); }
+        .form-input, .form-select, .form-textarea { width: 100%; padding: 0.5rem 0.625rem; font-size: 13px; font-family: inherit; color: var(--gray-900); background: var(--white); border: 1px solid var(--gray-300); border-radius: var(--radius-sm); outline: none; transition: border-color 0.15s; }
+        .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--info); box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+        .form-textarea { resize: vertical; min-height: 100px; font-family: var(--font-sans); line-height: 1.5; }
+        .form-honeypot { position: absolute; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
+        .form-actions { display: flex; justify-content: flex-end; gap: 0.625rem; margin-top: 1rem; }
+        .form-status { font-size: 12px; margin-top: 0.75rem; padding: 0.625rem 0.75rem; border-radius: var(--radius-sm); display: none; word-break: break-word; }
+        .form-status.info { display: block; background: #eff6ff; color: #1e40af; }
+        .form-status.ok { display: block; background: #f0fdf4; color: #166534; }
+        .form-status.err { display: block; background: #fef2f2; color: #991b1b; }
+        .form-status code { background: rgba(0,0,0,0.06); }
+        .active-list { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+        .active-list li { background: var(--gray-50); border-radius: var(--radius-sm); padding: 0.625rem 0.75rem; display: grid; grid-template-columns: auto 1fr auto; gap: 0.5rem 1rem; align-items: center; font-size: 12px; }
+        .active-list .role-pill { font-family: var(--font-mono); font-size: 10px; font-weight: 700; padding: 0.125rem 0.5rem; border-radius: 999px; background: var(--gray-200); color: var(--gray-700); text-transform: uppercase; letter-spacing: 0.03em; }
+        .active-list .role-pill.project_admin { background: #dbeafe; color: #1e40af; }
+        .active-list .role-pill.node_admin { background: #f0fdf4; color: #166534; }
+        .active-list .role-pill.multi_role { background: #ede9fe; color: #5b21b6; }
+        .active-list .active-email { font-weight: 600; color: var(--gray-800); }
+        .active-list .active-meta { font-family: var(--font-mono); font-size: 10.5px; color: var(--gray-500); }
+        .role-badge { display: inline-block; font-family: var(--font-mono); font-size: 10px; font-weight: 700; padding: 0.125rem 0.5rem; border-radius: 999px; background: var(--gray-200); color: var(--gray-700); text-transform: uppercase; letter-spacing: 0.03em; margin-left: 0.25rem; }
+        .role-badge.project_admin { background: #dbeafe; color: #1e40af; }
+        .role-badge.node_admin { background: #f0fdf4; color: #166534; }
+        .role-badge.multi_role { background: #ede9fe; color: #5b21b6; }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <div class="container top-bar-container top-bar-content">
+            <div class="top-bar-left">
+                <div class="top-bar-item"><span>DC FAT Price:</span><span class="top-bar-value" id="topbar-fat-price">-</span><span class="top-bar-change" id="topbar-fat-change"></span></div>
+                <div class="top-bar-item"><span>Gas:</span><span class="top-bar-value" id="topbar-gas">-</span></div>
+            </div>
+        </div>
+    </div>
+    <header>
+        <div class="container header-container">
+            <a href="/" class="logo">
+                <div class="logo-icon"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 100%; height: 100%; object-fit: contain;"></div>
+                <span class="logo-text"><span>DC</span><span>Explorer</span></span>
+            </a>
+            <nav class="main-nav">
+                <div class="nav-item"><a href="#" class="nav-link">Smartchain <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/strings" class="dropdown-item">View Strings</a>
+                        <a href="/txs" class="dropdown-item">Transactions</a>
+                        <a href="/txsPending" class="dropdown-item">Pending Txns</a>
+                        <a href="/accounts" class="dropdown-item">Top Accounts</a>
+                        <a href="/contracts" class="dropdown-item">Verified Contracts</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">AI Agents <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/agents" class="dropdown-item">All Agents</a>
+                        <a href="/testimonies" class="dropdown-item">Testimonies</a>
+                        <a href="/validations" class="dropdown-item">Validators</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">Tokens <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/tokens" class="dropdown-item">DCR-20 Tokens</a>
+                        <a href="/core/fat" class="dropdown-item">Native DC FAT</a>
+                        <a href="/tokentxns" class="dropdown-item">Token Transfers</a>
+                        <a href="/vote" class="dropdown-item">Vote</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">Network <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/ecosystem" class="dropdown-item">Ecosystem Projects</a>
+                        <a href="/vote" class="dropdown-item">Governance &amp; Voting</a>
+                        <a href="/defi" class="dropdown-item">DeFi</a>
+                        <a href="/supply" class="dropdown-item">Supply Reconciliation</a>
+                        <a href="/validators" class="dropdown-item">Validators</a>
+                        <a href="/databases" class="dropdown-item">Databases</a>
+                        <a href="/databoxes" class="dropdown-item">Global Databox Network</a>
+                        <a href="/stats" class="dropdown-item">Charts &amp; Stats</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link active">More <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/apis" class="dropdown-item">API Docs</a>
+                        <a href="/apis/exchange-integration" class="dropdown-item">Exchange Integration</a>
+                        <a href="/admin-tokens" class="dropdown-item">Admin Tokens</a>
+                        <a href="/verify" class="dropdown-item">Verify Contract</a>
+                        <a href="/create-wallet" class="dropdown-item">Create Wallet</a>
+                        <a href="/faucet" class="dropdown-item">Faucet</a>
+                        <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank" rel="noopener">GitHub</a>
+                        <a href="/partners" class="dropdown-item">Partners</a>
+                        <a href="/contact" class="dropdown-item">Contact</a>
+                    </div>
+                </div>
+            </nav>
+            <div class="header-actions"><button class="btn btn-secondary"><i class="fa-solid fa-wallet"></i> Connect</button></div>
+        </div>
+    </header>
+
+    <div class="page-header">
+        <div class="container">
+            <div class="breadcrumb"><a href="/">DC Explorer</a> &nbsp;/&nbsp; Admin Tokens</div>
+            <h1 class="page-title">Admin Tokens - Self-service issuance</h1>
+            <p class="page-subtitle">Email-bound, 7-day-TTL admin tokens for the Datachain Rope operator surface. Replaces the legacy static <code>PROJECTS_ADMIN_TOKEN</code> / <code>NODE_REQUESTS_ADMIN_TOKEN</code> / <code>ECOSYSTEM_ADMIN_TOKEN</code> / <code>INTEGRATION_REQUESTS_ADMIN_TOKEN</code> environment variables. Tokens auto-renew if used before expiry.</p>
+            <div class="page-meta">
+                <span class="badge-live">Live</span>
+                <span class="badge-version">v1.0 &middot; 2026-08-14</span>
+                <span class="badge-chain">chainId 271828</span>
+                <span class="badge-chain">7-day TTL</span>
+            </div>
+            <div class="cta-row">
+                <a href="#request" class="btn btn-primary"><i class="fa-solid fa-envelope"></i> Request a token</a>
+                <a href="#revoke" class="btn btn-secondary"><i class="fa-solid fa-ban"></i> Revoke a token</a>
+                <a href="#audit" class="btn btn-secondary"><i class="fa-solid fa-list-check"></i> View active tokens</a>
+            </div>
+        </div>
+    </div>
+
+    <main class="container">
+        <div class="content-grid">
+            <aside class="sidebar">
+                <div class="sidebar-section">
+                    <div class="sidebar-title">Overview</div>
+                    <a href="#what" class="sidebar-link">1. What is an admin token?</a>
+                    <a href="#roles" class="sidebar-link">2. Roles &amp; eligibility</a>
+                    <a href="#lifecycle" class="sidebar-link">3. Lifecycle &amp; renewal</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-title">Self-service</div>
+                    <a href="#request" class="sidebar-link">4. Request a token</a>
+                    <a href="#use" class="sidebar-link">5. Use your token</a>
+                    <a href="#revoke" class="sidebar-link">6. Revoke a token</a>
+                    <a href="#audit" class="sidebar-link">7. Audit active tokens</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-title">Reference</div>
+                    <a href="#bootstrap" class="sidebar-link">8. Founder bootstrap</a>
+                    <a href="#security" class="sidebar-link">9. Security model</a>
+                    <a href="#api" class="sidebar-link">10. HTTP reference</a>
+                </div>
+            </aside>
+
+            <div class="main-content">
+
+                <div class="api-section" id="what">
+                    <h2 class="section-title"><span class="section-num">1.</span> What is an admin token?</h2>
+                    <p class="section-desc">An admin token is a 43-character opaque credential that authenticates a single email address as an operator of Datachain Rope's administrative surface: reviewing incoming project submissions, moderating node-deploy requests, tracking integration tickets, and running critical-protocol governance actions.</p>
+                    <p>Tokens are prefixed by role so a leaked one is recognisable at a glance:</p>
+                    <table class="data">
+                        <thead><tr><th>Prefix</th><th>Role</th><th>Grants</th></tr></thead>
+                        <tr><td><code>dcrope_pa_&lt;43&gt;</code></td><td>Project admin</td><td>Review submissions, approve critical-protocol proposals, gate ecosystem &amp; integration audit</td></tr>
+                        <tr><td><code>dcrope_na_&lt;43&gt;</code></td><td>Node admin</td><td>Approve node-deploy requests, list pending queue, sign off on databox / Rope-CLI deploys</td></tr>
+                        <tr><td><code>dcrope_ma_&lt;43&gt;</code></td><td>Multi-role</td><td>Both of the above in a single token. Emitted when the requester's email is eligible for both roles at request time.</td></tr>
+                    </table>
+                    <div class="callout ok">
+                        <div class="callout-title"><i class="fa-solid fa-circle-check"></i> Only the SHA-256 of the token is ever persisted</div>
+                        <p>The raw token exists on disk exactly zero times. If you lose it, the recovery path is to <a href="#revoke">revoke</a> and request a new one. There is no reveal-me endpoint by design.</p>
+                    </div>
+                </div>
+
+                <div class="api-section" id="roles">
+                    <h2 class="section-title"><span class="section-num">2.</span> Roles &amp; eligibility</h2>
+
+                    <h3 class="section-subtitle">2.1 <span class="role-badge project_admin">project_admin</span> - eligibility pathways</h3>
+                    <p>Any email that satisfies at least one of the following pathways is eligible for a <code>project_admin</code> token at request time. The exact resolved allowlist is intentionally not enumerated here to reduce phishing / spoofing surface (see <a href="#security">§9. Security model</a>).</p>
+                    <ol>
+                        <li><strong>Ecosystem-authorized domains.</strong> Emails at Foundation and ecosystem-operator domains are pre-authorized. Currently: <code>datachain.one</code>, <code>datachain.network</code>, <code>databox.network</code>, <code>databØx.com</code> (Unicode; also matches its Punycode form <code>xn--databx-yta.com</code>). Additional Foundation continuity addresses may also be pre-authorized as operational necessity; those are not listed on this public page. Any organisation that operates a Datachain Rope surface (foundation, ecosystem team, accredited partner) can request its domain be added by contacting <code>contact@datachain.one</code>.</li>
+                        <li><strong>Project-owner declaration.</strong> When you submit your project through the <a href="https://datachain.network/" target="_blank" rel="noopener">"Submit Your Project"</a> form on <code>datachain.network</code>, the email you register as project owner becomes eligible for a <code>node_admin</code> token immediately (see §2.2) and, once the submission has been reviewed by an existing <code>project_admin</code>, the project's declared domain is added to the resolved allowlist.</li>
+                        <li><strong>Community governance.</strong> Any address may be authorized following a governance proposal that passes on the <a href="/vote">/vote</a> page. Once a domain-authorization vote closes with approval, the operator adds it to the resolved allowlist and the change takes effect on the next explorer boot.</li>
+                        <li><strong>Founder bootstrap.</strong> Out-of-band, first-token-per-role only (fresh box / wiped store). Requires an Ed25519 signature from a founder key in <code>deploy/config/master-nodes.toml</code>. See <a href="#bootstrap">§8. Founder bootstrap</a>.</li>
+                    </ol>
+
+                    <h3 class="section-subtitle">2.2 <span class="role-badge node_admin">node_admin</span> - eligibility pathways + declared operators</h3>
+                    <p>Same eligibility pathways as §2.1 above, <strong>plus</strong> any email that has been declared as a node deployer / owner through one of the following surfaces:</p>
+                    <ul>
+                        <li><a href="https://datachain.network/" target="_blank" rel="noopener">https://datachain.network/</a> - "Deploy a Datachain Rope Node" form</li>
+                        <li><a href="https://datachain.network/" target="_blank" rel="noopener">https://datachain.network/</a> - "Submit Your Project" form (project owner email counts as an operator email)</li>
+                        <li>The Rope CLI (<code>ropectl deploy-node --owner-email &lt;email&gt;</code>)</li>
+                        <li><a href="https://console.datachain.network/console/" target="_blank" rel="noopener">Ecosystem Deployment Console</a> - Databox / Community / Federation deploys</li>
+                        <li>Direct entry in <code>node-requests.jsonl</code> / <code>projects.jsonl</code> (any status - <code>pending</code>, <code>approved</code>, <code>fulfilled</code>)</li>
+                    </ul>
+
+                    <h3 class="section-subtitle">2.3 <span class="role-badge multi_role">multi_role</span> - both</h3>
+                    <p>If the requesting email is eligible for both <em>project_admin</em> (through domain) AND <em>node_admin</em> (through domain OR declaration), a single <code>multi_role</code> token is issued. It satisfies both role checks on every gated endpoint.</p>
+
+                    <div class="callout warn">
+                        <div class="callout-title"><i class="fa-solid fa-triangle-exclamation"></i> Bootstrap requirement</div>
+                        <p>The very first token per role (fresh box, wiped store) requires an Ed25519 signature from a founder key in <code>deploy/config/master-nodes.toml</code>. After that, self-serve <a href="#request">/request</a> works for any allowlisted / declared email. See <a href="#bootstrap">§8. Founder bootstrap</a> for the offline signing procedure.</p>
+                    </div>
+                </div>
+
+                <div class="api-section" id="lifecycle">
+                    <h2 class="section-title"><span class="section-num">3.</span> Lifecycle &amp; renewal</h2>
+                    <table class="data">
+                        <tr><td>Time-to-live</td><td><code>7 days</code> (<code>ADMIN_TOKENS_TTL_SECS</code>, default <code>604800</code>)</td></tr>
+                        <tr><td>Auto-renewal</td><td>Every <code>3600 s</code> a background task looks for active records whose <code>expires_at</code> is within <code>24 h</code>. It mints a fresh token for the same email, emails it to the same address, and revokes the previous one in the same transaction.</td></tr>
+                        <tr><td>One-active-per-email</td><td>Requesting a new token for an already-active email <strong>rotates</strong>: the previous token is revoked and a fresh one is issued. This keeps the audit surface small.</td></tr>
+                        <tr><td>Storage</td><td>Append-only JSON-lines at <code>/opt/datachain-rope/admin-tokens.jsonl</code>. Runtime map is rebuilt from this file at startup so a corrupt or partial write cannot brick admin access.</td></tr>
+                        <tr><td>Chain anchoring</td><td>Every issue &amp; revoke event is anchored as an <code>AdminTokenIssued</code> / <code>AdminTokenRevoked</code> Quipu knot on the dedicated ledger wallet <code>0x000000000000000000000000000000000000d005</code> via <code>rope_appendToLedger</code>.</td></tr>
+                    </table>
+                </div>
+
+                <div class="api-section" id="request">
+                    <h2 class="section-title"><span class="section-num">4.</span> Request a token</h2>
+                    <p class="section-desc">Fill in your email. If your address is eligible (see <a href="#roles">§2</a>), a token is issued and emailed to you within a few seconds. The best role you qualify for at that moment is picked automatically.</p>
+
+                    <form id="request-form" novalidate>
+                        <div class="form-honeypot" aria-hidden="true">
+                            <label for="rq-website">Website</label>
+                            <input type="text" id="rq-website" name="website" tabindex="-1" autocomplete="off">
+                        </div>
+                        <div class="form-grid full">
+                            <div class="form-field">
+                                <label class="form-label" for="rq-email">Your email <span class="req">*</span></label>
+                                <input type="email" id="rq-email" name="email" class="form-input" maxlength="254" required placeholder="you@datachain.network">
+                                <span class="form-hint">The token will be sent to this address. If it is eligible for both <em>project_admin</em> and <em>node_admin</em>, a single <em>multi_role</em> token is issued.</span>
+                            </div>
+                        </div>
+                        <div class="form-status" id="request-status" role="status"></div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary" id="request-submit"><i class="fa-solid fa-paper-plane"></i> Request token</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="api-section" id="use">
+                    <h2 class="section-title"><span class="section-num">5.</span> Use your token</h2>
+                    <p class="section-desc">Present the raw token in the <code>X-Admin-Token</code> header on any protected endpoint.</p>
+                    <div class="code-block">curl -sS <span class="string">"https://dcscan.io/api/v1/node-requests"</span> \
+  -H <span class="string">"X-Admin-Token: dcrope_ma_&lt;your-token&gt;"</span></div>
+                    <p>Common gates that consume the token:</p>
+                    <table class="data">
+                        <thead><tr><th>Endpoint</th><th>Role required</th></tr></thead>
+                        <tr><td><code>GET /api/v1/node-requests</code></td><td><code>node_admin</code> or <code>multi_role</code></td></tr>
+                        <tr><td><code>POST /api/v1/node-requests/:id/review</code></td><td><code>node_admin</code> or <code>multi_role</code></td></tr>
+                        <tr><td><code>GET /api/v1/integration-requests</code></td><td><code>project_admin</code> or <code>multi_role</code></td></tr>
+                        <tr><td><code>POST /api/v1/projects/:id/review</code></td><td><code>project_admin</code> or <code>multi_role</code></td></tr>
+                        <tr><td><code>POST /api/v1/projects</code> with <code>critical_protocol=true</code></td><td><code>project_admin</code> or <code>multi_role</code></td></tr>
+                        <tr><td><code>GET /api/v1/admin-tokens</code> (audit)</td><td><code>project_admin</code> or <code>multi_role</code></td></tr>
+                    </table>
+                    <div class="callout">
+                        <div class="callout-title"><i class="fa-solid fa-circle-info"></i> Legacy env-var escape hatches are OFF</div>
+                        <p>The static <code>PROJECTS_ADMIN_TOKEN</code>, <code>NODE_REQUESTS_ADMIN_TOKEN</code>, <code>ECOSYSTEM_ADMIN_TOKEN</code>, and <code>INTEGRATION_REQUESTS_ADMIN_TOKEN</code> environment variables are no longer consulted (2026-08-14 <code>migrate_now</code> decision). Only dynamic tokens minted here work.</p>
+                    </div>
+                </div>
+
+                <div class="api-section" id="revoke">
+                    <h2 class="section-title"><span class="section-num">6.</span> Revoke a token</h2>
+                    <p class="section-desc">A holder can revoke their own token by supplying it in <em>both</em> the <code>X-Admin-Token</code> header and the request body. A different <code>project_admin</code> (or <code>multi_role</code>) holder can revoke someone else's token by supplying their own token in the header and the target token in the body.</p>
+
+                    <form id="revoke-form" novalidate>
+                        <div class="form-grid full">
+                            <div class="form-field">
+                                <label class="form-label" for="rv-auth-token">Your admin token <span class="req">*</span></label>
+                                <input type="text" id="rv-auth-token" name="auth_token" class="form-input" maxlength="128" required autocomplete="off" placeholder="dcrope_..." spellcheck="false">
+                                <span class="form-hint">Sent as <code>X-Admin-Token</code>. Must carry the <code>project_admin</code> role (a <code>multi_role</code> token also works).</span>
+                            </div>
+                            <div class="form-field">
+                                <label class="form-label" for="rv-target-token">Token to revoke <span class="req">*</span></label>
+                                <input type="text" id="rv-target-token" name="target_token" class="form-input" maxlength="128" required autocomplete="off" placeholder="dcrope_..." spellcheck="false">
+                                <span class="form-hint">Can be the same as your auth token (self-revocation) or a different one you have the authority to revoke.</span>
+                            </div>
+                            <div class="form-field span-2">
+                                <label class="form-label" for="rv-reason">Reason (optional)</label>
+                                <input type="text" id="rv-reason" name="reason" class="form-input" maxlength="200" placeholder="e.g. compromised, rotated manually, no longer active">
+                            </div>
+                        </div>
+                        <div class="form-status" id="revoke-status" role="status"></div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-danger" id="revoke-submit"><i class="fa-solid fa-ban"></i> Revoke</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="api-section" id="audit">
+                    <h2 class="section-title"><span class="section-num">7.</span> Audit active tokens</h2>
+                    <p class="section-desc">Read-only inventory of currently-active token records. Only <em>hash prefixes</em> (first 12 characters of the SHA-256) are shown - full tokens are never returned by this endpoint.</p>
+
+                    <form id="audit-form" novalidate>
+                        <div class="form-grid full">
+                            <div class="form-field">
+                                <label class="form-label" for="au-auth-token">Your admin token <span class="req">*</span></label>
+                                <input type="text" id="au-auth-token" name="auth_token" class="form-input" maxlength="128" required autocomplete="off" placeholder="dcrope_..." spellcheck="false">
+                                <span class="form-hint">Must carry the <code>project_admin</code> role (a <code>multi_role</code> token also works).</span>
+                            </div>
+                        </div>
+                        <div class="form-status" id="audit-status" role="status"></div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-secondary" id="audit-submit"><i class="fa-solid fa-magnifying-glass"></i> List active tokens</button>
+                        </div>
+                        <ul class="active-list" id="audit-results"></ul>
+                    </form>
+                </div>
+
+                <div class="api-section" id="bootstrap">
+                    <h2 class="section-title"><span class="section-num">8.</span> Founder bootstrap</h2>
+                    <p class="section-desc">The very first token issued on a fresh store must be signed by an Ed25519 founder key listed in <code>deploy/config/master-nodes.toml</code>. This is a one-off, offline procedure - once one admin exists, they can rotate the store as a normal operator.</p>
+
+                    <h3 class="section-subtitle">8.1 Canonical signing message</h3>
+                    <div class="code-block"><span class="comment"># Ed25519 signing input (UTF-8 bytes, LF line endings, no trailing newline)</span>
+DCROPE-ADMIN-TOKEN-BOOTSTRAP
+<span class="string">&lt;email_lc&gt;</span>
+<span class="string">&lt;role_csv&gt;</span>
+<span class="number">&lt;timestamp_unix_seconds&gt;</span></div>
+                    <p>Where <code>role_csv</code> is exactly one of <code>project_admin</code>, <code>node_admin</code>, or <code>project_admin,node_admin</code> (the multi-role form). The signer must match one of the configured founder public keys; the timestamp must be within the freshness window (default &plusmn;10 minutes).</p>
+
+                    <h3 class="section-subtitle">8.2 POST body</h3>
+                    <div class="code-block">curl -sS -X POST https://dcscan.io/api/v1/admin-tokens/bootstrap \
+  -H <span class="string">"content-type: application/json"</span> \
+  -d @- &lt;&lt;<span class="string">'JSON'</span>
+{
+  <span class="string">"email"</span>: <span class="string">"founder@your-foundation.example"</span>,
+  <span class="string">"role"</span>:  <span class="string">"multi_role"</span>,
+  <span class="string">"timestamp"</span>: <span class="number">1780000000</span>,
+  <span class="string">"signature"</span>: <span class="string">"&lt;hex or base64url ed25519 sig&gt;"</span>,
+  <span class="string">"signer"</span>:    <span class="string">"&lt;hex ed25519 pubkey from master-nodes.toml&gt;"</span>
+}
+JSON</div>
+                </div>
+
+                <div class="api-section" id="security">
+                    <h2 class="section-title"><span class="section-num">9.</span> Security model</h2>
+                    <ul>
+                        <li><strong>Blast radius per token:</strong> one email, one role, seven days. A leaked token can be revoked in one call; the previous holder's session on other endpoints stops working immediately.</li>
+                        <li><strong>Persistence:</strong> only the SHA-256 hash. No cleartext token ever hits disk. Recovery from loss = revoke + re-request.</li>
+                        <li><strong>Rate limiting:</strong> the same email address cannot request more than one token per minute; the honeypot field silently drops obvious bots.</li>
+                        <li><strong>Constant-time comparison:</strong> the verify path uses <code>subtle::ConstantTimeEq</code> so timing side-channels do not leak the hash.</li>
+                        <li><strong>Auditability:</strong> every issue &amp; revoke is a Quipu knot on ledger wallet <code>0x000000000000000000000000000000000000d005</code>. Anyone can walk that string and reconstruct the complete history.</li>
+                        <li><strong>Env-var fall-back removed:</strong> since 2026-08-14 the legacy static env vars are no longer honoured. An unknown or expired token yields the canonical <code>403 admin_token_invalid</code> response regardless of what the operator has in their systemd unit file.</li>
+                    </ul>
+                </div>
+
+                <div class="api-section" id="api">
+                    <h2 class="section-title"><span class="section-num">10.</span> HTTP reference</h2>
+                    <table class="data">
+                        <thead><tr><th>Endpoint</th><th>Body / auth</th><th>Effect</th></tr></thead>
+                        <tr><td><code>POST /api/v1/admin-tokens/request</code></td><td>JSON <code>{ email, website }</code>. Public.</td><td>Mint a fresh token if the email is eligible; email it. Rotates any active token for the same email.</td></tr>
+                        <tr><td><code>POST /api/v1/admin-tokens/bootstrap</code></td><td>JSON <code>{ email, role, timestamp, signature, signer }</code>. Founder Ed25519.</td><td>Same as <code>/request</code> but bypasses the domain / declaration eligibility check when a valid founder signature is supplied.</td></tr>
+                        <tr><td><code>POST /api/v1/admin-tokens/revoke</code></td><td>JSON <code>{ token, reason }</code> + <code>X-Admin-Token</code>.</td><td>Mark the target token as revoked. Anchored on-chain.</td></tr>
+                        <tr><td><code>GET /api/v1/admin-tokens</code></td><td><code>X-Admin-Token</code>.</td><td>Read-only listing of active records (hash prefixes only).</td></tr>
+                    </table>
+                    <p style="color: var(--gray-500); font-size: 12px; font-style: italic; margin-top: 0.75rem;">Every value in this document was verified live against the production endpoints on 2026-08-14. Issues or feedback: <code>contact@datachain.one</code>.</p>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="footer-container container footer-content">
+            <div class="footer-brand">
+                <div class="logo-icon" style="width: 24px; height: 24px;">
+                    <img src="/assets/logo.svg" alt="DC Explorer Logo" style="width: 100%; height: 100%; object-fit: contain;">
+                </div>
+                DC Explorer - Powered by Datachain Rope
+            </div>
+            <div class="footer-links">
+                <a href="https://datachain.network">Datachain</a>
+                <a href="/apis">API</a>
+                <a href="/apis/exchange-integration">Exchange Integration</a>
+                <a href="/admin-tokens">Admin Tokens</a>
+                <a href="https://github.com/KazeONGUENE/rope">GitHub</a>
+                <a href="/partners">Partners</a>
+                <a href="/contact">Contact</a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+    (function () {
+        function setStatus(el, text, kind) {
+            if (!el) return;
+            el.textContent = text || '';
+            el.className = 'form-status' + (kind ? (' ' + kind) : '');
+        }
+        function setStatusHTML(el, html, kind) {
+            if (!el) return;
+            el.innerHTML = html || '';
+            el.className = 'form-status' + (kind ? (' ' + kind) : '');
+        }
+        function escapeHTML(s) {
+            return (s == null ? '' : String(s))
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+        function fmtTs(unix) {
+            if (!unix) return '-';
+            try { return new Date(unix * 1000).toISOString().replace('T', ' ').replace('.000Z', 'Z'); }
+            catch (_) { return String(unix); }
+        }
+        function fmtRemaining(unix) {
+            if (!unix) return '';
+            var now = Math.floor(Date.now() / 1000);
+            var d = unix - now;
+            if (d < 0) return '(expired)';
+            var days = Math.floor(d / 86400);
+            var hours = Math.floor((d % 86400) / 3600);
+            return '(' + days + 'd ' + hours + 'h left)';
+        }
+
+        // ---------- Request form ----------
+        var rqForm = document.getElementById('request-form');
+        var rqStatus = document.getElementById('request-status');
+        var rqSubmit = document.getElementById('request-submit');
+        if (rqForm) {
+            rqForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+                var email = rqForm.email.value.trim();
+                var website = rqForm.website.value;
+                if (!email) {
+                    setStatus(rqStatus, 'Please enter an email address.', 'err');
+                    return;
+                }
+                rqSubmit.disabled = true;
+                var originalHtml = rqSubmit.innerHTML;
+                rqSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Requesting...';
+                setStatus(rqStatus, 'Submitting request...', 'info');
+                fetch('/api/v1/admin-tokens/request', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email, website: website })
+                }).then(function (res) {
+                    return res.json().then(function (json) { return { status: res.status, body: json }; });
+                }).then(function (r) {
+                    if (r.status >= 200 && r.status < 300 && r.body && r.body.success) {
+                        var role = r.body.role ? (' Role: <strong>' + escapeHTML(r.body.role) + '</strong>.') : '';
+                        var recordId = r.body.id ? (' Record: <code>' + escapeHTML(r.body.id) + '</code>.') : '';
+                        var expires = r.body.expires_at ? (' Expires at <code>' + fmtTs(r.body.expires_at) + '</code> UTC.') : '';
+                        setStatusHTML(
+                            rqStatus,
+                            'Token issued and emailed to <strong>' + escapeHTML(email) + '</strong>.'
+                            + role + recordId + expires
+                            + ' Check your inbox (and spam folder). If you do not receive the email within a few minutes,'
+                            + ' contact <code>contact@datachain.one</code>.',
+                            'ok'
+                        );
+                        rqForm.reset();
+                    } else if (r.status === 403 && r.body && r.body.error === 'not_eligible') {
+                        setStatus(
+                            rqStatus,
+                            'Sorry, this email is not currently eligible. Eligibility pathways: '
+                            + '(a) an ecosystem-authorized domain (see \u00a72.1 on this page for the public list), '
+                            + '(b) declared as a project or node operator through the datachain.network submission forms, '
+                            + 'the Ecosystem Deployment Console, or the Rope CLI, or '
+                            + '(c) a domain authorized by community governance on /vote. '
+                            + 'If you believe this is a mistake, email contact@datachain.one.',
+                            'err'
+                        );
+                    } else if (r.body && r.body.error) {
+                        setStatus(rqStatus, 'Could not issue token: ' + r.body.error + '. HTTP ' + r.status, 'err');
+                    } else {
+                        setStatus(rqStatus, 'Could not issue token. HTTP ' + r.status, 'err');
+                    }
+                }).catch(function (err) {
+                    setStatus(rqStatus, 'Network error: ' + (err && err.message ? err.message : err), 'err');
+                }).finally(function () {
+                    rqSubmit.disabled = false;
+                    rqSubmit.innerHTML = originalHtml;
+                });
+            });
+        }
+
+        // ---------- Revoke form ----------
+        var rvForm = document.getElementById('revoke-form');
+        var rvStatus = document.getElementById('revoke-status');
+        var rvSubmit = document.getElementById('revoke-submit');
+        if (rvForm) {
+            rvForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+                var auth = rvForm.auth_token.value.trim();
+                var target = rvForm.target_token.value.trim();
+                var reason = rvForm.reason.value.trim();
+                if (!auth || !target) {
+                    setStatus(rvStatus, 'Both fields are required.', 'err');
+                    return;
+                }
+                rvSubmit.disabled = true;
+                var originalHtml = rvSubmit.innerHTML;
+                rvSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Revoking...';
+                setStatus(rvStatus, 'Submitting revocation...', 'info');
+                fetch('/api/v1/admin-tokens/revoke', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Admin-Token': auth
+                    },
+                    body: JSON.stringify({ token: target, reason: reason })
+                }).then(function (res) {
+                    return res.json().then(function (json) { return { status: res.status, body: json }; });
+                }).then(function (r) {
+                    if (r.status >= 200 && r.status < 300 && r.body && r.body.success) {
+                        setStatus(rvStatus, 'Token revoked. The audit trail has been anchored on ledger 0x…d005.', 'ok');
+                        rvForm.target_token.value = '';
+                        rvForm.reason.value = '';
+                    } else if (r.status === 403) {
+                        setStatus(rvStatus, 'Auth token rejected. It must be a valid, non-expired project_admin or multi_role token.', 'err');
+                    } else if (r.body && r.body.error) {
+                        setStatus(rvStatus, 'Could not revoke: ' + r.body.error + '. HTTP ' + r.status, 'err');
+                    } else {
+                        setStatus(rvStatus, 'Could not revoke. HTTP ' + r.status, 'err');
+                    }
+                }).catch(function (err) {
+                    setStatus(rvStatus, 'Network error: ' + (err && err.message ? err.message : err), 'err');
+                }).finally(function () {
+                    rvSubmit.disabled = false;
+                    rvSubmit.innerHTML = originalHtml;
+                });
+            });
+        }
+
+        // ---------- Audit form ----------
+        var auForm = document.getElementById('audit-form');
+        var auStatus = document.getElementById('audit-status');
+        var auSubmit = document.getElementById('audit-submit');
+        var auResults = document.getElementById('audit-results');
+        if (auForm) {
+            auForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+                var auth = auForm.auth_token.value.trim();
+                if (!auth) {
+                    setStatus(auStatus, 'Please paste your admin token.', 'err');
+                    return;
+                }
+                auSubmit.disabled = true;
+                var originalHtml = auSubmit.innerHTML;
+                auSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Loading...';
+                setStatus(auStatus, 'Fetching active token records...', 'info');
+                auResults.innerHTML = '';
+                fetch('/api/v1/admin-tokens', {
+                    method: 'GET',
+                    headers: { 'X-Admin-Token': auth }
+                }).then(function (res) {
+                    return res.json().then(function (json) { return { status: res.status, body: json }; });
+                }).then(function (r) {
+                    if (r.status >= 200 && r.status < 300 && r.body && r.body.success) {
+                        var records = Array.isArray(r.body.records) ? r.body.records : [];
+                        if (records.length === 0) {
+                            setStatus(auStatus, 'No active tokens found.', 'ok');
+                        } else {
+                            setStatus(auStatus, records.length + ' active token record(s).', 'ok');
+                        }
+                        records.forEach(function (rec) {
+                            var li = document.createElement('li');
+                            var roleClass = String(rec.role || '').replace(/[^a-z_]/g, '');
+                            li.innerHTML =
+                                '<span class="role-pill ' + escapeHTML(roleClass) + '">' + escapeHTML(rec.role || '?') + '</span>'
+                                + '<div>'
+                                +   '<div class="active-email">' + escapeHTML(rec.email_lc || '') + '</div>'
+                                +   '<div class="active-meta">record ' + escapeHTML(rec.id || '?')
+                                +     ' &middot; issued ' + fmtTs(rec.issued_at)
+                                +     ' &middot; expires ' + fmtTs(rec.expires_at) + ' ' + fmtRemaining(rec.expires_at)
+                                +     ' &middot; hash <code>' + escapeHTML(rec.token_sha256_prefix || '') + '...</code>'
+                                +     ' &middot; source ' + escapeHTML(rec.source || '?')
+                                +   '</div>'
+                                + '</div>'
+                                + '<div class="active-meta"></div>';
+                            auResults.appendChild(li);
+                        });
+                    } else if (r.status === 403) {
+                        setStatus(auStatus, 'Auth token rejected. It must be a valid project_admin or multi_role token.', 'err');
+                    } else if (r.body && r.body.error) {
+                        setStatus(auStatus, 'Could not list: ' + r.body.error + '. HTTP ' + r.status, 'err');
+                    } else {
+                        setStatus(auStatus, 'Could not list. HTTP ' + r.status, 'err');
+                    }
+                }).catch(function (err) {
+                    setStatus(auStatus, 'Network error: ' + (err && err.message ? err.message : err), 'err');
+                }).finally(function () {
+                    auSubmit.disabled = false;
+                    auSubmit.innerHTML = originalHtml;
+                });
+            });
+        }
+    })();
+    </script>
+
+    <script src="/js/dcscan-stats.js"></script>
+    <script src="/js/dcscan-wallet.js" defer></script>
+</body>
+</html>

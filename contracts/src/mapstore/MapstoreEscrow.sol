@@ -6,6 +6,8 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
 /**
  * @title MapstoreEscrow
@@ -50,9 +52,29 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
  * (0xb93bd8db94f1baff474aa9cba0739daaad01641f). USDT, EUROD and future
  * Mapstore-pinned stables work without redeploy because the token address is
  * captured per-job.
+ *
+ * SECURITY (2026-07-26 counter-audit fix, "PLATFORM_ROLE can pull funds and
+ * settle without buyer"): the "relayer model" documented above previously
+ * relied entirely on an OFF-CHAIN claim ("the buyer's off-chain approve +
+ * signed intent are validated on the Mapstore side before this call") as the
+ * sole authorization for {openJob}, {assignPayee}, and {releaseJob} when
+ * called by PLATFORM_ROLE on a buyer's behalf. A compromised or malicious
+ * PLATFORM_ROLE key could therefore, using nothing but a victim's *pre-existing*
+ * DCR-20 approval to this contract: (1) open an unwanted job against the
+ * victim with an attacker-controlled `payee`, (2) reassign an existing job's
+ * `payee` to an attacker address, and (3) force-release escrowed funds to
+ * that payee — with zero on-chain evidence the buyer ever consented to that
+ * specific job. Every one of those three entry points now additionally
+ * requires a fresh EIP-712 signature from the affected `buyer` (via
+ * {_requireBuyerAuthorization}) whenever the caller is NOT the buyer
+ * themselves. The signature is scoped to a `deadline` and to the exact
+ * parameters of the action (job id, payee, token, amount, fee), so a
+ * compromised relayer key can no longer originate, redirect, or settle a job
+ * without the buyer's real, on-chain-verifiable consent for that action.
  */
-contract MapstoreEscrow is AccessControl, ReentrancyGuard, Pausable {
+contract MapstoreEscrow is AccessControl, ReentrancyGuard, Pausable, EIP712 {
     using SafeERC20 for IERC20;
+    using ECDSA for bytes32;
 
     // -- Roles -------------------------------------------------------------
 
@@ -124,6 +146,29 @@ contract MapstoreEscrow is AccessControl, ReentrancyGuard, Pausable {
     ///         below the time a real human needs to react.
     uint256 public constant MIN_DISPUTE_WINDOW = 1 hours;
 
+    // -- EIP-712 buyer authorization (2026-07-26 counter-audit fix) --------
+
+    /// @dev Signed by `buyer` off-chain, submitted by the PLATFORM_ROLE
+    ///      relayer alongside {openJob}. Binds the exact job parameters so a
+    ///      compromised relayer cannot originate an unwanted job.
+    bytes32 private constant OPEN_JOB_TYPEHASH = keccak256(
+        "OpenJobAuthorization(bytes32 id,address payee,address token,uint256 amount,bytes32 metadataHash,uint256 platformFeeBps,uint256 deadline)"
+    );
+
+    /// @dev Signed by `job.buyer`, submitted alongside {assignPayee}. Binds
+    ///      the exact new payee so a compromised relayer cannot redirect an
+    ///      already-funded job to an attacker-controlled address.
+    bytes32 private constant ASSIGN_PAYEE_TYPEHASH = keccak256(
+        "AssignPayeeAuthorization(bytes32 id,address newPayee,uint256 deadline)"
+    );
+
+    /// @dev Signed by `job.buyer`, submitted alongside {releaseJob}. Binds
+    ///      the exact job id so a compromised relayer cannot force-settle a
+    ///      job the buyer never approved for release.
+    bytes32 private constant RELEASE_JOB_TYPEHASH = keccak256(
+        "ReleaseJobAuthorization(bytes32 id,uint256 deadline)"
+    );
+
     // -- Events ------------------------------------------------------------
 
     event JobOpened(
@@ -184,7 +229,7 @@ contract MapstoreEscrow is AccessControl, ReentrancyGuard, Pausable {
         address _platform,
         address _operator,
         address _guardian
-    ) {
+    ) EIP712("MapstoreEscrow", "1") {
         require(_platformTreasury != address(0), "MapstoreEscrow: treasury=0");
         require(_admin != address(0), "MapstoreEscrow: admin=0");
         require(_platform != address(0), "MapstoreEscrow: platform=0");
@@ -243,6 +288,14 @@ contract MapstoreEscrow is AccessControl, ReentrancyGuard, Pausable {
      * @param amount        Token amount (in the token's smallest units).
      * @param metadataHash  Hash of the off-chain Mapstore job descriptor.
      * @param platformFeeBps Fee in basis points. Pass `0` to use the default.
+     * @param authDeadline  Unix timestamp after which `buyerAuthorization` is
+     *                      no longer valid. Ignored (may be `0`) when
+     *                      `msg.sender == buyer`.
+     * @param buyerAuthorization EIP-712 signature from `buyer` over
+     *                      {OPEN_JOB_TYPEHASH} binding this exact job.
+     *                      Required whenever `msg.sender != buyer` (i.e. the
+     *                      PLATFORM_ROLE relayer path). Ignored (may be
+     *                      empty) when the buyer calls directly.
      */
     function openJob(
         bytes32 id,
@@ -251,7 +304,9 @@ contract MapstoreEscrow is AccessControl, ReentrancyGuard, Pausable {
         IERC20 token,
         uint256 amount,
         bytes32 metadataHash,
-        uint256 platformFeeBps
+        uint256 platformFeeBps,
+        uint256 authDeadline,
+        bytes calldata buyerAuthorization
     ) external nonReentrant whenNotPaused {
         require(id != bytes32(0), "MapstoreEscrow: id=0");
         require(jobs[id].status == JobStatus.None, "MapstoreEscrow: job exists");
@@ -259,14 +314,31 @@ contract MapstoreEscrow is AccessControl, ReentrancyGuard, Pausable {
         require(address(token) != address(0), "MapstoreEscrow: token=0");
         require(amount > 0, "MapstoreEscrow: amount=0");
 
-        // The relayer model: PLATFORM_ROLE may open on behalf of any buyer
-        // (the buyer's off-chain approve + signed intent are validated on
-        // the Mapstore side before this call). Otherwise the buyer themselves
-        // must be the caller.
+        // The relayer model: PLATFORM_ROLE may open on behalf of any buyer,
+        // but ONLY with a fresh EIP-712 signature from that buyer covering
+        // this exact job (id, payee, token, amount, fee) — see the
+        // 2026-07-26 SECURITY note on the contract. Otherwise the buyer
+        // themselves must be the caller.
         require(
             msg.sender == buyer || hasRole(PLATFORM_ROLE, msg.sender),
             "MapstoreEscrow: not buyer or platform"
         );
+
+        if (msg.sender != buyer) {
+            bytes32 structHash = keccak256(
+                abi.encode(
+                    OPEN_JOB_TYPEHASH,
+                    id,
+                    payee,
+                    address(token),
+                    amount,
+                    metadataHash,
+                    platformFeeBps,
+                    authDeadline
+                )
+            );
+            _requireBuyerAuthorization(structHash, buyer, authDeadline, buyerAuthorization);
+        }
 
         uint256 fee = platformFeeBps == 0 ? defaultPlatformFeeBps : platformFeeBps;
         require(fee <= MAX_PLATFORM_FEE_BPS, "MapstoreEscrow: fee>cap");
@@ -296,8 +368,22 @@ contract MapstoreEscrow is AccessControl, ReentrancyGuard, Pausable {
      * @notice Assign or reassign the payee on a Pending job. Useful when the
      *         service pro is matched after the job is created (Pending -> Matched
      *         in the off-chain state machine).
+     * @param authDeadline  Unix timestamp after which `buyerAuthorization` is
+     *                      no longer valid. Ignored (may be `0`) when
+     *                      `msg.sender == job.buyer`.
+     * @param buyerAuthorization EIP-712 signature from `job.buyer` over
+     *                      {ASSIGN_PAYEE_TYPEHASH}. Required whenever
+     *                      `msg.sender != job.buyer` (PLATFORM_ROLE relayer
+     *                      path) — see the 2026-07-26 SECURITY note on the
+     *                      contract: this closes the "compromised relayer
+     *                      redirects payout to an attacker address" vector.
      */
-    function assignPayee(bytes32 id, address newPayee) external whenNotPaused {
+    function assignPayee(
+        bytes32 id,
+        address newPayee,
+        uint256 authDeadline,
+        bytes calldata buyerAuthorization
+    ) external whenNotPaused {
         Job storage job = jobs[id];
         require(job.status == JobStatus.Pending, "MapstoreEscrow: not Pending");
         require(newPayee != address(0), "MapstoreEscrow: payee=0");
@@ -305,6 +391,14 @@ contract MapstoreEscrow is AccessControl, ReentrancyGuard, Pausable {
             hasRole(PLATFORM_ROLE, msg.sender) || msg.sender == job.buyer,
             "MapstoreEscrow: not buyer or platform"
         );
+
+        if (msg.sender != job.buyer) {
+            bytes32 structHash = keccak256(
+                abi.encode(ASSIGN_PAYEE_TYPEHASH, id, newPayee, authDeadline)
+            );
+            _requireBuyerAuthorization(structHash, job.buyer, authDeadline, buyerAuthorization);
+        }
+
         address old = job.payee;
         job.payee = newPayee;
         emit PayeeReassigned(id, old, newPayee);
@@ -338,14 +432,32 @@ contract MapstoreEscrow is AccessControl, ReentrancyGuard, Pausable {
      *         buyer (signalling satisfaction) or the platform relayer (acting on
      *         the buyer's `POST /jobs/{id}/complete` request) can call this
      *         before the dispute deadline.
+     * @param authDeadline  Unix timestamp after which `buyerAuthorization` is
+     *                      no longer valid. Ignored (may be `0`) when
+     *                      `msg.sender == job.buyer`.
+     * @param buyerAuthorization EIP-712 signature from `job.buyer` over
+     *                      {RELEASE_JOB_TYPEHASH}. Required whenever
+     *                      `msg.sender != job.buyer` (PLATFORM_ROLE relayer
+     *                      path) — see the 2026-07-26 SECURITY note on the
+     *                      contract: this closes the "compromised relayer
+     *                      force-settles funds to its own payee" vector.
      */
-    function releaseJob(bytes32 id) external nonReentrant whenNotPaused {
+    function releaseJob(
+        bytes32 id,
+        uint256 authDeadline,
+        bytes calldata buyerAuthorization
+    ) external nonReentrant whenNotPaused {
         Job storage job = jobs[id];
         require(job.status == JobStatus.InProgress, "MapstoreEscrow: not InProgress");
         require(
             msg.sender == job.buyer || hasRole(PLATFORM_ROLE, msg.sender),
             "MapstoreEscrow: not buyer or platform"
         );
+
+        if (msg.sender != job.buyer) {
+            bytes32 structHash = keccak256(abi.encode(RELEASE_JOB_TYPEHASH, id, authDeadline));
+            _requireBuyerAuthorization(structHash, job.buyer, authDeadline, buyerAuthorization);
+        }
 
         _release(job, false);
     }
@@ -361,6 +473,25 @@ contract MapstoreEscrow is AccessControl, ReentrancyGuard, Pausable {
         require(block.timestamp >= job.disputeDeadline, "MapstoreEscrow: window open");
 
         _release(job, true);
+    }
+
+    /**
+     * @dev Verifies that `buyerAuthorization` is a valid, unexpired EIP-712
+     *      signature by `buyer` over `structHash`. Reverts otherwise. Called
+     *      only on the PLATFORM_ROLE relayer path (never when the buyer is
+     *      `msg.sender` themselves, since a self-authored call needs no
+     *      separate signature).
+     */
+    function _requireBuyerAuthorization(
+        bytes32 structHash,
+        address buyer,
+        uint256 authDeadline,
+        bytes calldata buyerAuthorization
+    ) internal view {
+        require(block.timestamp <= authDeadline, "MapstoreEscrow: authorization expired");
+        bytes32 digest = _hashTypedDataV4(structHash);
+        address signer = digest.recover(buyerAuthorization);
+        require(signer == buyer, "MapstoreEscrow: bad buyer authorization");
     }
 
     function _release(Job storage job, bool isAuto) internal {

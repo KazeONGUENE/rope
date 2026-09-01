@@ -1,0 +1,84 @@
+# /etc/rope-ecosystem-discovery.toml
+#
+# Configuration for rope-ecosystem-discovery. Every field is optional; if the
+# whole file is missing, the daemon refuses to start (fail-loud on ops
+# mistakes). If a field is missing, the compiled-in default is applied.
+#
+# See also:
+#   - `deploy/rope-ecosystem-discovery.service` for the systemd unit.
+#   - `docs/ROPE_ECOSYSTEM_DISCOVERY_RUNBOOK.md` for the operator runbook.
+#   - `docs/ECOSYSTEM_OVERLAY_JSONL_SPEC_V1.md` for the wire contract this
+#     daemon writes (and rope-explorer reads).
+#   - `rope-ecosystem-discovery --dry-run` prints the resolved config
+#     without touching the network or the filesystem. Use it after any
+#     edit.
+
+# Absolute path to the JSONL overlay this daemon writes on every pass.
+# dc-explorer must be started with ECOSYSTEM_OVERLAY_PATH=<same path>
+# to consume it. Default:
+#   /var/lib/rope-ecosystem-discovery/ecosystem-overlay.jsonl
+output_path = "/var/lib/rope-ecosystem-discovery/ecosystem-overlay.jsonl"
+
+# Seconds between full discovery passes. Minimum enforced by validate()
+# is 60. Production default is 900 (15 min). Raise to 21600 (6h) if the
+# handover + partner-API scanners become expensive.
+run_interval_secs = 900
+
+# Per-request HTTP timeout applied to every outbound scanner request
+# (dcscan API, partner APIs). Must be in [1, 60]. 10s is enough for
+# cold-cache calls on all known targets.
+http_timeout_secs = 10
+
+# ---------------------------------------------------------------------------
+# Handover scanner (Step 1 shipped as a no-op stub; real parser lands in
+# Step 2 once the extraction rules are hardened against false positives).
+#
+# When enabled, walks each root recursively and extracts proposed
+# CanonicalEntry additions from `handover-*.mdc` / `handover-*.md` files.
+# An empty `roots = []` (or missing) turns the scanner into a no-op even
+# if `enabled = true`.
+# ---------------------------------------------------------------------------
+[handover]
+enabled = false
+# roots = [
+#     "/opt/datachain-rope/.cursor/rules",
+#     "/home/ubuntu/datachain-rope/.cursor/rules",
+# ]
+
+# ---------------------------------------------------------------------------
+# On-chain scanner. Queries `<dcscan_base>/api/v1/labels` and turns every
+# labelled address into an OverlayEntry (after category allowlist +
+# `hidden: true` filter). Safe to enable in production: the loader's
+# EDC > canonical > overlay precedence guarantees a canonical entry always
+# wins over an on-chain-derived duplicate.
+# ---------------------------------------------------------------------------
+[onchain]
+enabled = true
+# Optional: override the dcscan base URL. Defaults to the canonical
+# public endpoint, `https://dcscan.io`.
+# dcscan_base = "https://dcscan.io"
+# Optional: how far back to look for recent-contract discovery when the
+# scanner grows a chain-scan path. Currently unused by the labels-only
+# implementation; kept forward-compatible.
+# lookback_blocks = 100000
+
+# ---------------------------------------------------------------------------
+# Partner-API scanner (Step 1 shipped as a no-op stub; real per-partner
+# adapters land in Step 2). Fetches published project directories from
+# partner projects like Tanastok, DCSwap, Datawallet+.
+#
+# `allowed_hosts` is a HARD allowlist. Any endpoint URL whose host is not
+# in this list is refused at config-validation time (fail-secure). Any
+# scanner that discovers an outbound URL at runtime must also drop it if
+# the host is not on the list.
+# ---------------------------------------------------------------------------
+[partner_api]
+enabled = false
+# allowed_hosts = ["tanastok.io", "dcswap.net", "datawallet.plus"]
+# [[partner_api.endpoints]]
+# label       = "tanastok-tokenized-assets"
+# url         = "https://tanastok.io/api/v1/tokenized-assets"
+# # Optional: name of an environment variable that carries a bearer
+# # token. Secrets are NEVER stored in this TOML file; they must live
+# # in the EnvironmentFile= of the systemd unit.
+# # bearer_env = "TANASTOK_API_TOKEN"

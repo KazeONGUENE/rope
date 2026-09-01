@@ -46,29 +46,51 @@ interface IDatawalletClaimIssuer {
     // =========================================================================
 
     /**
-     * @notice Sign a claim for a given ONCHAINID.
+     * @notice Compute the digest that must be EIP-191-signed off-chain by
+     *         the `signingKey` private-key holder before a claim can be
+     *         issued via {issueClaimToIdentity}. A contract cannot itself
+     *         hold or use an EOA's private key, so this function does NOT
+     *         (and, as of the 2026-07-26 counter-audit fix, never again
+     *         will) return a value that {isClaimValid} treats as a valid
+     *         signature on its own — it only returns the pre-image the
+     *         real signature is computed over.
      * @param _identity Address of the holder's ONCHAINID proxy.
      * @param _topic     Claim topic (1 = KYC, 2 = AML, 3 = COUNTRY …).
      * @param _data      ABI-encoded claim payload.
-     * @return signature The EIP-191 signature produced by the issuer key.
+     * @return digest    keccak256(abi.encode(_identity, _topic, _data)) —
+     *                    also the claim's revocation id (see
+     *                    {issueClaimToIdentity} / {revokeClaim}).
      */
     function signClaim(
         address _identity,
         uint256 _topic,
         bytes memory _data
-    ) external returns (bytes memory signature);
+    ) external view returns (bytes memory digest);
 
     /**
-     * @notice Issue a signed claim and write it directly to the ONCHAINID.
-     * @param _identity Address of the holder's ONCHAINID proxy.
+     * @notice Issue a claim and write it directly to the ONCHAINID.
+     * @dev    `_signature` MUST be a 65-byte ECDSA signature, produced
+     *         off-chain by the `signingKey` private-key holder, over the
+     *         EIP-191-wrapped digest returned by {signClaim}. The claim id
+     *         is deterministic (`keccak256(abi.encode(_identity, _topic,
+     *         _data))`, no timestamp component) so that a later
+     *         {revokeClaim} call always targets the exact id this
+     *         function returned — see the 2026-07-26 counter-audit fix
+     *         notes in `DatawalletClaimIssuer.sol` for why the previous
+     *         timestamp-keyed id made revocation a no-op against
+     *         {isClaimValid}.
+     * @param _identity  Address of the holder's ONCHAINID proxy.
      * @param _topic     Claim topic.
      * @param _data      ABI-encoded claim payload.
-     * @return claimId   The keccak256 identifier of the claim.
+     * @param _signature 65-byte ECDSA signature over the EIP-191-wrapped
+     *                    digest, recoverable to `signingKey`.
+     * @return claimId   The deterministic identifier of the claim.
      */
     function issueClaimToIdentity(
         address _identity,
         uint256 _topic,
-        bytes memory _data
+        bytes memory _data,
+        bytes memory _signature
     ) external returns (bytes32 claimId);
 
     /**

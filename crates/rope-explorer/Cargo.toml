@@ -14,6 +14,13 @@ path = "src/main.rs"
 rope-core = { path = "../rope-core" }
 rope-crypto = { path = "../rope-crypto" }
 rope-security = { path = "../rope-security" }
+# Read-only handle to the per-address transaction / log index (RocksDB
+# store written by `rope-addr-indexer.service`). Optional at runtime:
+# dc-explorer only opens the index when the ADDR_INDEX_PATH env var is
+# set and the on-disk directory exists. See §10.3 of the dcscan handover
+# (`handover-from-dcswap-dcscan-address-parity-fixes-2026-08-11.mdc`)
+# for the read-flip protocol.
+rope-addr-index = { path = "../rope-addr-index" }
 
 # Web framework
 axum = { version = "0.7", features = ["macros", "tokio"] }
@@ -46,6 +53,25 @@ blake3 = { workspace = true }
 k256 = { workspace = true }
 sha3 = { workspace = true }
 
+# SHA-256 for the dynamic admin-token store (hashes the raw token so
+# only the digest lives on disk; the raw token is emailed once).
+sha2 = { workspace = true }
+
+# Ed25519 signature verification for the founder-signed bootstrap path
+# of the dynamic admin-token generator (`crate::admin_tokens`). See
+# `.cursor/rules/handover-security-audit-2026-06-11.mdc` for the Phase-2
+# founder-key architecture this mirrors.
+ed25519-dalek = { workspace = true }
+
+# Base64url encoding for the dynamic admin-token wire format
+# (`dcrope_(pa|na|ma)_<43-char-base64url>`).
+base64 = { workspace = true }
+
+# Parses `deploy/config/master-nodes.toml` at startup so the admin-token
+# bootstrap endpoint can pin founder Ed25519 pubkeys without a fresh
+# on-chain RPC round-trip on every boot.
+toml = { workspace = true }
+
 # HTTP client for price fetching
 reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
 
@@ -58,4 +84,9 @@ tokio-util = { version = "0.7", features = ["time"] }
 # Configuration
 clap = { workspace = true }
 config = { workspace = true }
+
+[dev-dependencies]
+# Temporary files for unit-testing on-disk loaders (ecosystem overlay,
+# SWR cache persistence, etc.).
+tempfile = { workspace = true }
 

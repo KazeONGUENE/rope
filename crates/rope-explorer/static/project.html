@@ -1,0 +1,1646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project | DC Explorer</title>
+    <meta name="description" content="Community governance project on Datachain Rope">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <link rel="icon" type="image/svg+xml" href="/assets/logo.svg">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root{
+            --black:#000000; --white:#ffffff;
+            --gray-50:#fafafa; --gray-100:#f4f4f5; --gray-200:#e4e4e7; --gray-300:#d4d4d8;
+            --gray-400:#a1a1aa; --gray-500:#71717a; --gray-600:#52525b; --gray-700:#3f3f46;
+            --gray-800:#27272a; --gray-900:#18181b;
+            --success:#22c55e; --success-bg:#dcfce7; --success-fg:#166534;
+            --warning:#f59e0b; --warning-bg:#fef3c7; --warning-fg:#92400e;
+            --error:#ef4444; --error-bg:#fee2e2; --error-fg:#991b1b;
+            --info:#3b82f6; --info-bg:#dbeafe; --info-fg:#1e40af;
+            --font-sans:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+            --font-mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
+            --radius-sm:6px; --radius-md:8px; --radius-lg:12px;
+            --shadow-sm:0 1px 2px 0 rgba(0,0,0,.05);
+            --shadow-md:0 4px 6px -1px rgba(0,0,0,.1);
+            --shadow-lg:0 10px 15px -3px rgba(0,0,0,.1);
+        }
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:var(--font-sans);background:var(--gray-50);color:var(--gray-900);line-height:1.5;font-size:14px}
+        a{color:var(--black);text-decoration:none}
+        a:hover{color:var(--gray-600)}
+        .container{max-width:1120px;margin:0 auto;padding:0 1rem}
+        .top-bar{background:var(--gray-900);color:var(--white);padding:.5rem 0;font-size:12px}
+        .top-bar-content{display:flex;justify-content:space-between;align-items:center}
+        .top-bar-item{display:flex;align-items:center;gap:.375rem;color:var(--gray-400)}
+        .top-bar-value{color:var(--white);font-weight:500;font-family:var(--font-mono)}
+        header{background:var(--white);border-bottom:1px solid var(--gray-200);position:sticky;top:0;z-index:100}
+        .header-container{display:flex;align-items:center;justify-content:space-between;height:64px}
+        .logo{display:flex;align-items:center;gap:.625rem;font-weight:600;color:var(--black)}
+        .logo-icon{width:32px;height:32px}
+        .header-actions{display:flex;align-items:center;gap:.5rem}
+        .btn{display:inline-flex;align-items:center;gap:.375rem;padding:.5rem 1rem;font-size:13px;font-weight:600;border-radius:var(--radius-md);border:none;cursor:pointer;font-family:inherit}
+        .btn-secondary{background:var(--gray-100);color:var(--gray-700)}
+        .btn-secondary:hover{background:var(--gray-200)}
+        .btn-primary{background:var(--gray-900);color:var(--white)}
+        .btn-primary:hover{background:var(--gray-700)}
+        .btn-ghost{background:var(--white);color:var(--gray-700);border:1px solid var(--gray-300)}
+        .btn-success{background:var(--success);color:var(--white)}
+        .btn-danger{background:var(--error);color:var(--white)}
+        .btn:disabled{opacity:.5;cursor:not-allowed}
+        .crumb{padding:1rem 0 .5rem;font-size:12px;color:var(--gray-500)}
+        .crumb a{color:var(--gray-600)}
+        .hero-media{width:100%;aspect-ratio:16/9;max-height:420px;border-radius:var(--radius-lg);overflow:hidden;background:linear-gradient(135deg,#18181b 0%,#3f3f46 55%,#71717a 100%);display:flex;align-items:center;justify-content:center;color:var(--white);position:relative;margin-bottom:1.5rem;border:1px solid var(--gray-200)}
+        .hero-media.has-image{background:#18181b}
+        .hero-media .hero-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none}
+        .hero-media.has-image .hero-img{display:block}
+        .hero-media.has-image .cat-icon{display:none}
+        .hero-media .cat-icon{font-size:4rem;opacity:.35;position:relative;z-index:1}
+        .hero-media .hero-badge{position:absolute;top:1rem;left:1rem;z-index:2}
+        .layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:2rem;align-items:start;padding-bottom:3rem}
+        .title-block{margin-bottom:1.25rem}
+        .project-title{font-size:2rem;font-weight:700;letter-spacing:-.02em;margin-bottom:.5rem;line-height:1.2}
+        .project-tagline{font-size:1.05rem;color:var(--gray-600);margin-bottom:.75rem}
+        .byline{display:flex;flex-wrap:wrap;align-items:center;gap:.75rem;font-size:13px;color:var(--gray-500)}
+        .avatar{width:28px;height:28px;border-radius:50%;background:var(--gray-200);display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--gray-700)}
+        .badge{display:inline-flex;align-items:center;gap:.25rem;padding:.2rem .55rem;font-size:11px;font-weight:600;border-radius:20px}
+        .badge-ok{background:var(--success-bg);color:var(--success-fg)}
+        .badge-warn{background:var(--warning-bg);color:var(--warning-fg)}
+        .badge-err{background:var(--error-bg);color:var(--error-fg)}
+        .badge-info{background:var(--info-bg);color:var(--info-fg)}
+        .badge-muted{background:var(--gray-100);color:var(--gray-600)}
+        .tabs{display:flex;gap:.25rem;border-bottom:1px solid var(--gray-200);margin:1.5rem 0 1rem;overflow-x:auto}
+        .tab{padding:.75rem 1rem;background:transparent;border:none;border-bottom:2px solid transparent;font-size:13px;font-weight:600;color:var(--gray-500);cursor:pointer;white-space:nowrap;font-family:inherit}
+        .tab:hover{color:var(--black);background:var(--gray-100)}
+        .tab.active{color:var(--black);border-bottom-color:var(--black)}
+        .panel{display:none}
+        .panel.active{display:block}
+        .section{margin-bottom:1.75rem}
+        .section h2{font-size:1.125rem;font-weight:700;margin-bottom:.75rem}
+        .section p,.prose{color:var(--gray-700);line-height:1.7}
+        .prose p{margin:0 0 1rem}
+        .prose p:last-child{margin-bottom:0}
+        .project-mission{font-size:.95rem;color:var(--gray-700);margin-bottom:.85rem;max-width:46rem;line-height:1.55}
+        .feature-list{padding-left:1.25rem;color:var(--gray-700)}
+        .feature-list li{margin-bottom:.55rem}
+        .attach-form{display:grid;gap:.5rem;margin-top:1rem;padding:1rem;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius-md)}
+        .attach-form input,.attach-form select{padding:.5rem .75rem;border:1px solid var(--gray-300);border-radius:var(--radius-md);font-family:inherit;font-size:13px}
+        .attach-list{list-style:none;padding:0;margin:0}
+        .attach-list li{display:flex;align-items:flex-start;gap:.75rem;padding:.75rem 0;border-bottom:1px solid var(--gray-100)}
+        .attach-list li:last-child{border-bottom:none}
+        .attach-thumb{width:72px;height:72px;object-fit:cover;border-radius:var(--radius-sm);background:var(--gray-100);border:1px solid var(--gray-200)}
+        .attach-meta{font-size:12px;color:var(--gray-500);margin-top:.2rem}
+        .info-banner{background:var(--info-bg);color:var(--info-fg);border:1px solid #bfdbfe;border-radius:var(--radius-md);padding:1rem;margin:0}
+        .chip-row{display:flex;flex-wrap:wrap;gap:.4rem}
+        .chip{background:var(--gray-100);border:1px solid var(--gray-200);border-radius:20px;padding:.25rem .65rem;font-size:12px;font-weight:500;color:var(--gray-700)}
+        .meta-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.75rem}
+        .meta-card{background:var(--white);border:1px solid var(--gray-200);border-radius:var(--radius-lg);padding:1rem;box-shadow:var(--shadow-sm)}
+        .meta-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:.25rem}
+        .meta-value{font-weight:600;color:var(--gray-900);word-break:break-word}
+        .link-list a{display:inline-flex;align-items:center;gap:.4rem;margin-right:1rem;margin-bottom:.5rem;font-weight:500}
+        .sidebar{position:sticky;top:80px}
+        .pledge-card{background:var(--white);border:1px solid var(--gray-200);border-radius:var(--radius-lg);padding:1.25rem;box-shadow:var(--shadow-md)}
+        .scoreboard-card{background:var(--white);border:1px solid var(--gray-200);border-radius:var(--radius-lg);padding:1.1rem 1.25rem;box-shadow:var(--shadow-sm);margin-top:1rem}
+        .scoreboard-card h3{font-size:0.95rem;font-weight:700;margin:0 0 .35rem;color:var(--gray-900)}
+        .scoreboard-card .sb-note{font-size:12px;color:var(--gray-500);margin:0 0 .75rem}
+        .scoreboard-table{width:100%;border-collapse:collapse;font-size:12.5px}
+        .scoreboard-table th{text-align:left;font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--gray-500);padding:7px 6px;border-bottom:1px solid var(--gray-100);font-weight:600}
+        .scoreboard-table td{padding:8px 6px;border-bottom:1px solid var(--gray-100);vertical-align:middle}
+        .scoreboard-table tr:last-child td{border-bottom:none}
+        .stars{color:var(--warning-fg);letter-spacing:1px;font-size:11px;white-space:nowrap}
+        .result-banner{border-radius:var(--radius-md);padding:1rem 1.1rem;margin-bottom:1.25rem;border:1px solid var(--gray-200);background:var(--white)}
+        .result-banner.ok{background:var(--success-bg);border-color:#bbf7d0;color:var(--success-fg)}
+        .result-banner.err{background:var(--error-bg);border-color:#fecaca;color:var(--error-fg)}
+        .result-banner.warn{background:var(--warning-bg);border-color:#fde68a;color:var(--warning-fg)}
+        .owner-panel{display:none;margin-top:1.25rem;padding:1rem;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius-md)}
+        .owner-panel h3{font-size:0.95rem;margin:0 0 .5rem}
+        .owner-actions{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.75rem}
+        .big-stat{font-size:1.75rem;font-weight:700;font-family:var(--font-mono);letter-spacing:-.02em;color:var(--success-fg)}
+        .stat-sub{font-size:13px;color:var(--gray-500);margin-bottom:.35rem}
+        .ks-metrics{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin:1rem 0 1.15rem;padding:0}
+        .ks-metric .ks-val{font-size:1.35rem;font-weight:700;font-family:var(--font-mono);letter-spacing:-.02em;color:var(--gray-900);line-height:1.15}
+        .ks-metric .ks-label{font-size:12px;color:var(--gray-500);margin-top:.15rem}
+        .bar{height:8px;background:var(--gray-100);border-radius:4px;overflow:hidden;display:flex;margin:.35rem 0 .85rem}
+        .bar-for{background:var(--success);height:100%}
+        .bar-against{background:var(--error);height:100%}
+        .bar-quorum{background:var(--gray-900);height:100%}
+        .row-between{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--gray-600);margin-bottom:.35rem}
+        .vote-row{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin:1rem 0 .5rem}
+        .share-icons{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--gray-100)}
+        .share-icon{
+            width:36px;height:36px;border-radius:50%;border:1px solid var(--gray-300);background:var(--white);
+            color:var(--gray-700);display:inline-flex;align-items:center;justify-content:center;
+            cursor:pointer;font-size:14px;text-decoration:none;padding:0;font-family:inherit;
+        }
+        .share-icon:hover{background:var(--gray-100);color:var(--black);border-color:var(--gray-400)}
+        .share-icon.saved{background:var(--gray-900);color:var(--white);border-color:var(--gray-900)}
+        .share-icon:focus-visible{outline:2px solid var(--gray-900);outline-offset:2px}
+        .all-or-nothing{margin-top:1rem;font-size:12.5px;line-height:1.55;color:var(--gray-600)}
+        .all-or-nothing strong{color:var(--gray-900);font-weight:700}
+        .faq-item{border:1px solid var(--gray-200);border-radius:var(--radius-md);margin-bottom:.5rem;background:var(--white)}
+        .faq-q{padding:.85rem 1rem;font-weight:600;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+        .faq-a{padding:0 1rem 1rem;color:var(--gray-600);display:none}
+        .faq-item.open .faq-a{display:block}
+        .empty{padding:2rem;text-align:center;color:var(--gray-500)}
+        .err-banner{background:var(--error-bg);color:var(--error-fg);border:1px solid #fecaca;border-radius:var(--radius-md);padding:1rem;margin:1rem 0}
+        /* Flat text-block milestone - no left-border accent (banned
+           decorative pattern, see rule ban-left-border-text-block-callouts). */
+        .milestone{padding:.5rem 0;margin-bottom:.75rem}
+        .milestone strong{display:block;margin-bottom:.15rem}
+        footer{background:var(--white);border-top:1px solid var(--gray-200);padding:2rem 0;margin-top:2rem}
+        .footer-content{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem}
+        .footer-links{display:flex;gap:1.25rem}
+        .footer-links a{font-size:12px;color:var(--gray-500)}
+        @media (max-width:900px){
+            .layout{grid-template-columns:1fr}
+            .sidebar{position:static}
+            .project-title{font-size:1.5rem}
+            .meta-grid{grid-template-columns:1fr}
+        }
+    </style>
+    <link rel="stylesheet" href="/css/dcscan-header.css">
+</head>
+<body>
+    <div class="top-bar">
+        <div class="container top-bar-container top-bar-content">
+            <div class="top-bar-left">
+                <div class="top-bar-item"><span>DC FAT Price:</span><span class="top-bar-value" id="topbar-fat-price">-</span><span class="top-bar-change" id="topbar-fat-change"></span></div>
+                <div class="top-bar-item"><span>Gas:</span><span class="top-bar-value" id="topbar-gas">-</span></div>
+            </div>
+        </div>
+    </div>
+    <header>
+        <div class="container header-container">
+            <a href="/" class="logo">
+                <div class="logo-icon"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 100%; height: 100%; object-fit: contain;"></div>
+                <span class="logo-text"><span>DC</span><span>Explorer</span></span>
+            </a>
+            <nav class="main-nav">
+                <div class="nav-item"><a href="#" class="nav-link">Smartchain <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/strings" class="dropdown-item">View Strings</a>
+                        <a href="/txs" class="dropdown-item">Transactions</a>
+                        <a href="/txsPending" class="dropdown-item">Pending Txns</a>
+                        <a href="/accounts" class="dropdown-item">Top Accounts</a>
+                        <a href="/contracts" class="dropdown-item">Verified Contracts</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">AI Agents <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/agents" class="dropdown-item">All Agents</a>
+                        <a href="/testimonies" class="dropdown-item">Testimonies</a>
+                        <a href="/validations" class="dropdown-item">Validators</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">Tokens <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/tokens" class="dropdown-item">DCR-20 Tokens</a>
+                        <a href="/core/fat" class="dropdown-item">Native DC FAT</a>
+                        <a href="/tokentxns" class="dropdown-item">Token Transfers</a>
+                        <a href="/vote" class="dropdown-item">Vote</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">Network <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/ecosystem" class="dropdown-item">Ecosystem Projects</a>
+                        <a href="/vote" class="dropdown-item">Governance &amp; Voting</a>
+                        <a href="/defi" class="dropdown-item">DeFi</a>
+                        <a href="/supply" class="dropdown-item">Supply Reconciliation</a>
+                        <a href="/validators" class="dropdown-item">Validators</a>
+                        <a href="/databases" class="dropdown-item">Databases</a>
+                        <a href="/databoxes" class="dropdown-item">Global Databox Network</a>
+                        <a href="/stats" class="dropdown-item">Charts &amp; Stats</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link active">More <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/apis" class="dropdown-item">API Docs</a>
+                        <a href="/apis/exchange-integration" class="dropdown-item">Exchange Integration</a>
+                        <a href="/admin-tokens" class="dropdown-item">Admin Tokens</a>
+                        <a href="/verify" class="dropdown-item">Verify Contract</a>
+                        <a href="/create-wallet" class="dropdown-item">Create Wallet</a>
+                        <a href="/faucet" class="dropdown-item">Faucet</a>
+                        <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank" rel="noopener">GitHub</a>
+                        <a href="/partners" class="dropdown-item">Partners</a>
+                        <a href="/contact" class="dropdown-item">Contact</a>
+                    </div>
+                </div>
+            </nav>
+            <div class="header-actions"><button class="btn btn-secondary"><i class="fa-solid fa-wallet"></i> Connect</button></div>
+        </div>
+    </header>
+
+    <main class="container" id="main">
+        <div class="crumb"><a href="/vote">Community Vote</a> / <span id="crumbName">Project</span></div>
+        <div id="loadState" class="empty"><i class="fas fa-spinner fa-spin"></i> Loading project…</div>
+        <div id="projectRoot" style="display:none">
+            <div class="hero-media" id="heroMedia">
+                <img class="hero-img" id="heroImg" alt="" decoding="async">
+                <span class="hero-badge" id="heroBadge"></span>
+                <i class="fas fa-cube cat-icon" id="heroIcon"></i>
+            </div>
+            <div class="layout">
+                <div class="main-col">
+                    <div class="title-block">
+                        <h1 class="project-title" id="pName"></h1>
+                        <p class="project-tagline" id="pTagline"></p>
+                        <p class="project-mission" id="pMission" style="display:none"></p>
+                        <div class="byline">
+                            <span class="avatar" id="pAvatar">?</span>
+                            <span>by <strong id="pCreator">-</strong></span>
+                            <span id="pOrgType" class="badge badge-muted"></span>
+                            <span id="pCategory" class="badge badge-info"></span>
+                            <span id="pStage" class="badge badge-muted"></span>
+                        </div>
+                    </div>
+
+                    <div class="tabs" role="tablist">
+                        <button class="tab active" data-tab="campaign" type="button">Campaign</button>
+                        <button class="tab" data-tab="details" type="button">Details</button>
+                        <button class="tab" data-tab="creator" type="button">Creator</button>
+                        <button class="tab" data-tab="faq" type="button">FAQ</button>
+                    </div>
+
+                    <div class="panel active" id="tab-campaign">
+                        <div id="resultBannerCampaign" class="result-banner" style="display:none"></div>
+                        <div class="section">
+                            <h2>About this project</h2>
+                            <div class="prose" id="pDescription"></div>
+                        </div>
+                        <div class="section" id="secFeatures" style="display:none">
+                            <h2>Key features</h2>
+                            <ul class="feature-list" id="pFeatures"></ul>
+                        </div>
+                        <div class="section" id="secUseCases" style="display:none">
+                            <h2>Use cases</h2>
+                            <div class="prose" id="pUseCases"></div>
+                        </div>
+                        <div class="section" id="secMilestones" style="display:none">
+                            <h2>Milestones</h2>
+                            <div id="pMilestones"></div>
+                        </div>
+                        <div class="section" id="secNominations" style="display:none">
+                            <h2>Propose an NGO</h2>
+                            <p style="color:var(--gray-600);font-size:13px;margin-bottom:.75rem" id="nomIntro">
+                                Participants can nominate a non-governmental organisation as a candidate to receive the residual legacy DC allocation. Nominations build the shortlist for the selection step after this campaign vote. Casting a ballot and nominating are separate actions.
+                            </p>
+                            <div id="nomList" class="attach-list" style="margin-bottom:1rem"></div>
+                            <div class="attach-form" id="nomForm">
+                                <strong style="font-size:13px">Submit a nomination</strong>
+                                <input id="nomOrgName" type="text" placeholder="Organisation / NGO name *" maxlength="160">
+                                <input id="nomLegalEntity" type="text" placeholder="Legal entity (registered name) *" maxlength="200">
+                                <textarea id="nomMission" rows="3" placeholder="Mission - what this organisation would do with the residual DC allocation *" maxlength="4000" style="padding:.5rem .75rem;border:1px solid var(--gray-300);border-radius:var(--radius-md);font-family:inherit;font-size:13px;resize:vertical"></textarea>
+                                <textarea id="nomImpact" rows="2" placeholder="Impact - who benefits, geography, measurable outcomes" maxlength="2000" style="padding:.5rem .75rem;border:1px solid var(--gray-300);border-radius:var(--radius-md);font-family:inherit;font-size:13px;resize:vertical"></textarea>
+                                <textarea id="nomMilestones" rows="2" placeholder="Milestones (one per line)" maxlength="2000" style="padding:.5rem .75rem;border:1px solid var(--gray-300);border-radius:var(--radius-md);font-family:inherit;font-size:13px;resize:vertical"></textarea>
+                                <textarea id="nomReferences" rows="2" placeholder="References / registry IDs / prior reports (one per line)" maxlength="2000" style="padding:.5rem .75rem;border:1px solid var(--gray-300);border-radius:var(--radius-md);font-family:inherit;font-size:13px;resize:vertical"></textarea>
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
+                                    <input id="nomAmount" type="text" placeholder="Requested amount (optional)" maxlength="40">
+                                    <select id="nomCurrency">
+                                        <option value="DC" selected>Legacy DC</option>
+                                        <option value="FAT">DC FAT</option>
+                                        <option value="USD">USD equivalent</option>
+                                    </select>
+                                </div>
+                                <input id="nomWebsite" type="url" placeholder="Website (https://…)" maxlength="300">
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
+                                    <input id="nomNominatorName" type="text" placeholder="Your name *" maxlength="120">
+                                    <input id="nomNominatorEmail" type="email" placeholder="Your email (optional)" maxlength="160">
+                                </div>
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
+                                    <input id="nomContactName" type="text" placeholder="NGO contact name (optional)" maxlength="120">
+                                    <input id="nomContactEmail" type="email" placeholder="NGO contact email (optional)" maxlength="160">
+                                </div>
+                                <button class="btn btn-primary" type="button" id="btnNominate">Connect wallet &amp; nominate</button>
+                                <span style="font-size:12px;color:var(--gray-500)">Requires an EIP-191 wallet signature. Contact emails are stored for review and not shown on the public shortlist.</span>
+                            </div>
+                            <p id="nomClosedHint" style="display:none;font-size:13px;color:var(--gray-500)">Nominations are closed for this campaign.</p>
+                        </div>
+                        <div class="section" id="secDocs">
+                            <h2>Documentation</h2>
+                            <p style="color:var(--gray-600);font-size:13px;margin-bottom:.75rem">Documents attached by the project owner (PDFs, specs, references). HTTPS or IPFS URLs only.</p>
+                            <ul class="attach-list" id="pDocuments"></ul>
+                            <div class="attach-form" id="docAttachForm">
+                                <strong style="font-size:13px">Attach a document</strong>
+                                <input id="docTitle" type="text" placeholder="Document title" maxlength="160">
+                                <input id="docUrl" type="url" placeholder="https://… or ipfs://…">
+                                <input id="docMime" type="text" placeholder="MIME type (optional, e.g. application/pdf)" maxlength="80">
+                                <button class="btn btn-primary" type="button" id="btnAttachDoc">Sign &amp; attach document</button>
+                                <span style="font-size:12px;color:var(--gray-500)">Requires the linked owner wallet (EIP-191). Admins may also POST with X-Admin-Token.</span>
+                            </div>
+                        </div>
+                        <div class="section" id="secMedia">
+                            <h2>Medias</h2>
+                            <p style="color:var(--gray-600);font-size:13px;margin-bottom:.75rem">Photos, videos, and other media attached by the project owner.</p>
+                            <ul class="attach-list" id="pMedia"></ul>
+                            <div class="attach-form" id="mediaAttachForm">
+                                <strong style="font-size:13px">Attach media</strong>
+                                <input id="mediaTitle" type="text" placeholder="Media title" maxlength="160">
+                                <input id="mediaUrl" type="url" placeholder="https://… image, video, or IPFS URL">
+                                <select id="mediaKind">
+                                    <option value="photo">Photo</option>
+                                    <option value="video">Video</option>
+                                    <option value="audio">Audio</option>
+                                    <option value="other">Other</option>
+                                </select>
+                                <button class="btn btn-primary" type="button" id="btnAttachMedia">Sign &amp; attach media</button>
+                                <span style="font-size:12px;color:var(--gray-500)">Requires the linked owner wallet (EIP-191). Admins may also POST with X-Admin-Token.</span>
+                            </div>
+                        </div>
+                        <div class="section" id="secCause" style="display:none">
+                            <h2>NGO / Cause details</h2>
+                            <div class="meta-grid" id="pCauseMeta"></div>
+                            <div class="prose" id="pCauseWhy" style="margin-top:1rem"></div>
+                        </div>
+                        <div class="section" id="secNgoPipeline" style="display:none">
+                            <h2>Cause progress</h2>
+                            <p style="color:var(--gray-600);margin-bottom:1rem;font-size:13px">Six-stage path: submit → jury → vote → create-wallet → treasury → DC + FAT grant.</p>
+                            <div id="causeProgressSteps" style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1.25rem"></div>
+                            <ol style="padding-left:1.25rem;color:var(--gray-600);font-size:13px;margin-bottom:1rem">
+                                <li><a href="https://dcscan.io/create-wallet" target="_blank" rel="noopener">Create a Datachain Rope wallet</a> (non-custodial)</li>
+                                <li>Register that address as the NGO treasury (EIP-191 signature)</li>
+                                <li>Foundation operators execute the DC grant + FAT cause-token grant</li>
+                            </ol>
+                            <div class="meta-grid" id="pNgoState" style="margin-bottom:1rem"></div>
+                            <div style="display:flex;flex-wrap:wrap;gap:.5rem">
+                                <input class="form-input" id="ngoTreasuryInput" placeholder="0x… treasury address" style="flex:1;min-width:220px;padding:.5rem .75rem;border:1px solid var(--gray-300);border-radius:var(--radius-md);font-family:var(--font-mono);font-size:13px">
+                                <button class="btn btn-primary" type="button" id="btnRegisterTreasury">Register treasury</button>
+                                <button class="btn btn-ghost" type="button" id="btnClaimCauseToken" style="display:none">Claim FAT + Cause Token</button>
+                            </div>
+                            <p id="ngoPipelineHint" style="font-size:12px;color:var(--gray-500);margin-top:.75rem"></p>
+                        </div>
+                        <div class="section" id="secRejection" style="display:none">
+                            <h2>Review outcome</h2>
+                            <div id="pRejection"></div>
+                        </div>
+                    </div>
+
+                    <div class="panel" id="tab-details">
+                        <div id="resultBannerDetails" class="result-banner" style="display:none"></div>
+                        <div class="section" id="secScoreboardDetails">
+                            <h2>Voting scoreboard</h2>
+                            <p style="color:var(--gray-600);font-size:13px;margin-bottom:.75rem">Ranked by ballot weight on this campaign (Ethereum DC + XDC DC + Rope FAT + WFAT). Stars mark relative participation, not a financial return.</p>
+                            <div style="overflow-x:auto">
+                                <table class="scoreboard-table">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Wallet</th>
+                                            <th>Side</th>
+                                            <th>Weight</th>
+                                            <th>Rank</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="scoreboardBodyDetails"><tr><td colspan="5" style="padding:1rem;color:var(--gray-400)">Loading scoreboard…</td></tr></tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="meta-grid" id="metaGrid" style="margin-top:1.5rem"></div>
+                        <div class="section" style="margin-top:1.5rem">
+                            <h2>Tech stack</h2>
+                            <div class="chip-row" id="pTech"></div>
+                            <div class="prose" id="pTechDetail" style="margin-top:.75rem;display:none"></div>
+                        </div>
+                        <div class="section" id="secArch" style="display:none">
+                            <h2>Architecture</h2>
+                            <div class="prose" id="pArch"></div>
+                        </div>
+                        <div class="section">
+                            <h2>Links</h2>
+                            <div class="link-list" id="pLinks"></div>
+                        </div>
+                        <div class="section" id="secFunding" style="display:none">
+                            <h2>Funding breakdown</h2>
+                            <div class="prose" id="pFundingBreakdown"></div>
+                        </div>
+                    </div>
+
+                    <div class="panel" id="tab-creator">
+                        <div class="section">
+                            <h2>Project creator</h2>
+                            <div class="meta-grid">
+                                <div class="meta-card"><div class="meta-label">Name</div><div class="meta-value" id="cName">-</div></div>
+                                <div class="meta-card"><div class="meta-label">Organization</div><div class="meta-value" id="cOrg">-</div></div>
+                                <div class="meta-card"><div class="meta-label">Organization type</div><div class="meta-value" id="cType">-</div></div>
+                                <div class="meta-card"><div class="meta-label">Target users</div><div class="meta-value" id="cUsers">-</div></div>
+                            </div>
+                        </div>
+                        <div class="section" id="secTeam" style="display:none">
+                            <h2>Team</h2>
+                            <div id="pTeam"></div>
+                        </div>
+                        <div class="owner-panel" id="ownerPanel">
+                            <h3>Owner controls</h3>
+                            <p style="font-size:13px;color:var(--gray-600);margin:0 0 .5rem">Connected wallet matches this project&apos;s owner. Edit campaign copy, publish to open voting, archive a closed campaign, or resubmit after archive/rejection.</p>
+                            <label style="font-size:12px;color:var(--gray-500);display:block;margin-bottom:.25rem">Name</label>
+                            <input id="ownerName" type="text" maxlength="160" style="width:100%;padding:.5rem .75rem;border:1px solid var(--gray-300);border-radius:var(--radius-md);font:inherit;margin-bottom:.5rem">
+                            <label style="font-size:12px;color:var(--gray-500);display:block;margin-bottom:.25rem">Tagline</label>
+                            <input id="ownerTagline" type="text" maxlength="280" style="width:100%;padding:.5rem .75rem;border:1px solid var(--gray-300);border-radius:var(--radius-md);font:inherit;margin-bottom:.5rem">
+                            <label style="font-size:12px;color:var(--gray-500);display:block;margin-bottom:.25rem">Description</label>
+                            <textarea id="ownerDescription" rows="6" maxlength="12000" style="width:100%;padding:.5rem .75rem;border:1px solid var(--gray-300);border-radius:var(--radius-md);font:inherit;resize:vertical"></textarea>
+                            <div class="owner-actions">
+                                <button class="btn btn-primary" type="button" id="btnOwnerSave">Save edits</button>
+                                <button class="btn btn-success" type="button" id="btnOwnerPublish">Publish</button>
+                                <button class="btn btn-ghost" type="button" id="btnOwnerArchive">Archive</button>
+                                <button class="btn btn-secondary" type="button" id="btnOwnerResubmit">Resubmit</button>
+                            </div>
+                            <p id="ownerHint" style="font-size:12px;color:var(--gray-500);margin-top:.75rem"></p>
+                        </div>
+                    </div>
+
+                    <div class="panel" id="tab-faq">
+                        <div class="faq-item open">
+                            <div class="faq-q">How does voting work? <i class="fas fa-chevron-down"></i></div>
+                            <div class="faq-a">Holders connect a wallet and cast a signed ballot. Weight sums legacy DC on Ethereum, legacy DC on XDC, native FAT on Datachain Rope, and DCR-20 WFAT on Rope. Approval needs more than half the weight cast and at least 1,000,000 FAT of total participation. The 1,000,000 FAT figure is the quorum floor for the whole campaign, not a per-wallet lock amount.</div>
+                        </div>
+                        <div class="faq-item">
+                            <div class="faq-q">Does voting lock all FAT in my wallet? <i class="fas fa-chevron-down"></i></div>
+                            <div class="faq-a">No. Your discover ballot is a signed off-chain record: the full cross-chain balance is used as weight, but tokens stay in your wallet unless you also cast into the on-chain VoteEscrow for this campaign. When you do use VoteEscrow with Return disposition, only the amount you escrow is locked for the window and released to that same wallet at close - not your entire balance, and not a flat 1M FAT lock.</div>
+                        </div>
+                        <div class="faq-item">
+                            <div class="faq-q">What chains count for the governance pool? <i class="fas fa-chevron-down"></i></div>
+                            <div class="faq-a">Members can register DCR-20 wallets on Datachain Rope (DC FAT / FAT / WFAT), ERC-20/ERC-777 DC on Ethereum, and XRC-20 DC on XDC Network via Join Governance Pool on the Vote page.</div>
+                        </div>
+                        <div class="faq-item">
+                            <div class="faq-q">Is this financial advice or a securities offering? <i class="fas fa-chevron-down"></i></div>
+                            <div class="faq-a">No. Community Vote decides which projects may build on Datachain Rope infrastructure. It is not an investment solicitation.</div>
+                        </div>
+                        <div class="faq-item">
+                            <div class="faq-q">Where is the audit trail? <i class="fas fa-chevron-down"></i></div>
+                            <div class="faq-a">Submissions, reviews, and ballots are anchored as knots on the governance ledger and visible via DCScan / rope RPC.</div>
+                        </div>
+                        <div class="faq-item">
+                            <div class="faq-q">Can I propose an NGO for the residual DC allocation? <i class="fas fa-chevron-down"></i></div>
+                            <div class="faq-a">Yes, when nominations are open on a campaign page. Connect a wallet, fill in the organisation details, and sign the nomination. Nominations build the candidate shortlist; the campaign ballot itself decides community authority over the residual reserve, not the final beneficiary.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <aside class="sidebar">
+                    <div class="pledge-card">
+                        <div class="big-stat" id="sWeightFor">0</div>
+                        <div class="stat-sub">FAT weight pledged of <span id="sQuorumNeed">1,000,000</span> FAT goal</div>
+                        <div class="bar" aria-hidden="true"><div class="bar-quorum" id="barQuorum" style="width:0%"></div></div>
+                        <div class="ks-metrics">
+                            <div class="ks-metric">
+                                <div class="ks-val" id="sQuorumPct">0%</div>
+                                <div class="ks-label">funded</div>
+                            </div>
+                            <div class="ks-metric">
+                                <div class="ks-val" id="sDaysLeft">-</div>
+                                <div class="ks-label" id="sDaysLeftLabel">days to go</div>
+                            </div>
+                        </div>
+                        <div class="row-between"><span style="color:var(--success-fg)">For</span><span id="sForPct">0%</span></div>
+                        <div class="bar"><div class="bar-for" id="barFor" style="width:0%"></div><div class="bar-against" id="barAgainst" style="width:0%"></div></div>
+                        <div class="row-between"><span>Against weight</span><span id="sWeightAgainst">0 FAT</span></div>
+                        <div class="row-between"><span>Ballots</span><span id="sBallots">0</span></div>
+                        <div class="row-between"><span>Funding ask</span><span id="sFunding">-</span></div>
+                        <div class="vote-row">
+                            <button class="btn btn-success" id="btnFor" type="button"><i class="fas fa-check"></i> Vote For</button>
+                            <button class="btn btn-danger" id="btnAgainst" type="button"><i class="fas fa-times"></i> Vote Against</button>
+                        </div>
+                        <p id="voteHint" style="font-size:12px;color:var(--gray-500)">Connect a Datachain Rope wallet to cast a weighted vote.</p>
+                        <div class="share-icons" role="group" aria-label="Save and share">
+                            <button type="button" class="share-icon" id="btnSaveProject" title="Save project" aria-label="Save project" aria-pressed="false"><i class="fa-regular fa-bookmark" id="saveProjectIcon"></i></button>
+                            <a class="share-icon" id="btnShareFacebook" href="#" target="_blank" rel="noopener" title="Share on Facebook" aria-label="Share on Facebook"><i class="fab fa-facebook-f"></i></a>
+                            <a class="share-icon" id="btnShareX" href="#" target="_blank" rel="noopener" title="Share on X" aria-label="Share on X"><i class="fab fa-x-twitter"></i></a>
+                            <button type="button" class="share-icon" id="btnShareInstagram" title="Share on Instagram" aria-label="Share on Instagram"><i class="fab fa-instagram"></i></button>
+                            <a class="share-icon" id="btnShareEmail" href="#" title="Share by email" aria-label="Share by email"><i class="fa-regular fa-envelope"></i></a>
+                            <button type="button" class="share-icon" id="btnCopyShort" title="Copy project short link" aria-label="Copy project short link"><i class="fa-solid fa-link"></i></button>
+                        </div>
+                        <p class="all-or-nothing" id="allOrNothing">
+                            <strong>All or nothing.</strong> This project will only be funded if it reaches its goal by <span id="sDeadline">-</span>.
+                        </p>
+                        <p style="margin-top:.75rem;font-size:11px;color:var(--gray-400);font-family:var(--font-mono)" id="pId"></p>
+                        <span id="sTimeLeft" hidden></span>
+                    </div>
+                    <div class="scoreboard-card" id="scoreboardSidebar">
+                        <h3>Voting scoreboard</h3>
+                        <p class="sb-note">Who is participating on this campaign, ranked by weight.</p>
+                        <div style="overflow-x:auto">
+                            <table class="scoreboard-table">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Wallet</th>
+                                        <th>Weight</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="scoreboardBodySidebar"><tr><td colspan="4" style="padding:.75rem 0;color:var(--gray-400)">Loading…</td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="footer-container container footer-content">
+            <div class="footer-brand">
+                <div class="logo-icon" style="width: 24px; height: 24px;">
+                    <img src="/assets/logo.svg" alt="DC Explorer Logo" style="width: 100%; height: 100%; object-fit: contain;">
+                </div>
+                DC Explorer - Powered by Datachain Rope
+            </div>
+            <div class="footer-links">
+                <a href="https://datachain.network">Datachain</a>
+                <a href="/apis">API</a>
+                <a href="/apis/exchange-integration">Exchange Integration</a>
+                <a href="/admin-tokens">Admin Tokens</a>
+                <a href="https://github.com/KazeONGUENE/rope">GitHub</a>
+                <a href="/partners">Partners</a>
+                <a href="/contact">Contact</a>
+            </div>
+        </div>
+    </footer>
+
+    <script src="/js/dcscan-wallet.js?v=20260730a" defer></script>
+    <script>
+(function () {
+    const API = '/api/v1';
+    const CAT_ICON = {
+        defi: 'fa-chart-line', nft: 'fa-image', gaming: 'fa-gamepad',
+        infrastructure: 'fa-server', marketplace: 'fa-store', identity: 'fa-id-card',
+        ai_ml: 'fa-robot', dao: 'fa-users', social: 'fa-comments', other: 'fa-cube'
+    };
+
+    function projectIdFromPath() {
+        var path = (location.pathname || '').replace(/\/+$/, '');
+        var m = path.match(/\/project\/([^\/?#]+)/i);
+        if (m && m[1] && m[1].toLowerCase() !== 'index.html') {
+            return decodeURIComponent(m[1]);
+        }
+        var q = new URLSearchParams(location.search).get('id');
+        if (q) return q;
+        // Last resort: hash #/project/id or #id=
+        var hash = (location.hash || '').replace(/^#\/?/, '');
+        var hm = hash.match(/^(?:project\/)?([^\/?#=]+)$/i);
+        return hm ? decodeURIComponent(hm[1]) : '';
+    }
+
+    function esc(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function fmtFat(n) {
+        const v = Number(n) || 0;
+        if (v >= 1e6) return (v / 1e6).toFixed(2) + 'M';
+        if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
+        return v.toLocaleString(undefined, { maximumFractionDigits: 4 });
+    }
+
+    function statusBadge(status) {
+        const s = (status || '').toLowerCase();
+        if (s === 'voting') return ['badge-ok', 'Voting now'];
+        if (s === 'approved' || s === 'building' || s === 'awaiting_wallet' || s === 'treasury_registered' || s === 'grant_executed' || s === 'granted' || s === 'cause_token_funded') {
+            return ['badge-ok', s === 'approved' ? 'Approved' : s.replace(/_/g, ' ')];
+        }
+        if (s === 'pending_review' || s === 'draft') return ['badge-warn', s === 'draft' ? 'Draft' : 'Pending review'];
+        if (s === 'archived') return ['badge-muted', 'Archived'];
+        if (s === 'rejected' || s === 'rejected_by_admin' || s === 'rejected_no_quorum') return ['badge-err', s.replace(/_/g, ' ')];
+        return ['badge-muted', status || 'unknown'];
+    }
+
+    function starRank(index, total) {
+        if (total <= 0) return '';
+        // Top participant 5 stars, taper to 1 - participation mark, not a yield.
+        const tier = Math.max(1, 5 - Math.floor((index / Math.max(total, 1)) * 5));
+        return '★'.repeat(tier) + '☆'.repeat(5 - tier);
+    }
+
+    function renderScoreboardRows(votes, compact) {
+        const rows = (Array.isArray(votes) ? votes.slice() : []).sort(function (a, b) {
+            return (Number(b.voteWeight) || 0) - (Number(a.voteWeight) || 0);
+        });
+        if (!rows.length) {
+            return compact
+                ? '<tr><td colspan="4" style="padding:.75rem 0;color:var(--gray-400)">No ballots yet.</td></tr>'
+                : '<tr><td colspan="5" style="padding:1rem;color:var(--gray-400)">No ballots yet - cast a signed vote to appear here.</td></tr>';
+        }
+        return rows.map(function (v, i) {
+            const addr = String(v.voterAddress || '');
+            const short = addr ? (addr.slice(0, 6) + '…' + addr.slice(-4)) : '-';
+            const side = v.voteFor ? '<span style="color:var(--success-fg);font-weight:600">For</span>' : '<span style="color:var(--error-fg);font-weight:600">Against</span>';
+            const stars = '<span class="stars" title="Participation rank">' + starRank(i, rows.length) + '</span>';
+            if (compact) {
+                return '<tr>' +
+                    '<td style="font-family:var(--font-mono);color:var(--gray-500)">' + (i + 1) + '</td>' +
+                    '<td style="font-family:var(--font-mono)"><a href="/address/' + encodeURIComponent(addr) + '">' + esc(short) + '</a></td>' +
+                    '<td style="font-family:var(--font-mono);font-weight:600">' + fmtFat(v.voteWeight) + '</td>' +
+                    '<td>' + stars + '</td></tr>';
+            }
+            return '<tr>' +
+                '<td style="font-family:var(--font-mono);color:var(--gray-500)">' + (i + 1) + '</td>' +
+                '<td style="font-family:var(--font-mono)"><a href="/address/' + encodeURIComponent(addr) + '">' + esc(short) + '</a></td>' +
+                '<td>' + side + '</td>' +
+                '<td style="font-family:var(--font-mono);font-weight:600">' + fmtFat(v.voteWeight) + '</td>' +
+                '<td>' + stars + '</td></tr>';
+        }).join('');
+    }
+
+    async function loadScoreboard(projectId) {
+        const side = document.getElementById('scoreboardBodySidebar');
+        const det = document.getElementById('scoreboardBodyDetails');
+        try {
+            const res = await fetch(API + '/votes/project/' + encodeURIComponent(projectId), { cache: 'no-store' });
+            const data = await res.json();
+            const votes = (data && data.votes) || [];
+            if (side) side.innerHTML = renderScoreboardRows(votes, true);
+            if (det) det.innerHTML = renderScoreboardRows(votes, false);
+        } catch (e) {
+            if (side) side.innerHTML = '<tr><td colspan="4" style="color:var(--error-fg)">Could not load scoreboard.</td></tr>';
+            if (det) det.innerHTML = '<tr><td colspan="5" style="color:var(--error-fg)">Could not load scoreboard.</td></tr>';
+        }
+    }
+
+    async function loadNominations(projectId) {
+        try {
+            const res = await fetch(API + '/projects/' + encodeURIComponent(projectId) + '/nominations', { cache: 'no-store' });
+            const data = await res.json();
+            if (res.ok && data && data.success) {
+                renderNominations(data.nominations || []);
+                return data.nominations || [];
+            }
+        } catch (e) { /* fall through */ }
+        return null;
+    }
+
+    function lifecycleAuthMessage(action, projectId, timestamp) {
+        return 'DCROPE-PROJECT-LIFECYCLE\n' + action + '\n' + projectId + '\n' + timestamp;
+    }
+
+    async function ownerSign(action, projectId) {
+        if (!window.DatachainWallet || !window.DatachainWallet.isConnected()) {
+            if (window.DatachainWallet) window.DatachainWallet.open();
+            throw new Error('Connect the owner wallet first.');
+        }
+        const provider = window.DatachainWallet.getEvmProvider();
+        const { address } = window.DatachainWallet.getState();
+        if (!provider || !address) throw new Error('Connect an EVM wallet.');
+        const timestamp = Math.floor(Date.now() / 1000);
+        const message = lifecycleAuthMessage(action, projectId, timestamp);
+        const signature = await provider.request({ method: 'personal_sign', params: [message, address] });
+        return { ownerAddress: address, timestamp: timestamp, signature: signature };
+    }
+
+    function wireOwnerPanel(p) {
+        const panel = document.getElementById('ownerPanel');
+        const owner = (p.ownerWallet || p.submitterWallet || '').toLowerCase();
+        let connected = '';
+        try {
+            if (window.DatachainWallet && window.DatachainWallet.isConnected()) {
+                connected = String((window.DatachainWallet.getState() || {}).address || '').toLowerCase();
+            }
+        } catch (e) { /* ignore */ }
+        const isOwner = owner && connected && owner === connected;
+        panel.style.display = isOwner ? 'block' : 'none';
+        if (!isOwner) return;
+        document.getElementById('ownerName').value = p.name || '';
+        document.getElementById('ownerTagline').value = p.tagline || '';
+        document.getElementById('ownerDescription').value = p.description || '';
+        const st = (p.status || '').toLowerCase();
+        document.getElementById('btnOwnerPublish').disabled = !(st === 'pending_review' || st === 'draft' || st === 'archived');
+        document.getElementById('btnOwnerArchive').disabled = st === 'voting' || st === 'archived';
+        document.getElementById('btnOwnerResubmit').disabled = !(st === 'archived' || st === 'rejected' || st === 'rejected_by_admin' || st === 'rejected_no_quorum');
+        document.getElementById('ownerHint').textContent = 'Status: ' + (p.status || '').replace(/_/g, ' ') +
+            '. Publish opens a new voting window. Archive is available after the window closes.';
+
+        document.getElementById('btnOwnerSave').onclick = async function () {
+            try {
+                const auth = await ownerSign('update', p.id);
+                const res = await fetch(API + '/projects/' + encodeURIComponent(p.id), {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: document.getElementById('ownerName').value,
+                        tagline: document.getElementById('ownerTagline').value,
+                        description: document.getElementById('ownerDescription').value,
+                        ownerAddress: auth.ownerAddress,
+                        timestamp: auth.timestamp,
+                        signature: auth.signature
+                    })
+                });
+                const j = await res.json();
+                if (!res.ok || !j.success) throw new Error((j && j.error) || 'update failed');
+                alert('Campaign updated.');
+                load();
+            } catch (e) {
+                alert('Save failed: ' + (e.message || e));
+            }
+        };
+        function lifecycle(action) {
+            return async function () {
+                try {
+                    const auth = await ownerSign(action, p.id);
+                    const res = await fetch(API + '/projects/' + encodeURIComponent(p.id) + '/lifecycle', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: action,
+                            ownerAddress: auth.ownerAddress,
+                            timestamp: auth.timestamp,
+                            signature: auth.signature
+                        })
+                    });
+                    const j = await res.json();
+                    if (!res.ok || !j.success) throw new Error((j && j.error) || action + ' failed');
+                    alert('Lifecycle action "' + action + '" applied. Status is now ' + ((j.project && j.project.status) || '').replace(/_/g, ' ') + '.');
+                    load();
+                } catch (e) {
+                    alert(action + ' failed: ' + (e.message || e));
+                }
+            };
+        }
+        document.getElementById('btnOwnerPublish').onclick = lifecycle('publish');
+        document.getElementById('btnOwnerArchive').onclick = lifecycle('archive');
+        document.getElementById('btnOwnerResubmit').onclick = lifecycle('resubmit');
+    }
+
+    function fillResultBanner(el, p) {
+        if (!el) return;
+        const st = (p.status || '').toLowerCase();
+        const wFor = Number(p.weightFor) || 0;
+        const wAgainst = Number(p.weightAgainst) || 0;
+        const ballots = (Number(p.votesFor) || 0) + (Number(p.votesAgainst) || 0);
+        const qPct = Math.min(100, (Number(p.quorumPct) || 0) * 100);
+        if (st === 'voting') {
+            el.style.display = 'block';
+            el.className = 'result-banner';
+            el.innerHTML = '<strong>Live results</strong> - ' + fmtFat(wFor) + ' FAT for · ' +
+                fmtFat(wAgainst) + ' against · ' + ballots + ' ballot' + (ballots === 1 ? '' : 's') +
+                (p.daysRemaining != null ? ' · ' + p.daysRemaining + ' day' + (p.daysRemaining === 1 ? '' : 's') + ' left' : '') +
+                '. Quorum ' + qPct.toFixed(0) + '% of ' + fmtFat(p.requiredQuorumFat) + ' FAT.';
+            return;
+        }
+        if (st === 'approved' || st === 'building' || st === 'awaiting_wallet') {
+            el.style.display = 'block';
+            el.className = 'result-banner ok';
+            el.innerHTML = '<strong>Approved</strong> - campaign reached the approval threshold with ' +
+                fmtFat(wFor + wAgainst) + ' FAT total weight (' + fmtFat(wFor) + ' for / ' + fmtFat(wAgainst) + ' against).';
+            return;
+        }
+        if (st === 'rejected' || st === 'rejected_by_admin') {
+            el.style.display = 'block';
+            el.className = 'result-banner err';
+            el.innerHTML = '<strong>Rejected</strong> - ' + esc(p.reviewOutcome || p.closedReason || 'did not meet the approval threshold or was rejected in review') + '.';
+            return;
+        }
+        if (st === 'rejected_no_quorum') {
+            el.style.display = 'block';
+            el.className = 'result-banner warn';
+            el.innerHTML = '<strong>Closed without quorum</strong> - participation stayed below ' +
+                fmtFat(p.requiredQuorumFat) + ' FAT when the window ended.';
+            return;
+        }
+        if (st === 'archived') {
+            el.style.display = 'block';
+            el.className = 'result-banner warn';
+            el.innerHTML = '<strong>Archived</strong> - this campaign is no longer open. The owner may resubmit.';
+            return;
+        }
+        el.style.display = 'none';
+        el.innerHTML = '';
+    }
+
+    function renderResultBanner(p) {
+        fillResultBanner(document.getElementById('resultBannerCampaign'), p);
+        fillResultBanner(document.getElementById('resultBannerDetails'), p);
+    }
+
+    function voteAuthMessage(projectId, voteFor, timestamp) {
+        return `DCROPE-VOTE-AUTH\nvote\n${projectId}\n${voteFor}\n${timestamp}`;
+    }
+
+    async function claimCauseTokenGrant(grantMeta) {
+        if (!window.DatachainWallet || !window.DatachainWallet.isConnected()) {
+            if (window.DatachainWallet) window.DatachainWallet.open();
+            alert('Connect the NGO treasury wallet to claim.');
+            return;
+        }
+        const factory = grantMeta.factory;
+        const causeId = grantMeta.causeId;
+        if (!factory || !causeId) {
+            alert('Cause token grant is not funded yet.');
+            return;
+        }
+        try {
+            if (!window.ethers) {
+                await new Promise(function (resolve, reject) {
+                    var s = document.createElement('script');
+                    s.src = 'https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js';
+                    s.onload = resolve; s.onerror = reject; document.head.appendChild(s);
+                });
+            }
+            const provider = new window.ethers.BrowserProvider(window.DatachainWallet.getEvmProvider());
+            const signer = await provider.getSigner();
+            const abi = ['function claimGrant(bytes32 causeId)'];
+            const c = new window.ethers.Contract(factory, abi, signer);
+            const tx = await c.claimGrant(causeId);
+            await tx.wait();
+            alert('Claimed. FAT + Cause Token are in the treasury wallet. Tx: ' + tx.hash);
+            load();
+        } catch (e) {
+            alert('Claim failed: ' + (e.message || e));
+        }
+    }
+
+    async function registerNgoTreasury(projectId) {
+        if (!window.DatachainWallet || !window.DatachainWallet.isConnected()) {
+            if (window.DatachainWallet) window.DatachainWallet.open();
+            alert('Connect the NGO treasury wallet first.');
+            return;
+        }
+        const provider = window.DatachainWallet.getEvmProvider();
+        const { address } = window.DatachainWallet.getState();
+        const input = (document.getElementById('ngoTreasuryInput').value || '').trim() || address;
+        if (!provider || !address) {
+            alert('Connect an EVM wallet to register the treasury.');
+            return;
+        }
+        if (address.toLowerCase() !== input.toLowerCase()) {
+            alert('Connected wallet must match the treasury address you are registering.');
+            return;
+        }
+        const timestamp = Math.floor(Date.now() / 1000);
+        const message = 'DCROPE-NGO-TREASURY\n' + projectId + '\n' + input.toLowerCase() + '\n' + timestamp;
+        let signature;
+        try {
+            signature = await provider.request({ method: 'personal_sign', params: [message, address] });
+        } catch (e) {
+            alert('Signature rejected - treasury not registered.');
+            return;
+        }
+        try {
+            const res = await fetch(API + '/projects/' + encodeURIComponent(projectId) + '/register-treasury', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ treasury_address: input, signature: signature, timestamp: timestamp })
+            });
+            const result = await res.json();
+            if (res.ok && result.success) {
+                alert('NGO treasury registered. Foundation can now execute the DC + FAT grants.');
+                load();
+            } else {
+                alert('Registration failed: ' + (result.error || 'unknown error'));
+            }
+        } catch (e) {
+            alert('Registration failed - could not reach the API.');
+        }
+    }
+
+    async function voteOnProject(projectId, voteFor) {
+        if (!window.DatachainWallet || !window.DatachainWallet.isConnected()) {
+            if (window.DatachainWallet) window.DatachainWallet.open();
+            alert('Connect your wallet first - voting weight is your live DC FAT balance on Datachain Rope.');
+            return;
+        }
+        const provider = window.DatachainWallet.getEvmProvider();
+        const { address } = window.DatachainWallet.getState();
+        if (!provider || !address) {
+            alert('Connect an EVM wallet on Datachain Rope to vote.');
+            return;
+        }
+        const timestamp = Math.floor(Date.now() / 1000);
+        const message = voteAuthMessage(projectId, voteFor, timestamp);
+        let signature;
+        try {
+            signature = await provider.request({ method: 'personal_sign', params: [message, address] });
+        } catch (e) {
+            alert('Signature rejected - vote not cast.');
+            return;
+        }
+        try {
+            const res = await fetch(`${API}/projects/${projectId}/vote`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ voter_address: address, vote_for: voteFor, timestamp, signature })
+            });
+            const result = await res.json();
+            if (res.ok && result.success) {
+                alert(`Vote recorded with ${fmtFat(result.vote.weightFat)} FAT weight.`);
+                load();
+            } else {
+                alert('Vote failed: ' + (result.error || 'unknown error'));
+            }
+        } catch (e) {
+            alert('Vote failed - could not reach the API.');
+        }
+    }
+
+    function featureItems(features) {
+        if (!Array.isArray(features)) return [];
+        return features.map(function (f) {
+            if (typeof f === 'string') return f;
+            if (f && typeof f === 'object') return f.name || f.title || f.label || JSON.stringify(f);
+            return String(f);
+        }).filter(Boolean);
+    }
+
+    function inlineMd(s) {
+        return esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    }
+
+    function renderProse(el, text) {
+        const raw = String(text == null ? '' : text).trim();
+        if (!raw) {
+            el.innerHTML = '';
+            return;
+        }
+        const paras = raw.split(/\n{2,}/).map(function (p) { return p.trim(); }).filter(Boolean);
+        el.innerHTML = paras.map(function (p) {
+            return '<p>' + inlineMd(p).replace(/\n/g, '<br>') + '</p>';
+        }).join('');
+    }
+
+    function attachAuthMessage(kind, projectId, url, timestamp) {
+        return 'DCROPE-PROJECT-ATTACH\n' + kind + '\n' + projectId + '\n' + url + '\n' + timestamp;
+    }
+
+    function nominateAuthMessage(projectId, orgName, timestamp) {
+        return 'DCROPE-NGO-NOMINATE\n' + projectId + '\n' + String(orgName || '').trim().toLowerCase() + '\n' + timestamp;
+    }
+
+    function renderNominations(list) {
+        const el = document.getElementById('nomList');
+        const items = Array.isArray(list) ? list : [];
+        if (!items.length) {
+            el.innerHTML = '<div style="color:var(--gray-500);padding:.25rem 0">No NGO nominations yet. Be the first to propose one.</div>';
+            return;
+        }
+        el.innerHTML = items.map(function (n) {
+            const amt = n.requestedAmount
+                ? esc(n.requestedAmount) + ' ' + esc(n.requestedCurrency || '')
+                : 'Amount not specified';
+            const site = n.website
+                ? '<div class="attach-meta"><a href="' + esc(n.website) + '" target="_blank" rel="noopener">' + esc(n.website) + '</a></div>'
+                : '';
+            return '<li style="flex-direction:column;align-items:stretch">' +
+                '<div style="font-weight:600">' + esc(n.orgName || 'Organisation') +
+                ' <span class="badge badge-muted">' + esc(n.status || 'submitted') + '</span></div>' +
+                '<div class="attach-meta">' + esc(n.legalEntity || '') +
+                (n.nominatorAddress ? ' · nominated by ' + esc(n.nominatorAddress.slice(0, 6) + '…' + n.nominatorAddress.slice(-4)) : '') +
+                ' · ' + amt + '</div>' +
+                (n.mission ? '<div style="margin-top:.35rem;color:var(--gray-700)">' + esc(n.mission) + '</div>' : '') +
+                site +
+                '</li>';
+        }).join('');
+    }
+
+    async function submitNomination(projectId) {
+        const orgName = (document.getElementById('nomOrgName').value || '').trim();
+        const legalEntity = (document.getElementById('nomLegalEntity').value || '').trim();
+        const mission = (document.getElementById('nomMission').value || '').trim();
+        const nominatorName = (document.getElementById('nomNominatorName').value || '').trim();
+        if (!orgName || !legalEntity || !mission || !nominatorName) {
+            alert('Organisation name, legal entity, mission, and your name are required.');
+            return;
+        }
+        if (!window.DatachainWallet || !window.DatachainWallet.isConnected()) {
+            if (window.DatachainWallet) window.DatachainWallet.open();
+            alert('Connect a wallet to sign the NGO nomination.');
+            return;
+        }
+        const provider = window.DatachainWallet.getEvmProvider();
+        const { address } = window.DatachainWallet.getState();
+        if (!provider || !address) {
+            alert('Connect an EVM wallet to nominate.');
+            return;
+        }
+        const timestamp = Math.floor(Date.now() / 1000);
+        const message = nominateAuthMessage(projectId, orgName, timestamp);
+        let signature;
+        try {
+            signature = await provider.request({ method: 'personal_sign', params: [message, address] });
+        } catch (e) {
+            alert('Signature rejected - nomination not submitted.');
+            return;
+        }
+        const body = {
+            orgName: orgName,
+            legalEntity: legalEntity,
+            mission: mission,
+            impact: (document.getElementById('nomImpact').value || '').trim(),
+            milestones: (document.getElementById('nomMilestones').value || '').trim(),
+            references: (document.getElementById('nomReferences').value || '').trim(),
+            requestedAmount: (document.getElementById('nomAmount').value || '').trim(),
+            requestedCurrency: document.getElementById('nomCurrency').value || 'DC',
+            website: (document.getElementById('nomWebsite').value || '').trim(),
+            nominatorName: nominatorName,
+            nominatorEmail: (document.getElementById('nomNominatorEmail').value || '').trim(),
+            contactName: (document.getElementById('nomContactName').value || '').trim(),
+            contactEmail: (document.getElementById('nomContactEmail').value || '').trim(),
+            nominatorAddress: address,
+            timestamp: timestamp,
+            signature: signature
+        };
+        try {
+            const res = await fetch(API + '/projects/' + encodeURIComponent(projectId) + '/nominations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const result = await res.json();
+            if (res.ok && result.success) {
+                alert('NGO nomination recorded.');
+                document.getElementById('nomOrgName').value = '';
+                document.getElementById('nomLegalEntity').value = '';
+                document.getElementById('nomMission').value = '';
+                await loadNominations(projectId);
+                ['nomOrgName','nomLegalEntity','nomMission','nomImpact','nomMilestones','nomReferences','nomAmount','nomWebsite','nomNominatorName','nomNominatorEmail','nomContactName','nomContactEmail'].forEach(function (id) {
+                    var el = document.getElementById(id);
+                    if (el) el.value = '';
+                });
+                load();
+            } else {
+                alert('Nomination failed: ' + (result.error || 'unknown error'));
+            }
+        } catch (e) {
+            alert('Nomination failed - could not reach the API.');
+        }
+    }
+
+    async function attachResource(projectId, kind, title, url, extra) {
+        if (!window.DatachainWallet || !window.DatachainWallet.isConnected()) {
+            if (window.DatachainWallet) window.DatachainWallet.open();
+            alert('Connect the project owner wallet to attach ' + kind + '.');
+            return;
+        }
+        const provider = window.DatachainWallet.getEvmProvider();
+        const { address } = window.DatachainWallet.getState();
+        if (!provider || !address) {
+            alert('Connect an EVM wallet to attach.');
+            return;
+        }
+        const timestamp = Math.floor(Date.now() / 1000);
+        const message = attachAuthMessage(kind, projectId, url, timestamp);
+        let signature;
+        try {
+            signature = await provider.request({ method: 'personal_sign', params: [message, address] });
+        } catch (e) {
+            alert('Signature rejected - attach cancelled.');
+            return;
+        }
+        const path = kind === 'document' ? '/documents' : '/media';
+        const body = Object.assign({
+            title: title,
+            url: url,
+            ownerAddress: address,
+            timestamp: timestamp,
+            signature: signature
+        }, extra || {});
+        try {
+            const res = await fetch(API + '/projects/' + encodeURIComponent(projectId) + path, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const result = await res.json();
+            if (res.ok && result.success) {
+                alert((kind === 'document' ? 'Document' : 'Media') + ' attached.');
+                load();
+            } else {
+                alert('Attach failed: ' + (result.error || 'unknown error'));
+            }
+        } catch (e) {
+            alert('Attach failed - could not reach the API.');
+        }
+    }
+
+    function renderDocuments(docs) {
+        const el = document.getElementById('pDocuments');
+        const list = Array.isArray(docs) ? docs : [];
+        if (!list.length) {
+            el.innerHTML = '<li style="color:var(--gray-500);border:none;padding:.25rem 0">No documents attached yet.</li>';
+            return;
+        }
+        el.innerHTML = list.map(function (d) {
+            const title = d.title || 'Document';
+            const url = d.url || '#';
+            const mime = d.mimeType || d.mime_type || '';
+            return '<li><div><a href="' + esc(url) + '" target="_blank" rel="noopener"><i class="fas fa-file-lines"></i> ' +
+                esc(title) + '</a><div class="attach-meta">' + esc(mime) +
+                (d.addedAt ? ' · ' + new Date(d.addedAt * 1000).toLocaleString() : '') +
+                '</div></div></li>';
+        }).join('');
+    }
+
+    function renderMedia(items) {
+        const el = document.getElementById('pMedia');
+        const list = Array.isArray(items) ? items : [];
+        if (!list.length) {
+            el.innerHTML = '<li style="color:var(--gray-500);border:none;padding:.25rem 0">No media attached yet.</li>';
+            return;
+        }
+        el.innerHTML = list.map(function (m) {
+            const title = m.title || 'Media';
+            const url = m.url || '#';
+            const kind = (m.kind || 'other').toLowerCase();
+            var thumb = '';
+            if (kind === 'photo') {
+                thumb = '<img class="attach-thumb" src="' + esc(url) + '" alt="" loading="lazy">';
+            } else if (kind === 'video') {
+                thumb = '<div class="attach-thumb" style="display:flex;align-items:center;justify-content:center;color:var(--gray-500)"><i class="fas fa-video"></i></div>';
+            } else {
+                thumb = '<div class="attach-thumb" style="display:flex;align-items:center;justify-content:center;color:var(--gray-500)"><i class="fas fa-photo-film"></i></div>';
+            }
+            return '<li>' + thumb + '<div><a href="' + esc(url) + '" target="_blank" rel="noopener">' +
+                esc(title) + '</a><div class="attach-meta">' + esc(kind) +
+                (m.addedAt ? ' · ' + new Date(m.addedAt * 1000).toLocaleString() : '') +
+                '</div></div></li>';
+        }).join('');
+    }
+
+    function render(p) {
+        document.getElementById('loadState').style.display = 'none';
+        document.getElementById('projectRoot').style.display = 'block';
+        document.title = (p.name || 'Project') + ' | Community Vote';
+        document.getElementById('crumbName').textContent = p.name || p.id;
+        document.getElementById('pName').textContent = p.name || 'Untitled project';
+        document.getElementById('pTagline').textContent = p.tagline || '';
+        document.getElementById('pTagline').style.display = p.tagline ? 'block' : 'none';
+        const missionEl = document.getElementById('pMission');
+        if (p.mission) {
+            missionEl.textContent = p.mission;
+            missionEl.style.display = 'block';
+        } else {
+            missionEl.textContent = '';
+            missionEl.style.display = 'none';
+        }
+        const creator = p.submitterName || p.organizationName || 'Anonymous creator';
+        document.getElementById('pCreator').textContent = creator;
+        document.getElementById('pAvatar').textContent = (creator.trim()[0] || '?').toUpperCase();
+        document.getElementById('pOrgType').textContent = (p.organizationType || 'individual').replace(/_/g, ' ');
+        document.getElementById('pCategory').textContent = (p.category || 'other').replace(/_/g, ' ');
+        document.getElementById('pStage').textContent = (p.stage || 'idea').replace(/_/g, ' ');
+        const [badgeCls, badgeLabel] = statusBadge(p.status);
+        document.getElementById('heroBadge').innerHTML = '<span class="badge ' + badgeCls + '">' + esc(badgeLabel) + '</span>';
+        const icon = CAT_ICON[p.category] || 'fa-cube';
+        document.getElementById('heroIcon').className = 'fas ' + icon + ' cat-icon';
+        const heroMedia = document.getElementById('heroMedia');
+        const heroImg = document.getElementById('heroImg');
+        const heroUrl = p.heroImage || p.heroImageUrl || p.hero_image || '';
+        if (heroUrl) {
+            heroImg.src = heroUrl;
+            heroImg.alt = (p.name || 'Project') + ' hero';
+            heroMedia.classList.add('has-image');
+        } else {
+            heroImg.removeAttribute('src');
+            heroImg.alt = '';
+            heroMedia.classList.remove('has-image');
+        }
+        renderProse(document.getElementById('pDescription'), p.description || 'No description provided.');
+
+        const feats = featureItems(p.features);
+        if (feats.length) {
+            document.getElementById('secFeatures').style.display = 'block';
+            document.getElementById('pFeatures').innerHTML = feats.map(function (f) { return '<li>' + inlineMd(f) + '</li>'; }).join('');
+        }
+        if (p.useCases) {
+            document.getElementById('secUseCases').style.display = 'block';
+            renderProse(document.getElementById('pUseCases'), p.useCases);
+        }
+        const reviewText = p.reviewOutcome || p.rejectionReason || '';
+        if (reviewText) {
+            document.getElementById('secRejection').style.display = 'block';
+            const isReject = !!(p.rejectionReason && String(p.status || '').indexOf('reject') !== -1);
+            document.getElementById('pRejection').className = isReject ? 'err-banner' : 'info-banner';
+            document.getElementById('pRejection').textContent = reviewText;
+        }
+        const milestones = Array.isArray(p.milestones) ? p.milestones : [];
+        if (milestones.length) {
+            document.getElementById('secMilestones').style.display = 'block';
+            document.getElementById('pMilestones').innerHTML = milestones.map(function (m) {
+                if (typeof m === 'string') return '<div class="milestone">' + inlineMd(m) + '</div>';
+                return '<div class="milestone"><strong>' + inlineMd(m.title || m.name || 'Milestone') +
+                    '</strong><span>' + inlineMd(m.description || m.detail || '') + '</span></div>';
+            }).join('');
+        }
+
+        const nomsOpen = !!(p.nominationsOpen || p.voteIsMeta || p.vote_is_meta);
+        const secNom = document.getElementById('secNominations');
+        // Always show the nominations section for meta cause campaigns, and
+        // re-fetch from /nominations so the shortlist is not stuck on the
+        // snapshot embedded in GET /projects/:id.
+        if (nomsOpen || (Array.isArray(p.nominations) && p.nominations.length) || String(p.voteClass || '').toLowerCase() === 'cause') {
+            secNom.style.display = 'block';
+            renderNominations(p.nominations);
+            loadNominations(p.id);
+            const canNominate = nomsOpen && (p.status || '') === 'voting';
+            document.getElementById('nomForm').style.display = canNominate ? 'grid' : 'none';
+            document.getElementById('nomClosedHint').style.display = canNominate ? 'none' : 'block';
+            document.getElementById('btnNominate').onclick = function () { submitNomination(p.id); };
+        } else {
+            secNom.style.display = 'none';
+        }
+
+        renderResultBanner(p);
+        loadScoreboard(p.id);
+        wireOwnerPanel(p);
+
+        renderDocuments(p.documents);
+        renderMedia(p.media);
+        document.getElementById('btnAttachDoc').onclick = function () {
+            const title = (document.getElementById('docTitle').value || '').trim();
+            const url = (document.getElementById('docUrl').value || '').trim();
+            const mime = (document.getElementById('docMime').value || '').trim();
+            if (!title || !url) { alert('Document title and URL are required.'); return; }
+            attachResource(p.id, 'document', title, url, mime ? { mimeType: mime } : {});
+        };
+        document.getElementById('btnAttachMedia').onclick = function () {
+            const title = (document.getElementById('mediaTitle').value || '').trim();
+            const url = (document.getElementById('mediaUrl').value || '').trim();
+            const kind = document.getElementById('mediaKind').value || 'photo';
+            if (!title || !url) { alert('Media title and URL are required.'); return; }
+            attachResource(p.id, 'media', title, url, { kind: kind });
+        };
+
+        const isCause = String(p.voteClass || p.vote_class || '').toLowerCase() === 'cause';
+        const voteIsMeta = !!(p.voteIsMeta || p.vote_is_meta);
+        if (isCause && !voteIsMeta) {
+            document.getElementById('secCause').style.display = 'block';
+            const socials = p.socials || {};
+            document.getElementById('pCauseMeta').innerHTML = [
+                ['Legal entity', p.legalEntity || p.legal_entity],
+                ['Mission', p.mission],
+                ['Impact', p.impact],
+                ['Value', p.value || p.valueProposition],
+                ['Contact', (p.contactName || '') + (p.contactEmail ? ' · ' + p.contactEmail : '')],
+                ['Phone', p.contactPhone],
+                ['Website', socials.website],
+                ['Twitter', socials.twitter],
+                ['LinkedIn', socials.linkedin],
+                ['Eligibility', p.eligibleVoterSet || 'jury_and_pay'],
+                ['Jury size', Array.isArray(p.jury) ? String(p.jury.length) : '-'],
+                ['Disposition', p.disposition || 'return']
+            ].filter(function (row) { return row[1]; }).map(function (row) {
+                return '<div class="meta-card"><div class="meta-label">' + esc(row[0]) + '</div><div class="meta-value">' + esc(row[1]) + '</div></div>';
+            }).join('');
+            const whys = [p.whyVote1, p.whyVote2, p.whyVote3].filter(Boolean);
+            document.getElementById('pCauseWhy').innerHTML = whys.length
+                ? '<strong>Why vote for this NGO</strong><ol style="margin:.5rem 0 0 1.1rem">' +
+                  whys.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') + '</ol>'
+                : '';
+        } else {
+            document.getElementById('secCause').style.display = 'none';
+        }
+
+        const pipelineStatuses = ['approved', 'awaiting_wallet', 'treasury_registered', 'grant_executed', 'granted', 'cause_token_funded', 'building'];
+        const st = String(p.status || '').toLowerCase();
+        if (isCause && !voteIsMeta) {
+            document.getElementById('secNgoPipeline').style.display = 'block';
+            const steps = [
+                { id: 'submit', label: '1. Submit', done: true },
+                { id: 'jury', label: '2. Jury', done: Array.isArray(p.jury) && p.jury.length > 0 },
+                { id: 'vote', label: '3. Vote', done: ['voting', 'approved', 'awaiting_wallet', 'treasury_registered', 'grant_executed', 'granted', 'cause_token_funded', 'building'].indexOf(st) !== -1 || !!p.escrowVoteId },
+                { id: 'wallet', label: '4. Wallet', done: ['awaiting_wallet', 'treasury_registered', 'grant_executed', 'granted', 'cause_token_funded', 'building'].indexOf(st) !== -1 || !!(p.ngoTreasury || p.ngo_treasury) },
+                { id: 'treasury', label: '5. Treasury', done: !!(p.ngoTreasury || p.ngo_treasury) },
+                { id: 'grant', label: '6. DC + FAT grant', done: ['grant_executed', 'granted', 'cause_token_funded', 'building'].indexOf(st) !== -1 || !!(p.dcGrantTxHash || p.causeTokenGrantTxHash) }
+            ];
+            var stepsEl = document.getElementById('causeProgressSteps');
+            if (stepsEl) {
+                stepsEl.innerHTML = steps.map(function (s) {
+                    var bg = s.done ? 'var(--success-bg)' : 'var(--gray-100)';
+                    var fg = s.done ? 'var(--success-fg)' : 'var(--gray-500)';
+                    return '<span style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;background:' + bg + ';color:' + fg + '">' + esc(s.label) + '</span>';
+                }).join('');
+            }
+        } else {
+            document.getElementById('secNgoPipeline').style.display = 'none';
+        }
+        if (isCause && !voteIsMeta && pipelineStatuses.indexOf(st) !== -1) {
+            const treasury = p.ngoTreasury || p.ngo_treasury || '';
+            const grantMeta = p.causeTokenGrant || {};
+            document.getElementById('pNgoState').innerHTML = [
+                ['Pipeline status', st.replace(/_/g, ' ')],
+                ['Treasury', treasury || 'not registered'],
+                ['DC grant tx', p.dcGrantTxHash || p.dc_grant_tx_hash || '-'],
+                ['Cause id', grantMeta.causeId || '-'],
+                ['Factory', grantMeta.factory || '-'],
+                ['FAT fund tx', p.causeTokenGrantTxHash || grantMeta.fundGrantTx || '-'],
+                ['Minting proposal', p.mintingProposalId || '-'],
+                ['Minting status', p.mintingStatus || '-']
+            ].map(function (row) {
+                return '<div class="meta-card"><div class="meta-label">' + esc(row[0]) + '</div><div class="meta-value" style="word-break:break-all">' + esc(row[1]) + '</div></div>';
+            }).join('');
+            if (treasury) document.getElementById('ngoTreasuryInput').value = treasury;
+            document.getElementById('ngoPipelineHint').textContent = treasury
+                ? (st === 'cause_token_funded'
+                    ? 'FAT grant funded - claim from the treasury wallet to receive FAT + your DCR-20 Cause Token.'
+                    : 'Treasury registered. Foundation executes legacy DC grant + FAT cause-token grant next.')
+                : 'Sign with the treasury wallet key to bind it to this cause. Create one at https://dcscan.io/create-wallet if needed.';
+            document.getElementById('btnRegisterTreasury').onclick = function () {
+                registerNgoTreasury(p.id);
+            };
+            var claimBtn = document.getElementById('btnClaimCauseToken');
+            if (claimBtn) {
+                var canClaim = st === 'cause_token_funded' && grantMeta.causeId && grantMeta.factory;
+                claimBtn.style.display = canClaim ? '' : 'none';
+                claimBtn.onclick = function () { claimCauseTokenGrant(grantMeta); };
+            }
+        }
+
+        const tech = Array.isArray(p.techStack) ? p.techStack : [];
+        document.getElementById('pTech').innerHTML = tech.length
+            ? tech.map(function (t) { return '<span class="chip">' + esc(t) + '</span>'; }).join('')
+            : '<span class="chip">Not specified</span>';
+        const techDetail = p.techStackDetail || p.tech_stack_detail || '';
+        const techDetailEl = document.getElementById('pTechDetail');
+        if (techDetail) {
+            techDetailEl.style.display = 'block';
+            renderProse(techDetailEl, techDetail);
+        } else {
+            techDetailEl.style.display = 'none';
+            techDetailEl.innerHTML = '';
+        }
+        if (p.architectureDescription) {
+            document.getElementById('secArch').style.display = 'block';
+            renderProse(document.getElementById('pArch'), p.architectureDescription);
+        }
+        const campaignLinks = Array.isArray(p.campaignLinks) ? p.campaignLinks : [];
+        const links = campaignLinks.length
+            ? campaignLinks.map(function (l) {
+                return [l.label || l.title || l.name || 'Link', l.url || l.href];
+            }).filter(function (x) { return x[1]; })
+            : [
+                ['Community Vote', p.websiteUrl],
+                ['Create a Rope wallet', p.demoUrl],
+                ['Supply reconciliation', p.whitepaperUrl],
+                ['Governance API', p.documentationUrl],
+                ['GitHub', p.githubUrl]
+            ].filter(function (x) { return x[1]; });
+        document.getElementById('pLinks').innerHTML = links.length
+            ? links.map(function (x) { return '<a href="' + esc(x[1]) + '" target="_blank" rel="noopener"><i class="fas fa-external-link-alt"></i> ' + esc(x[0]) + '</a>'; }).join('')
+            : '<span style="color:var(--gray-500)">No external links provided.</span>';
+        if (p.fundingBreakdown) {
+            document.getElementById('secFunding').style.display = 'block';
+            renderProse(document.getElementById('pFundingBreakdown'), p.fundingBreakdown);
+        }
+
+        document.getElementById('metaGrid').innerHTML = [
+            ['Project ID', p.id],
+            ['Status', (p.status || '').replace(/_/g, ' ')],
+            ['Created', p.createdAt ? new Date(p.createdAt * 1000).toLocaleString() : '-'],
+            ['Voting ends', p.votingEndsAt ? new Date(p.votingEndsAt * 1000).toLocaleString() : '-'],
+            ['AI testimony required', p.requiresAiTestimony ? 'Yes' : 'No'],
+            ['Approval threshold', ((Number(p.approvalThreshold) || 0.51) * 100).toFixed(0) + '%'],
+            ['Quorum required', fmtFat(p.requiredQuorumFat) + ' FAT'],
+            ['Funding currency', p.fundingCurrency || 'FAT']
+        ].map(function (row) {
+            return '<div class="meta-card"><div class="meta-label">' + esc(row[0]) + '</div><div class="meta-value">' + esc(row[1]) + '</div></div>';
+        }).join('');
+
+        document.getElementById('cName').textContent = p.submitterName || '-';
+        document.getElementById('cOrg').textContent = p.organizationName || '-';
+        document.getElementById('cType').textContent = (p.organizationType || '-').replace(/_/g, ' ');
+        document.getElementById('cUsers').textContent = p.targetUsers || '-';
+        const team = Array.isArray(p.teamMembers) ? p.teamMembers : [];
+        if (team.length) {
+            document.getElementById('secTeam').style.display = 'block';
+            document.getElementById('pTeam').innerHTML = team.map(function (m) {
+                if (typeof m === 'string') return '<div class="meta-card" style="margin-bottom:.5rem">' + esc(m) + '</div>';
+                return '<div class="meta-card" style="margin-bottom:.5rem"><strong>' + esc(m.name || 'Member') + '</strong> - ' + esc(m.role || '') + '</div>';
+            }).join('');
+        }
+
+        const wFor = Number(p.weightFor) || 0;
+        const wAgainst = Number(p.weightAgainst) || 0;
+        const totalW = wFor + wAgainst;
+        const forPct = totalW > 0 ? (wFor / totalW) * 100 : 0;
+        const againstPct = totalW > 0 ? (wAgainst / totalW) * 100 : 0;
+        const quorumNeed = Number(p.requiredQuorumFat) || 1000000;
+        const quorumPct = Math.min(100, (totalW / quorumNeed) * 100);
+        document.getElementById('sWeightFor').textContent = fmtFat(wFor);
+        document.getElementById('sQuorumNeed').textContent = fmtFat(quorumNeed);
+        document.getElementById('sQuorumPct').textContent = Math.round(quorumPct) + '%';
+        document.getElementById('barQuorum').style.width = quorumPct + '%';
+        document.getElementById('sForPct').textContent = forPct.toFixed(1) + '%';
+        document.getElementById('barFor').style.width = forPct + '%';
+        document.getElementById('barAgainst').style.width = againstPct + '%';
+        document.getElementById('sWeightAgainst').textContent = fmtFat(wAgainst) + ' FAT';
+        document.getElementById('sBallots').textContent = ((p.votesFor || 0) + (p.votesAgainst || 0)).toLocaleString();
+
+        const days = Number(p.daysRemaining);
+        const secsLeft = Number(p.secondsRemaining);
+        const daysEl = document.getElementById('sDaysLeft');
+        const daysLabel = document.getElementById('sDaysLeftLabel');
+        if ((p.status || '') === 'voting' && Number.isFinite(days)) {
+            const showDays = Math.max(0, days);
+            daysEl.textContent = String(showDays);
+            daysLabel.textContent = showDays === 1 ? 'day to go' : 'days to go';
+            if (showDays === 0 && Number.isFinite(secsLeft) && secsLeft > 0) {
+                const hours = Math.max(1, Math.ceil(secsLeft / 3600));
+                daysEl.textContent = String(hours);
+                daysLabel.textContent = hours === 1 ? 'hour to go' : 'hours to go';
+            }
+        } else {
+            daysEl.textContent = '0';
+            daysLabel.textContent = (p.status || 'closed').replace(/_/g, ' ');
+        }
+        document.getElementById('sTimeLeft').textContent =
+            (p.status || '') === 'voting' && Number.isFinite(days)
+                ? (days + ' day' + (days === 1 ? '' : 's'))
+                : (p.status || '-').replace(/_/g, ' ');
+
+        const deadlineEl = document.getElementById('sDeadline');
+        if (p.votingEndsAt) {
+            deadlineEl.textContent = formatDeadlineCest(p.votingEndsAt);
+        } else {
+            deadlineEl.textContent = 'the end of the voting window';
+        }
+
+        const fund = Number(p.fundingRequested) || 0;
+        document.getElementById('sFunding').textContent = p.fundingAskLabel
+            ? p.fundingAskLabel
+            : (fund > 0
+                ? fmtFat(fund) + ' ' + (p.fundingCurrency || 'FAT')
+                : 'Not requested');
+        document.getElementById('pId').textContent = p.id;
+
+        const canVote = (p.status || '') === 'voting';
+        document.getElementById('btnFor').disabled = !canVote;
+        document.getElementById('btnAgainst').disabled = !canVote;
+        document.getElementById('voteHint').textContent = canVote
+            ? 'Connect a wallet. Weight = full cross-chain balance (ETH DC + XDC DC + Rope FAT + WFAT). Discover ballots do not lock your wallet; VoteEscrow Return locks only the amount you escrow until close.'
+            : 'Voting is closed for this project (' + (p.status || '').replace(/_/g, ' ') + ').';
+
+        document.getElementById('btnFor').onclick = function () { voteOnProject(p.id, true); };
+        document.getElementById('btnAgainst').onclick = function () { voteOnProject(p.id, false); };
+        wireSaveAndShare(p);
+    }
+
+    function formatDeadlineCest(unixSecs) {
+        const d = new Date(Number(unixSecs) * 1000);
+        if (!Number.isFinite(d.getTime())) return '-';
+        const parts = new Intl.DateTimeFormat('en-US', {
+            timeZone: 'Europe/Paris',
+            weekday: 'short',
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+            timeZoneName: 'short'
+        }).formatToParts(d);
+        const get = function (type) {
+            const hit = parts.find(function (x) { return x.type === type; });
+            return hit ? hit.value : '';
+        };
+        // "Fri, August 7 2026 1:47 AM CEST"
+        const tz = get('timeZoneName') || 'CEST';
+        return get('weekday') + ', ' + get('month') + ' ' + get('day') + ' ' + get('year') +
+            ' ' + get('hour') + ':' + get('minute') + ' ' + get('dayPeriod') + ' ' + tz;
+    }
+
+    function projectShortUrl(projectId) {
+        return 'https://dcscan.io/project/' + encodeURIComponent(projectId);
+    }
+
+    function savedProjectIds() {
+        try {
+            const raw = localStorage.getItem('dcscan_saved_projects');
+            const arr = raw ? JSON.parse(raw) : [];
+            return Array.isArray(arr) ? arr : [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function setProjectSaved(projectId, saved) {
+        const id = String(projectId || '');
+        let ids = savedProjectIds().filter(function (x) { return x !== id; });
+        if (saved) ids.push(id);
+        localStorage.setItem('dcscan_saved_projects', JSON.stringify(ids));
+    }
+
+    function wireSaveAndShare(p) {
+        const shortUrl = projectShortUrl(p.id);
+        const pageUrl = location.href.split('#')[0];
+        const shareText = (p.name || 'Datachain project') + ' - vote on Datachain Rope';
+        const encodedUrl = encodeURIComponent(shortUrl);
+        const encodedText = encodeURIComponent(shareText);
+
+        const saveBtn = document.getElementById('btnSaveProject');
+        const saveIcon = document.getElementById('saveProjectIcon');
+        const isSaved = savedProjectIds().indexOf(p.id) !== -1;
+        function paintSave(on) {
+            saveBtn.classList.toggle('saved', on);
+            saveBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+            saveBtn.title = on ? 'Saved project' : 'Save project';
+            saveIcon.className = on ? 'fa-solid fa-bookmark' : 'fa-regular fa-bookmark';
+        }
+        paintSave(isSaved);
+        saveBtn.onclick = function () {
+            const next = !saveBtn.classList.contains('saved');
+            setProjectSaved(p.id, next);
+            paintSave(next);
+        };
+
+        document.getElementById('btnShareFacebook').href =
+            'https://www.facebook.com/sharer/sharer.php?u=' + encodedUrl;
+        document.getElementById('btnShareX').href =
+            'https://twitter.com/intent/tweet?text=' + encodedText + '&url=' + encodedUrl;
+        document.getElementById('btnShareEmail').href =
+            'mailto:?subject=' + encodedText + '&body=' + encodeURIComponent(shareText + '\n\n' + shortUrl);
+
+        document.getElementById('btnShareInstagram').onclick = function () {
+            // Instagram has no web share endpoint; copy the short link for Stories / bio paste.
+            const doCopy = function () {
+                alert('Project link copied. Paste it into Instagram (Story, post, or DM).');
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(shortUrl).then(doCopy).catch(function () {
+                    prompt('Copy this link for Instagram:', shortUrl);
+                });
+            } else {
+                prompt('Copy this link for Instagram:', shortUrl);
+            }
+        };
+
+        document.getElementById('btnCopyShort').onclick = function () {
+            const text = shortUrl || pageUrl;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(function () {
+                    alert('Project short link copied.');
+                }).catch(function () {
+                    prompt('Copy this link:', text);
+                });
+            } else {
+                prompt('Copy this link:', text);
+            }
+        };
+    }
+
+    async function load() {
+        const id = projectIdFromPath();
+        if (!id) {
+            document.getElementById('loadState').innerHTML = '<div class="err-banner">Missing project id. Open a project from <a href="/vote">/vote</a>.</div>';
+            return;
+        }
+        try {
+            const res = await fetch(API + '/projects/' + encodeURIComponent(id), {
+                cache: 'no-store',
+                headers: { 'Accept': 'application/json' }
+            });
+            const data = await res.json();
+            // Accept both flat project payloads and { project: {...} } wrappers.
+            const project = (data && data.project && typeof data.project === 'object')
+                ? data.project
+                : data;
+            if (!res.ok || (data && data.error) || !project || !project.id) {
+                document.getElementById('loadState').innerHTML = '<div class="err-banner">' +
+                    esc((data && data.error) || 'Project not found') +
+                    ' <a href="/vote">← Back to Community Vote</a></div>';
+                return;
+            }
+            try {
+                render(project);
+            } catch (renderErr) {
+                console.error('project render failed', renderErr);
+                document.getElementById('loadState').innerHTML =
+                    '<div class="err-banner">Project loaded but failed to render. <a href="/vote">← Back to Community Vote</a></div>';
+            }
+        } catch (e) {
+            console.error('project fetch failed', e);
+            document.getElementById('loadState').innerHTML =
+                '<div class="err-banner">Could not load project. Please retry. <a href="/vote">← Back to Community Vote</a></div>';
+        }
+    }
+
+    document.querySelectorAll('.tab').forEach(function (tab) {
+        tab.addEventListener('click', function () {
+            document.querySelectorAll('.tab').forEach(function (t) { t.classList.remove('active'); });
+            document.querySelectorAll('.panel').forEach(function (p) { p.classList.remove('active'); });
+            tab.classList.add('active');
+            document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+        });
+    });
+    document.querySelectorAll('.faq-q').forEach(function (q) {
+        q.addEventListener('click', function () {
+            q.parentElement.classList.toggle('open');
+        });
+    });
+
+    fetch(API + '/stats').then(function (r) { return r.json(); }).then(function (d) {
+        const px = d.fatPriceRaw != null ? d.fatPriceRaw : d.fatPrice;
+        if (px != null) {
+            const n = Number(px);
+            document.getElementById('fatPrice').textContent = isFinite(n) ? ('$' + n.toFixed(5)) : String(px);
+        }
+    }).catch(function () {});
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', load);
+    } else {
+        load();
+    }
+})();
+    </script>
+</body>
+</html>

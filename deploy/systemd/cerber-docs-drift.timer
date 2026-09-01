@@ -1,0 +1,10 @@
+[Unit]
+Description=CERBER R15 - hourly docs-vs-production drift check
+
+[Timer]
+OnCalendar=*:07
+Persistent=true
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

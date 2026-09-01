@@ -143,70 +143,65 @@
 </head>
 <body>
     <div class="top-bar">
-        <div class="top-bar-container">
+        <div class="container top-bar-container top-bar-content">
             <div class="top-bar-left">
-                <div class="top-bar-item"><i class="fa-solid fa-coins"></i> DC FAT Price: <span class="top-bar-value" id="topbar-price">—</span><span style="color: #ef4444; margin-left: 0.25rem;" id="topbar-change">—</span></div>
-                <div class="top-bar-item"><i class="fa-solid fa-gas-pump"></i> Gas: <span class="top-bar-value" id="topbar-gas">—</span></div>
-                <div class="top-bar-item"><i class="fa-solid fa-clock"></i> Finality: <span class="top-bar-value" id="topbar-finality">—</span></div>
+                <div class="top-bar-item"><span>DC FAT Price:</span><span class="top-bar-value" id="topbar-fat-price">-</span><span class="top-bar-change" id="topbar-fat-change"></span></div>
+                <div class="top-bar-item"><span>Gas:</span><span class="top-bar-value" id="topbar-gas">-</span></div>
             </div>
-            <div class="top-bar-right"><button class="theme-toggle"><i class="fa-solid fa-sun"></i></button></div>
         </div>
     </div>
     <header>
-        <div class="header-container">
+        <div class="container header-container">
             <a href="/" class="logo">
                 <div class="logo-icon"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 100%; height: 100%; object-fit: contain;"></div>
                 <span class="logo-text"><span>DC</span><span>Explorer</span></span>
             </a>
             <nav class="main-nav">
-                <div class="nav-item">
-                    <a href="#" class="nav-link active">Smartchain <i class="fa-solid fa-chevron-down"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link active">Smartchain <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/strings" class="dropdown-item">View Strings</a>
                         <a href="/txs" class="dropdown-item">Transactions</a>
                         <a href="/txsPending" class="dropdown-item">Pending Txns</a>
-                        <div class="dropdown-divider"></div>
                         <a href="/accounts" class="dropdown-item">Top Accounts</a>
                         <a href="/contracts" class="dropdown-item">Verified Contracts</a>
                     </div>
                 </div>
-                <div class="nav-item">
-                    <a href="#" class="nav-link">AI Agents <i class="fa-solid fa-chevron-down"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link">AI Agents <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/agents" class="dropdown-item">All Agents</a>
                         <a href="/testimonies" class="dropdown-item">Testimonies</a>
                         <a href="/validations" class="dropdown-item">Validators</a>
                     </div>
                 </div>
-                <div class="nav-item">
-                    <a href="#" class="nav-link">Tokens <i class="fa-solid fa-chevron-down"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link">Tokens <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/tokens" class="dropdown-item">DCR-20 Tokens</a>
+                        <a href="/core/fat" class="dropdown-item">Native DC FAT</a>
                         <a href="/tokentxns" class="dropdown-item">Token Transfers</a>
                         <a href="/vote" class="dropdown-item">Vote</a>
                     </div>
                 </div>
-                <div class="nav-item">
-                    <a href="#" class="nav-link">Network <i class="fa-solid fa-chevron-down"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link">Network <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/ecosystem" class="dropdown-item">Ecosystem Projects</a>
-                        <a href="/vote" class="dropdown-item" id="nav-governance-voting">Governance &amp; Voting</a>
+                        <a href="/vote" class="dropdown-item">Governance &amp; Voting</a>
                         <a href="/defi" class="dropdown-item">DeFi</a>
                         <a href="/supply" class="dropdown-item">Supply Reconciliation</a>
-                        <a href="/network/validators" class="dropdown-item">Validators</a>
+                        <a href="/validators" class="dropdown-item">Validators</a>
                         <a href="/databases" class="dropdown-item">Databases</a>
-                        <a href="/databoxes" class="dropdown-item" id="nav-databox-network">Global Databox Network</a>
-                        <a href="/stats" class="dropdown-item">Charts & Stats</a>
+                        <a href="/databoxes" class="dropdown-item">Global Databox Network</a>
+                        <a href="/stats" class="dropdown-item">Charts &amp; Stats</a>
                     </div>
                 </div>
-                <div class="nav-item">
-                    <a href="#" class="nav-link">More <i class="fa-solid fa-chevron-down"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link">More <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/apis" class="dropdown-item">API Docs</a>
+                        <a href="/apis/exchange-integration" class="dropdown-item">Exchange Integration</a>
+                        <a href="/admin-tokens" class="dropdown-item">Admin Tokens</a>
                         <a href="/verify" class="dropdown-item">Verify Contract</a>
-                        <a href="/create-wallet" class="dropdown-item" id="nav-create-wallet">Create Wallet</a>
+                        <a href="/create-wallet" class="dropdown-item">Create Wallet</a>
                         <a href="/faucet" class="dropdown-item">Faucet</a>
-                        <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank">GitHub</a>
+                        <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank" rel="noopener">GitHub</a>
                         <a href="/partners" class="dropdown-item">Partners</a>
                         <a href="/contact" class="dropdown-item">Contact</a>
                     </div>
@@ -230,22 +225,22 @@
         <div class="stats-row">
             <div class="stat-card">
                 <div class="stat-label">Transactions (24H)</div>
-                <div class="stat-value" id="stat-txs24h">—</div>
+                <div class="stat-value" id="stat-txs24h">-</div>
                 <div class="stat-change" id="stat-txs24h-sub" style="color:var(--gray-500);"></div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Pending Transactions</div>
-                <div class="stat-value" id="stat-pending">—</div>
+                <div class="stat-value" id="stat-pending">-</div>
                 <div class="stat-change" id="stat-pending-sub" style="color:var(--gray-500);"></div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Avg. Transaction Fee (24H)</div>
-                <div class="stat-value" id="stat-avgfee">—</div>
+                <div class="stat-value" id="stat-avgfee">-</div>
                 <div class="stat-change" id="stat-avgfee-sub" style="color:var(--gray-500);"></div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Total Transaction Fee (24H)</div>
-                <div class="stat-value" id="stat-totalfee">—</div>
+                <div class="stat-value" id="stat-totalfee">-</div>
                 <div class="stat-change" id="stat-totalfee-sub" style="color:var(--gray-500);"></div>
             </div>
         </div>
@@ -305,16 +300,21 @@
     </main>
 
     <footer>
-        <div class="footer-container">
+        <div class="footer-container container footer-content">
             <div class="footer-brand">
-                <div class="logo-icon" style="width: 24px; height: 24px;"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 100%; height: 100%; object-fit: contain;"></div>
+                <div class="logo-icon" style="width: 24px; height: 24px;">
+                    <img src="/assets/logo.svg" alt="DC Explorer Logo" style="width: 100%; height: 100%; object-fit: contain;">
+                </div>
                 DC Explorer - Powered by Datachain Rope
             </div>
             <div class="footer-links">
                 <a href="https://datachain.network">Datachain</a>
                 <a href="/apis">API</a>
-                <a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a>
-                <a href="/partners">Partners</a><a href="/contact">Contact</a>
+                <a href="/apis/exchange-integration">Exchange Integration</a>
+                <a href="/admin-tokens">Admin Tokens</a>
+                <a href="https://github.com/KazeONGUENE/rope">GitHub</a>
+                <a href="/partners">Partners</a>
+                <a href="/contact">Contact</a>
             </div>
         </div>
     </footer>
@@ -327,7 +327,7 @@
         var totalTxs = 0;
 
         function timeAgo(ts) {
-            if (!ts) return '—';
+            if (!ts) return '-';
             var s = Math.max(0, Math.floor(Date.now() / 1000 - ts));
             if (s < 60) return s + 's ago';
             if (s < 3600) return Math.floor(s / 60) + 'm ago';
@@ -356,9 +356,9 @@
             var rawVal = tx.value || '0 FAT';
             var value = (typeof rawVal === 'string' && (rawVal.indexOf('FAT') !== -1 || rawVal.indexOf('$') !== -1)) ? rawVal : rawVal.replace(/,/g, '') + ' FAT';
             if (value.length > 28) value = value.slice(0, 26) + '…';
-            var strNum = tx.string != null ? tx.string : (tx.blockNumber || '—');
+            var strNum = tx.string != null ? tx.string : (tx.blockNumber || '-');
             var age = timeAgo(tx.timestamp);
-            var fee = tx.txnFee || '—';
+            var fee = tx.txnFee || '-';
             var statusCls = tx.status === 'Failed' ? 'color:#ef4444;' : '';
             var fromHtml;
             if (tx.fromHidden && tx.fromLabel) {
@@ -448,7 +448,7 @@
             fetch('/api/v1/stats').then(function(r) { return r.ok ? r.json() : {}; }).then(function(s) {
                 var el;
                 el = document.getElementById('stat-txs24h');
-                if (el) el.textContent = s.transactions24h != null ? Number(s.transactions24h).toLocaleString() : '—';
+                if (el) el.textContent = s.transactions24h != null ? Number(s.transactions24h).toLocaleString() : '-';
                 el = document.getElementById('stat-txs24h-sub');
                 if (el && s.tps) el.textContent = s.tps + ' TPS';
 
@@ -456,17 +456,17 @@
                 if (el) el.textContent = s.pendingTransactions != null ? Number(s.pendingTransactions).toLocaleString() : '0';
 
                 el = document.getElementById('stat-avgfee');
-                if (el) el.textContent = s.avgTxnFee24h || '—';
+                if (el) el.textContent = s.avgTxnFee24h || '-';
 
                 el = document.getElementById('stat-totalfee');
-                if (el) el.textContent = s.totalTxnFee24h || '—';
+                if (el) el.textContent = s.totalTxnFee24h || '-';
             }).catch(function() {});
         }
 
         loadStats();
         loadPage(1);
     </script>
-    <script src="/js/dcscan-wallet.js?v=20260707b" defer></script>
+    <script src="/js/dcscan-wallet.js?v=20260730a" defer></script>
 </body>
 </html>
 

@@ -1,0 +1,34 @@
+[package]
+name = "rope-addr-index"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Persistent per-address transaction / log / internal-txn index for Datachain Rope. Backfills historical blocks and follows the tip via eth_getBlockByNumber + eth_getLogs, storing entries under (addr, block, index) composite keys in RocksDB so DCScan address pages answer transaction / event queries in O(page_size) instead of scanning the chain via RPC on every request."
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "rope-addr-indexer"
+path = "src/bin/rope_addr_indexer.rs"
+
+[dependencies]
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+bincode = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+parking_lot = { workspace = true }
+hex = { workspace = true }
+base64 = { workspace = true }
+reqwest = { workspace = true }
+rocksdb = { workspace = true }
+toml = { workspace = true }
+clap = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

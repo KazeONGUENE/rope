@@ -2,9 +2,10 @@
 
 **Author:** Datachain Rope agent — `/Users/kazealphonseonguene/Downloads/DATACHAIN ROPE/`
 **Date drafted:** 2026-06-13
+**Last updated:** 2026-08-30 (Phase 0 — chain-scoped `DOMAIN_TAG` for testnet parity, mainnet carve-out preserves wire format)
 **Supersedes:** none (extends the V11 hot-fix in `crates/rope-node/src/rpc_auth.rs`)
 **Tracking:** ticket #1 in `.cursor/rules/handover-security-audit-2026-06-11.mdc`
-**Status:** SPEC (no code yet at draft time)
+**Status:** SPEC (no code yet at draft time); Phase 0 chain-scoping LANDED 2026-08-30 in `rpc_signature.rs` behind `verify_destructive_call_for_chain`, byte-for-byte parity for mainnet enforced by unit tests.
 
 ---
 
@@ -149,7 +150,10 @@ canonical_message = domain_tag
 
 Where:
 
-- `domain_tag = b"DCROPE/destructive-rpc/v1\0"` (literal ASCII, NUL-terminated). Domain separation prevents cross-method or cross-chain replay.
+- `domain_tag` is chain-scoped as of Phase 0 (2026-08-30):
+  - **Mainnet (chainId 271828):** `b"DCROPE/destructive-rpc/v1\0"` (literal ASCII, NUL-terminated). This is the frozen legacy tag. **Do not change these bytes.** Every Phase-2 client already in production (DCSwap `quipuEmitter.ts`, the operator recovery scripts, `sign_phase2_rpc.rs`, `sign-phase2-rpc.ts`) is pinned to this exact byte string on mainnet, and the nonce store keys off it. A byte-level change is a hard fork of the Phase-2 wire format.
+  - **Every other chain (testnet 271829, future rollups, staging chains, …):** `format!("DCROPE/destructive-rpc/v1/{chain_id}\0")` encoded as UTF-8 with a trailing NUL byte. Example: testnet emits `b"DCROPE/destructive-rpc/v1/271829\0"`.
+  - Rationale: prevents cross-chain replay of signed destructive calls. A signature minted for testnet cannot be verified against mainnet and vice versa, even when the signer, method, params, `signed_at`, and nonce are byte-identical. The canonical implementation lives in `crates/rope-node/src/rpc_signature.rs::chain_domain_tag` and is exercised by the `chain_domain_tag_*` unit tests; SDK examples MUST match byte-for-byte.
 - `method_name_len_le` and `canonical_json_params_len_le` are 4-byte little-endian unsigned integers. They prevent ambiguity attacks where a clever method name could collide with concatenated params.
 - `canonical_json_params` is the JSON-canonicalized representation of `params[0..N-1]` (the auth envelope is excluded). Canonicalization rules: object keys sorted lexicographically, no whitespace, UTF-8 NFC, integers in shortest decimal form, no trailing zero in floats. The same `canonical_json_bytes()` function used by `governance.rs::GovernanceAction::canonical_bytes` is reused.
 - `signed_at_be_bytes` is the u64 in big-endian (8 bytes). Big-endian for consistency with Ethereum and so the bytes lex-sort the same way as the integer.
@@ -295,7 +299,22 @@ impl AuthVerifier {
 Helpers:
 
 ```rust
-fn canonical_message(method: &str, params_minus_auth: &serde_json::Value, signed_at: u64, nonce: &[u8; 16]) -> Vec<u8>;
+// Chain-scoped domain tag. Mainnet returns the frozen legacy bytes;
+// every other chain returns `DCROPE/destructive-rpc/v1/{chain_id}\0`.
+pub fn chain_domain_tag(chain_id: u64) -> Vec<u8>;
+
+// Chain-scoped canonical pre-image. `canonical_message` is a thin wrapper
+// that pins `chain_id = MAINNET_CHAIN_ID` (271828) so every mainnet caller
+// keeps the exact byte format they had before Phase 0.
+pub fn canonical_message(method: &str, params_minus_auth: &serde_json::Value, signed_at: u64, nonce: &[u8; 16]) -> Vec<u8>;
+pub fn canonical_message_with_chain(chain_id: u64, method: &str, params_minus_auth: &serde_json::Value, signed_at: u64, nonce: &[u8; 16]) -> Vec<u8>;
+
+// Verifier entry points. `verify_destructive_call` is a mainnet-pinned
+// convenience wrapper; nodes on other chains (testnet 271829, etc.) MUST
+// call the `_for_chain` variant with their `NodeConfig::node.chain_id`.
+pub fn verify_destructive_call(verifier: &AuthVerifier, method: &str, params: &serde_json::Value) -> Result<VerifiedAuth, AuthError>;
+pub fn verify_destructive_call_for_chain(verifier: &AuthVerifier, chain_id: u64, method: &str, params: &serde_json::Value) -> Result<VerifiedAuth, AuthError>;
+
 fn extract_auth_envelope(params: &serde_json::Value) -> Result<(AuthEnvelope, serde_json::Value), AuthError>;
 fn recover_eip191(canonical_message: &[u8], sig65: &[u8; 65]) -> Result<Address, AuthError>;
 fn verify_ed25519(canonical_message: &[u8], sig64: &[u8; 64], pk32: &[u8; 32]) -> Result<(), AuthError>;
@@ -354,12 +373,29 @@ The existing dispatch arms then read `auth_outcome` to populate the response's `
 import { keccak256, hexToBytes, toHex, encodePacked } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
-async function callDestructiveRpc(rpcUrl: string, method: string, paramsMinusAuth: any[], pk: `0x${string}`) {
+// Chain scoping (Phase 0, 2026-08-30):
+//   mainnet (271828)  -> b"DCROPE/destructive-rpc/v1\0"  (legacy, frozen)
+//   any other chainId -> `DCROPE/destructive-rpc/v1/{chainId}\0`
+// Byte-for-byte parity with rope-node is enforced by
+// `crates/rope-node/src/rpc_signature.rs::chain_domain_tag`.
+function chainDomainTag(chainId: bigint): Uint8Array {
+  const enc = new TextEncoder();
+  if (chainId === 271828n) return enc.encode("DCROPE/destructive-rpc/v1\0");
+  return enc.encode(`DCROPE/destructive-rpc/v1/${chainId.toString()}\0`);
+}
+
+async function callDestructiveRpc(
+  rpcUrl: string,
+  chainId: bigint,
+  method: string,
+  paramsMinusAuth: any[],
+  pk: `0x${string}`,
+) {
   const account = privateKeyToAccount(pk);
   const signedAt = Math.floor(Date.now() / 1000);
   const nonce = crypto.getRandomValues(new Uint8Array(16));
 
-  const domainTag = new TextEncoder().encode("DCROPE/destructive-rpc/v1\0");
+  const domainTag = chainDomainTag(chainId);
   const methodBytes = new TextEncoder().encode(method);
   const canonicalParams = canonicalJsonBytes(paramsMinusAuth);
 
@@ -393,12 +429,27 @@ A reference implementation lives at `crates/rope-cli/sdk/typescript/destructive-
 use k256::ecdsa::{SigningKey, Signature, signature::Signer};
 use sha3::{Digest, Keccak256};
 
-fn sign_destructive_call(method: &str, params_minus_auth: &serde_json::Value, sk: &SigningKey) -> AuthEnvelope {
+// Chain scoping (Phase 0, 2026-08-30):
+//   mainnet (271828)  -> b"DCROPE/destructive-rpc/v1\0"  (legacy, frozen)
+//   any other chainId -> `DCROPE/destructive-rpc/v1/{chain_id}\0`
+// Match `crates/rope-node/src/rpc_signature.rs::chain_domain_tag` byte-for-byte.
+fn chain_domain_tag(chain_id: u64) -> Vec<u8> {
+    const MAINNET: u64 = 271828;
+    if chain_id == MAINNET {
+        b"DCROPE/destructive-rpc/v1\0".to_vec()
+    } else {
+        let mut tag = format!("DCROPE/destructive-rpc/v1/{chain_id}").into_bytes();
+        tag.push(0);
+        tag
+    }
+}
+
+fn sign_destructive_call(chain_id: u64, method: &str, params_minus_auth: &serde_json::Value, sk: &SigningKey) -> AuthEnvelope {
     let signed_at = chrono::Utc::now().timestamp() as u64;
     let mut nonce = [0u8; 16];
     rand::thread_rng().fill(&mut nonce);
 
-    let canonical = canonical_message(method, params_minus_auth, signed_at, &nonce);
+    let canonical = canonical_message(chain_id, method, params_minus_auth, signed_at, &nonce);
     // EIP-191 wrap
     let mut hasher = Keccak256::new();
     hasher.update(b"\x19Ethereum Signed Message:\n");
@@ -450,6 +501,13 @@ Reference helper: `crates/rope-cli/src/sign_rpc.rs` (new in Phase-2).
 | `bad_hex_rejected` | `nonce = "not-hex"` -> `BadHex` |
 | `signer_not_in_founder_set_rejected` | Ed25519 signer not in `founder_keys` -> `SignerNotAuthority` |
 | `phase2_flag_off_blocks_external_caller` | `ROPE_PHASE2_SIGNED_DESTRUCTIVE != 1` and external caller -> -32401 (Phase-1 fallback) |
+| `chain_domain_tag_mainnet_is_legacy_bytes` | `chain_domain_tag(271828) == b"DCROPE/destructive-rpc/v1\0"` byte-for-byte |
+| `chain_domain_tag_testnet_embeds_chain_id` | `chain_domain_tag(271829) == b"DCROPE/destructive-rpc/v1/271829\0"` |
+| `chain_domain_tag_arbitrary_chain_embeds_chain_id` | `chain_domain_tag(42) == b"DCROPE/destructive-rpc/v1/42\0"` |
+| `canonical_message_wrapper_pins_mainnet` | `canonical_message(...)` output byte-equals `canonical_message_with_chain(271828, ...)` output for the same inputs |
+| `canonical_message_distinguishes_chain_ids` | Same method / params / signed_at / nonce with `chain_id = 271828` vs `271829` produces different bytes |
+| `cross_chain_replay_rejected` | Signature minted for testnet (271829) verified against mainnet verifier (`verify_destructive_call`) -> `SignerMismatch` / recovered address mismatch |
+| `cross_chain_replay_mainnet_to_testnet_rejected` | Signature minted for mainnet verified via `verify_destructive_call_for_chain(_, 271829, ..)` -> address mismatch |
 
 ### 8.2 Integration tests in `rpc_server.rs`
 

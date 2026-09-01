@@ -17,6 +17,13 @@ pub mod digitalocean;
 pub mod exoscale;
 pub mod local;
 
+// Shared node-enrolment helpers (identity keypair, cloud-init, labels).
+// Not publicly re-exported: every provider that lands a Rope node on
+// a real VM MUST use these directly so the enrolment shape stays
+// byte-identical across DigitalOcean, Exoscale, and any future
+// adapter (see `bootstrap::tests::cloud_init_is_identical_across_providers_for_same_input`).
+mod bootstrap;
+
 #[derive(Debug, thiserror::Error)]
 pub enum ProviderError {
     #[error("provider {0:?} not configured")]

@@ -1,178 +1,318 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Faucet - Datachain Rope</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Inter', sans-serif;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            background: #fafafa;
-            padding: 2rem;
-        }
-        .container {
-            max-width: 480px;
-            width: 100%;
-            text-align: center;
-        }
-        .icon {
-            width: 80px;
-            height: 80px;
-            margin: 0 auto 2rem;
-        }
-        
-        .icon svg {
-            width: 100%;
-            height: 100%;
-        }
-        h1 {
-            font-size: 2rem;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-            letter-spacing: -0.02em;
-        }
-        p {
-            color: #71717a;
-            margin-bottom: 2rem;
-            line-height: 1.7;
-        }
-        .card {
-            background: #fff;
-            border: 1px solid #e4e4e7;
-            border-radius: 16px;
-            padding: 2rem;
-        }
-        label {
-            display: block;
-            font-size: 0.875rem;
-            font-weight: 500;
-            color: #3f3f46;
-            margin-bottom: 0.5rem;
-            text-align: left;
-        }
-        input {
-            width: 100%;
-            padding: 0.875rem 1rem;
-            border: 1px solid #e4e4e7;
-            border-radius: 8px;
-            font-size: 0.9375rem;
-            font-family: 'JetBrains Mono', monospace;
-            margin-bottom: 1rem;
-            outline: none;
-            transition: border-color 0.15s;
-        }
-        input:focus {
-            border-color: #000;
-        }
-        button {
-            width: 100%;
-            padding: 1rem;
-            background: #000;
-            color: #fff;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            transition: background 0.15s;
-        }
-        button:hover {
-            background: #27272a;
-        }
-        button:disabled {
-            background: #a1a1aa;
-            cursor: not-allowed;
-        }
-        .info {
-            margin-top: 1.5rem;
-            padding: 1rem;
-            background: #f4f4f5;
-            border-radius: 8px;
-            font-size: 0.875rem;
-            color: #52525b;
-        }
-        .info strong {
-            color: #000;
-        }
-        .back {
-            margin-top: 2rem;
-            color: #71717a;
-            font-size: 0.875rem;
-        }
-        .back a {
-            color: #000;
-            text-decoration: none;
-        }
-        .back a:hover {
-            text-decoration: underline;
-        }
-    </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Datachain Rope Testnet Faucet - xFAT Drip</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23000'/><text x='16' y='22' font-family='JetBrains Mono,ui-monospace,Menlo,monospace' font-size='14' font-weight='700' fill='%23fff' text-anchor='middle'>xF</text></svg>" />
+<meta name="description" content="Datachain Rope Testnet (chainId 271829) - request 100 xFAT to develop and test smart contracts.  Testnet xFAT has no monetary value." />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --black:#000;--white:#fff;
+  --gray-50:#fafafa;--gray-100:#f4f4f5;--gray-200:#e4e4e7;--gray-300:#d4d4d8;
+  --gray-500:#71717a;--gray-600:#52525b;--gray-700:#3f3f46;--gray-900:#18181b;
+  --success:#22c55e;--success-bg:#dcfce7;--success-fg:#166534;
+  --warning-bg:#fef3c7;--warning-fg:#92400e;
+  --error:#ef4444;--error-bg:#fee2e2;--error-fg:#991b1b;
+  --info-bg:#dbeafe;--info-fg:#1e40af;
+  --font-sans:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+  --font-mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
+  --radius-md:8px;--radius-lg:12px;
+  --shadow-sm:0 1px 2px 0 rgba(0,0,0,.05);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:var(--font-sans);font-size:14px;line-height:1.55;color:var(--gray-900);background:var(--gray-50);-webkit-font-smoothing:antialiased}
+a{color:var(--black);text-decoration:none}
+a:hover{color:var(--gray-600)}
+code,pre,.mono{font-family:var(--font-mono)}
+.container{max-width:920px;margin:0 auto;padding:2.5rem 1.25rem 4rem}
+.brand{display:flex;align-items:center;gap:.625rem;margin-bottom:2rem}
+.brand-mark{width:32px;height:32px;border-radius:6px;background:var(--black);color:var(--white);display:grid;place-items:center;font-family:var(--font-mono);font-weight:700;font-size:12px}
+.brand-name{font-weight:600;font-size:15px;color:var(--black)}
+.brand-name span{color:var(--gray-500);font-weight:400}
+h1{font-size:26px;font-weight:700;margin:0 0 .5rem;letter-spacing:-.01em}
+.subtitle{color:var(--gray-600);font-size:15px;margin-bottom:1.75rem}
+.card{background:var(--white);border:1px solid var(--gray-200);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);padding:1.5rem;margin-bottom:1.25rem}
+.card h2{font-size:16px;font-weight:600;margin:0 0 1rem;color:var(--black);letter-spacing:-.005em}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+@media (max-width:600px){.grid{grid-template-columns:1fr}}
+.metric{display:flex;flex-direction:column;gap:.25rem}
+.metric-label{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500)}
+.metric-value{font-family:var(--font-mono);font-size:14px;color:var(--gray-900);word-break:break-all}
+.metric-value.big{font-size:18px;font-weight:600}
+label{display:block;font-size:12px;font-weight:600;color:var(--gray-700);margin:0 0 .375rem}
+input[type=text]{width:100%;font-family:var(--font-mono);font-size:14px;padding:.75rem .875rem;border:1px solid var(--gray-300);border-radius:var(--radius-md);background:var(--white);color:var(--gray-900);outline:none;transition:border-color .12s}
+input[type=text]:focus{border-color:var(--black)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.75rem 1.125rem;border-radius:var(--radius-md);font-size:13px;font-weight:600;font-family:var(--font-sans);cursor:pointer;border:1px solid transparent;transition:background .12s,color .12s,border-color .12s}
+.btn-primary{background:var(--gray-900);color:var(--white)}
+.btn-primary:hover:not(:disabled){background:var(--gray-700)}
+.btn-primary:disabled{background:var(--gray-300);color:var(--gray-500);cursor:not-allowed}
+.btn-ghost{background:var(--white);border-color:var(--gray-300);color:var(--gray-700)}
+.btn-ghost:hover{background:var(--gray-100);color:var(--black)}
+.form-row{display:flex;gap:.625rem;flex-wrap:wrap;margin-top:1rem}
+.form-row .btn{flex:0 0 auto}
+.badge{display:inline-flex;align-items:center;gap:.375rem;font-size:11.5px;font-weight:600;padding:.25rem .625rem;border-radius:20px;font-family:var(--font-sans)}
+.badge-ok{background:var(--success-bg);color:var(--success-fg)}
+.badge-info{background:var(--info-bg);color:var(--info-fg)}
+.badge-warn{background:var(--warning-bg);color:var(--warning-fg)}
+.result{margin-top:1rem;padding:1rem;border-radius:var(--radius-md);border:1px solid var(--gray-200);background:var(--gray-50);display:none}
+.result.show{display:block}
+.result.ok{background:var(--success-bg);border-color:#bbf7d0;color:var(--success-fg)}
+.result.err{background:var(--error-bg);border-color:#fecaca;color:var(--error-fg)}
+.result-head{font-weight:600;font-size:13px;margin-bottom:.375rem}
+.result-body{font-family:var(--font-mono);font-size:12.5px;word-break:break-all}
+.result a{color:inherit;text-decoration:underline}
+.footer{margin-top:2rem;padding-top:1.5rem;border-top:1px solid var(--gray-200);font-size:12.5px;color:var(--gray-500)}
+.footer p{margin:.375rem 0}
+.pill-row{display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.75rem}
+.helper{font-size:12px;color:var(--gray-500);margin-top:.375rem;line-height:1.5}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.hidden{display:none!important}
+.copy-btn{background:transparent;border:none;color:var(--gray-500);cursor:pointer;font-size:11px;padding:.125rem .25rem;font-family:var(--font-sans)}
+.copy-btn:hover{color:var(--black)}
+</style>
 </head>
 <body>
-    <div class="container">
-        <div class="icon">
-            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                <rect width="100" height="100" rx="16" fill="#000"/>
-                <path d="M50 22 L72 72 L28 72 Z" fill="#fff" stroke="#000" stroke-width="1"/>
-                <path d="M23 44 L38 72 L8 72 Z" fill="#fff" stroke="#000" stroke-width="1"/>
-                <path d="M77 44 L92 72 L62 72 Z" fill="#fff" stroke="#000" stroke-width="1"/>
-            </svg>
-        </div>
-        <h1>Testnet Faucet</h1>
-        <p>Get free testnet FAT tokens to start building on Datachain Rope.</p>
-        
-        <div class="card">
-            <label for="address">Your Wallet Address</label>
-            <input type="text" id="address" placeholder="0x..." autocomplete="off">
-            <button onclick="requestTokens()" id="request-btn">
-                <i class="fa-solid fa-coins"></i>
-                Request 10 FAT
-            </button>
-            
-            <div class="info">
-                <strong>Limit:</strong> 10 FAT per address every 24 hours<br>
-                <strong>Network:</strong> Datachain Rope Testnet (271829)
-            </div>
-        </div>
-        
-        <div class="back">
-            <a href="https://datachain.network"><i class="fa-solid fa-arrow-left"></i> Back to Datachain</a>
-        </div>
+<div class="container">
+  <div class="brand">
+    <div class="brand-mark">xF</div>
+    <div class="brand-name">Datachain Rope <span>/ Testnet Faucet</span></div>
+  </div>
+
+  <h1>Testnet xFAT Faucet</h1>
+  <p class="subtitle">Request 100 xFAT on Datachain Rope Testnet to fund contract deployment and RPC tests.  Testnet xFAT has no monetary value.</p>
+
+  <div class="card">
+    <div class="pill-row">
+      <span class="badge badge-ok"  id="net-status">Loading network...</span>
+      <span class="badge badge-info" id="net-chain">Chain -</span>
+      <span class="badge badge-warn">Testnet - xFAT has no monetary value</span>
     </div>
-    
-    <script>
-        async function requestTokens() {
-            const address = document.getElementById('address').value.trim();
-            const btn = document.getElementById('request-btn');
-            
-            if (!address || !address.startsWith('0x') || address.length !== 42) {
-                alert('Please enter a valid Ethereum address');
-                return;
-            }
-            
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Requesting...';
-            
-            // Simulate request (replace with actual API call)
-            setTimeout(() => {
-                alert('Faucet service coming soon! The testnet is not yet active.');
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fa-solid fa-coins"></i> Request 10 FAT';
-            }, 1500);
-        }
-    </script>
+    <div class="grid">
+      <div class="metric">
+        <div class="metric-label">Network</div>
+        <div class="metric-value" id="m-network">-</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Chain ID</div>
+        <div class="metric-value" id="m-chainid">-</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Gas Token</div>
+        <div class="metric-value" id="m-token">-</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Latest Block</div>
+        <div class="metric-value" id="m-block">-</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Drip Amount</div>
+        <div class="metric-value big" id="m-drip">-</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Faucet Balance</div>
+        <div class="metric-value" id="m-balance">-</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Request 100 xFAT</h2>
+    <label for="addr">Recipient address</label>
+    <input id="addr" type="text" placeholder="0x..." autocomplete="off" spellcheck="false" />
+    <div class="helper">Paste any EVM address on Datachain Rope Testnet.  Limits: 1 drip per address / 24h, 3 drips per IP / 24h.</div>
+    <div class="form-row">
+      <button id="btn-drip" class="btn btn-primary">Request 100 xFAT</button>
+      <button id="btn-refresh" class="btn btn-ghost" title="Refresh faucet status">Refresh status</button>
+    </div>
+    <div id="result" class="result" role="status" aria-live="polite"></div>
+  </div>
+
+  <div class="card">
+    <h2>Add Datachain Rope Testnet to your wallet</h2>
+    <div class="grid">
+      <div class="metric">
+        <div class="metric-label">RPC URL</div>
+        <div class="metric-value">
+          <span id="rpc-url">https://faucet.datachain.network/rpc</span>
+          <button class="copy-btn" data-copy="https://faucet.datachain.network/rpc">copy</button>
+        </div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Chain ID</div>
+        <div class="metric-value">
+          <span id="chain-hex">0x425d5 (271829)</span>
+          <button class="copy-btn" data-copy="271829">copy</button>
+        </div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Currency symbol</div>
+        <div class="metric-value">xFAT <button class="copy-btn" data-copy="xFAT">copy</button></div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Block explorer</div>
+        <div class="metric-value">
+          <a href="https://testnet.dcscan.io" target="_blank" rel="noopener">testnet.dcscan.io</a>
+        </div>
+      </div>
+    </div>
+    <div class="form-row">
+      <button id="btn-add-wallet" class="btn btn-ghost">Add to MetaMask</button>
+    </div>
+    <div class="helper">The public RPC exposes read methods and <code>eth_sendRawTransaction</code>.  Admin, debug, personal and engine methods are blocked.</div>
+  </div>
+
+  <div class="footer">
+    <p><strong>Mainnet vs Testnet.</strong>  Mainnet is Datachain Rope (chainId 271828, FAT).  Testnet is chainId 271829 with xFAT and no monetary value.  Do not send real FAT to a testnet address.</p>
+    <p><strong>Rate limits.</strong>  1 drip per address / 24h and 3 drips per IP / 24h are enforced server-side, in addition to a 2 req/s edge rate limit.</p>
+    <p><strong>Reset.</strong>  This testnet may be wiped at any time.  Do not rely on its state.</p>
+  </div>
+</div>
+
+<script>
+(function(){
+  const $ = (id) => document.getElementById(id);
+  const setBadge = (el, cls, text) => { el.className = "badge " + cls; el.textContent = text; };
+  const fmt = (n) => {
+    if (n == null) return "-";
+    const num = typeof n === "string" ? Number(n) : n;
+    if (!Number.isFinite(num)) return String(n);
+    return num.toLocaleString("en-US", { maximumFractionDigits: 6 });
+  };
+
+  async function refreshStatus() {
+    try {
+      const r = await fetch("/api/status", { cache: "no-store" });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.error || "faucet returned ok:false");
+      setBadge($("net-status"), "badge-ok", "Faucet online");
+      $("net-chain").textContent = "Chain " + d.chainIdHex + " (" + d.chainId + ")";
+      $("m-network").textContent = d.network || "-";
+      $("m-chainid").textContent = d.chainId + " / " + d.chainIdHex;
+      $("m-token").textContent = d.token || "xFAT";
+      $("m-block").textContent = d.latestBlock != null ? "#" + d.latestBlock : "-";
+      $("m-drip").textContent = fmt(d.dripAmountXfat) + " " + (d.token || "xFAT");
+      $("m-balance").textContent = fmt(d.faucetBalanceXfat) + " " + (d.token || "xFAT");
+    } catch (e) {
+      setBadge($("net-status"), "badge-warn", "Status unreachable");
+      $("net-chain").textContent = "Chain 0x425d5 (271829)";
+      $("m-network").textContent = "Datachain Rope Testnet";
+      $("m-chainid").textContent = "271829 / 0x425d5";
+      $("m-token").textContent = "xFAT";
+      $("m-block").textContent = "-";
+      $("m-drip").textContent = "100 xFAT";
+      $("m-balance").textContent = "-";
+    }
+  }
+
+  function showResult(cls, headHtml, bodyHtml) {
+    const el = $("result");
+    el.className = "result show " + cls;
+    el.innerHTML = '<div class="result-head">' + headHtml + '</div>' +
+                   '<div class="result-body">' + bodyHtml + '</div>';
+  }
+
+  function isEvmAddress(a) {
+    return typeof a === "string" && /^0x[0-9a-fA-F]{40}$/.test(a.trim());
+  }
+
+  async function requestDrip() {
+    const raw = $("addr").value.trim();
+    if (!isEvmAddress(raw)) {
+      showResult("err", "Invalid address", "Paste a valid EVM address (0x + 40 hex chars).");
+      return;
+    }
+    const btn = $("btn-drip");
+    const oldLabel = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Requesting...';
+    try {
+      const r = await fetch("/api/drip", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ address: raw }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.ok) {
+        const explorer = (d.explorer || "https://testnet.dcscan.io/").replace(/\/$/, "");
+        const txLink = explorer + "/tx/" + d.tx;
+        showResult(
+          "ok",
+          "Sent " + (d.amountXfat || "100") + " xFAT",
+          "to <code>" + d.to + "</code><br>" +
+          "tx: <a href=\"" + txLink + "\" target=\"_blank\" rel=\"noopener\"><code>" + d.tx + "</code></a>"
+        );
+        setTimeout(refreshStatus, 3500);
+      } else if (r.status === 429) {
+        const retry = d.retryAfterSecs != null ? " Retry in " + d.retryAfterSecs + "s." : "";
+        const cap = d.ipMaxPerDay != null ? " Daily IP cap: " + d.ipMaxPerDay + " drips." : "";
+        showResult("err", "Rate limited", (d.error || "rate limit reached") + "." + retry + cap);
+      } else if (r.status === 400) {
+        showResult("err", "Rejected", d.error || "malformed request");
+      } else if (r.status === 502) {
+        showResult("err", "Upstream error", d.error || "testnet RPC unreachable, try again in a few seconds");
+      } else {
+        showResult("err", "Faucet error", d.error || "HTTP " + r.status);
+      }
+    } catch (e) {
+      showResult("err", "Network error", (e && e.message) || "unknown error");
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = oldLabel;
+    }
+  }
+
+  async function addToWallet() {
+    if (!window.ethereum || !window.ethereum.request) {
+      showResult("err", "No wallet detected", "Install MetaMask (or a compatible EVM wallet) to add Datachain Rope Testnet automatically.");
+      return;
+    }
+    try {
+      await window.ethereum.request({
+        method: "wallet_addEthereumChain",
+        params: [{
+          chainId: "0x425d5",
+          chainName: "Datachain Rope Testnet",
+          nativeCurrency: { name: "xFAT", symbol: "xFAT", decimals: 18 },
+          rpcUrls: ["https://faucet.datachain.network/rpc"],
+          blockExplorerUrls: ["https://testnet.dcscan.io"],
+          iconUrls: [
+            "https://dcscan.io/assets/logo.png",
+            "https://dcscan.io/assets/logo.svg",
+          ],
+        }],
+      });
+      showResult("ok", "Network added", "Datachain Rope Testnet (chainId 271829) is now available in your wallet.");
+    } catch (e) {
+      showResult("err", "Wallet rejected", (e && e.message) || "wallet_addEthereumChain failed");
+    }
+  }
+
+  function bindCopy() {
+    document.querySelectorAll(".copy-btn[data-copy]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(btn.getAttribute("data-copy"));
+          const old = btn.textContent;
+          btn.textContent = "copied";
+          setTimeout(() => { btn.textContent = old; }, 1200);
+        } catch {}
+      });
+    });
+  }
+
+  $("btn-drip").addEventListener("click", requestDrip);
+  $("btn-refresh").addEventListener("click", refreshStatus);
+  $("btn-add-wallet").addEventListener("click", addToWallet);
+  $("addr").addEventListener("keydown", (e) => { if (e.key === "Enter") requestDrip(); });
+  bindCopy();
+  refreshStatus();
+  setInterval(refreshStatus, 15000);
+})();
+</script>
 </body>
 </html>
-

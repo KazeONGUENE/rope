@@ -21,6 +21,7 @@ hashbrown = { workspace = true }
 indexmap = { workspace = true }
 bitvec = { workspace = true }
 petgraph = { workspace = true }
+dashmap = { workspace = true }
 
 # Utilities
 thiserror = { workspace = true }
@@ -30,6 +31,7 @@ chrono = { workspace = true }
 uuid = { workspace = true }
 tracing = { workspace = true }
 parking_lot = { workspace = true }
+once_cell = { workspace = true }
 
 # Reed-Solomon for complement generation
 reed-solomon-erasure = { workspace = true }

@@ -303,6 +303,7 @@ pub const SAFE_READ_ONLY_METHODS: &[&str] = &[
     "rope_globalStats",
     "rope_governanceInfo",
     "rope_knotIndex",
+    "rope_latticeMetrics",
     "rope_listAgents",
     "rope_listApplications",
     "rope_listDeployerAttestations",
@@ -347,12 +348,41 @@ pub const WALLET_PARAM0_METHODS: &[&str] = &[
     "rope_appendToLedger",
     "rope_untieKnot",
     "rope_erasePersonalLedger",
+    // Added 2026-07-26 counter-audit (rope-node/rope-explorer backend sweep,
+    // finding C1): `rope_v2_appendKnot` and `rope_v2_compact` mutate a
+    // wallet's v2.0 DAG ledger exactly like `rope_appendToLedger` mutates
+    // the v1.2 linear ledger, and take the wallet as a plain hex string in
+    // `params[0]` (see the `"rope_v2_appendKnot" =>` / `"rope_v2_compact" =>`
+    // arms in `rpc_server.rs`). Both were already correctly listed in
+    // `DESTRUCTIVE_METHODS` (so the Phase-1/Phase-2 destructive-RPC gate
+    // covers them), but were missing here, meaning an internal or
+    // Phase-2-signed caller naming a blocklisted wallet would bypass the
+    // independent CERBER WATCH `blocked_signers` check entirely.
+    "rope_v2_appendKnot",
+    "rope_v2_compact",
 ];
 
 /// Same idea as [`WALLET_PARAM0_METHODS`], but the wallet address is the
 /// *second* positional parameter. `rope_subscribeAgentToWallet(agent_id,
 /// wallet)` is the only method in this shape today.
 pub const WALLET_PARAM1_METHODS: &[&str] = &["rope_subscribeAgentToWallet"];
+
+/// CERBER WATCH — object-shaped `blocked_signers` wiring (2026-07-26
+/// counter-audit, finding C1). `rope_registerDevice` and
+/// `rope_ingestTelemetry` are also [`DESTRUCTIVE_METHODS`], but unlike
+/// every method in [`WALLET_PARAM0_METHODS`] / [`WALLET_PARAM1_METHODS`]
+/// they don't take the wallet as a bare positional string — the wallet is
+/// nested inside a JSON object at `params[0]` (see the
+/// `"rope_registerDevice" =>` / `"rope_ingestTelemetry" =>` arms in
+/// `rpc_server.rs`, which read `params[0].wallet_address` and
+/// `params[0].device_wallet` respectively). [`wallet_param_for_method`]
+/// consults this table after the flat-positional lists come up empty, so
+/// the blocklist check still runs for these two methods instead of
+/// silently no-op'ing on `None`.
+pub const WALLET_PARAM0_OBJECT_FIELD_METHODS: &[(&str, &str)] = &[
+    ("rope_registerDevice", "wallet_address"),
+    ("rope_ingestTelemetry", "device_wallet"),
+];
 
 /// Returns true when Foundry-Anvil-compatibility devnet methods
 /// (`anvil_*`, `evm_*` — see [`DEV_ONLY_EVM_METHODS`]) are allowed to be
@@ -373,23 +403,32 @@ pub fn dev_only_evm_methods_enabled() -> bool {
 /// Pull the wallet/signer address `rpc_server.rs` would use to key a
 /// mutation for `method`, if any, out of the request's `params` value.
 /// Returns `None` for methods outside [`WALLET_PARAM0_METHODS`] /
-/// [`WALLET_PARAM1_METHODS`], or when the expected positional parameter
-/// isn't present or isn't a string (the dispatch handler itself will
-/// reject those with its own `-32602 Missing ... parameter` error; this
-/// function only needs to recognise a well-formed call in order to gate
-/// it, not to duplicate the handler's own validation).
+/// [`WALLET_PARAM1_METHODS`] / [`WALLET_PARAM0_OBJECT_FIELD_METHODS`], or
+/// when the expected parameter isn't present or isn't a string (the
+/// dispatch handler itself will reject those with its own `-32602
+/// Missing ... parameter` error; this function only needs to recognise a
+/// well-formed call in order to gate it, not to duplicate the handler's
+/// own validation).
 pub fn wallet_param_for_method<'a>(
     method: &str,
     params: Option<&'a serde_json::Value>,
 ) -> Option<&'a str> {
-    let index = if WALLET_PARAM0_METHODS.contains(&method) {
-        0
-    } else if WALLET_PARAM1_METHODS.contains(&method) {
-        1
-    } else {
-        return None;
-    };
-    params.and_then(|p| p.get(index)).and_then(|v| v.as_str())
+    if WALLET_PARAM0_METHODS.contains(&method) {
+        return params.and_then(|p| p.get(0)).and_then(|v| v.as_str());
+    }
+    if WALLET_PARAM1_METHODS.contains(&method) {
+        return params.and_then(|p| p.get(1)).and_then(|v| v.as_str());
+    }
+    if let Some((_, field)) = WALLET_PARAM0_OBJECT_FIELD_METHODS
+        .iter()
+        .find(|(m, _)| *m == method)
+    {
+        return params
+            .and_then(|p| p.get(0))
+            .and_then(|obj| obj.get(field))
+            .and_then(|v| v.as_str());
+    }
+    None
 }
 
 /// Run the CERBER boot-time dispatcher-completeness check (new capability
@@ -927,7 +966,12 @@ mod tests {
         // maintainer adds a read-only method to either WALLET_PARAM*
         // list by mistake, this pins the invariant that would otherwise
         // silently regress.
-        for method in WALLET_PARAM0_METHODS.iter().chain(WALLET_PARAM1_METHODS) {
+        let object_field_methods = WALLET_PARAM0_OBJECT_FIELD_METHODS.iter().map(|(m, _)| m);
+        for method in WALLET_PARAM0_METHODS
+            .iter()
+            .chain(WALLET_PARAM1_METHODS)
+            .chain(object_field_methods)
+        {
             assert!(
                 DESTRUCTIVE_METHODS.contains(method),
                 "{method} is in a WALLET_PARAM* list but not in DESTRUCTIVE_METHODS"
@@ -942,7 +986,48 @@ mod tests {
                 !WALLET_PARAM1_METHODS.contains(m),
                 "{m} listed in both WALLET_PARAM0_METHODS and WALLET_PARAM1_METHODS"
             );
+            assert!(
+                !WALLET_PARAM0_OBJECT_FIELD_METHODS.iter().any(|(om, _)| om == m),
+                "{m} listed in both WALLET_PARAM0_METHODS and WALLET_PARAM0_OBJECT_FIELD_METHODS"
+            );
         }
+    }
+
+    #[test]
+    fn wallet_param_for_method_reads_v2_appendknot_and_compact() {
+        let params = serde_json::json!(["0xabc", {"interaction_type": "Transfer"}]);
+        assert_eq!(
+            wallet_param_for_method("rope_v2_appendKnot", Some(&params)),
+            Some("0xabc")
+        );
+        let params = serde_json::json!(["0xdef"]);
+        assert_eq!(
+            wallet_param_for_method("rope_v2_compact", Some(&params)),
+            Some("0xdef")
+        );
+    }
+
+    #[test]
+    fn wallet_param_for_method_reads_object_shaped_wallet_fields() {
+        let params = serde_json::json!([{"device_id": "d1", "wallet_address": "0x111"}]);
+        assert_eq!(
+            wallet_param_for_method("rope_registerDevice", Some(&params)),
+            Some("0x111")
+        );
+        let params = serde_json::json!([{"device_wallet": "0x222", "readings": {}}]);
+        assert_eq!(
+            wallet_param_for_method("rope_ingestTelemetry", Some(&params)),
+            Some("0x222")
+        );
+    }
+
+    #[test]
+    fn wallet_param_for_method_object_shaped_is_none_when_field_missing() {
+        let params = serde_json::json!([{"device_id": "d1"}]);
+        assert_eq!(
+            wallet_param_for_method("rope_registerDevice", Some(&params)),
+            None
+        );
     }
 
     #[test]

@@ -1,0 +1,29 @@
+[Unit]
+Description=CERBER R14 - RPC activity classifier (daily rollup + malicious IP tarpit map)
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+EnvironmentFile=-/etc/cerber-alert.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node /opt/datachain-rope/cerber/bin/cerber-rpc-classify.mjs \
+    --source docker --container rope-nginx --since 24h \
+    --report both --page-if-severe --window-label 24h
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=6
+ProtectSystem=strict
+ProtectHome=true
+# The classifier writes the tarpit map input into the nginx conf.d bind-mount
+# so the rope-nginx container picks it up on the next reload. That path must
+# be listed here or ProtectSystem=strict prevents the write and R14 fails
+# closed with EROFS. See rpc-classify.mjs::writeMaliciousIps().
+ReadWritePaths=/var/lib/datachain-rope/cerber /opt/datachain-rope/code/deploy/nginx/conf.d
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

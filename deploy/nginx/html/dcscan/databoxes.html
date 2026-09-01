@@ -336,12 +336,12 @@
 
         /* This page's hero carries the interactive map (its primary content)
            instead of the generic block-explorer search + chain stats used on
-           the homepage — see the local page nav below for in-page sections. */
+           the homepage - see the local page nav below for in-page sections. */
         .hero-container .stats-grid {
             margin-bottom: 1.5rem;
         }
 
-        /* Local page navigation — sticky sub-nav for jumping between the
+        /* Local page navigation - sticky sub-nav for jumping between the
            map, type breakdown, registration form, and registry table. */
         .page-subnav {
             display: flex;
@@ -804,8 +804,8 @@
             position: relative;
             overflow: hidden;
             /* Establish a local stacking context (position + explicit
-               z-index) so Leaflet's internal panes/controls — which use
-               z-index values up to 1000 — can never escape above the
+               z-index) so Leaflet's internal panes/controls - which use
+               z-index values up to 1000 - can never escape above the
                sticky header/dropdown nav, regardless of scroll position. */
             z-index: 1;
         }
@@ -1267,132 +1267,80 @@
 <body>
     <!-- Top Bar -->
     <div class="top-bar">
-        <div class="top-bar-container">
+        <div class="container top-bar-container top-bar-content">
             <div class="top-bar-left">
-                <div class="top-bar-item">
-                    <i class="fa-solid fa-coins"></i>
-                    DC FAT Price:
-                    <span class="top-bar-value">$0.00390</span>
-                    <span style="color: #ef4444; margin-left: 0.25rem;">-2.94%</span>
-                </div>
-                <div class="top-bar-item">
-                    <i class="fa-solid fa-gas-pump"></i>
-                    Gas:
-                    <span class="top-bar-value">0.001 gwei</span>
-                </div>
-                <div class="top-bar-item">
-                    <i class="fa-solid fa-clock"></i>
-                    Finality:
-                    <span class="top-bar-value">&lt;5s</span>
-                </div>
-            </div>
-            <div class="top-bar-right">
-                <button class="theme-toggle">
-                    <i class="fa-solid fa-sun"></i>
-                </button>
+                <div class="top-bar-item"><span>DC FAT Price:</span><span class="top-bar-value" id="topbar-fat-price">-</span><span class="top-bar-change" id="topbar-fat-change"></span></div>
+                <div class="top-bar-item"><span>Gas:</span><span class="top-bar-value" id="topbar-gas">-</span></div>
             </div>
         </div>
     </div>
-    
-    <!-- Header -->
     <header>
-        <div class="header-container">
+        <div class="container header-container">
             <a href="/" class="logo">
-                <div class="logo-icon">
-                    <img src="/assets/logo.svg" alt="DC Explorer Logo" style="width: 100%; height: 100%; object-fit: contain;">
-                </div>
-                <span class="logo-text">
-                    <span>DC</span>
-                    <span>Explorer</span>
-                </span>
+                <div class="logo-icon"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 100%; height: 100%; object-fit: contain;"></div>
+                <span class="logo-text"><span>DC</span><span>Explorer</span></span>
             </a>
-            
             <nav class="main-nav">
-                <div class="nav-item">
-                    <a href="#" class="nav-link">
-                        Smartchain
-                        <i class="fa-solid fa-chevron-down"></i>
-                    </a>
+                <div class="nav-item"><a href="#" class="nav-link">Smartchain <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/strings" class="dropdown-item">View Strings</a>
                         <a href="/txs" class="dropdown-item">Transactions</a>
                         <a href="/txsPending" class="dropdown-item">Pending Txns</a>
-                        <div class="dropdown-divider"></div>
                         <a href="/accounts" class="dropdown-item">Top Accounts</a>
                         <a href="/contracts" class="dropdown-item">Verified Contracts</a>
                     </div>
                 </div>
-                
-                <div class="nav-item">
-                    <a href="#" class="nav-link">
-                        AI Agents
-                        <i class="fa-solid fa-chevron-down"></i>
-                    </a>
+                <div class="nav-item"><a href="#" class="nav-link">AI Agents <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/agents" class="dropdown-item">All Agents</a>
                         <a href="/testimonies" class="dropdown-item">Testimonies</a>
                         <a href="/validations" class="dropdown-item">Validators</a>
                     </div>
                 </div>
-                
-                <div class="nav-item">
-                    <a href="#" class="nav-link">
-                        Tokens
-                        <i class="fa-solid fa-chevron-down"></i>
-                    </a>
+                <div class="nav-item"><a href="#" class="nav-link">Tokens <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/tokens" class="dropdown-item">DCR-20 Tokens</a>
+                        <a href="/core/fat" class="dropdown-item">Native DC FAT</a>
                         <a href="/tokentxns" class="dropdown-item">Token Transfers</a>
+                        <a href="/vote" class="dropdown-item">Vote</a>
                     </div>
                 </div>
-                
-                <div class="nav-item">
-                    <a href="#" class="nav-link">
-                        Network
-                        <i class="fa-solid fa-chevron-down"></i>
-                    </a>
+                <div class="nav-item"><a href="#" class="nav-link active">Network <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/ecosystem" class="dropdown-item">Ecosystem Projects</a>
-                        <a href="/vote" class="dropdown-item" id="nav-governance-voting">Governance &amp; Voting</a>
-                        <a href="/network/validators" class="dropdown-item">Validators</a>
+                        <a href="/vote" class="dropdown-item">Governance &amp; Voting</a>
+                        <a href="/defi" class="dropdown-item">DeFi</a>
+                        <a href="/supply" class="dropdown-item">Supply Reconciliation</a>
+                        <a href="/validators" class="dropdown-item">Validators</a>
                         <a href="/databases" class="dropdown-item">Databases</a>
-                        <a href="/databoxes" class="dropdown-item" id="nav-databox-network">Global Databox Network</a>
-                        <a href="/stats" class="dropdown-item">Charts & Stats</a>
+                        <a href="/databoxes" class="dropdown-item">Global Databox Network</a>
+                        <a href="/stats" class="dropdown-item">Charts &amp; Stats</a>
                     </div>
                 </div>
-                
-                <div class="nav-item">
-                    <a href="#" class="nav-link">
-                        More
-                        <i class="fa-solid fa-chevron-down"></i>
-                    </a>
+                <div class="nav-item"><a href="#" class="nav-link">More <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/apis" class="dropdown-item">API Docs</a>
+                        <a href="/apis/exchange-integration" class="dropdown-item">Exchange Integration</a>
+                        <a href="/admin-tokens" class="dropdown-item">Admin Tokens</a>
                         <a href="/verify" class="dropdown-item">Verify Contract</a>
-                        <a href="/create-wallet" class="dropdown-item" id="nav-create-wallet">Create Wallet</a>
+                        <a href="/create-wallet" class="dropdown-item">Create Wallet</a>
                         <a href="/faucet" class="dropdown-item">Faucet</a>
-                        <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank">GitHub</a>
+                        <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank" rel="noopener">GitHub</a>
                         <a href="/partners" class="dropdown-item">Partners</a>
                         <a href="/contact" class="dropdown-item">Contact</a>
                     </div>
                 </div>
             </nav>
-            
-            <div class="header-actions">
-                <button class="btn btn-secondary">
-                    <i class="fa-solid fa-wallet"></i>
-                    Connect
-                </button>
-            </div>
+            <div class="header-actions"><button class="btn btn-secondary"><i class="fa-solid fa-wallet"></i> Connect</button></div>
         </div>
     </header>
     
-    <!-- Hero Section — map is the primary content of this page -->
+    <!-- Hero Section - map is the primary content of this page -->
     <section class="hero">
         <div class="hero-container">
             <div class="hero-header">
                 <h1 class="hero-title">Global Databox Network</h1>
-                <p class="hero-subtitle">Live map and registry of every self-registered databox, RPC slot, testimony witness, community node, and EDC infrastructure node on Datachain Rope — signature-verified, never fabricated.</p>
+                <p class="hero-subtitle">Live map and registry of every self-registered databox, RPC slot, testimony witness, community node, and EDC infrastructure node on Datachain Rope - signature-verified, never fabricated.</p>
             </div>
 
             <!-- Local page navigation -->
@@ -1413,13 +1361,13 @@
 
             <!-- Network-wide quick stats (real registry counts, not chain-wide
                  stats). The count sits in front of (before) its icon, and
-                 every icon is plain black-and-white — color is reserved for
+                 every icon is plain black-and-white - color is reserved for
                  semantic status elsewhere (map legend, status pills), not
                  decoration here, per the canonical design system. -->
             <div class="stats-grid">
                 <div class="stat-card stat-card-row">
                     <div>
-                        <div class="stat-value" id="dbx-total">—</div>
+                        <div class="stat-value" id="dbx-total">-</div>
                         <div class="stat-label">Registered Databoxes</div>
                     </div>
                     <div class="stat-icon">
@@ -1429,7 +1377,7 @@
 
                 <div class="stat-card stat-card-row">
                     <div>
-                        <div class="stat-value" id="dbx-online">—</div>
+                        <div class="stat-value" id="dbx-online">-</div>
                         <div class="stat-label">Online Now</div>
                     </div>
                     <div class="stat-icon">
@@ -1439,7 +1387,7 @@
 
                 <div class="stat-card stat-card-row">
                     <div>
-                        <div class="stat-value" id="dbx-offline">—</div>
+                        <div class="stat-value" id="dbx-offline">-</div>
                         <div class="stat-label">Offline</div>
                     </div>
                     <div class="stat-icon">
@@ -1449,7 +1397,7 @@
 
                 <div class="stat-card stat-card-row">
                     <div>
-                        <div class="stat-value" id="dbx-countries">—</div>
+                        <div class="stat-value" id="dbx-countries">-</div>
                         <div class="stat-label">Countries Represented</div>
                     </div>
                     <div class="stat-icon">
@@ -1458,7 +1406,7 @@
                 </div>
             </div>
 
-            <!-- Global Databox Network map — moved into the hero as this
+            <!-- Global Databox Network map - moved into the hero as this
                  page's primary visual, per production design review. -->
             <section class="map-section" id="networkMapSection" style="margin-top: 1.5rem; scroll-margin-top: 80px;">
                 <div class="map-card">
@@ -1521,7 +1469,7 @@
 
     <!-- Main Content -->
     <main>
-        <!-- Databoxes by type — one route per data-source kind -->
+        <!-- Databoxes by type - one route per data-source kind -->
         <section class="card" id="dbxTypesSection" style="margin-bottom: 1.5rem; scroll-margin-top: 80px;">
             <div class="card-header">
                 <div class="card-title">
@@ -1548,7 +1496,7 @@
             </div>
             <p style="padding: 1rem 1.25rem 0; color: var(--gray-600); font-size: 13px;">
                 Operating a <code>rope deploy</code> node (databox / rpc-slot / witness / community-node) or an
-                Ecosystem Deployment Console node? Register it here — no admin approval needed. Registration is
+                Ecosystem Deployment Console node? Register it here - no admin approval needed. Registration is
                 signed with your operator wallet (EIP-191, domain <code>DCROPE-DATABOX-AUTH</code>) and anchored
                 on-chain for a durable, auditable record. Your node must then call
                 <code>POST /api/v1/databoxes/&lt;id&gt;/heartbeat</code> periodically (every &lt; 10 minutes) to
@@ -1580,11 +1528,11 @@
                     <input type="number" id="dbxCapacity" min="0" placeholder="e.g. 500">
                 </div>
                 <div>
-                    <label for="dbxLat">Latitude (optional — for the map)</label>
+                    <label for="dbxLat">Latitude (optional - for the map)</label>
                     <input type="number" id="dbxLat" step="0.0001" min="-90" max="90" placeholder="50.1109">
                 </div>
                 <div>
-                    <label for="dbxLon">Longitude (optional — for the map)</label>
+                    <label for="dbxLon">Longitude (optional - for the map)</label>
                     <input type="number" id="dbxLon" step="0.0001" min="-180" max="180" placeholder="8.6821">
                 </div>
                 <div class="full-span">
@@ -1600,7 +1548,7 @@
             <div id="dbxRegisterStatus"></div>
         </section>
 
-        <!-- Individual registry — every registered node, every field -->
+        <!-- Individual registry - every registered node, every field -->
         <section class="card" id="registrySection" style="margin-bottom: 1.5rem; scroll-margin-top: 80px;">
             <div class="card-header">
                 <div class="card-title">
@@ -1620,7 +1568,7 @@
     
     <!-- Footer -->
     <footer>
-        <div class="footer-container">
+        <div class="footer-container container footer-content">
             <div class="footer-brand">
                 <div class="logo-icon" style="width: 24px; height: 24px;">
                     <img src="/assets/logo.svg" alt="DC Explorer Logo" style="width: 100%; height: 100%; object-fit: contain;">
@@ -1630,8 +1578,11 @@
             <div class="footer-links">
                 <a href="https://datachain.network">Datachain</a>
                 <a href="/apis">API</a>
+                <a href="/apis/exchange-integration">Exchange Integration</a>
+                <a href="/admin-tokens">Admin Tokens</a>
                 <a href="https://github.com/KazeONGUENE/rope">GitHub</a>
-                <a href="/partners">Partners</a><a href="/contact">Contact</a>
+                <a href="/partners">Partners</a>
+                <a href="/contact">Contact</a>
             </div>
         </div>
     </footer>
@@ -1641,7 +1592,7 @@
             return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
         }
 
-        // Hero quick-stats — derived entirely from the real registry
+        // Hero quick-stats - derived entirely from the real registry
         // (/api/v1/databoxes), never from chain-wide or fabricated figures.
         function loadDataboxStats() {
             fetch('/api/v1/databoxes?limit=1000').then(function(r) { return r.ok ? r.json() : null; }).then(function(data) {
@@ -1665,7 +1616,7 @@
         setInterval(loadDataboxStats, 30000);
 
         // ============================================
-        // LOCAL PAGE NAV — scroll-spy for the sub-nav
+        // LOCAL PAGE NAV - scroll-spy for the sub-nav
         // ============================================
         (function() {
             var links = Array.prototype.slice.call(document.querySelectorAll('.subnav-link'));
@@ -1698,7 +1649,7 @@
         })();
 
         // ============================================
-        // GLOBAL DATABOX NETWORK — real registry
+        // GLOBAL DATABOX NETWORK - real registry
         // (types breakdown + self-service registration)
         // ============================================
         function dbxEscapeHtml(s) {
@@ -1759,15 +1710,15 @@
                 var rows = boxes.map(function(b) {
                     var status = b.status || 'registered';
                     var typeLabel = (b.databox_type || '').replace(/_/g, ' ');
-                    var locality = [b.city, b.country].filter(Boolean).join(', ') || (b.region || '—');
-                    var capacity = (b.capacity_gb != null) ? formatNumber(b.capacity_gb) + ' GB' : '—';
+                    var locality = [b.city, b.country].filter(Boolean).join(', ') || (b.region || '-');
+                    var capacity = (b.capacity_gb != null) ? formatNumber(b.capacity_gb) + ' GB' : '-';
                     var endpoint = b.endpoint_url
                         ? '<a href="' + dbxEscapeHtml(b.endpoint_url) + '" target="_blank" rel="noopener">' + dbxEscapeHtml(b.endpoint_url) + '</a>'
-                        : '—';
+                        : '-';
                     var owner = b.owner_address || '';
-                    var ownerShort = owner ? owner.slice(0, 6) + '…' + owner.slice(-4) : '—';
+                    var ownerShort = owner ? owner.slice(0, 6) + '…' + owner.slice(-4) : '-';
                     return '<tr>' +
-                        '<td><strong>' + dbxEscapeHtml(b.name || '—') + '</strong><div style="font-size:11px;color:var(--gray-500);font-family:var(--font-mono);">' + dbxEscapeHtml(b.id || '') + '</div></td>' +
+                        '<td><strong>' + dbxEscapeHtml(b.name || '-') + '</strong><div style="font-size:11px;color:var(--gray-500);font-family:var(--font-mono);">' + dbxEscapeHtml(b.id || '') + '</div></td>' +
                         '<td>' + dbxEscapeHtml(typeLabel) + '</td>' +
                         '<td><span class="dbx-status-pill ' + status + '">' + dbxEscapeHtml(status) + '</span></td>' +
                         '<td>' + dbxEscapeHtml(locality) + '</td>' +
@@ -1830,7 +1781,7 @@
 
                     var timestamp = Math.floor(Date.now() / 1000);
                     // Message shape MUST match rope-explorer's
-                    // register_message() exactly — domain-tagged
+                    // register_message() exactly - domain-tagged
                     // DCROPE-DATABOX-AUTH, distinct from every other
                     // signing surface in the ecosystem.
                     var message = 'DCROPE-DATABOX-AUTH\nregister\n' + name + '\n' + databoxType + '\n' + region + '\n' + timestamp;
@@ -1922,7 +1873,8 @@
             });
             
             // Dark styled tile layer (CartoDB Dark Matter)
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_2oft_1_5e87b0aead5d532330943e2d', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, &copy; <a href="https://carto.com/attributions">CARTO</a>',
                 subdomains: 'abcd',
                 maxZoom: 19
             }).addTo(map);
@@ -1944,7 +1896,7 @@
             const registryMarkers = L.layerGroup().addTo(map);
 
             // Load real, self-reported databox coordinates from the registry.
-            // Nothing here is synthesized — nodes without lat/lon simply do
+            // Nothing here is synthesized - nodes without lat/lon simply do
             // not appear on the map (see /api/v1/databoxes for the full list,
             // including nodes with no coordinates).
             function loadRegistryMarkers() {
@@ -1961,7 +1913,7 @@
                         const locality = [node.city, node.country].filter(Boolean).join(', ') || (node.region || 'Unknown location');
                         const popupContent = `
                             <div class="popup-city">${escapeHtml(node.name || 'Unnamed node')}</div>
-                            <div class="popup-type dbx-${status}">● ${escapeHtml(STATUS_LABEL[status] || status)} — ${escapeHtml(typeLabel)}</div>
+                            <div class="popup-type dbx-${status}">● ${escapeHtml(STATUS_LABEL[status] || status)} - ${escapeHtml(typeLabel)}</div>
                             <div style="font-size: 10px; opacity: 0.7; margin-top: 4px;">${escapeHtml(locality)}</div>
                         `;
                         marker.bindPopup(popupContent, { closeButton: false, offset: [0, -5] });
@@ -2060,7 +2012,7 @@
     </script>
 <script src="/js/dcscan-labels.js"></script>
 <script src="/js/dcscan-stats.js"></script>
-    <script src="/js/dcscan-wallet.js?v=20260707b" defer></script>
+    <script src="/js/dcscan-wallet.js?v=20260730a" defer></script>
 </body>
 </html>
 

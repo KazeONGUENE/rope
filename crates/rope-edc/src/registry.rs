@@ -1,4 +1,4 @@
-//! Project registry — persistent store + on-chain anchoring.
+//! Project registry - persistent store + on-chain anchoring.
 //!
 //! Persistence model: one JSON store file, written atomically
 //! (tmp + rename) on every mutation. Project counts per node are small
@@ -308,7 +308,7 @@ impl Registry {
     }
 
     /// Resolve a presented bearer token to its (usable) grant plus the
-    /// key's sandbox flag. Increments the metering counters on success —
+    /// key's sandbox flag. Increments the metering counters on success -
     /// sandbox traffic is deliberately NOT metered (spec v1.0 §6.3: the
     /// sandbox exists to validate an integration before it bills).
     pub fn authorize_token(&self, token: &str) -> Option<(AccessGrant, bool)> {
@@ -333,7 +333,7 @@ impl Registry {
         if sandbox {
             return Some((grant, true));
         }
-        // Metering (spec v2.0 §5.3) — counted on every authorized request.
+        // Metering (spec v2.0 §5.3) - counted on every authorized request.
         let metered = self.update_grant(&grant_id, |g| {
             g.calls += 1;
             g.last_used_at = now;
@@ -456,7 +456,7 @@ impl Registry {
         }
     }
 
-    /// All grants across every project — used by the export/billing
+    /// All grants across every project - used by the export/billing
     /// schedulers.
     pub fn all_grants(&self) -> Vec<AccessGrant> {
         self.grants.read().values().cloned().collect()

@@ -1,4 +1,4 @@
-//! Wallet-signature stakeholder authentication — spec v1.0 §6.3:
+//! Wallet-signature stakeholder authentication - spec v1.0 §6.3:
 //! "Wallet-signature authentication is available for consumers who are
 //! already identified on-chain, so a regulator's own DID can authenticate
 //! without a separate credential to manage."

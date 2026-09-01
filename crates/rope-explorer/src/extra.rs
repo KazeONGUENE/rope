@@ -42,7 +42,7 @@ pub struct CertificationEntry {
 
 /// Live chain/consensus status. Previously a hardcoded stub that always
 /// claimed `ropeNodeConnected: false` and `executionMode: "Anvil direct"`
-/// (Anvil was archived 2026-03-31 — see `reth-blue-green-ipfs-architecture.mdc`).
+/// (Anvil was archived 2026-03-31 - see `reth-blue-green-ipfs-architecture.mdc`).
 /// Now probes the real RPC fleet (`eth_blockNumber`, `net_peerCount`) and
 /// mirrors the live testimony cache for agent/round counters.
 pub async fn consensus(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
@@ -54,7 +54,7 @@ pub async fn consensus(State(state): State<Arc<AppState>>) -> Json<serde_json::V
         .map(|s| crate::hex_to_u64(&s))
         .unwrap_or(0);
 
-    // net_peerCount is best-effort — Reth's RPC forwarder does not always
+    // net_peerCount is best-effort - Reth's RPC forwarder does not always
     // expose it on every deployment. A failed call is surfaced as `null`,
     // never as a fabricated fixed number.
     let peer_count = crate::rpc_call(&state, "net_peerCount", vec![])
@@ -133,7 +133,7 @@ pub async fn testimonies_list(Query(q): Query<TestimoniesQuery>) -> Json<serde_j
 }
 
 /// Mirrors the live testimony cache (same source `testimonies_list_live` /
-/// `testimonies_stats_live` read from — refreshed every 60s by the
+/// `testimonies_stats_live` read from - refreshed every 60s by the
 /// background scanner) instead of the previous hardcoded "rope-node is not
 /// connected" stub, which lied even while 30k+ real testimonies were being
 /// served correctly at `/api/v1/testimonies`.
@@ -160,7 +160,7 @@ pub async fn consensus_testimonies(State(state): State<Arc<AppState>>) -> Json<s
             "totalFinalized": 0,
             "totalPending": 0,
             "testimonies": [],
-            "message": "Testimony cache is warming (refreshed every 60s) — retry shortly."
+            "message": "Testimony cache is warming (refreshed every 60s) - retry shortly."
         })),
     }
 }
@@ -297,13 +297,13 @@ fn topic_from_address(addr: &str) -> String {
 /// Real `eth_getCode` lookup, with best-effort DCR-20 interface detection
 /// (name/symbol/decimals/totalSupply) for the "Contract" tab. Previously
 /// always returned `bytecode: null` regardless of the address, which the
-/// frontend rendered as "This address is an EOA — no bytecode" even for
+/// frontend rendered as "This address is an EOA - no bytecode" even for
 /// live contracts like WFAT (`0x285eecf5…b3e4`, ~5.6 KB real bytecode).
 pub async fn account_bytecode(
     Path(address): Path<String>,
     State(state): State<Arc<AppState>>,
 ) -> Json<serde_json::Value> {
-    // Retry-tolerant eth_getCode — mirrors the pattern already used on the
+    // Retry-tolerant eth_getCode - mirrors the pattern already used on the
     // token page (`get_token`) and `account_overview_live`. A transient RPC
     // blip must never be reported as "this is an EOA".
     let code = {
@@ -341,7 +341,7 @@ pub async fn account_bytecode(
 
     if is_contract {
         // Best-effort ERC-20/DCR-20 interface probe. Read-only and safe on
-        // any contract — non-token contracts simply return empty/revert
+        // any contract - non-token contracts simply return empty/revert
         // data, surfaced honestly as `null` rather than a fabricated label.
         let name_hex = crate::eth_call_token_method(&state, &address, "0x06fdde03").await;
         let symbol_hex = crate::eth_call_token_method(&state, &address, "0x95d89b41").await;
@@ -366,15 +366,320 @@ pub async fn account_bytecode(
         if let Some(label) = crate::known_label(&address) {
             resp["label"] = serde_json::json!(label);
         }
+
+        // Etherscan-style Contract tab: when the repository has the
+        // canonical source for this address, attach it next to the live
+        // runtime bytecode. Status is "source published", never a fake
+        // compiler-matched Sourcify badge.
+        if let Some(pubsrc) = crate::verified_contracts::published_source(&address) {
+            let functions: Vec<serde_json::Value> = pubsrc
+                .abi
+                .as_array()
+                .map(|arr| {
+                    arr.iter()
+                        .filter(|e| e.get("type").and_then(|t| t.as_str()) == Some("function"))
+                        .cloned()
+                        .collect()
+                })
+                .unwrap_or_default();
+            resp["contractName"] = serde_json::json!(pubsrc.contract_name);
+            resp["compiler"] = serde_json::json!(pubsrc.compiler);
+            resp["license"] = serde_json::json!(pubsrc.license);
+            resp["optimization"] = serde_json::json!(pubsrc.optimization);
+            resp["evmVersion"] = serde_json::json!(pubsrc.evm_version);
+            resp["sourcePath"] = serde_json::json!(pubsrc.source_path);
+            resp["sourceCode"] = serde_json::json!(pubsrc.source);
+            resp["abi"] = pubsrc.abi.clone();
+            resp["abiFunctions"] = serde_json::json!(functions);
+            resp["sourceAvailable"] = serde_json::json!(true);
+            resp["verificationKind"] = serde_json::json!("repository-source");
+            resp["verificationNote"] = serde_json::json!(
+                "Source is the canonical repository copy. dcscan does not recompile and byte-compare; runtime bytecode below is live eth_getCode."
+            );
+        } else {
+            resp["sourceAvailable"] = serde_json::json!(false);
+            resp["verificationKind"] = serde_json::json!("unverified");
+            resp["verificationNote"] = serde_json::json!(
+                "No published source for this address. Runtime bytecode is live eth_getCode."
+            );
+        }
     }
 
     Json(resp)
+}
+
+pub fn pool_token_addr(p: &serde_json::Value, key: &str) -> String {
+    p.get(key)
+        .and_then(|t| {
+            t.get("address")
+                .and_then(|v| v.as_str())
+                .or_else(|| t.as_str())
+        })
+        .unwrap_or("")
+        .to_lowercase()
+}
+
+pub fn pool_volume_usd(p: &serde_json::Value) -> f64 {
+    if let Some(v) = p.get("volume_24h").and_then(|v| v.as_f64()) {
+        return v;
+    }
+    p.get("volume_24h")
+        .and_then(|v| v.as_str())
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(0.0)
+}
+
+/// Per-token 24h USD volume from `dcswap.net/v1/pools`. Zero means
+/// unknown / unreachable, never a fabricated print.
+pub async fn dcswap_volumes_by_token(
+    state: &AppState,
+) -> std::collections::HashMap<String, f64> {
+    let mut map = std::collections::HashMap::new();
+    let dcswap_base = state.dcswap_api.trim_end_matches('/');
+    let pools_url = format!("{}/v1/pools", dcswap_base);
+    let pools_json: serde_json::Value = match state
+        .http_client
+        .get(&pools_url)
+        .timeout(std::time::Duration::from_secs(8))
+        .send()
+        .await
+    {
+        Ok(r) => r
+            .json::<serde_json::Value>()
+            .await
+            .unwrap_or_else(|_| serde_json::json!({})),
+        Err(_) => return map,
+    };
+    let pools = pools_json
+        .get("data")
+        .and_then(|d| d.get("pools"))
+        .and_then(|p| p.as_array())
+        .cloned()
+        .unwrap_or_default();
+    for p in pools {
+        let vol = pool_volume_usd(&p);
+        if vol <= 0.0 {
+            continue;
+        }
+        for key in ["token_a", "token_b"] {
+            let addr = pool_token_addr(&p, key);
+            if addr.len() == 42 {
+                *map.entry(addr).or_insert(0.0) += vol;
+            }
+        }
+    }
+    map
+}
+
+/// Sum `volume_24h` across DCSwap pools that contain `addr_lc`.
+/// Returns 0.0 when the indexer is unreachable - callers must treat
+/// zero as "unknown", never as a fabricated print.
+pub async fn dcswap_volume_24h_usd(state: &AppState, addr_lc: &str) -> f64 {
+    dcswap_volumes_by_token(state)
+        .await
+        .get(&addr_lc.to_lowercase())
+        .copied()
+        .unwrap_or(0.0)
 }
 
 #[derive(Deserialize)]
 pub struct TransfersQuery {
     page: Option<u32>,
     limit: Option<u32>,
+}
+
+/// Convert a `LogRef` from the per-address index into the same
+/// `transfers[]` JSON shape produced by the legacy `eth_getLogs` scan
+/// below. Returns `None` when:
+///   - `topics[0]` is not the DCR-20 `Transfer` event (address may be
+///     tagged in unrelated logs like `Approval`, `Sync`, etc.)
+///   - `emitter` is not a known DCR-20 contract (unknown / new token)
+///   - the log's indexed role is `Emitter` (address is the token itself,
+///     not a sender/receiver of the transfer)
+///   - topics 1 and 2 are absent / malformed (defensive against
+///     non-standard token contracts that reuse the Transfer topic)
+///
+/// The returned JSON is byte-compatible with the legacy path so the
+/// frontend needs zero changes.
+fn transfer_json_from_addr_index_log(
+    log: &rope_addr_index::schema::LogRef,
+) -> Option<serde_json::Value> {
+    // Constant-time comparison of topic0 against the DCR-20 Transfer
+    // event signature. Stored as raw bytes so we don't allocate a hex
+    // string per row - even at 1M rows the cost is negligible but the
+    // comparison here runs inside a tight loop.
+    const TRANSFER_TOPIC_BYTES: [u8; 32] = [
+        0xdd, 0xf2, 0x52, 0xad, 0x1b, 0xe2, 0xc8, 0x9b, 0x69, 0xc2, 0xb0, 0x68, 0xfc, 0x37, 0x8d, 0xaa,
+        0x95, 0x2b, 0xa7, 0xf1, 0x63, 0xc4, 0xa1, 0x16, 0x28, 0xf5, 0x5a, 0x4d, 0xf5, 0x23, 0xb3, 0xef,
+    ];
+    if log.topics.first().map(|t| t.as_slice()) != Some(&TRANSFER_TOPIC_BYTES[..]) {
+        return None;
+    }
+    // Role must be Topic1 (sender) or Topic2 (receiver). Emitter role
+    // means the address is the token contract - we surface those in the
+    // /events tab, not /transfers. Topic3 is Approval-family and does
+    // not appear for Transfer.
+    match log.role {
+        rope_addr_index::schema::LogRole::Topic1 | rope_addr_index::schema::LogRole::Topic2 => {}
+        _ => return None,
+    }
+    let token_addr = format!("0x{}", hex_lower(&log.emitter));
+    let info = crate::known_token(&token_addr)?;
+    let from_bytes = log.topics.get(1)?;
+    let to_bytes = log.topics.get(2)?;
+    // Topic-encoded addresses: last 20 bytes of the 32-byte topic.
+    let from = format!("0x{}", hex_lower(&from_bytes[12..]));
+    let to = format!("0x{}", hex_lower(&to_bytes[12..]));
+    // `Transfer(uint256)` data is a single 32-byte big-endian integer.
+    // We normalise to f64 for display, exactly matching the legacy path.
+    let raw = decode_u256_be(&log.data);
+    let value = raw as f64 / 10f64.powi(info.decimals as i32);
+    let tx_hash = format!("0x{}", hex_lower(&log.tx_hash));
+    Some(serde_json::json!({
+        "transactionHash": tx_hash,
+        "blockNumber": log.block_number,
+        "from": from,
+        "to": to,
+        "value": value,
+        "valueRaw": raw.to_string(),
+        "tokenAddress": token_addr,
+        "tokenSymbol": info.symbol,
+    }))
+}
+
+/// Stamp USD on a Transfer JSON row via PriceLens (WFAT ≡ FAT).
+fn attach_transfer_usd(row: &mut serde_json::Value, lens: &crate::PriceLens) {
+    let token = row
+        .get("tokenAddress")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let value = row.get("value").and_then(|v| v.as_f64()).unwrap_or(0.0);
+    let usd = crate::known_token(token)
+        .map(|info| value * lens.price_for(&info))
+        .unwrap_or(0.0);
+    if let Some(map) = row.as_object_mut() {
+        map.insert("usdRaw".to_string(), serde_json::json!(usd));
+        map.insert(
+            "usdValue".to_string(),
+            serde_json::json!(if usd > 0.0 {
+                format!("${:.2}", usd)
+            } else {
+                "-".to_string()
+            }),
+        );
+    }
+}
+
+/// Lower-hex encoder that stays vendored inside `extra.rs` so we don't
+/// have to add `hex` to this file's imports (it's already a transitive
+/// dependency via the rest of the crate).
+fn hex_lower(bytes: &[u8]) -> String {
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for b in bytes {
+        use std::fmt::Write;
+        let _ = write!(s, "{:02x}", b);
+    }
+    s
+}
+
+/// Decode a raw big-endian u256 payload into a u128, saturating on
+/// overflow. Every real DCR-20 `Transfer.value` fits comfortably in
+/// u128 (2^128 wei is ~340 undecillion FAT, far above the asymptotic
+/// supply of 18e9 FAT). Kept `pub(super)`-clean because the helper is
+/// only used by `transfer_json_from_addr_index_log`.
+fn decode_u256_be(data: &[u8]) -> u128 {
+    if data.is_empty() {
+        return 0;
+    }
+    // Take the last 16 bytes (u128 fits in the low 128 bits of the u256).
+    // Higher bits are silently dropped; caller is documented above.
+    let start = data.len().saturating_sub(16);
+    let slice = &data[start..];
+    let mut arr = [0u8; 16];
+    arr[16 - slice.len()..].copy_from_slice(slice);
+    u128::from_be_bytes(arr)
+}
+
+/// Try to answer the /transfers query from the persistent per-address
+/// index. Returns `Some(json)` when the index is open AND we found at
+/// least one DCR-20 Transfer this address participated in. Returns
+/// `None` on every failure mode (index absent, reader error, panic in
+/// the blocking task, or filtered-to-empty page) so the legacy
+/// chunked `eth_getLogs` scan can still take over and probe the last
+/// 50k blocks for the specific address.
+///
+/// The reader is called with a limit inflated by ×4 to leave headroom
+/// after we filter down to just DCR-20 Transfer events - the index
+/// stores every log the address participated in, not just Transfers.
+async fn try_account_transfers_from_index(
+    state: &AppState,
+    address: &str,
+    limit: usize,
+) -> Option<serde_json::Value> {
+    let idx = state.addr_index.as_ref()?.clone();
+    let addr_owned = address.to_string();
+    // Over-fetch so filtering to Transfer-only + known-token-only still
+    // leaves us with `limit` real rows in the common case.
+    let raw_limit = limit.saturating_mul(4).min(500);
+    let scan = tokio::task::spawn_blocking(move || idx.logs(&addr_owned, raw_limit, None)).await;
+    let page = match scan {
+        Ok(Ok(page)) => page,
+        Ok(Err(e)) => {
+            tracing::warn!(
+                address = %address,
+                error = ?e,
+                "per-address index reader failed for /api/v1/accounts/:addr/transfers - \
+                 falling back to legacy chunked eth_getLogs scan",
+            );
+            return None;
+        }
+        Err(join_err) => {
+            tracing::warn!(
+                address = %address,
+                error = ?join_err,
+                "per-address index blocking task panicked on /transfers - falling back to \
+                 legacy chunked eth_getLogs scan",
+            );
+            return None;
+        }
+    };
+    let lens = crate::PriceLens::snapshot(state).await;
+    let mut out: Vec<serde_json::Value> = Vec::with_capacity(limit);
+    for log in page.items.iter() {
+        if out.len() >= limit {
+            break;
+        }
+        if let Some(mut j) = transfer_json_from_addr_index_log(log) {
+            attach_transfer_usd(&mut j, &lens);
+            out.push(j);
+        }
+    }
+    if out.is_empty() {
+        // Writer may not have indexed this address yet, OR the address
+        // has never participated in a DCR-20 Transfer. Either way we
+        // want the legacy scan to try before we surface an empty page.
+        tracing::debug!(
+            address = %address,
+            raw_page_len = page.items.len(),
+            "per-address index returned 0 filtered Transfer rows - falling back to legacy scan"
+        );
+        return None;
+    }
+    // Server-side sort in case the index and RocksDB reverse-cursor
+    // ordering ever drifted; legacy path did the same guard.
+    out.sort_by(|a, b| {
+        let ba = a.get("blockNumber").and_then(|v| v.as_u64()).unwrap_or(0);
+        let bb = b.get("blockNumber").and_then(|v| v.as_u64()).unwrap_or(0);
+        bb.cmp(&ba)
+    });
+    Some(serde_json::json!({
+        "address": address,
+        "transfers": out,
+        "pagination": { "page": 1, "limit": limit, "total": out.len() },
+        "hasMore": page.next_cursor.is_some(),
+        "nextCursor": page.next_cursor,
+        "source": "addr-index (per-address RocksDB index, DCR-20 Transfer events, newest first)",
+    }))
 }
 
 /// Real DCR-20 `Transfer` log scan for the address-page "Transfers" tab.
@@ -391,7 +696,15 @@ pub async fn account_transfers(
     let addr_lc = address.to_lowercase();
     let addr_topic = topic_from_address(&addr_lc);
 
+    // Reader-first path: if the per-address index is open, prefer it. On
+    // any failure (index absent, reader error, or zero filtered rows for
+    // this specific address) fall through silently to the legacy scan.
+    if let Some(v) = try_account_transfers_from_index(&state, &address, limit).await {
+        return Json(v);
+    }
+
     let head = crate::rpc_block_number(&state).await.unwrap_or(0);
+    let lens = crate::PriceLens::snapshot(&state).await;
     let mut out: Vec<serde_json::Value> = Vec::new();
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
     const MAX_LOOKBACK: u64 = 50_000;
@@ -463,7 +776,7 @@ pub async fn account_transfers(
                                 .and_then(|x| x.as_str())
                                 .map(crate::hex_to_u64)
                                 .unwrap_or(0);
-                            out.push(serde_json::json!({
+                            let mut row = serde_json::json!({
                                 "transactionHash": tx_hash,
                                 "blockNumber": block,
                                 "from": from,
@@ -472,7 +785,9 @@ pub async fn account_transfers(
                                 "valueRaw": raw.to_string(),
                                 "tokenAddress": token_addr,
                                 "tokenSymbol": info.as_ref().map(|i| i.symbol).unwrap_or("?"),
-                            }));
+                            });
+                            attach_transfer_usd(&mut row, &lens);
+                            out.push(row);
                         }
                     }
                 }
@@ -529,7 +844,7 @@ pub async fn account_events(
             "address": address,
             "events": [],
             "pagination": { "page": page, "limit": limit, "total": 0 },
-            "note": "This address is an EOA — externally-owned accounts cannot emit log events.",
+            "note": "This address is an EOA - externally-owned accounts cannot emit log events.",
         }));
     }
 
@@ -617,7 +932,7 @@ pub async fn account_events(
     }))
 }
 
-/// Live DCSwap pool list — queries the real `/v1/pools` endpoint. Previously
+/// Live DCSwap pool list - queries the real `/v1/pools` endpoint. Previously
 /// `defi_overview` hardcoded `pools: [] / totalPools: 0` even when the
 /// analytics summary call succeeded, so the Defi page showed TVL/volume
 /// numbers with no pools to back them up.
@@ -739,7 +1054,7 @@ pub async fn services_registry_post(
             Json(serde_json::json!({ "success": false, "error": "Name is required" })),
         );
     }
-    // CERBER WATCH — registered services are listed publicly; the name,
+    // CERBER WATCH - registered services are listed publicly; the name,
     // description, and health_url are all attacker-influenced free text.
     if let Err(resp) = crate::security_guard::validate_fields(&[
         ("name", name.as_str()),
@@ -748,6 +1063,17 @@ pub async fn services_registry_post(
         ("provider_id", body.provider_id.as_deref().unwrap_or("")),
     ]) {
         return resp;
+    }
+    // CERBER WATCH - SSRF guard: `health_url` is not just displayed text,
+    // it is dialed by this server on a periodic health-check loop
+    // (`agent_health_ok`), which makes it a genuine server-side outbound
+    // request target. Reject cloud-metadata / loopback / private /
+    // link-local targets at submission time; the fetch path re-checks this
+    // again with full DNS resolution as defense-in-depth.
+    if let Some(url) = body.health_url.as_deref() {
+        if let Err(resp) = crate::security_guard::validate_outbound_url("health_url", url) {
+            return resp;
+        }
     }
     let provider_id = body.provider_id.unwrap_or_else(|| {
         name.to_lowercase()
@@ -835,13 +1161,13 @@ pub struct CertifyRequest {
 }
 
 /// Records a third-party certification (e.g. a security audit badge) for
-/// a contract address. **Authenticated** — see finding C8 of
+/// a contract address. **Authenticated** - see finding C8 of
 /// `docs/SECURITY_AUDIT_2026-07-25_FULL_WORKSPACE.md`.
 ///
 /// Before this fix this endpoint accepted an arbitrary `provider_id`
 /// string from any anonymous caller, so anyone could inject a fabricated
 /// "CertiK audited this contract" (or any other trusted auditor's name)
-/// entry that would then render on the public `/address` page — a direct
+/// entry that would then render on the public `/address` page - a direct
 /// impersonation / rug-pull-enablement vector against users who trust
 /// the certification badge.
 ///
@@ -850,11 +1176,11 @@ pub struct CertifyRequest {
 /// `certification_providers::CertificationProviderRegistry`). Providers
 /// are onboarded out-of-band by the Datachain Foundation (env var
 /// `DCSCAN_CERTIFICATION_PROVIDERS`) once a real due-diligence
-/// relationship exists — there is no self-service path, by design: a
+/// relationship exists - there is no self-service path, by design: a
 /// self-service "prove you're a Datachain ID user" key would not prove
 /// "you are the real CertiK". When no provider has been onboarded yet
 /// (the out-of-the-box state), every submission is honestly refused with
-/// `501 Not Implemented` rather than silently accepted — no stub
+/// `501 Not Implemented` rather than silently accepted - no stub
 /// acceptance.
 pub async fn verify_certify_post(
     State(state): State<Arc<AppState>>,
@@ -884,7 +1210,7 @@ pub async fn verify_certify_post(
             Json(serde_json::json!({
                 "success": false,
                 "error": "no_certification_providers_onboarded",
-                "message": "Third-party contract certification is not yet available — no \
+                "message": "Third-party contract certification is not yet available - no \
                     certification provider has been onboarded on this explorer. This endpoint \
                     intentionally refuses every submission rather than recording an \
                     unauthenticated claim. Contact the Datachain Foundation to onboard as a \
@@ -922,7 +1248,7 @@ pub async fn verify_certify_post(
         .unwrap_or_else(|| "security_audit".to_string());
     let provider_id = provider.to_lowercase();
 
-    // CERBER WATCH — the provider secret only proves the caller is a
+    // CERBER WATCH - the provider secret only proves the caller is a
     // legitimate onboarded provider, not that its own systems weren't
     // compromised into sending a malicious payload. `certification_type`
     // and `report_url` are both rendered on the public `/address` page.
@@ -974,7 +1300,7 @@ pub struct VerifyRequest {
 
 /// Accepts a source-verification submission and records it honestly.
 /// Previously set `verified: true` unconditionally on any well-formed
-/// submission with zero bytecode/source matching — a fabricated "verified"
+/// submission with zero bytecode/source matching - a fabricated "verified"
 /// badge with no compile-and-match behind it. This handler now (a) confirms
 /// the address is a real deployed contract via `eth_getCode` before
 /// accepting anything, and (b) records the submission as
@@ -1023,12 +1349,12 @@ pub async fn verify_post(
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({
                 "success": false,
-                "error": "No contract bytecode found at this address on Datachain Rope — cannot verify an address with no deployed code."
+                "error": "No contract bytecode found at this address on Datachain Rope - cannot verify an address with no deployed code."
             })),
         );
     }
 
-    // CERBER WATCH — `compiler_type`/`compiler_version`/`license`/
+    // CERBER WATCH - `compiler_type`/`compiler_version`/`license`/
     // `constructor_arguments` are structured metadata fields rendered on
     // the public contract page. Deliberately excludes `source_code`
     // itself (see `security_guard` module docs: block comments are
@@ -1111,7 +1437,7 @@ pub async fn tokens_register_post(
         Json(serde_json::json!({
             "success": false,
             "address": address,
-            "error": "Self-service token registration is not implemented yet — the /tokens list is currently a curated canonical DCR-20 address set, not a self-service registry. This submission was not persisted.",
+            "error": "Self-service token registration is not implemented yet - the /tokens list is currently a curated canonical DCR-20 address set, not a self-service registry. This submission was not persisted.",
         })),
     )
 }

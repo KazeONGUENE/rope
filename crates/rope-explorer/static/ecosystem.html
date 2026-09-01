@@ -40,14 +40,43 @@
         .proj-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 1.25rem; display: flex; flex-direction: column; gap: 0.75rem; transition: box-shadow .15s; }
         .proj-card:hover { box-shadow: var(--shadow-md); }
         .proj-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; }
+        .proj-head-left { display: flex; align-items: flex-start; gap: 0.65rem; min-width: 0; flex: 1; }
+        .proj-logo { flex: none; width: 36px; height: 36px; border-radius: var(--radius-md); background: var(--gray-50); border: 1px solid var(--gray-200); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        .proj-logo img { width: 100%; height: 100%; object-fit: contain; padding: 4px; box-sizing: border-box; }
+        .proj-logo-fallback { font-size: 14px; font-weight: 700; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.02em; }
+        .proj-head-right { display: flex; flex-direction: column; align-items: flex-end; gap: 0.35rem; }
+        .proj-title-wrap { min-width: 0; flex: 1; }
         .proj-name { font-size: 1.05rem; font-weight: 700; }
         .proj-loc { color: var(--gray-500); font-size: 12.5px; margin-top: 2px; }
         .badge { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.25rem 0.55rem; font-size: 11px; font-weight: 600; border-radius: 100px; white-space: nowrap; }
         .badge-live { background: var(--success-bg); color: #166534; }
         .badge-suspended { background: var(--warning-bg); color: #92400e; }
+        .badge-development { background: var(--warning-bg); color: #92400e; }
         .badge-pm { background: var(--info-bg); color: #1e40af; }
         .badge-em { background: var(--success-bg); color: #166534; }
         .badge-hy { background: var(--purple-bg); color: #5b21b6; }
+        .badge-dex { background: var(--info-bg); color: #1e40af; }
+        .badge-rwa { background: #fef3c7; color: #854d0e; }
+        .badge-id { background: var(--purple-bg); color: #5b21b6; }
+        .badge-sso { background: var(--purple-bg); color: #5b21b6; }
+        .badge-explorer { background: var(--info-bg); color: #1e40af; }
+        .badge-ai { background: #dcfce7; color: #166534; }
+        .badge-gov { background: #ede9fe; color: #5b21b6; }
+        .badge-found { background: #f4f4f5; color: #27272a; }
+        .badge-bridge { background: #dbeafe; color: #1e40af; }
+        .badge-bio { background: #dcfce7; color: #166534; }
+        .badge-health { background: #fee2e2; color: #991b1b; }
+        .badge-invest { background: #fef3c7; color: #854d0e; }
+        .badge-infra { background: #f4f4f5; color: #27272a; }
+        .badge-canonical { background: #f4f4f5; color: #52525b; border: 1px solid var(--gray-200); }
+        .badge-vis-public { background: var(--success-bg); color: #166534; }
+        .badge-vis-private-visible { background: var(--warning-bg); color: #92400e; }
+        .badge-vis-private-hidden { background: var(--gray-100); color: #52525b; border: 1px solid var(--gray-200); }
+        .admin-pill { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.35rem 0.75rem; font-size: 11.5px; font-weight: 600; border-radius: 100px; background: var(--danger-bg); color: #991b1b; border: 1px solid #fecaca; cursor: pointer; white-space: nowrap; }
+        .admin-pill:hover { background: #fecaca; text-decoration: none; }
+        .admin-pill.off { background: var(--gray-100); color: var(--gray-500); border-color: var(--gray-200); }
+        .admin-pill.off:hover { background: var(--gray-200); }
+        .redacted-note { background: var(--warning-bg); color: #92400e; padding: 0.5rem 0.7rem; border-radius: var(--radius-md); font-size: 12px; display: flex; align-items: center; gap: 0.4rem; }
         .proj-meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
         .meta-cell { background: var(--gray-50); border-radius: var(--radius-md); padding: 0.5rem 0.65rem; }
         .meta-cell .k { font-size: 10.5px; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.04em; }
@@ -89,93 +118,71 @@
 </head>
 <body>
     <div class="top-bar">
-        <div class="top-bar-container">
+        <div class="container top-bar-container top-bar-content">
             <div class="top-bar-left">
-                <div class="top-bar-item">
-                    <i class="fa-solid fa-coins"></i>
-                    DC FAT Price:
-                    <span class="top-bar-value">$0.00390</span>
-                </div>
-                <div class="top-bar-item">
-                    <i class="fa-solid fa-gas-pump"></i>
-                    Gas:
-                    <span class="top-bar-value">0.001 gwei</span>
-                </div>
-                <div class="top-bar-item">
-                    <i class="fa-solid fa-clock"></i>
-                    Finality:
-                    <span class="top-bar-value">&lt;5s</span>
-                </div>
-            </div>
-            <div class="top-bar-right">
-                <button class="theme-toggle"><i class="fa-solid fa-sun"></i></button>
+                <div class="top-bar-item"><span>DC FAT Price:</span><span class="top-bar-value" id="topbar-fat-price">-</span><span class="top-bar-change" id="topbar-fat-change"></span></div>
+                <div class="top-bar-item"><span>Gas:</span><span class="top-bar-value" id="topbar-gas">-</span></div>
             </div>
         </div>
     </div>
     <header>
-        <div class="header-container">
+        <div class="container header-container">
             <a href="/" class="logo">
-                <div class="logo-icon"><img src="/assets/logo.svg" alt="DC Explorer Logo" style="width: 100%; height: 100%; object-fit: contain;"></div>
+                <div class="logo-icon"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 100%; height: 100%; object-fit: contain;"></div>
                 <span class="logo-text"><span>DC</span><span>Explorer</span></span>
             </a>
             <nav class="main-nav">
-                <div class="nav-item">
-                    <a href="#" class="nav-link">Smartchain <i class="fa-solid fa-chevron-down"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link">Smartchain <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
-                        <a href="/strings" class="dropdown-item">Strings (per entity)</a>
-                        <a href="/knots" class="dropdown-item">Knots (anchors)</a>
+                        <a href="/strings" class="dropdown-item">View Strings</a>
                         <a href="/txs" class="dropdown-item">Transactions</a>
                         <a href="/txsPending" class="dropdown-item">Pending Txns</a>
-                        <div class="dropdown-divider"></div>
                         <a href="/accounts" class="dropdown-item">Top Accounts</a>
                         <a href="/contracts" class="dropdown-item">Verified Contracts</a>
                     </div>
                 </div>
-                <div class="nav-item">
-                    <a href="#" class="nav-link">AI Agents <i class="fa-solid fa-chevron-down"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link">AI Agents <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/agents" class="dropdown-item">All Agents</a>
                         <a href="/testimonies" class="dropdown-item">Testimonies</a>
                         <a href="/validations" class="dropdown-item">Validators</a>
                     </div>
                 </div>
-                <div class="nav-item">
-                    <a href="#" class="nav-link">Tokens <i class="fa-solid fa-chevron-down"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link">Tokens <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/tokens" class="dropdown-item">DCR-20 Tokens</a>
+                        <a href="/core/fat" class="dropdown-item">Native DC FAT</a>
                         <a href="/tokentxns" class="dropdown-item">Token Transfers</a>
                         <a href="/vote" class="dropdown-item">Vote</a>
                     </div>
                 </div>
-                <div class="nav-item">
-                    <a href="#" class="nav-link active">Network <i class="fa-solid fa-chevron-down"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link active">Network <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/ecosystem" class="dropdown-item">Ecosystem Projects</a>
-                        <a href="/vote" class="dropdown-item" id="nav-governance-voting">Governance &amp; Voting</a>
+                        <a href="/vote" class="dropdown-item">Governance &amp; Voting</a>
                         <a href="/defi" class="dropdown-item">DeFi</a>
                         <a href="/supply" class="dropdown-item">Supply Reconciliation</a>
                         <a href="/validators" class="dropdown-item">Validators</a>
                         <a href="/databases" class="dropdown-item">Databases</a>
-                        <a href="/databoxes" class="dropdown-item" id="nav-databox-network">Global Databox Network</a>
+                        <a href="/databoxes" class="dropdown-item">Global Databox Network</a>
                         <a href="/stats" class="dropdown-item">Charts &amp; Stats</a>
                     </div>
                 </div>
-                <div class="nav-item">
-                    <a href="#" class="nav-link">More <i class="fa-solid fa-chevron-down"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link">More <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/apis" class="dropdown-item">API Docs</a>
+                        <a href="/apis/exchange-integration" class="dropdown-item">Exchange Integration</a>
+                        <a href="/admin-tokens" class="dropdown-item">Admin Tokens</a>
                         <a href="/verify" class="dropdown-item">Verify Contract</a>
-                        <a href="/create-wallet" class="dropdown-item" id="nav-create-wallet">Create Wallet</a>
+                        <a href="/create-wallet" class="dropdown-item">Create Wallet</a>
                         <a href="/faucet" class="dropdown-item">Faucet</a>
-                        <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank">GitHub</a>
+                        <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank" rel="noopener">GitHub</a>
                         <a href="/partners" class="dropdown-item">Partners</a>
                         <a href="/contact" class="dropdown-item">Contact</a>
                     </div>
                 </div>
             </nav>
-            <div class="header-actions">
-                <button class="btn btn-secondary"><i class="fa-solid fa-wallet"></i> Connect</button>
-            </div>
+            <div class="header-actions"><button class="btn btn-secondary"><i class="fa-solid fa-wallet"></i> Connect</button></div>
         </div>
     </header>
 
@@ -183,12 +190,12 @@
         <div class="container">
             <div class="page-breadcrumb"><a href="/">Home</a> <i class="fas fa-chevron-right" style="font-size: 8px;"></i> <span>Ecosystem Projects</span></div>
             <h1 class="page-title">Ecosystem Projects</h1>
-            <p class="page-subtitle">Every project deployed through the <strong>Ecosystem Deployment Console</strong> runs on its own sovereign Datachain Rope node — predictive maintenance fleets, environmental monitoring networks, sentient-environment deployments. Regulators and investors access each project's live, on-chain-anchored data <strong>directly from the project's node</strong>: dcscan lists the projects, but the data stream never passes through an intermediary. Access scope, duration, and pricing are controlled by each project owner via cryptographic grants.</p>
+            <p class="page-subtitle">Every project deployed through the <strong>Ecosystem Deployment Console</strong> runs on its own sovereign Datachain Rope node - predictive maintenance fleets, environmental monitoring networks, sentient-environment deployments. Regulators and investors access each project's live, on-chain-anchored data <strong>directly from the project's node</strong>: dcscan lists the projects, but the data stream never passes through an intermediary. Access scope, duration, and pricing are controlled by each project owner via cryptographic grants.</p>
             <div style="margin-top: 1rem; display: flex; gap: 0.75rem; flex-wrap: wrap;">
                 <a href="https://console.datachain.network/console/" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 8px; background: var(--primary, #2563eb); color: #fff; padding: 9px 18px; border-radius: 8px; font-size: 13.5px; font-weight: 600; text-decoration: none;"><i class="fas fa-rocket"></i> Launch the Deployment Console</a>
                 <a href="https://console.datachain.network/api/v1/ecosystem/public/projects" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 8px; background: transparent; color: var(--gray-600, #4b5563); border: 1px solid var(--gray-300, #d1d5db); padding: 9px 18px; border-radius: 8px; font-size: 13.5px; font-weight: 600; text-decoration: none;"><i class="fas fa-code"></i> Directory API</a>
             </div>
-            <p class="page-subtitle" style="margin-top: 0.75rem; font-size: 0.8rem;">The hosted console at <a href="https://console.datachain.network/console/">console.datachain.network</a> signs you in with your wallet (EIP-191) and includes a full <b>sandbox mode</b> with synthetic scenario data — no KYB, no cost. Sovereign production deployments can also self-host the same open-source <code>rope-edc</code> binary on their own node and register it in this directory.</p>
+            <p class="page-subtitle" style="margin-top: 0.75rem; font-size: 0.8rem;">The hosted console at <a href="https://console.datachain.network/console/">console.datachain.network</a> signs you in with your wallet (EIP-191) and includes a full <b>sandbox mode</b> with synthetic scenario data - no KYB, no cost. Sovereign production deployments can also self-host the same open-source <code>rope-edc</code> binary on their own node and register it in this directory.</p>
         </div>
     </div>
 
@@ -196,22 +203,22 @@
         <div class="stats-row">
             <div class="stat-card">
                 <div class="stat-label">Listed Projects</div>
-                <div class="stat-value" id="statTotal">—</div>
+                <div class="stat-value" id="statTotal">-</div>
                 <div class="stat-change">Live + suspended, all instances</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Monitored Assets</div>
-                <div class="stat-value" id="statAssets">—</div>
+                <div class="stat-value" id="statAssets">-</div>
                 <div class="stat-change">Machines, sites, environmental zones</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Sensors Anchoring</div>
-                <div class="stat-value" id="statSensors">—</div>
+                <div class="stat-value" id="statSensors">-</div>
                 <div class="stat-change">Telemetry knots on entity strings</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Countries</div>
-                <div class="stat-value" id="statCountries">—</div>
+                <div class="stat-value" id="statCountries">-</div>
                 <div class="stat-change">Sovereign deployments worldwide</div>
             </div>
         </div>
@@ -219,9 +226,9 @@
         <div class="how-panel">
             <h3><i class="fas fa-key" style="color: var(--gray-400);"></i> Direct data access for regulators &amp; investors</h3>
             <div class="how-steps">
-                <div class="how-step"><div class="how-num">1</div><p><b>Discover</b> a project below and open its detail card — it lists the public access offers (scope, delivery, pricing) published by the project owner.</p></div>
+                <div class="how-step"><div class="how-num">1</div><p><b>Discover</b> a project below and open its detail card - it lists the public access offers (scope, delivery, pricing) published by the project owner.</p></div>
                 <div class="how-step"><div class="how-num">2</div><p><b>Request a grant</b> from the project owner. Regulator and public grants pass through an on-chain Timelock before activation.</p></div>
-                <div class="how-step"><div class="how-num">3</div><p><b>Receive an API key</b> minted against the grant — scoped to specific assets, facets (readings / diagnoses / approvals), and an expiry.</p></div>
+                <div class="how-step"><div class="how-num">3</div><p><b>Receive an API key</b> minted against the grant - scoped to specific assets, facets (readings / diagnoses / approvals), and an expiry.</p></div>
                 <div class="how-step"><div class="how-num">4</div><p><b>Consume directly</b> from the project's own node: REST, live SSE stream, or AI-narrated analytics. Every reading traces to an anchored knot.</p></div>
             </div>
         </div>
@@ -230,6 +237,19 @@
             <input id="fQ" type="search" placeholder="Search name, region, tags…">
             <select id="fArchetype">
                 <option value="">All archetypes</option>
+                <option value="dex">DEX</option>
+                <option value="asset_tokenization">RWA / Tokenization</option>
+                <option value="identity_wallet">Identity Wallet</option>
+                <option value="sso">SSO</option>
+                <option value="block_explorer">Block Explorer</option>
+                <option value="ai_agent">AI Agent</option>
+                <option value="governance">Governance</option>
+                <option value="bridge">Bridge / Migration</option>
+                <option value="biodiversity">Biodiversity</option>
+                <option value="health">Health</option>
+                <option value="investment">Investment</option>
+                <option value="foundation">Foundation</option>
+                <option value="infrastructure">Infrastructure</option>
                 <option value="predictive_maintenance">Predictive Maintenance</option>
                 <option value="environmental_monitoring">Environmental Monitoring</option>
                 <option value="hybrid">Hybrid</option>
@@ -237,8 +257,21 @@
             <select id="fStatus">
                 <option value="">All statuses</option>
                 <option value="live">Live</option>
+                <option value="development">Development</option>
                 <option value="suspended">Suspended</option>
             </select>
+            <select id="fSource">
+                <option value="">All sources</option>
+                <option value="canonical">Canonical (built-in)</option>
+                <option value="edc">EDC-registered</option>
+            </select>
+            <select id="fVisibility" style="display:none">
+                <option value="">All visibility</option>
+                <option value="public">Public</option>
+                <option value="private_visible">Private (visible)</option>
+                <option value="private_hidden">Private (hidden)</option>
+            </select>
+            <button id="adminPill" class="admin-pill off" type="button" title="Sign in as project owner / admin to see hidden projects"><i class="fas fa-user-shield"></i> <span id="adminPillLabel">Owner / Admin</span></button>
             <span class="mono" style="color: var(--gray-500);" id="lastRefresh"></span>
         </div>
 
@@ -255,18 +288,21 @@
     </div>
 
     <footer>
-        <div class="footer-container">
+        <div class="footer-container container footer-content">
             <div class="footer-brand">
                 <div class="logo-icon" style="width: 24px; height: 24px;">
-                    <img src="/assets/logo.svg" alt="DC Explorer" style="width: 100%; height: 100%; object-fit: contain;">
+                    <img src="/assets/logo.svg" alt="DC Explorer Logo" style="width: 100%; height: 100%; object-fit: contain;">
                 </div>
-                DC Explorer — Powered by Datachain Rope
+                DC Explorer - Powered by Datachain Rope
             </div>
             <div class="footer-links">
                 <a href="https://datachain.network">Datachain</a>
                 <a href="/apis">API</a>
-                <a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a>
-                <a href="/partners">Partners</a><a href="/contact">Contact</a>
+                <a href="/apis/exchange-integration">Exchange Integration</a>
+                <a href="/admin-tokens">Admin Tokens</a>
+                <a href="https://github.com/KazeONGUENE/rope">GitHub</a>
+                <a href="/partners">Partners</a>
+                <a href="/contact">Contact</a>
             </div>
         </div>
     </footer>
@@ -274,11 +310,25 @@
     <script>
         'use strict';
         let allProjects = [];
+        // Admin/owner token is kept in localStorage under a well-known key.
+        // The token itself is compared server-side in constant time against
+        // ECOSYSTEM_ADMIN_TOKEN or PROJECTS_ADMIN_TOKEN. When set, private
+        // projects (visibility=private_hidden|private_visible) become visible
+        // and the visibility filter dropdown is revealed. When unset, the
+        // dcscan.io/ecosystem page shows only public projects to the world.
+        const ADMIN_TOKEN_KEY = 'dcscan_admin_token';
+        function getAdminToken(){ try { return localStorage.getItem(ADMIN_TOKEN_KEY) || ''; } catch(_) { return ''; } }
+        function setAdminToken(t){ try { if (t) localStorage.setItem(ADMIN_TOKEN_KEY, t); else localStorage.removeItem(ADMIN_TOKEN_KEY); } catch(_) {} }
+        function adminHeaders(){
+            const t = getAdminToken();
+            return t ? { 'X-Admin-Token': t } : {};
+        }
+        let viewerIsAdmin = false; // reflects server-echoed viewer field after last fetch
 
         function esc(s){ return String(s == null ? '' : s).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
-        function shortAddr(a){ return a && a.length > 14 ? a.slice(0,8) + '…' + a.slice(-6) : (a || '—'); }
+        function shortAddr(a){ return a && a.length > 14 ? a.slice(0,8) + '…' + a.slice(-6) : (a || '-'); }
         function timeAgo(ts){
-            if (!ts) return '—';
+            if (!ts) return '-';
             const s = Math.floor(Date.now()/1000 - ts);
             if (s < 60) return s + 's ago';
             if (s < 3600) return Math.floor(s/60) + 'm ago';
@@ -290,34 +340,135 @@
                 predictive_maintenance: ['badge-pm', 'fa-gears', 'Predictive Maintenance'],
                 environmental_monitoring: ['badge-em', 'fa-leaf', 'Environmental Monitoring'],
                 hybrid: ['badge-hy', 'fa-layer-group', 'Hybrid'],
+                dex: ['badge-dex', 'fa-arrow-right-arrow-left', 'DEX'],
+                asset_tokenization: ['badge-rwa', 'fa-gem', 'RWA / Tokenization'],
+                identity_wallet: ['badge-id', 'fa-id-badge', 'Identity Wallet'],
+                sso: ['badge-sso', 'fa-key', 'SSO'],
+                block_explorer: ['badge-explorer', 'fa-magnifying-glass', 'Block Explorer'],
+                ai_agent: ['badge-ai', 'fa-robot', 'AI Agent'],
+                governance: ['badge-gov', 'fa-scale-balanced', 'Governance'],
+                foundation: ['badge-found', 'fa-landmark', 'Foundation'],
+                bridge: ['badge-bridge', 'fa-bridge', 'Bridge / Migration'],
+                biodiversity: ['badge-bio', 'fa-tree', 'Biodiversity'],
+                health: ['badge-health', 'fa-heart-pulse', 'Health'],
+                investment: ['badge-invest', 'fa-chart-line', 'Investment'],
+                infrastructure: ['badge-infra', 'fa-server', 'Infrastructure'],
             };
             const [cls, icon, label] = map[a] || map.hybrid;
             return '<span class="badge ' + cls + '"><i class="fas ' + icon + '"></i> ' + label + '</span>';
         }
         function statusBadge(s){
-            const live = String(s).toLowerCase() === 'live';
-            return '<span class="badge ' + (live ? 'badge-live' : 'badge-suspended') + '"><i class="fas fa-circle" style="font-size:6px"></i> ' + esc(s) + '</span>';
+            const v = String(s || '').toLowerCase();
+            const cls = v === 'live' ? 'badge-live' : (v === 'development' ? 'badge-development' : 'badge-suspended');
+            return '<span class="badge ' + cls + '"><i class="fas fa-circle" style="font-size:6px"></i> ' + esc(s || 'unknown') + '</span>';
+        }
+        function sourceBadge(src){
+            if (src === 'canonical') {
+                return '<span class="badge badge-canonical" title="Hand-curated canonical Datachain ecosystem entry"><i class="fas fa-anchor"></i> Canonical</span>';
+            }
+            return '';
+        }
+        function visibilityBadge(v){
+            // Only render when non-public (public = default state, no badge
+            // needed to keep card visual weight low). Admins see all three
+            // states; non-admins only ever see 'public' or 'private_visible'
+            // (private_hidden entries are filtered server-side).
+            const val = String(v || 'public').toLowerCase();
+            if (val === 'private_hidden') {
+                return '<span class="badge badge-vis-private-hidden" title="Private (hidden from public listing)"><i class="fas fa-eye-slash"></i> Private-Hidden</span>';
+            }
+            if (val === 'private_visible') {
+                return '<span class="badge badge-vis-private-visible" title="Private-visible: public sees name + description; details, wallet, and Open Project are restricted to owners/admins"><i class="fas fa-lock"></i> Private-Visible</span>';
+            }
+            // Only render the "public / open eye" badge when we know an
+            // admin is watching, so the public grid is not visually noisy.
+            if (viewerIsAdmin) {
+                return '<span class="badge badge-vis-public" title="Publicly listed"><i class="fas fa-eye"></i> Public</span>';
+            }
+            return '';
+        }
+
+        function metaCells(p){
+            // Archetype-appropriate meta cells. Zero-count facets (Assets/
+            // Sensors) are meaningful for predictive_maintenance /
+            // environmental_monitoring / hybrid but noise for a DEX, wallet,
+            // block explorer, etc. Hide them when zero.
+            const cells = [];
+            const assets = Number(p.asset_count || 0);
+            const sensors = Number(p.sensor_count || 0);
+            const wantAssetSensor = ['predictive_maintenance','environmental_monitoring','hybrid'].includes(String(p.archetype||'').toLowerCase()) || assets > 0 || sensors > 0;
+            if (wantAssetSensor) {
+                const assetLabel = p.archetype === 'dex' ? 'Pools' : (p.archetype === 'asset_tokenization' ? 'Assets' : 'Assets');
+                const sensorLabel = p.archetype === 'dex' ? 'Bot wallets' : 'Sensors';
+                cells.push('<div class="meta-cell"><div class="k">' + assetLabel + '</div><div class="v">' + assets.toLocaleString() + '</div></div>');
+                cells.push('<div class="meta-cell"><div class="k">' + sensorLabel + '</div><div class="v">' + sensors.toLocaleString() + '</div></div>');
+            } else {
+                // Show wallet short-hash instead when there is one, so the
+                // card is never mostly-empty for infra/foundation entries.
+                if (p.wallet) {
+                    cells.push('<div class="meta-cell"><div class="k">Wallet</div><div class="v mono" style="font-size:12px">' + esc(shortAddr(p.wallet)) + '</div></div>');
+                }
+                cells.push('<div class="meta-cell"><div class="k">Status</div><div class="v">' + esc(p.status || '-') + '</div></div>');
+            }
+            cells.push('<div class="meta-cell"><div class="k">Since</div><div class="v">' + timeAgo(p.created_at) + '</div></div>');
+            return '<div class="proj-meta">' + cells.join('') + '</div>';
         }
 
         function renderCard(p){
-            const tags = (p.tags || []).slice(0, 5).map(t => '<span class="tag">' + esc(t) + '</span>').join('');
+            const visibility = String(p.visibility || 'public').toLowerCase();
+            const isRedacted = visibility === 'private_visible' && !viewerIsAdmin;
+            const tags = isRedacted ? '' : (p.tags || []).slice(0, 5).map(t => '<span class="tag">' + esc(t) + '</span>').join('');
             const loc = [p.region, p.country].filter(Boolean).join(', ');
+            const walletHref = p.wallet ? ('/address/' + esc(p.wallet)) : '/address/';
+            // Redacted cards hide the wallet link (server also strips it).
+            const walletLink = (!isRedacted && p.wallet)
+                ? '<a class="btn-link" href="' + walletHref + '"><i class="fas fa-link"></i> On-chain String</a>'
+                : '';
+            const dataAccessLabel = (String(p.archetype || '').toLowerCase().endsWith('_monitoring') || String(p.archetype || '') === 'predictive_maintenance' || String(p.archetype || '') === 'hybrid')
+                ? 'Data Access'
+                : 'Project Details';
+            // Logo: if p.logo_url is present, render an <img> with a
+            // graceful fallback to the first letter of the project name on
+            // load error (kept in-line so no additional round-trip is needed
+            // if the asset 404s from an ecosystem partner).
+            const displayName = String(p.name || p.id || '?');
+            const initial = displayName.trim().charAt(0) || '?';
+            const logoBlock = p.logo_url
+                ? '<div class="proj-logo"><img src="' + esc(p.logo_url) + '" alt="" ' +
+                    'onerror="this.parentNode.innerHTML=\'<span class=&quot;proj-logo-fallback&quot;>' + esc(initial) + '</span>\'"></div>'
+                : '<div class="proj-logo"><span class="proj-logo-fallback">' + esc(initial) + '</span></div>';
+            // Private-visible cards: keep the "Project Details" button but
+            // it opens a redaction-note modal via openDetail (server also
+            // returns a redacted-only detail for non-admins). Open Project
+            // is hidden for redacted cards.
+            const detailsBtn = isRedacted
+                ? '<button class="btn-link" onclick="openDetail(\'' + esc(p.id) + '\')" title="Restricted view - full details are private"><i class="fas fa-lock"></i> Restricted</button>'
+                : '<button class="btn-link primary" onclick="openDetail(\'' + esc(p.id) + '\')"><i class="fas fa-circle-info"></i> ' + dataAccessLabel + '</button>';
+            const openProjectLink = (!isRedacted && p.stakeholder_url)
+                ? '<a class="btn-link" href="' + esc(p.stakeholder_url) + '" target="_blank" rel="noopener"><i class="fas fa-server"></i> Open Project</a>'
+                : '';
+            const redactedNote = isRedacted
+                ? '<div class="redacted-note"><i class="fas fa-lock"></i> Private-visible: project details, on-chain string, and "Open Project" are restricted to the project owner. Sign in as owner/admin to view.</div>'
+                : '';
             return '<div class="proj-card">' +
-                '<div class="proj-head"><div>' +
-                    '<div class="proj-name">' + esc(p.name || p.id) + '</div>' +
-                    '<div class="proj-loc"><i class="fas fa-location-dot"></i> ' + esc(loc || 'Undisclosed') + '</div>' +
-                '</div>' + statusBadge(p.status) + '</div>' +
-                '<div>' + archetypeBadge(String(p.archetype || '').toLowerCase()) + '</div>' +
-                '<div class="proj-meta">' +
-                    '<div class="meta-cell"><div class="k">Assets</div><div class="v">' + (p.asset_count ?? 0) + '</div></div>' +
-                    '<div class="meta-cell"><div class="k">Sensors</div><div class="v">' + (p.sensor_count ?? 0) + '</div></div>' +
-                    '<div class="meta-cell"><div class="k">Since</div><div class="v">' + timeAgo(p.created_at) + '</div></div>' +
+                '<div class="proj-head">' +
+                    '<div class="proj-head-left">' +
+                        logoBlock +
+                        '<div class="proj-title-wrap">' +
+                            '<div class="proj-name">' + esc(p.name || p.id) + '</div>' +
+                            '<div class="proj-loc"><i class="fas fa-location-dot"></i> ' + esc(loc || 'Undisclosed') + '</div>' +
+                        '</div>' +
+                    '</div>' +
+                    statusBadge(p.status) +
                 '</div>' +
+                '<div style="display:flex; gap:0.35rem; flex-wrap:wrap">' + archetypeBadge(String(p.archetype || '').toLowerCase()) + sourceBadge(p.source) + visibilityBadge(visibility) + '</div>' +
+                (p.description ? '<div style="font-size:12.5px; color:var(--gray-600); line-height:1.4">' + esc(p.description) + '</div>' : '') +
+                (isRedacted ? redactedNote : metaCells(p)) +
                 (tags ? '<div class="tags">' + tags + '</div>' : '') +
                 '<div class="proj-links">' +
-                    '<button class="btn-link primary" onclick="openDetail(\'' + esc(p.id) + '\')"><i class="fas fa-key"></i> Data Access</button>' +
-                    '<a class="btn-link" href="/address/' + esc(p.wallet || '') + '"><i class="fas fa-link"></i> On-chain String</a>' +
-                    (p.stakeholder_url ? '<a class="btn-link" href="' + esc(p.stakeholder_url) + '" target="_blank" rel="noopener"><i class="fas fa-server"></i> Project Node</a>' : '') +
+                    detailsBtn +
+                    walletLink +
+                    openProjectLink +
                 '</div>' +
             '</div>';
         }
@@ -326,11 +477,25 @@
             const q = document.getElementById('fQ').value.trim().toLowerCase();
             const arch = document.getElementById('fArchetype').value;
             const status = document.getElementById('fStatus').value;
+            const source = document.getElementById('fSource').value;
+            const visEl = document.getElementById('fVisibility');
+            // Only honour visibility filter when the dropdown is visible
+            // (i.e. viewer is admin); otherwise treat as "no filter" so a
+            // stale localStorage selection does not silently hide public
+            // projects for a public viewer.
+            const visActive = visEl && visEl.style.display !== 'none';
+            const vis = visActive ? visEl.value : '';
             const filtered = allProjects.filter(p => {
                 if (arch && String(p.archetype).toLowerCase() !== arch) return false;
                 if (status && String(p.status).toLowerCase() !== status) return false;
+                if (source === 'canonical' && p.source !== 'canonical') return false;
+                if (source === 'edc' && p.source === 'canonical') return false;
+                if (vis) {
+                    const projVis = String(p.visibility || 'public').toLowerCase();
+                    if (projVis !== vis) return false;
+                }
                 if (q) {
-                    const hay = [p.name, p.region, p.country, (p.tags || []).join(' ')].join(' ').toLowerCase();
+                    const hay = [p.name, p.region, p.country, p.description, (p.tags || []).join(' ')].join(' ').toLowerCase();
                     if (!hay.includes(q)) return false;
                 }
                 return true;
@@ -344,7 +509,12 @@
             document.getElementById('statTotal').textContent = allProjects.length.toLocaleString();
             const assets = allProjects.reduce((n, p) => n + (p.asset_count || 0), 0);
             const sensors = allProjects.reduce((n, p) => n + (p.sensor_count || 0), 0);
-            const countries = new Set(allProjects.map(p => (p.country || '').toUpperCase()).filter(Boolean));
+            // Only count real ISO country codes (skip the "GLOBAL"/"" sentinel).
+            const countries = new Set(
+                allProjects
+                    .map(p => (p.country || '').toUpperCase())
+                    .filter(c => c && c !== 'GLOBAL')
+            );
             document.getElementById('statAssets').textContent = assets.toLocaleString();
             document.getElementById('statSensors').textContent = sensors.toLocaleString();
             document.getElementById('statCountries').textContent = String(countries.size);
@@ -352,9 +522,16 @@
 
         async function loadDirectory(){
             try {
-                const res = await fetch('/api/v1/ecosystem/directory');
+                const res = await fetch('/api/v1/ecosystem/directory', { headers: adminHeaders() });
                 const data = await res.json();
                 allProjects = data.projects || [];
+                // Server echoes viewer=owner|admin when the presented token
+                // matches; anything else (or missing field) is treated as
+                // public. This is the single source of truth for the
+                // client-side "admin" state so we never render owner-only UI
+                // just because localStorage happens to have a stale token.
+                viewerIsAdmin = String(data.viewer || 'public').toLowerCase() !== 'public';
+                updateAdminPill();
                 if (data.fetched_at) {
                     document.getElementById('lastRefresh').textContent = 'refreshed ' + timeAgo(data.fetched_at);
                 }
@@ -368,15 +545,109 @@
             }
         }
 
+            function updateAdminPill(){
+                const pill = document.getElementById('adminPill');
+                if (pill) {
+                    if (viewerIsAdmin) {
+                        pill.classList.remove('off');
+                        pill.classList.add('active');
+                        pill.innerHTML = '<i class="fas fa-user-shield"></i> Admin view';
+                        pill.title = 'Owner/admin session - private projects visible. Click to sign out.';
+                    } else {
+                        pill.classList.remove('active');
+                        pill.classList.add('off');
+                        pill.innerHTML = '<i class="fas fa-user"></i> Public view';
+                        pill.title = 'Click to enter an owner/admin token (owner-managed projects will appear).';
+                    }
+                }
+                // Show visibility filter dropdown only to admins - public
+                // viewers never see private projects so the filter would be
+                // pointless (and misleading).
+                const visEl = document.getElementById('fVisibility');
+                if (visEl) {
+                    visEl.style.display = viewerIsAdmin ? '' : 'none';
+                    if (!viewerIsAdmin) visEl.value = '';
+                }
+            }
+
+        function promptAdminToken(){
+            if (viewerIsAdmin) {
+                // Clicking while signed in = sign out.
+                if (confirm('Sign out of admin view? Private projects will be hidden again.')) {
+                    setAdminToken('');
+                    viewerIsAdmin = false;
+                    updateAdminPill();
+                    loadDirectory();
+                }
+                return;
+            }
+            const t = prompt('Paste your ecosystem admin token (owner/admin credential):', '');
+            if (!t) return;
+            setAdminToken(t.trim());
+            loadDirectory(); // will refresh viewerIsAdmin from server echo
+        }
+
         function closeModal(){ document.getElementById('modalBackdrop').classList.remove('open'); }
+
+        function renderCanonicalDetail(p){
+            const walletHref = p.wallet ? ('/address/' + esc(p.wallet)) : '';
+            const walletLine = p.wallet
+                ? 'On-chain footprint at <a class="mono" href="' + walletHref + '">' + shortAddr(p.wallet) + '</a>.'
+                : 'This entry has no dedicated on-chain wallet; footprint is spread across per-entity strings (assets, DIDs, contracts).';
+            const tagsHtml = (p.tags || []).length
+                ? '<div class="tags" style="margin-top:0.75rem">' + p.tags.map(t => '<span class="tag">' + esc(t) + '</span>').join('') + '</div>'
+                : '';
+            const displayName = String(p.name || p.id || '?');
+            const initial = displayName.trim().charAt(0) || '?';
+            const heroLogo = p.logo_url
+                ? '<div class="proj-logo" style="width:56px;height:56px;flex:none"><img src="' + esc(p.logo_url) + '" alt="" ' +
+                    'onerror="this.parentNode.innerHTML=\'<span class=&quot;proj-logo-fallback&quot; style=&quot;font-size:22px&quot;>' + esc(initial) + '</span>\'"></div>'
+                : '';
+            const header = heroLogo
+                ? '<div style="display:flex;align-items:center;gap:0.85rem">' + heroLogo + '<h2 style="margin:0">' + esc(p.name || p.id) + '</h2></div>'
+                : '<h2>' + esc(p.name || p.id) + '</h2>';
+            return '<button class="close" onclick="closeModal()"><i class="fas fa-xmark"></i></button>' +
+                header +
+                '<div style="margin:0.35rem 0 0.75rem; display:flex; gap:0.5rem; flex-wrap:wrap">' + archetypeBadge(String(p.archetype||'').toLowerCase()) + statusBadge(p.status) + sourceBadge(p.source) + '</div>' +
+                (p.description ? '<p style="font-size:13.5px;color:var(--gray-700);line-height:1.5">' + esc(p.description) + '</p>' : '') +
+                '<p style="font-size:12.5px;color:var(--gray-600);margin-top:0.75rem">' + walletLine + ' This is a curated canonical Datachain ecosystem entry - the project\'s live surface is at its own URL below.</p>' +
+                tagsHtml +
+                '<div class="proj-links" style="margin-top:1rem">' +
+                    (p.stakeholder_url ? '<a class="btn-link primary" href="' + esc(p.stakeholder_url) + '" target="_blank" rel="noopener"><i class="fas fa-server"></i> Open Project</a>' : '') +
+                    (p.wallet ? '<a class="btn-link" href="' + walletHref + '"><i class="fas fa-link"></i> View On-chain String</a>' : '') +
+                '</div>';
+        }
 
         async function openDetail(id){
             const backdrop = document.getElementById('modalBackdrop');
             const body = document.getElementById('modalBody');
-            body.innerHTML = '<p style="color:var(--gray-500)"><i class="fas fa-spinner fa-spin"></i> Loading live detail from the project node…</p>';
             backdrop.classList.add('open');
+
+            // Look up the card locally first - canonical entries render
+            // synchronously (no EDC round-trip); EDC-registered entries
+            // fall through to the live-detail fetch path.
+            const local = allProjects.find(p => String(p.id).toLowerCase() === String(id).toLowerCase());
+            const localVis = local ? String(local.visibility || 'public').toLowerCase() : 'public';
+            // Private-visible + not admin => render the restriction note
+            // directly instead of hitting the API (server will only return
+            // a redacted skeleton anyway).
+            if (local && localVis === 'private_visible' && !viewerIsAdmin) {
+                body.innerHTML =
+                    '<button class="close" onclick="closeModal()"><i class="fas fa-xmark"></i></button>' +
+                    '<h2>' + esc(local.name || id) + '</h2>' +
+                    '<div style="margin:0.35rem 0 0.75rem;display:flex;gap:0.5rem;flex-wrap:wrap">' + visibilityBadge('private_visible') + '</div>' +
+                    (local.description ? '<p style="font-size:13.5px;color:var(--gray-700);line-height:1.5">' + esc(local.description) + '</p>' : '') +
+                    '<div class="redacted-note" style="margin-top:1rem"><i class="fas fa-lock"></i> This project is <b>private-visible</b>. The project name and description are public, but project details, on-chain string, and "Open Project" are restricted to the owner. Sign in with an owner/admin token from the header to view.</div>';
+                return;
+            }
+            if (local && local.source === 'canonical') {
+                body.innerHTML = renderCanonicalDetail(local);
+                return;
+            }
+
+            body.innerHTML = '<p style="color:var(--gray-500)"><i class="fas fa-spinner fa-spin"></i> Loading live detail from the project node...</p>';
             try {
-                const res = await fetch('/api/v1/ecosystem/directory/' + encodeURIComponent(id));
+                const res = await fetch('/api/v1/ecosystem/directory/' + encodeURIComponent(id), { headers: adminHeaders() });
                 if (!res.ok) throw new Error('detail unavailable');
                 const data = await res.json();
                 const p = data.project || {};
@@ -389,14 +660,14 @@
                         : 'On request';
                     return '<div class="grant-row">' +
                         '<div class="g-head"><span><i class="fas fa-id-badge"></i> ' + esc(g.stakeholder_class || 'stakeholder') + '</span><span>' + price + '</span></div>' +
-                        '<div class="g-sub">Scope: ' + esc(facets) + ' · Delivery: ' + esc((g.delivery || []).join(', ') || 'rest') + '</div>' +
+                        '<div class="g-sub">Scope: ' + esc(facets) + ' - Delivery: ' + esc((g.delivery || []).join(', ') || 'rest') + '</div>' +
                     '</div>';
-                }).join('') : '<p style="color:var(--gray-500);font-size:13px;margin-top:0.5rem">No public access offers published yet — contact the project owner to request a bespoke grant.</p>';
+                }).join('') : '<p style="color:var(--gray-500);font-size:13px;margin-top:0.5rem">No public access offers published yet - contact the project owner to request a bespoke grant.</p>';
                 body.innerHTML =
                     '<button class="close" onclick="closeModal()"><i class="fas fa-xmark"></i></button>' +
                     '<h2>' + esc(p.name || id) + '</h2>' +
                     '<div style="margin:0.35rem 0 0.75rem; display:flex; gap:0.5rem; flex-wrap:wrap">' + archetypeBadge(String(p.archetype||'').toLowerCase()) + statusBadge(p.status) + '</div>' +
-                    '<p style="font-size:13px;color:var(--gray-600)">Project wallet <a class="mono" href="/address/' + esc(p.wallet||'') + '">' + shortAddr(p.wallet) + '</a> — every telemetry reading, diagnosis, and approval is anchored as a knot on the project\'s entity strings. Data is served <b>directly from the project\'s own node</b>; dcscan never intermediates the stream.</p>' +
+                    '<p style="font-size:13px;color:var(--gray-600)">Project wallet <a class="mono" href="/address/' + esc(p.wallet||'') + '">' + shortAddr(p.wallet) + '</a> - every telemetry reading, diagnosis, and approval is anchored as a knot on the project\'s entity strings. Data is served <b>directly from the project\'s own node</b>; dcscan never intermediates the stream.</p>' +
                     '<h3 style="font-size:0.95rem;margin-top:1rem">Public access offers</h3>' + grantsHtml +
                     (apiBase ?
                         '<h3 style="font-size:0.95rem;margin-top:1.1rem">Disintermediated endpoints (with your API key)</h3>' +
@@ -407,21 +678,34 @@
                         '<a class="btn-link" href="/address/' + esc(p.wallet||'') + '"><i class="fas fa-link"></i> View On-chain String</a>' +
                     '</div>';
             } catch (e) {
+                // Fall back to the local card so the modal is never empty.
+                if (local) {
+                    body.innerHTML = renderCanonicalDetail(local);
+                    return;
+                }
                 body.innerHTML = '<button class="close" onclick="closeModal()"><i class="fas fa-xmark"></i></button>' +
                     '<h2>Project node unreachable</h2>' +
-                    '<p style="font-size:13px;color:var(--gray-600);margin-top:0.5rem">The project\'s sovereign node did not answer. Its public card remains listed from the last directory refresh — try again shortly.</p>';
+                    '<p style="font-size:13px;color:var(--gray-600);margin-top:0.5rem">The project\'s sovereign node did not answer. Its public card remains listed from the last directory refresh - try again shortly.</p>';
             }
         }
 
         document.getElementById('fQ').addEventListener('input', applyFilters);
         document.getElementById('fArchetype').addEventListener('change', applyFilters);
         document.getElementById('fStatus').addEventListener('change', applyFilters);
+        document.getElementById('fSource').addEventListener('change', applyFilters);
+        const fVisEl = document.getElementById('fVisibility');
+        if (fVisEl) fVisEl.addEventListener('change', applyFilters);
+        const adminPillEl = document.getElementById('adminPill');
+        if (adminPillEl) adminPillEl.addEventListener('click', promptAdminToken);
         document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
+        // Initialise pill state before the first API round-trip so the UI
+        // isn't visually inconsistent while loadDirectory() is in flight.
+        updateAdminPill();
         loadDirectory();
         setInterval(loadDirectory, 60000);
     </script>
-    <script src="/js/dcscan-stats.js"></script>
-    <script src="/js/dcscan-wallet.js?v=20260707b" defer></script>
+    <script src="/js/dcscan-stats.js?v="></script>
+    <script src="/js/dcscan-wallet.js?v=20260730a" defer></script>
 </body>
 </html>

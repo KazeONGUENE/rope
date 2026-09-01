@@ -1,11 +1,11 @@
 /**
- * DCScan Address Labels — client-side label resolution.
+ * DCScan Address Labels - client-side label resolution.
  *
  * Fetches /api/v1/labels once, caches in sessionStorage + memory.
  * Provides addrDisplay() for rendering addresses with labels.
  *
  * Hidden addresses (e.g. DC Treasury) NEVER expose the raw hex.
- * The label is the only thing shown — no toggle, no tooltip, no reveal.
+ * The label is the only thing shown - no toggle, no tooltip, no reveal.
  *
  * Non-hidden labeled addresses show the hex by default with a small
  * toggle to switch to the label view (preference persists in localStorage).
@@ -88,7 +88,7 @@
    *
    * If the address is hidden (fromHidden/toHidden from API, or hidden
    * flag in the label registry), only the label chip is shown. The raw
-   * hex is never rendered — not in text, not in href, not in tooltip.
+   * hex is never rendered - not in text, not in href, not in tooltip.
    *
    * @param {string|null} addr  Raw hex address (null for hidden addresses)
    * @param {object} [opts]     Options:

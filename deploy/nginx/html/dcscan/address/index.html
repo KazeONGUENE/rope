@@ -3,7 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Address Detail | DC Explorer</title>
+    <title>Address | DC Explorer</title>
+    <meta name="description" id="page-meta-description" content="Explore a Datachain Rope address — native FAT balance, DCR-20 token holdings, transactions, personal-ledger knots, and cross-chain sibling links.">
+    <!-- 2026-08-11: OpenGraph/Twitter tags added so shared address links get a
+         proper preview card on Twitter/X, Telegram, Slack, Discord instead of
+         falling back to the ecosystem homepage summary. Populated dynamically
+         once the address overview loads. -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="DC Explorer">
+    <meta property="og:title" id="og-title" content="Address | DC Explorer">
+    <meta property="og:description" id="og-description" content="Datachain Rope address detail (balance, tokens, transactions).">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" id="tw-title" content="Address | DC Explorer">
+    <meta name="twitter:description" id="tw-description" content="Datachain Rope address detail (balance, tokens, transactions).">
+    <link rel="canonical" id="page-canonical" href="https://dcscan.io/address/">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -20,6 +33,7 @@
     --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     --font-mono: 'JetBrains Mono', monospace;
     --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px;
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
 }
@@ -38,7 +52,7 @@ body {
 a { color: var(--black); text-decoration: none; transition: color .15s; }
 a:hover { color: var(--gray-600); }
 
-/* Top bar — matches landing */
+/* Top bar - matches landing */
 .top-bar {
     background: var(--gray-900);
     color: var(--white);
@@ -58,7 +72,7 @@ a:hover { color: var(--gray-600); }
 .top-bar-value { color: var(--white); font-weight: 500; }
 .top-bar-right { display: flex; align-items: center; gap: 1rem; }
 
-/* Header — matches landing */
+/* Header - matches landing */
 header {
     background: var(--white);
     border-bottom: 1px solid var(--gray-200);
@@ -143,7 +157,7 @@ header {
 .btn-secondary { background: var(--gray-100); color: var(--gray-700); }
 .btn-secondary:hover { background: var(--gray-200); }
 
-/* Footer — matches landing (light) */
+/* Footer - matches landing (light) */
 footer {
     background: var(--white);
     border-top: 1px solid var(--gray-200);
@@ -262,6 +276,43 @@ tbody tr:last-child td { border-bottom: none; }
 .addr-header h1 { font-size: 1.25rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 10px; }
 .addr-header .addr-hex { font-family: var(--font-mono); font-size: 0.9375rem; font-weight: 500; color: var(--gray-700); }
 .addr-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+
+/* 2026-08-11: red-highlight reserve/uncirculated pill.
+   Paired with `data-cat="reserve"` on any `.addr-label-tag` for a wallet in
+   the `market_data::UNCIRCULATED_BUILTIN` set (Scenario A per the CMC SRD
+   paste-kit). Also styles the reserve badge shown next to the address hex
+   and inside the label pill so it is clearly separated from operational
+   / treasury / bridge / governance / system categories. */
+.addr-label-tag[data-cat="reserve"],
+.addr-label-tag[data-cat="uncirculated"] {
+    background: var(--error-bg, #fee2e2); color: #991b1b; border: 1px solid #fecaca;
+}
+.addr-reserve-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 999px; font-size: 0.6875rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    background: var(--error-bg, #fee2e2); color: #991b1b; border: 1px solid #fecaca;
+}
+
+/* 2026-08-11: cross-chain sibling bar. Same wallet address on the other
+   two ecosystem chains (Ethereum, XDC) gets a direct one-click link to the
+   canonical explorer — closes the gap where external form auto-linkers
+   otherwise assumed our addresses were Ethereum tokens and misrouted to
+   Etherscan. */
+.addr-sibling-bar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+    padding: 10px 14px; margin: 0 0 16px 0;
+    background: var(--gray-50); border: 1px solid var(--gray-200);
+    border-radius: var(--radius-md); font-size: 0.8125rem; color: var(--gray-600);
+}
+.addr-sibling-bar strong { color: var(--gray-800); font-weight: 600; }
+.addr-sibling-bar a {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 999px;
+    background: var(--white); border: 1px solid var(--gray-200);
+    color: var(--gray-900); font-weight: 500; text-decoration: none;
+}
+.addr-sibling-bar a:hover { border-color: var(--gray-400); background: var(--gray-100); }
 .addr-tag {
     display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px;
     background: var(--gray-100); color: var(--gray-700); border-radius: 999px;
@@ -288,23 +339,40 @@ tbody tr:last-child td { border-bottom: none; }
 }
 .addr-tab:hover { color: var(--gray-900); }
 .addr-tab.active { color: var(--black); border-bottom-color: var(--black); }
-.addr-tab-content { display: none; padding: 20px 0; }
+.addr-tab-content { display: none; padding: 20px 24px 28px; }
 .addr-tab-content.active { display: block; }
-.bytecode-box { background: var(--gray-900); color: var(--gray-300); padding: 16px; border-radius: var(--radius-md); font-family: var(--font-mono); font-size: 0.75rem; word-break: break-all; max-height: 400px; overflow: auto; }
+.bytecode-box { background: var(--gray-900); color: var(--gray-300); padding: 16px; border-radius: var(--radius-md); font-family: var(--font-mono); font-size: 0.75rem; word-break: break-all; max-height: 480px; overflow: auto; white-space: pre-wrap; }
+.code-subtabs { display: flex; flex-wrap: wrap; gap: 0; border-bottom: 1px solid var(--gray-200); margin: 12px 0 16px; }
+.code-subtab { padding: 10px 14px; font-size: 13px; font-weight: 600; color: var(--gray-500); background: none; border: none; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; font-family: inherit; }
+.code-subtab:hover { color: var(--gray-900); }
+.code-subtab.active { color: var(--black); border-bottom-color: var(--black); }
+.code-pane { display: none; }
+.code-pane.active { display: block; }
+.code-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+.code-copy { padding: 6px 12px; font-size: 12px; font-weight: 600; border: 1px solid var(--gray-300); background: var(--white); border-radius: var(--radius-md); cursor: pointer; font-family: inherit; }
+.code-copy:hover { background: var(--gray-100); }
+.source-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px 16px; margin: 12px 0 16px; font-size: 13px; }
+.source-meta dt { color: var(--gray-500); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+.source-meta dd { margin: 2px 0 0; font-weight: 600; color: var(--gray-900); }
+.abi-fn { font-family: var(--font-mono); font-size: 12px; padding: 8px 10px; border-bottom: 1px solid var(--gray-100); }
+.pub-source-note { font-size: 12px; color: var(--gray-600); background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius-md); padding: 10px 12px; margin: 8px 0 14px; line-height: 1.5; }
 
-/* Quipu Canon v1.1 — Knot card styling */
+/* Quipu Canon v1.1 - Knot card styling.
+   Uniform 1px gray border on all sides. Colored left-border accent bars
+   are banned across the ecosystem (see ban-colored-left-border-accent). */
 .knot-card {
-    border: 1px solid #e5e7eb; border-left: 4px solid #14b8a6;
-    border-radius: 10px; padding: 12px 16px; background: #ffffff;
-    transition: box-shadow .15s, transform .15s;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg); padding: 12px 16px; background: var(--white);
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow .15s;
 }
-.knot-card:hover { box-shadow: 0 4px 12px rgba(20,184,166,0.12); }
+.knot-card:hover { box-shadow: var(--shadow-md); }
 .knot-card.tombstone {
-    border-left-color: #9ca3af; background: #f9fafb;
-    background-image: repeating-linear-gradient(45deg, transparent, transparent 8px, #f3f4f6 8px, #f3f4f6 9px);
+    background: var(--gray-50);
+    background-image: repeating-linear-gradient(45deg, transparent, transparent 8px, var(--gray-100) 8px, var(--gray-100) 9px);
 }
 .knot-card .knot-head { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
-.knot-card .knot-idx { display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; background:#ccfbf1; color:#0f766e; font-size:11px; font-weight:700; letter-spacing:0.3px; text-transform:uppercase; }
+.knot-card .knot-idx { display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; background:var(--gray-100); color:var(--gray-700); font-size:11px; font-weight:700; letter-spacing:0.3px; text-transform:uppercase; }
 .knot-card.tombstone .knot-idx { background:#e5e7eb; color:#6b7280; }
 .knot-card .knot-anchor { font-family: var(--font-mono); font-size:12px; color:#6b7280; }
 .knot-card .knot-types { display:flex; gap:4px; flex-wrap:wrap; }
@@ -505,16 +573,24 @@ tbody tr:last-child td { border-bottom: none; }
     <div class="top-bar">
         <div class="top-bar-container">
             <div class="top-bar-left">
+                <!-- 2026-08-11: top-bar values are populated by
+                     `/js/dcscan-stats.js` from `/api/v1/stats` on every page
+                     load. Removed the hard-coded `$0.00390` / `-2.94%` /
+                     `0.001 gwei` initial values that flashed a stale
+                     (2026-Q1) price for a fraction of a second before the
+                     live number took over — bad optics when a reviewer
+                     screenshots the page. Placeholders now render as an
+                     honest en-dash. -->
                 <div class="top-bar-item">
                     <i class="fa-solid fa-coins"></i>
                     DC FAT Price:
-                    <span class="top-bar-value">$0.00390</span>
-                    <span style="color: #ef4444; margin-left: 0.25rem;">-2.94%</span>
+                    <span class="top-bar-value" id="topbar-fat-price">—</span>
+                    <span id="topbar-fat-change" style="margin-left: 0.25rem;"></span>
                 </div>
                 <div class="top-bar-item">
                     <i class="fa-solid fa-gas-pump"></i>
                     Gas:
-                    <span class="top-bar-value">0.001 gwei</span>
+                    <span class="top-bar-value" id="topbar-gas">—</span>
                 </div>
                 <div class="top-bar-item">
                     <i class="fa-solid fa-clock"></i>
@@ -559,6 +635,7 @@ tbody tr:last-child td { border-bottom: none; }
                     <a href="#" class="nav-link">Tokens <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/tokens" class="dropdown-item">DCR-20 Tokens</a>
+                        <a href="/core/fat" class="dropdown-item">Native DC FAT</a>
                         <a href="/tokentxns" class="dropdown-item">Token Transfers</a>
                     </div>
                 </div>
@@ -601,16 +678,16 @@ tbody tr:last-child td { border-bottom: none; }
                 <div class="agent-banner-icon" id="agent-icon"><i class="fas fa-gavel"></i></div>
                 <div>
                     <div class="agent-banner-title">
-                        <span id="agent-name">—</span>
+                        <span id="agent-name">-</span>
                         <span class="agent-status-pill" id="agent-status-pill">
-                            <span class="agent-status-dot"></span> <span id="agent-status-text">—</span>
+                            <span class="agent-status-dot"></span> <span id="agent-status-text">-</span>
                         </span>
                     </div>
-                    <div class="agent-banner-org"><span id="agent-org">—</span> &middot; <span id="agent-type">—</span></div>
+                    <div class="agent-banner-org"><span id="agent-org">-</span> &middot; <span id="agent-type">-</span></div>
                 </div>
                 <a href="/agents" style="margin-left:auto;font-size:.8125rem;color:#60a5fa;text-decoration:none;"><i class="fas fa-arrow-left"></i> All Agents</a>
             </div>
-            <div class="agent-banner-desc" id="agent-desc">—</div>
+            <div class="agent-banner-desc" id="agent-desc">-</div>
             <div class="agent-stats-grid" id="agent-stats-grid"></div>
             <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;">
                 <div>
@@ -626,12 +703,27 @@ tbody tr:last-child td { border-bottom: none; }
 
         <div class="addr-header" id="addr-header" style="display:none;">
     <img id="addr-token-logo" alt="" style="display:none;width:36px;height:36px;border-radius:50%;background:#fff;padding:2px;border:1px solid var(--gray-200);">
-    <h1><span id="addr-type-label">Address</span> <span class="addr-hex" id="addr-display">—</span></h1>
+    <h1><span id="addr-type-label">Address</span> <span class="addr-hex" id="addr-display">-</span></h1>
     <button class="copy-btn" onclick="copyToClip(window.__addrCurrent, this)" title="Copy address"><i class="fas fa-copy"></i></button>
     <div class="addr-tags" id="addr-tags"></div>
     <div class="addr-actions">
         <a href="/api/v1/status" class="copy-btn" title="API"><i class="fas fa-code"></i></a>
     </div>
+</div>
+
+<!-- 2026-08-11: cross-chain sibling bar. Populated by JS once the address is
+     known. Deliberately conservative: we don't claim the same key controls
+     the sibling wallets, only that external users pasting the same hex into
+     Etherscan / XDCScan will land there — the same claim CMC / CG auditors
+     will spot-check. Hidden if `window.__hideAddressSiblings` is truthy
+     (set for our internal system/genesis addresses where the sibling links
+     are meaningless). -->
+<div class="addr-sibling-bar" id="addr-sibling-bar" style="display:none;">
+    <i class="fas fa-link" style="color:var(--gray-500);"></i>
+    <strong>Same hex on other chains:</strong>
+    <a id="addr-sibling-eth" href="#" target="_blank" rel="noopener"><i class="fab fa-ethereum"></i> Etherscan</a>
+    <a id="addr-sibling-xdc" href="#" target="_blank" rel="noopener"><i class="fas fa-cube"></i> XDCScan</a>
+    <span style="margin-left:auto;font-size:0.75rem;color:var(--gray-500);">Address collisions are chain-scoped: same hex, unrelated wallet.</span>
 </div>
 
 <div id="tanastok-banner" style="display:none;"></div>
@@ -647,10 +739,10 @@ tbody tr:last-child td { border-bottom: none; }
         <div>
             <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#15803d;font-weight:700;">
                 <i class="fas fa-stamp" style="margin-right:4px;"></i>
-                <span id="dcnft-kind">Tanastok DCNFT — ERC-721 Title Deed</span>
+                <span id="dcnft-kind">Tanastok DCNFT - ERC-721 Title Deed</span>
                 <span id="dcnft-verified-badge" style="display:none;margin-left:8px;background:#dcfce7;color:#166534;padding:2px 8px;border-radius:999px;font-size:10px;"><i class="fas fa-check-circle"></i> Verified</span>
             </div>
-            <div id="dcnft-asset-name" style="font-size:22px;font-weight:700;color:#064e3b;margin:4px 0;">—</div>
+            <div id="dcnft-asset-name" style="font-size:22px;font-weight:700;color:#064e3b;margin:4px 0;">-</div>
             <div id="dcnft-meta" style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:#065f46;margin-bottom:8px;"></div>
             <div id="dcnft-actions" style="display:flex;gap:10px;flex-wrap:wrap;"></div>
         </div>
@@ -658,7 +750,7 @@ tbody tr:last-child td { border-bottom: none; }
     <div id="dcnft-sister-bar" style="display:none;background:#ecfeff;border-top:1px solid #cffafe;padding:10px 16px;font-size:13px;color:#0e7490;">
         <i class="fas fa-link" style="margin-right:6px;"></i>
         Fractional security token (ERC-3643) for this asset:
-        <a id="dcnft-sister-link" href="#" class="mono" style="color:#0e7490;font-weight:600;">—</a>
+        <a id="dcnft-sister-link" href="#" class="mono" style="color:#0e7490;font-weight:600;">-</a>
     </div>
 </div>
 
@@ -668,30 +760,30 @@ tbody tr:last-child td { border-bottom: none; }
         <div class="addr-panel-title">NFT Collection</div>
         <div class="addr-panel-row">
             <div class="addr-panel-label">TOTAL SUPPLY</div>
-            <div class="addr-panel-value" id="nft-total-supply">—</div>
+            <div class="addr-panel-value" id="nft-total-supply">-</div>
         </div>
         <div class="addr-panel-row">
             <div class="addr-panel-label">CURRENTLY HELD</div>
-            <div class="addr-panel-value" id="nft-held">—</div>
+            <div class="addr-panel-value" id="nft-held">-</div>
         </div>
         <div class="addr-panel-row">
             <div class="addr-panel-label">UNIQUE OWNERS</div>
-            <div class="addr-panel-value" id="nft-owners">—</div>
+            <div class="addr-panel-value" id="nft-owners">-</div>
         </div>
     </div>
     <div class="addr-panel">
         <div class="addr-panel-title">Activity</div>
         <div class="addr-panel-row">
             <div class="addr-panel-label">MINTED</div>
-            <div class="addr-panel-value" id="nft-mints">—</div>
+            <div class="addr-panel-value" id="nft-mints">-</div>
         </div>
         <div class="addr-panel-row">
             <div class="addr-panel-label">BURNED</div>
-            <div class="addr-panel-value" id="nft-burns">—</div>
+            <div class="addr-panel-value" id="nft-burns">-</div>
         </div>
         <div class="addr-panel-row">
             <div class="addr-panel-label">TRANSFERS</div>
-            <div class="addr-panel-value" id="nft-transfers-count">—</div>
+            <div class="addr-panel-value" id="nft-transfers-count">-</div>
         </div>
     </div>
     <div class="addr-panel">
@@ -702,16 +794,16 @@ tbody tr:last-child td { border-bottom: none; }
         </div>
         <div class="addr-panel-row">
             <div class="addr-panel-label">METADATA</div>
-            <div class="addr-panel-value" id="nft-metadata">—</div>
+            <div class="addr-panel-value" id="nft-metadata">-</div>
         </div>
         <div class="addr-panel-row">
             <div class="addr-panel-label">INDEXER</div>
-            <div class="addr-panel-value" id="nft-indexer-state" style="font-size:12px;">—</div>
+            <div class="addr-panel-value" id="nft-indexer-state" style="font-size:12px;">-</div>
         </div>
     </div>
 </div>
 
-<!-- Deprecation banner — shown when the user lands on a known dead
+<!-- Deprecation banner - shown when the user lands on a known dead
      pre-Reth-migration address. Carries a one-click jump to the live
      replacement so users aren't stuck on an empty page. -->
 <div id="addr-deprecated-banner" class="card" style="display:none;background:linear-gradient(135deg,#fef3c7 0%,#fffbeb 100%);border:1px solid #f59e0b;margin-bottom:16px;padding:14px 18px;">
@@ -719,17 +811,17 @@ tbody tr:last-child td { border-bottom: none; }
         <i class="fas fa-triangle-exclamation" style="color:#b45309;font-size:22px;margin-top:2px;"></i>
         <div style="flex:1;">
             <div style="font-weight:700;color:#78350f;font-size:14px;letter-spacing:0.3px;">Deprecated Contract Address</div>
-            <div id="addr-deprecated-reason" style="color:#92400e;font-size:13px;margin-top:4px;line-height:1.5;">—</div>
+            <div id="addr-deprecated-reason" style="color:#92400e;font-size:13px;margin-top:4px;line-height:1.5;">-</div>
             <div style="margin-top:8px;font-size:13px;color:#78350f;">
                 Live address:
-                <a id="addr-deprecated-link" href="#" class="mono" style="color:#0d9488;font-weight:600;text-decoration:underline;">—</a>
+                <a id="addr-deprecated-link" href="#" class="mono" style="color:#0d9488;font-weight:600;text-decoration:underline;">-</a>
                 <span id="addr-deprecated-label" style="color:#475569;margin-left:6px;"></span>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Token Profile Summary — Etherscan-style overview block shown only
+<!-- Token Profile Summary - Etherscan-style overview block shown only
      when the address is a recognised DCR-20 token (USDC / USDT / EUROD
      / WFAT). Holds the project description, creator, official links,
      and the canonical "global market" snapshot that lets users compare
@@ -739,26 +831,26 @@ tbody tr:last-child td { border-bottom: none; }
         <i class="fas fa-circle-info" style="color:#0ea5e9;font-size:18px;"></i>
         <div style="font-weight:700;color:#0f172a;font-size:14px;letter-spacing:0.4px;text-transform:uppercase;">Profile Summary</div>
     </div>
-    <p id="tokp-description" style="color:#334155;font-size:13.5px;line-height:1.65;margin:0 0 14px;">—</p>
+    <p id="tokp-description" style="color:#334155;font-size:13.5px;line-height:1.65;margin:0 0 14px;">-</p>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px 24px;font-size:13px;">
         <div>
             <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;font-weight:700;">Issuer / Creator</div>
-            <div id="tokp-creator" style="margin-top:3px;color:#0f172a;font-weight:600;">—</div>
+            <div id="tokp-creator" style="margin-top:3px;color:#0f172a;font-weight:600;">-</div>
         </div>
         <div>
             <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;font-weight:700;">Official Site</div>
-            <div id="tokp-creator-url" style="margin-top:3px;"><a href="#" target="_blank" rel="noopener" style="color:#0d9488;">—</a></div>
+            <div id="tokp-creator-url" style="margin-top:3px;"><a href="#" target="_blank" rel="noopener" style="color:#0d9488;">-</a></div>
         </div>
         <div>
             <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;font-weight:700;">Project URL</div>
-            <div id="tokp-project-url" style="margin-top:3px;"><a href="#" target="_blank" rel="noopener" style="color:#0d9488;">—</a></div>
+            <div id="tokp-project-url" style="margin-top:3px;"><a href="#" target="_blank" rel="noopener" style="color:#0d9488;">-</a></div>
         </div>
         <div>
             <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;font-weight:700;">Social</div>
-            <div id="tokp-social-url" style="margin-top:3px;"><a href="#" target="_blank" rel="noopener" style="color:#0d9488;">—</a></div>
+            <div id="tokp-social-url" style="margin-top:3px;"><a href="#" target="_blank" rel="noopener" style="color:#0d9488;">-</a></div>
         </div>
     </div>
-    <div id="tokp-data-source" style="margin-top:14px;padding-top:10px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8;font-style:italic;">—</div>
+    <div id="tokp-data-source" style="margin-top:14px;padding-top:10px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8;font-style:italic;">-</div>
 </div>
 
 <!-- Token-mode market overview cards. Shown only when the address is a
@@ -768,22 +860,25 @@ tbody tr:last-child td { border-bottom: none; }
      visually identical. -->
 <div id="addr-token-cards" class="addr-panels" style="display:none;">
     <div class="addr-panel">
-        <div class="addr-panel-title">Market (Global)</div>
+        <div class="addr-panel-title" style="display:flex;align-items:center;gap:10px;">
+            <img id="tok-mkt-logo" alt="" style="display:none;width:28px;height:28px;border-radius:50%;border:1px solid var(--gray-200);background:#fff;object-fit:cover;">
+            <span>Market (Global)</span>
+        </div>
         <div class="addr-panel-row">
             <div class="addr-panel-label">PRICE</div>
-            <div class="addr-panel-value" id="tok-price">—</div>
+            <div class="addr-panel-value" id="tok-price">-</div>
         </div>
         <div class="addr-panel-row">
             <div class="addr-panel-label">MARKET CAP</div>
-            <div class="addr-panel-value" id="tok-mcap-global">—</div>
+            <div class="addr-panel-value" id="tok-mcap-global">-</div>
         </div>
         <div class="addr-panel-row">
             <div class="addr-panel-label">VOLUME (24H)</div>
-            <div class="addr-panel-value" id="tok-vol24-global">—</div>
+            <div class="addr-panel-value" id="tok-vol24-global">-</div>
         </div>
         <div class="addr-panel-row">
             <div class="addr-panel-label">CIRCULATING SUPPLY</div>
-            <div class="addr-panel-value" id="tok-circ-global">—</div>
+            <div class="addr-panel-value" id="tok-circ-global">-</div>
         </div>
     </div>
     <div class="addr-panel">
@@ -797,19 +892,19 @@ tbody tr:last-child td { border-bottom: none; }
         </div>
         <div class="addr-panel-row">
             <div class="addr-panel-label">BRIDGED SUPPLY</div>
-            <div class="addr-panel-value" id="tok-supply">—</div>
+            <div class="addr-panel-value" id="tok-supply">-</div>
         </div>
         <div class="addr-panel-row">
             <div class="addr-panel-label">HOLDERS</div>
-            <div class="addr-panel-value" id="tok-holders">—</div>
+            <div class="addr-panel-value" id="tok-holders">-</div>
         </div>
         <div class="addr-panel-row">
             <div class="addr-panel-label">TRANSFERS</div>
-            <div class="addr-panel-value" id="tok-transfers">—</div>
+            <div class="addr-panel-value" id="tok-transfers">-</div>
         </div>
         <div class="addr-panel-row">
             <div class="addr-panel-label">DCSWAP 24H VOLUME</div>
-            <div class="addr-panel-value" id="tok-vol24">—</div>
+            <div class="addr-panel-value" id="tok-vol24">-</div>
         </div>
     </div>
     <div class="addr-panel">
@@ -820,15 +915,15 @@ tbody tr:last-child td { border-bottom: none; }
         </div>
         <div class="addr-panel-row">
             <div class="addr-panel-label">ALSO KNOWN AS</div>
-            <div class="addr-panel-value" id="tok-altname">—</div>
+            <div class="addr-panel-value" id="tok-altname">-</div>
         </div>
         <div class="addr-panel-row">
             <div class="addr-panel-label">DECIMALS</div>
-            <div class="addr-panel-value" id="tok-decimals">—</div>
+            <div class="addr-panel-value" id="tok-decimals">-</div>
         </div>
         <div class="addr-panel-row">
             <div class="addr-panel-label">MARKET CAP (BRIDGED)</div>
-            <div class="addr-panel-value" id="tok-mcap">—</div>
+            <div class="addr-panel-value" id="tok-mcap">-</div>
         </div>
     </div>
 </div>
@@ -838,15 +933,15 @@ tbody tr:last-child td { border-bottom: none; }
         <div class="addr-panel-title">Overview</div>
         <div class="addr-panel-row">
             <div class="addr-panel-label">FAT BALANCE</div>
-            <div class="addr-panel-value" id="addr-fat-balance">—</div>
+            <div class="addr-panel-value" id="addr-fat-balance">-</div>
         </div>
         <div class="addr-panel-row">
             <div class="addr-panel-label">FAT VALUE</div>
-            <div class="addr-panel-value" id="addr-fat-value">—</div>
+            <div class="addr-panel-value" id="addr-fat-value">-</div>
         </div>
         <div class="addr-panel-row">
             <div class="addr-panel-label">TOKEN HOLDINGS</div>
-            <div class="addr-panel-value" id="addr-token-holdings">—</div>
+            <div class="addr-panel-value" id="addr-token-holdings">-</div>
             <div id="addr-token-holdings-list" style="display:none; margin-top: 8px; max-height: 280px; overflow-y: auto; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); background: var(--gray-50);"></div>
         </div>
     </div>
@@ -858,11 +953,11 @@ tbody tr:last-child td { border-bottom: none; }
         </div>
         <div class="addr-panel-row">
             <div class="addr-panel-label">CONTRACT CREATOR</div>
-            <div class="addr-panel-value" id="addr-creator">—</div>
+            <div class="addr-panel-value" id="addr-creator">-</div>
         </div>
         <div class="addr-panel-row">
             <div class="addr-panel-label">TOKEN TRACKER</div>
-            <div class="addr-panel-value" id="addr-token-tracker">—</div>
+            <div class="addr-panel-value" id="addr-token-tracker">-</div>
         </div>
     </div>
     <div class="addr-panel">
@@ -873,7 +968,7 @@ tbody tr:last-child td { border-bottom: none; }
         </div>
         <div class="addr-panel-row">
             <div class="addr-panel-label">MULTICHAIN</div>
-            <div class="addr-panel-value" style="font-weight:400;color:var(--gray-500);">Single chain — no other addresses</div>
+            <div class="addr-panel-value" style="font-weight:400;color:var(--gray-500);">Single chain - no other addresses</div>
         </div>
     </div>
 </div>
@@ -898,7 +993,7 @@ tbody tr:last-child td { border-bottom: none; }
         <button type="button" class="addr-tab" data-tab="info">Info</button>
     </div>
     <!--
-        Quipu Primitive Canon v1.1 §6(2) — Public personal-ledger view.
+        Quipu Primitive Canon v1.1 §6(2) - Public personal-ledger view.
         The wallet is a sovereign String. Each anchor where it has activity
         is a Knot on that String. Each knot lists its Transactions by type.
         Untied (GDPR-erased) knots appear as Tombstones.
@@ -907,12 +1002,12 @@ tbody tr:last-child td { border-bottom: none; }
         <p class="page-subtitle">
             This wallet's <strong>sovereign String</strong> on Datachain Rope. Each event is a <strong>Knot</strong> tied chronologically along the cord; per-knot transaction details appear in the right column. Untied knots (GDPR Article 17) are shown as <span class="knot-tombstone-pill" style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;background:#f3f4f6;color:#6b7280;font-size:11px;font-weight:600;"><i class="fas fa-times-circle"></i> Tombstones</span>.
         </p>
-        <div id="addr-string-summary" style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:16px;padding:14px 16px;background:linear-gradient(135deg,#f0fdfa,#ecfeff);border:1px solid #99f6e4;border-radius:10px;">
-            <div><div style="font-size:11px;text-transform:uppercase;color:#0f766e;font-weight:700;letter-spacing:0.5px;">String ID</div><div class="mono" id="addr-string-id" style="font-size:12px;color:#134e4a;">—</div></div>
-            <div><div style="font-size:11px;text-transform:uppercase;color:#0f766e;font-weight:700;letter-spacing:0.5px;">Knot Count</div><div id="addr-knot-count" style="font-size:18px;font-weight:700;color:#134e4a;">—</div></div>
-            <div><div style="font-size:11px;text-transform:uppercase;color:#0f766e;font-weight:700;letter-spacing:0.5px;">Active</div><div id="addr-knot-active" style="font-size:18px;font-weight:700;color:#059669;">—</div></div>
-            <div><div style="font-size:11px;text-transform:uppercase;color:#0f766e;font-weight:700;letter-spacing:0.5px;">Tombstones</div><div id="addr-knot-tombstones" style="font-size:18px;font-weight:700;color:#6b7280;">—</div></div>
-            <div style="margin-left:auto;align-self:center;font-size:11px;color:#0f766e;"><i class="fas fa-scroll"></i> <em>Quipu Canon v1.1 §6(2)</em></div>
+        <div id="addr-string-summary" style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:16px;padding:14px 16px;background:var(--white);border:1px solid var(--gray-200);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);">
+            <div><div style="font-size:11px;text-transform:uppercase;color:var(--gray-500);font-weight:700;letter-spacing:0.5px;">String ID</div><div class="mono" id="addr-string-id" style="font-size:12px;color:var(--gray-900);">-</div></div>
+            <div><div style="font-size:11px;text-transform:uppercase;color:var(--gray-500);font-weight:700;letter-spacing:0.5px;">Knot Count</div><div id="addr-knot-count" style="font-size:18px;font-weight:700;color:var(--gray-900);">-</div></div>
+            <div><div style="font-size:11px;text-transform:uppercase;color:var(--gray-500);font-weight:700;letter-spacing:0.5px;">Active</div><div id="addr-knot-active" style="font-size:18px;font-weight:700;color:var(--gray-900);">-</div></div>
+            <div><div style="font-size:11px;text-transform:uppercase;color:var(--gray-500);font-weight:700;letter-spacing:0.5px;">Tombstones</div><div id="addr-knot-tombstones" style="font-size:18px;font-weight:700;color:var(--gray-500);">-</div></div>
+            <div style="margin-left:auto;align-self:center;font-size:11px;color:var(--gray-500);"><i class="fas fa-scroll"></i> <em>Quipu Canon v1.1 §6(2)</em></div>
         </div>
         <div id="addr-knot-list" class="knot-list" style="display:flex;flex-direction:column;gap:10px;"></div>
         <p class="page-subtitle" id="addr-knot-empty" style="display:none;color:var(--gray-500);text-align:center;padding:24px;">No knots tied on this String yet.</p>
@@ -1062,9 +1157,39 @@ tbody tr:last-child td { border-bottom: none; }
         <p class="page-subtitle" id="addr-nft-held-empty" style="display:none;color:var(--gray-500);">This address does not currently hold any indexed NFTs.</p>
     </div>
     <div id="addr-tab-contract" class="addr-tab-content">
-        <p class="page-subtitle" id="addr-contract-intro">Contract bytecode (if this address is a contract).</p>
-        <div id="addr-bytecode-wrap" style="display:none;"><pre class="bytecode-box" id="addr-bytecode"></pre></div>
-        <p id="addr-not-contract" style="display:none;color:var(--gray-500);">This address is an EOA — no bytecode.</p>
+        <p class="page-subtitle" id="addr-contract-intro">Published source, ABI, and live runtime bytecode for this contract.</p>
+        <div id="addr-not-contract" style="display:none;color:var(--gray-500);">This address is an EOA - no bytecode.</div>
+        <div id="addr-contract-body" style="display:none;">
+            <div id="addr-contract-note" class="pub-source-note"></div>
+            <dl class="source-meta" id="addr-contract-meta"></dl>
+            <div class="code-subtabs" id="addr-code-subtabs">
+                <button type="button" class="code-subtab" data-code-tab="source">Contract Source</button>
+                <button type="button" class="code-subtab" data-code-tab="abi">ABI</button>
+                <button type="button" class="code-subtab active" data-code-tab="bytecode">Bytecode</button>
+            </div>
+            <div id="code-pane-source" class="code-pane">
+                <div class="code-toolbar">
+                    <span style="font-size:12px;color:var(--gray-500);" id="addr-source-path">-</span>
+                    <button type="button" class="code-copy" id="copy-source">Copy source</button>
+                </div>
+                <pre class="bytecode-box" id="addr-source" style="background:#0b1220;color:#e2e8f0;"></pre>
+            </div>
+            <div id="code-pane-abi" class="code-pane">
+                <div class="code-toolbar">
+                    <span style="font-size:12px;color:var(--gray-500);">JSON ABI</span>
+                    <button type="button" class="code-copy" id="copy-abi">Copy ABI</button>
+                </div>
+                <div id="addr-abi-fns"></div>
+                <pre class="bytecode-box" id="addr-abi" style="max-height:320px;"></pre>
+            </div>
+            <div id="code-pane-bytecode" class="code-pane active">
+                <div class="code-toolbar">
+                    <span style="font-size:12px;color:var(--gray-500);" id="addr-bytecode-size">-</span>
+                    <button type="button" class="code-copy" id="copy-bytecode">Copy bytecode</button>
+                </div>
+                <pre class="bytecode-box" id="addr-bytecode"></pre>
+            </div>
+        </div>
     </div>
     <div id="addr-tab-events" class="addr-tab-content">
         <p class="page-subtitle">Latest contract events (logs)</p>
@@ -1126,9 +1251,9 @@ tbody tr:last-child td { border-bottom: none; }
     </footer>
 <script>
 function timeAgo(ts) {
-    if (!ts) return '<span style="color:var(--gray-400)">—</span>';
+    if (!ts) return '<span style="color:var(--gray-400)">-</span>';
     const d = typeof ts === 'number' ? ts * 1000 : Date.parse(ts);
-    if (isNaN(d)) return '<span style="color:var(--gray-400)">—</span>';
+    if (isNaN(d)) return '<span style="color:var(--gray-400)">-</span>';
     const s = Math.floor((Date.now() - d) / 1000);
     if (s < 5) return 'just now';
     if (s < 60) return s + 's ago';
@@ -1138,7 +1263,7 @@ function timeAgo(ts) {
 }
 function short(hash, n) {
     n = n || 8;
-    if (!hash) return '—';
+    if (!hash) return '-';
     if (hash.length <= n * 2 + 2) return hash;
     return hash.slice(0, n + 2) + '…' + hash.slice(-n);
 }
@@ -1147,6 +1272,69 @@ function fmtNum(v) {
     const n = typeof v === 'string' ? parseFloat(v) : v;
     if (isNaN(n)) return v;
     return n.toLocaleString(undefined, { maximumFractionDigits: 6 });
+}
+function formatLocalUsd(n) {
+    var num = Number(n);
+    if (!isFinite(num)) return '-';
+    try {
+        return new Intl.NumberFormat(navigator.language || 'en-US', {
+            style: 'currency',
+            currency: 'USD',
+            maximumFractionDigits: Math.abs(num) < 0.01 ? 6 : 2
+        }).format(num);
+    } catch (e) {
+        return '$' + num.toFixed(2);
+    }
+}
+function formatTxValue(tx) {
+    if (!tx) return '-';
+    if (tx.displayValue) return tx.displayValue;
+    var amount = (typeof tx.valueFat === 'number') ? tx.valueFat : null;
+    var usd = (typeof tx.valueUsd === 'number') ? tx.valueUsd : null;
+    var sym = tx.tokenSymbol || 'FAT';
+    if (amount == null) {
+        var raw = tx.value;
+        if (typeof raw === 'string' && /FAT|WFAT|USDC|USDT|EUROD/i.test(raw)) return raw;
+        return fmtNum(raw) + ' FAT';
+    }
+    var amtStr = amount === 0
+        ? ('0 ' + sym)
+        : (Number(amount).toLocaleString(undefined, { maximumFractionDigits: 8 }) + ' ' + sym);
+    if (usd != null && usd > 0) amtStr += ' (' + formatLocalUsd(usd) + ')';
+    return amtStr;
+}
+function applyTokenLogo(t, imgEl) {
+    if (!imgEl || !t) return;
+    var urls = [];
+    if (t.logoUrl) urls.push(t.logoUrl);
+    if (Array.isArray(t.logoUrls)) {
+        t.logoUrls.forEach(function(u) { if (u && urls.indexOf(u) === -1) urls.push(u); });
+    }
+    var sym = (t.symbol || '').toLowerCase();
+    if (sym === 'wfat' || sym === 'fat') {
+        urls.push('/assets/tokens/wfat.png', '/assets/tokens/fat.png');
+    } else if (sym) {
+        urls.push('/assets/tokens/' + sym + '.png');
+    }
+    var i = 0;
+    function tryNext() {
+        if (i >= urls.length) { imgEl.style.display = 'none'; return; }
+        imgEl.onerror = function() { i += 1; tryNext(); };
+        imgEl.onload = function() { imgEl.style.display = 'inline-block'; };
+        imgEl.src = urls[i];
+        imgEl.alt = t.symbol || '';
+    }
+    tryNext();
+}
+function liveOrDash() {
+    for (var i = 0; i < arguments.length; i++) {
+        var s = arguments[i];
+        if (s == null) continue;
+        if (typeof s === 'number' && isFinite(s) && s > 0) return s;
+        var t = String(s).trim();
+        if (t && t !== '-' && t !== '$0' && t !== '$0.00' && t !== '0') return t;
+    }
+    return '-';
 }
 function copyToClip(text, btn) {
     navigator.clipboard.writeText(text).then(() => {
@@ -1192,15 +1380,15 @@ function addrLink(addr, label, hidden) {
     return '<a href="/address/' + addr + '" class="mono">' + escHtml(display) + '</a>';
 }
 function txLink(hash) {
-    if (!hash) return '—';
+    if (!hash) return '-';
     return '<a href="/tx/' + hash + '" class="mono">' + short(hash, 10) + '</a>';
 }
 function stringLink(num) {
-    if (num == null) return '—';
+    if (num == null) return '-';
     return '<a href="/string/' + num + '">' + fmtNum(num) + '</a>';
 }
 function tokenLink(addr, name) {
-    if (!addr) return '—';
+    if (!addr) return '-';
     return '<a href="/token/' + addr + '">' + escHtml(name || short(addr, 10)) + '</a>';
 }
 
@@ -1338,6 +1526,41 @@ function iconForKind(k) {
     }
     window.__addrCurrent = addr;
 
+    // 2026-08-11: Set page/social metadata + sibling-chain deep links.
+    // Runs synchronously from the URL — no wait for the overview API — so
+    // link-preview crawlers (Twitter, Slack, Discord, Telegram) that don't
+    // execute post-hoc JS still get an address-specific title and OG card.
+    // Refined again after `/overview` resolves to include the human label
+    // if one exists.
+    (function seedAddrMetadata(a) {
+        try {
+            var shortHex = a.slice(0, 8) + '…' + a.slice(-6);
+            var canonical = 'https://dcscan.io/address/' + a;
+            document.title = shortHex + ' | DC Explorer';
+            var setAttr = function(id, attr, val) {
+                var el = document.getElementById(id);
+                if (el) el.setAttribute(attr, val);
+            };
+            setAttr('page-canonical', 'href', canonical);
+            var desc = 'Datachain Rope address ' + a + ' — native FAT balance, DCR-20 token holdings, and transaction history on dcscan.io.';
+            setAttr('page-meta-description', 'content', desc);
+            setAttr('og-title', 'content', shortHex + ' | DC Explorer');
+            setAttr('og-description', 'content', desc);
+            setAttr('tw-title', 'content', shortHex + ' | DC Explorer');
+            setAttr('tw-description', 'content', desc);
+            // Sibling chains — same hex, unrelated wallets. Only for EVM
+            // addresses (we already gated `isEvmAddr` above).
+            var sib = document.getElementById('addr-sibling-bar');
+            var ethLink = document.getElementById('addr-sibling-eth');
+            var xdcLink = document.getElementById('addr-sibling-xdc');
+            if (ethLink) ethLink.href = 'https://etherscan.io/address/' + a;
+            // XDCScan native format uses `xdc` prefix; browsers redirect
+            // `0x…` → `xdc…` inside their app so both work.
+            if (xdcLink) xdcLink.href = 'https://xdcscan.com/address/' + a;
+            if (sib && !window.__hideAddressSiblings) sib.style.display = '';
+        } catch (_) { /* metadata is best-effort; never block address render */ }
+    })(addr);
+
     let currentPage = 1;
     const pageSize = 25;
 
@@ -1390,6 +1613,27 @@ function iconForKind(k) {
                 document.getElementById('addr-display').textContent = addr.slice(0, 10) + '\u2026' + addr.slice(-8);
             }
 
+            // 2026-08-11: refine <title> + OG / Twitter / meta description
+            // now that the human label is known. Deliberately re-set only if
+            // a label actually exists — the earlier seed already handles the
+            // no-label case with a short-hex title. Reviewers auditing a
+            // CMC/CG submission share `dcscan.io/address/…` links to their
+            // colleagues and expect the label to show up in the link preview.
+            if (overview.label) {
+                var titled = overview.label + ' | ' + addr.slice(0, 6) + '…' + addr.slice(-4) + ' | DC Explorer';
+                var descTitled = overview.label + ' (' + addr + ') on Datachain Rope — native FAT balance, DCR-20 token holdings, and transaction history.';
+                document.title = titled;
+                var setAttr = function(id, attr, val) {
+                    var el = document.getElementById(id);
+                    if (el) el.setAttribute(attr, val);
+                };
+                setAttr('og-title', 'content', titled);
+                setAttr('tw-title', 'content', titled);
+                setAttr('og-description', 'content', descTitled);
+                setAttr('tw-description', 'content', descTitled);
+                setAttr('page-meta-description', 'content', descTitled);
+            }
+
             var tags = document.getElementById('addr-tags');
             if (isAgent) {
                 tags.innerHTML += '<span class="addr-tag" style="background:#dbeafe;color:#1d4ed8;"><i class="fas fa-robot" style="margin-right:4px;"></i> AI Agent</span>';
@@ -1401,11 +1645,30 @@ function iconForKind(k) {
             }
             tags.innerHTML += overview.isContract ? '<span class="addr-tag contract"># Contract</span>' : '<span class="addr-tag"># EOA</span>';
 
+            // 2026-08-11: mark wallets that count out of circulating supply
+            // (Scenario A per market_data::UNCIRCULATED_BUILTIN + the CMC SRD
+            // paste-kit §7.4.2). Rendered as a red RESERVE pill next to the
+            // regular tags so external reviewers can spot the classification
+            // without opening the reconciliation JSON. Kept as a local
+            // allow-list mirror because the overview API doesn't yet expose
+            // an `isReserve` flag; when it does, this block can gate on it.
+            var uncirculated = {
+                '0x70406ae110d6ccff9a73a2ac2b82d3b666b5a51a': 'Migration escrow (locked)',
+                '0xcf884c81ed55b150cb1aba8a69e2e9adf8f082eb': 'Foundation reserve',
+                '0x60fb32ef3a2381c2ed71613f34fd56d56fcf4195': 'Compromised deployer (rotated)',
+                '0x63423bbc1275f973eb00d6198b757797a8db320b': 'Tanastok payout treasury (gas float)',
+                '0x37a8ca3b828ec3402a6518d756791ed2dd02a038': 'CauseTokenFactory grantor (gas float)'
+            };
+            var reserveWhy = uncirculated[addr.toLowerCase()];
+            if (reserveWhy) {
+                tags.innerHTML += '<span class="addr-reserve-badge" title="' + escHtml(reserveWhy) + ' — excluded from circulating supply (dcscan.io/api/v1/supply/reconciliation Scenario A)"><i class="fas fa-lock" style="margin-right:4px;"></i>RESERVE / uncirculated</span>';
+            }
+
             document.getElementById('addr-fat-balance').textContent = overview.fatBalance || '0 FAT';
             document.getElementById('addr-fat-value').textContent = (overview.fatValueUsd || '$0.00').toString().indexOf('$') === 0 ? overview.fatValueUsd : ('$' + (overview.fatValueUsd || '0.00'));
             renderTokenHoldings(addr);
-            document.getElementById('addr-creator').innerHTML = '—';
-            document.getElementById('addr-token-tracker').innerHTML = overview.label ? '<a href="/tokens">' + escHtml(overview.label) + '</a> ($0.01)' : '—';
+            document.getElementById('addr-creator').innerHTML = '-';
+            document.getElementById('addr-token-tracker').innerHTML = overview.label ? '<a href="/tokens">' + escHtml(overview.label) + '</a>' : '-';
             document.getElementById('addr-txns-total').textContent = fmtNum(overview.transactionCount != null ? overview.transactionCount : 0);
 
             if (isAgent) {
@@ -1418,7 +1681,7 @@ function iconForKind(k) {
             loadTxns(1);
             loadAssets();
 
-            // Token-mode detection — runs unconditionally so deprecated
+            // Token-mode detection - runs unconditionally so deprecated
             // pre-Reth-migration addresses can render the "Deprecated,
             // see → live address" banner even though they have no
             // bytecode (overview.isContract === false). For live
@@ -1430,14 +1693,14 @@ function iconForKind(k) {
             if (overview.isContract) {
                 detectAndApplyNftMode(addr);
             } else {
-                // EOA — surface "NFTs Held" tab if the wallet owns any
+                // EOA - surface "NFTs Held" tab if the wallet owns any
                 // indexed ERC-721 (Tanastok DCNFT or otherwise).
                 detectAndApplyWalletNftMode(addr);
             }
         })
         .catch(function() {
             document.getElementById('addr-loading').style.display = 'none';
-            // Overview failed — still try Tanastok (address may exist only in Tanastok)
+            // Overview failed - still try Tanastok (address may exist only in Tanastok)
             loadTanastok(addr, function(found) {
                 if (found) {
                     document.getElementById('addr-error').style.display = 'none';
@@ -1461,7 +1724,7 @@ function iconForKind(k) {
             .then(function(r) { return r.ok ? r.json() : null; })
             .then(function(j) {
                 if (!j || !j.tokens) {
-                    holdingsEl.textContent = '—';
+                    holdingsEl.textContent = '-';
                     return;
                 }
                 var tokens = j.tokens || [];
@@ -1504,7 +1767,7 @@ function iconForKind(k) {
                 });
             })
             .catch(function() {
-                holdingsEl.textContent = '—';
+                holdingsEl.textContent = '-';
             });
     }
 
@@ -1658,7 +1921,78 @@ function iconForKind(k) {
                     .catch(function() { if (callback) callback(false); });
     }
 
-    // Quipu Canon v1.1 §6(2) — Render the wallet's String → Knot[] hierarchy.
+    // Quipu Canon v1.1 §6(2) - Render the wallet's String → Knot[] hierarchy.
+    function renderKnotCards(knots) {
+        var listEl = document.getElementById('addr-knot-list');
+        var emptyEl = document.getElementById('addr-knot-empty');
+        if (!knots || !knots.length) {
+            listEl.innerHTML = '';
+            emptyEl.style.display = 'block';
+            return;
+        }
+        emptyEl.style.display = 'none';
+        listEl.innerHTML = knots.map(function(k) {
+            if (k.status === 'tombstone') {
+                var ts = k.tombstone || {};
+                var untieDate = ts.untied_at ? new Date(ts.untied_at * 1000).toISOString().slice(0, 10) : '-';
+                return ''
+                    + '<div class="knot-card tombstone">'
+                    + '  <div class="knot-head">'
+                    + '    <div style="display:flex;align-items:center;gap:10px;">'
+                    + '      <span class="knot-idx"><i class="fas fa-times-circle"></i> Knot #' + (k.knot_index !== undefined ? k.knot_index : '-') + '</span>'
+                    + '      <span class="knot-tombstone-pill"><i class="fas fa-scroll"></i> Tombstone</span>'
+                    + '    </div>'
+                    + '    <div style="font-size:11px;color:#6b7280;">Untied ' + untieDate + ' · ' + escHtml(ts.reason || 'OwnerRequest') + '</div>'
+                    + '  </div>'
+                    + '  <div style="margin-top:8px;font-size:12px;color:#6b7280;">'
+                    + '    <i class="fas fa-fingerprint" style="margin-right:4px;"></i> Audit hash: '
+                    + '    <span class="mono" style="font-size:11px;">' + escHtml((ts.audit_hash || '').slice(0, 18)) + '…</span>'
+                    + '    &nbsp;·&nbsp; Payload destroyed (canon §4.2). Position preserved on cord.'
+                    + '  </div>'
+                    + '</div>';
+            }
+            var anchor = k.anchor_block !== undefined ? k.anchor_block : '-';
+            var typesHtml = (k.event_types || []).map(function(t) {
+                var color = ({Transfer:'value', TokenTransfer:'value', TokenTransferFrom:'value',
+                              TokenMint:'mint', TokenBurn:'burn', TokenApproval:'approval',
+                              Swap:'defi', AddLiquidity:'defi', RemoveLiquidity:'defi',
+                              MigrationMint:'mint',
+                              ContractCreation:'deploy', ContractCall:'call'})[t] || 'other';
+                return '<span class="knot-pill ' + color + '">' + escHtml(t) + '</span>';
+            }).join('');
+            var txs = k.transactions || [];
+            var txsHtml = txs.slice(0, 8).map(function(t) {
+                var et = t.event_type || t.tokenSymbol || 'Transfer';
+                var color = (t.cord_color || 'value');
+                var hash = t.hash || '';
+                var hashShort = hash.length > 14 ? hash.slice(0, 10) + '…' + hash.slice(-4) : hash;
+                var counterparty = t.to || t.from || '';
+                var cpShort = counterparty.length > 14 ? counterparty.slice(0, 8) + '…' + counterparty.slice(-4) : counterparty;
+                return ''
+                    + '<div class="knot-tx-row">'
+                    + '  <span class="knot-pill ' + color + ' knot-tx-type">' + escHtml(et) + '</span>'
+                    + '  <a class="knot-tx-hash" href="/tx/' + hash + '">' + escHtml(hashShort) + '</a>'
+                    + '  <span style="color:#9ca3af;">→</span>'
+                    + '  <a href="/address/' + counterparty + '" style="color:#374151;">' + escHtml(cpShort) + '</a>'
+                    + '  <span style="margin-left:auto;color:#0f766e;font-weight:600;">' + escHtml(formatTxValue(t)) + '</span>'
+                    + '</div>';
+            }).join('');
+            var more = txs.length > 8 ? '<div style="text-align:center;font-size:11px;color:#9ca3af;margin-top:4px;">+ ' + (txs.length - 8) + ' more</div>' : '';
+            return ''
+                + '<div class="knot-card">'
+                + '  <div class="knot-head">'
+                + '    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
+                + '      <span class="knot-idx"><i class="fas fa-link"></i> Knot #' + (k.knot_index !== undefined ? k.knot_index : '-') + '</span>'
+                + '      <a href="/string/' + anchor + '" class="knot-anchor">@ anchor ' + anchor + '</a>'
+                + '      <span style="font-size:11px;color:#6b7280;">' + timeAgo(k.timestamp) + '</span>'
+                + '    </div>'
+                + '    <div class="knot-types">' + typesHtml + '</div>'
+                + '  </div>'
+                + '  <div class="knot-tx-list">' + txsHtml + more + '</div>'
+                + '</div>';
+        }).join('');
+    }
+
     function loadKnots() {
         var listEl = document.getElementById('addr-knot-list');
         var emptyEl = document.getElementById('addr-knot-empty');
@@ -1675,72 +2009,41 @@ function iconForKind(k) {
                 document.getElementById('addr-knot-tombstones').textContent = (data.tombstone_count || 0).toLocaleString();
 
                 var knots = data.knots || [];
-                if (!knots.length) {
-                    listEl.innerHTML = '';
-                    emptyEl.style.display = 'block';
+                if (knots.length) {
+                    renderKnotCards(knots);
                     return;
                 }
-
-                listEl.innerHTML = knots.map(function(k) {
-                    if (k.status === 'tombstone') {
-                        var ts = k.tombstone || {};
-                        var untieDate = ts.untied_at ? new Date(ts.untied_at * 1000).toISOString().slice(0, 10) : '—';
-                        return ''
-                            + '<div class="knot-card tombstone">'
-                            + '  <div class="knot-head">'
-                            + '    <div style="display:flex;align-items:center;gap:10px;">'
-                            + '      <span class="knot-idx"><i class="fas fa-times-circle"></i> Knot #' + (k.knot_index !== undefined ? k.knot_index : '—') + '</span>'
-                            + '      <span class="knot-tombstone-pill"><i class="fas fa-scroll"></i> Tombstone</span>'
-                            + '    </div>'
-                            + '    <div style="font-size:11px;color:#6b7280;">Untied ' + untieDate + ' · ' + escHtml(ts.reason || 'OwnerRequest') + '</div>'
-                            + '  </div>'
-                            + '  <div style="margin-top:8px;font-size:12px;color:#6b7280;">'
-                            + '    <i class="fas fa-fingerprint" style="margin-right:4px;"></i> Audit hash: '
-                            + '    <span class="mono" style="font-size:11px;">' + escHtml((ts.audit_hash || '').slice(0, 18)) + '…</span>'
-                            + '    &nbsp;·&nbsp; Payload destroyed (canon §4.2). Position preserved on cord.'
-                            + '  </div>'
-                            + '</div>';
-                    }
-                    var anchor = k.anchor_block !== undefined ? k.anchor_block : '—';
-                    var typesHtml = (k.event_types || []).map(function(t) {
-                        var color = ({Transfer:'value', TokenTransfer:'value', TokenTransferFrom:'value',
-                                      TokenMint:'mint', TokenBurn:'burn', TokenApproval:'approval',
-                                      Swap:'defi', AddLiquidity:'defi', RemoveLiquidity:'defi',
-                                      MigrationMint:'mint',
-                                      ContractCreation:'deploy', ContractCall:'call'})[t] || 'other';
-                        return '<span class="knot-pill ' + color + '">' + escHtml(t) + '</span>';
-                    }).join('');
-                    var txs = k.transactions || [];
-                    var txsHtml = txs.slice(0, 8).map(function(t) {
-                        var et = t.event_type || 'ContractCall';
-                        var color = (t.cord_color || 'other');
-                        var hash = t.hash || '';
-                        var hashShort = hash.length > 14 ? hash.slice(0, 10) + '…' + hash.slice(-4) : hash;
-                        var counterparty = t.to || t.from || '';
-                        var cpShort = counterparty.length > 14 ? counterparty.slice(0, 8) + '…' + counterparty.slice(-4) : counterparty;
-                        return ''
-                            + '<div class="knot-tx-row">'
-                            + '  <span class="knot-pill ' + color + ' knot-tx-type">' + escHtml(et) + '</span>'
-                            + '  <a class="knot-tx-hash" href="/tx/' + hash + '">' + escHtml(hashShort) + '</a>'
-                            + '  <span style="color:#9ca3af;">→</span>'
-                            + '  <a href="/address/' + counterparty + '" style="color:#374151;">' + escHtml(cpShort) + '</a>'
-                            + '  <span style="margin-left:auto;color:#0f766e;font-weight:600;">' + escHtml((t.value || '0') + ' FAT') + '</span>'
-                            + '</div>';
-                    }).join('');
-                    var more = txs.length > 8 ? '<div style="text-align:center;font-size:11px;color:#9ca3af;margin-top:4px;">+ ' + (txs.length - 8) + ' more</div>' : '';
-                    return ''
-                        + '<div class="knot-card">'
-                        + '  <div class="knot-head">'
-                        + '    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
-                        + '      <span class="knot-idx"><i class="fas fa-link"></i> Knot #' + (k.knot_index !== undefined ? k.knot_index : '—') + '</span>'
-                        + '      <a href="/string/' + anchor + '" class="knot-anchor">@ anchor ' + anchor + '</a>'
-                        + '      <span style="font-size:11px;color:#6b7280;">' + timeAgo(k.timestamp) + '</span>'
-                        + '    </div>'
-                        + '    <div class="knot-types">' + typesHtml + '</div>'
-                        + '  </div>'
-                        + '  <div class="knot-tx-list">' + txsHtml + more + '</div>'
-                        + '</div>';
-                }).join('');
+                var note = data.note || '';
+                return fetch('/api/v1/accounts/' + addr + '/transactions?page=1&limit=50')
+                    .then(function(r) { return r.json(); })
+                    .then(function(td) {
+                        var txs = (td && td.transactions) || [];
+                        if (!txs.length) {
+                            listEl.innerHTML = '';
+                            emptyEl.style.display = 'block';
+                            emptyEl.textContent = note || 'No knots tied on this String yet.';
+                            return;
+                        }
+                        var grouped = {};
+                        txs.forEach(function(tx) {
+                            var k = tx.knot || tx.string || tx.knotIndex || 0;
+                            if (!grouped[k]) grouped[k] = { timestamp: tx.timestamp, transactions: [] };
+                            grouped[k].transactions.push(tx);
+                        });
+                        var synth = Object.keys(grouped).sort(function(a, b) { return Number(b) - Number(a); }).map(function(k, i) {
+                            return {
+                                knot_index: i,
+                                anchor_block: Number(k),
+                                timestamp: grouped[k].timestamp,
+                                status: 'active',
+                                event_types: ['Transfer'],
+                                transactions: grouped[k].transactions
+                            };
+                        });
+                        document.getElementById('addr-knot-count').textContent = synth.length.toLocaleString();
+                        document.getElementById('addr-knot-active').textContent = synth.length.toLocaleString();
+                        renderKnotCards(synth);
+                    });
             })
             .catch(function() {
                 listEl.innerHTML = '<div style="padding:24px;text-align:center;color:#dc2626;"><i class="fas fa-exclamation-triangle"></i> Failed to load String. The personal-ledger API may be offline.</div>';
@@ -1761,8 +2064,8 @@ function iconForKind(k) {
                 }
                 tbody.innerHTML = txns.map(function(tx) {
                     var dir = (tx.direction || '').toUpperCase();
-                    var dirBadge = dir === 'IN' ? '<span class="dir-in">IN</span>' : dir === 'OUT' ? '<span class="dir-out">OUT</span>' : '<span class="badge badge-gray">—</span>';
-                    return '<tr><td>' + txLink(tx.hash) + '</td><td>' + stringLink(tx.string) + '</td><td>' + timeAgo(tx.timestamp) + '</td><td>' + addrLink(tx.from, tx.fromLabel, tx.fromHidden) + '</td><td>' + addrLink(tx.to, tx.toLabel, tx.toHidden) + '</td><td>' + fmtNum(tx.value) + ' FAT</td><td>' + statusBadge(tx.status || 'Success') + '</td></tr>';
+                    var dirBadge = dir === 'IN' ? '<span class="dir-in">IN</span>' : dir === 'OUT' ? '<span class="dir-out">OUT</span>' : '<span class="badge badge-gray">-</span>';
+                    return '<tr><td>' + txLink(tx.hash) + '</td><td>' + stringLink(tx.string) + '</td><td>' + timeAgo(tx.timestamp) + '</td><td>' + addrLink(tx.from, tx.fromLabel, tx.fromHidden) + '</td><td>' + addrLink(tx.to, tx.toLabel, tx.toHidden) + '</td><td>' + escHtml(formatTxValue(tx)) + '</td><td>' + statusBadge(tx.status || 'Success') + '</td></tr>';
                 }).join('');
                 var total = (data.pagination && data.pagination.total) || txns.length;
                 var totalPages = Math.ceil(total / pageSize) || 1;
@@ -1781,26 +2084,142 @@ function iconForKind(k) {
                 document.getElementById('addr-transfers-empty').style.display = list.length ? 'none' : 'block';
                 if (!list.length) { tbody.innerHTML = ''; return; }
                 tbody.innerHTML = list.map(function(t) {
-                    return '<tr><td>' + txLink(t.transactionHash) + '</td><td>' + stringLink(t.blockNumber) + '</td><td>—</td><td>' + addrLink(t.from) + '</td><td>' + addrLink(t.to) + '</td><td>' + fmtNum(t.value) + '</td><td>' + (t.tokenSymbol ? escHtml(t.tokenSymbol) : '—') + '</td></tr>';
+                    var amt = fmtNum(t.value) + (t.tokenSymbol ? (' ' + t.tokenSymbol) : '');
+                    var usd = '';
+                    if (typeof t.usdRaw === 'number' && t.usdRaw > 0) usd = ' (' + formatLocalUsd(t.usdRaw) + ')';
+                    else if (t.usdValue && t.usdValue !== '-') usd = ' (' + t.usdValue + ')';
+                    return '<tr><td>' + txLink(t.transactionHash) + '</td><td>' + stringLink(t.blockNumber) + '</td><td>-</td><td>' + addrLink(t.from) + '</td><td>' + addrLink(t.to) + '</td><td>' + escHtml(amt + usd) + '</td><td>' + (t.tokenSymbol ? escHtml(t.tokenSymbol) : '-') + '</td></tr>';
                 }).join('');
             });
     }
 
+    var __codeTabsBound = false;
+    function bindCodeTabs() {
+        if (__codeTabsBound) return;
+        __codeTabsBound = true;
+        var bar = document.getElementById('addr-code-subtabs');
+        if (bar) {
+            bar.addEventListener('click', function(e) {
+                var btn = e.target.closest('.code-subtab');
+                if (!btn) return;
+                var name = btn.getAttribute('data-code-tab');
+                bar.querySelectorAll('.code-subtab').forEach(function(b) {
+                    b.classList.toggle('active', b === btn);
+                });
+                ['source', 'abi', 'bytecode'].forEach(function(p) {
+                    var pane = document.getElementById('code-pane-' + p);
+                    if (pane) pane.classList.toggle('active', p === name);
+                });
+            });
+        }
+        [
+            ['copy-source', 'addr-source'],
+            ['copy-abi', 'addr-abi'],
+            ['copy-bytecode', 'addr-bytecode']
+        ].forEach(function(pair) {
+            var b = document.getElementById(pair[0]);
+            if (!b) return;
+            b.addEventListener('click', function() {
+                var el = document.getElementById(pair[1]);
+                if (el) copyToClip(el.textContent || '', b);
+            });
+        });
+    }
     function loadBytecode() {
+        bindCodeTabs();
         fetch('/api/v1/accounts/' + addr + '/bytecode')
             .then(r => r.json())
             .then(function(data) {
-                var wrap = document.getElementById('addr-bytecode-wrap');
-                var pre = document.getElementById('addr-bytecode');
+                var body = document.getElementById('addr-contract-body');
                 var noContract = document.getElementById('addr-not-contract');
-                if (!data.bytecode || data.bytecode === '0x') {
-                    wrap.style.display = 'none';
-                    noContract.style.display = 'block';
+                var intro = document.getElementById('addr-contract-intro');
+                if (!data || !data.isContract || !data.bytecode || data.bytecode === '0x') {
+                    if (body) body.style.display = 'none';
+                    if (noContract) noContract.style.display = 'block';
                     return;
                 }
-                noContract.style.display = 'none';
-                wrap.style.display = 'block';
-                pre.textContent = data.bytecode.length > 500 ? data.bytecode.slice(0, 500) + '…' : data.bytecode;
+                if (noContract) noContract.style.display = 'none';
+                if (body) body.style.display = 'block';
+                var note = document.getElementById('addr-contract-note');
+                if (note) {
+                    note.textContent = data.verificationNote
+                        || (data.sourceAvailable
+                            ? 'Source is the canonical repository copy. Runtime bytecode is live eth_getCode.'
+                            : 'No published source for this address. Runtime bytecode is live eth_getCode.');
+                }
+                var meta = document.getElementById('addr-contract-meta');
+                if (meta) {
+                    var rows = [];
+                    function addMeta(k, v) {
+                        if (v == null || v === '') return;
+                        rows.push('<div><dt>' + escHtml(k) + '</dt><dd>' + escHtml(String(v)) + '</dd></div>');
+                    }
+                    addMeta('Contract Name', data.contractName || (data.tokenMetadata && data.tokenMetadata.symbol) || data.label);
+                    addMeta('Compiler', data.compiler);
+                    addMeta('EVM', data.evmVersion);
+                    addMeta('License', data.license);
+                    addMeta('Optimization', data.optimization);
+                    addMeta('Interface', data.detectedInterface);
+                    addMeta('Verification', data.verificationKind === 'repository-source' ? 'Source published (repository)' : 'Unverified');
+                    addMeta('Bytecode size', data.bytecodeSize ? (Number(data.bytecodeSize).toLocaleString() + ' bytes') : '');
+                    meta.innerHTML = rows.join('');
+                }
+                var srcPre = document.getElementById('addr-source');
+                var srcPath = document.getElementById('addr-source-path');
+                if (srcPre) {
+                    srcPre.textContent = data.sourceCode
+                        || '// No published Solidity source for this address.\n// Runtime bytecode is available in the Bytecode tab.';
+                }
+                if (srcPath) srcPath.textContent = data.sourcePath || (data.sourceAvailable ? 'published source' : 'not published');
+                var abiPre = document.getElementById('addr-abi');
+                var abiFns = document.getElementById('addr-abi-fns');
+                if (abiPre) {
+                    abiPre.textContent = data.abi
+                        ? JSON.stringify(data.abi, null, 2)
+                        : '// ABI not published for this address.';
+                }
+                if (abiFns) {
+                    var fns = data.abiFunctions || [];
+                    abiFns.innerHTML = fns.map(function(fn) {
+                        var inputs = (fn.inputs || []).map(function(i) {
+                            return (i.type || '') + (i.name ? (' ' + i.name) : '');
+                        }).join(', ');
+                        return '<div class="abi-fn">' + escHtml((fn.name || 'fn') + '(' + inputs + ')') + '</div>';
+                    }).join('');
+                }
+                var pre = document.getElementById('addr-bytecode');
+                var sizeEl = document.getElementById('addr-bytecode-size');
+                if (pre) pre.textContent = data.bytecode;
+                if (sizeEl) {
+                    sizeEl.textContent = data.bytecodeSize
+                        ? (Number(data.bytecodeSize).toLocaleString() + ' bytes · full runtime bytecode')
+                        : 'full runtime bytecode';
+                }
+                var preferSource = !!data.sourceAvailable;
+                document.querySelectorAll('#addr-code-subtabs .code-subtab').forEach(function(b) {
+                    var tab = b.getAttribute('data-code-tab');
+                    b.classList.toggle('active', preferSource ? tab === 'source' : tab === 'bytecode');
+                });
+                ['source', 'abi', 'bytecode'].forEach(function(p) {
+                    var pane = document.getElementById('code-pane-' + p);
+                    if (!pane) return;
+                    var on = preferSource ? p === 'source' : p === 'bytecode';
+                    pane.classList.toggle('active', on);
+                });
+                if (intro) {
+                    intro.textContent = data.sourceAvailable
+                        ? 'Published source, ABI, and live runtime bytecode for this contract.'
+                        : 'Live runtime bytecode for this contract. Source is not published on dcscan.';
+                }
+            })
+            .catch(function() {
+                var body = document.getElementById('addr-contract-body');
+                var noContract = document.getElementById('addr-not-contract');
+                if (body) body.style.display = 'none';
+                if (noContract) {
+                    noContract.style.display = 'block';
+                    noContract.textContent = 'Could not load bytecode. Retry the Contract tab shortly.';
+                }
             });
     }
 
@@ -1814,14 +2233,14 @@ function iconForKind(k) {
                 if (!list.length) { tbody.innerHTML = ''; return; }
                 tbody.innerHTML = list.map(function(ev) {
                     var topics = (ev.topics || []).slice(0, 2).join(', ');
-                    return '<tr><td>' + txLink(ev.transactionHash) + '</td><td>' + stringLink(ev.blockNumber) + '</td><td><span class="mono" style="font-size:11px;">' + escHtml(topics || '—') + '</span></td><td><span class="mono" style="font-size:11px;">' + escHtml((ev.data || '0x').slice(0, 42)) + '…</span></td></tr>';
+                    return '<tr><td>' + txLink(ev.transactionHash) + '</td><td>' + stringLink(ev.blockNumber) + '</td><td><span class="mono" style="font-size:11px;">' + escHtml(topics || '-') + '</span></td><td><span class="mono" style="font-size:11px;">' + escHtml((ev.data || '0x').slice(0, 42)) + '…</span></td></tr>';
                 }).join('');
             });
     }
 
     function loadAssets() {
         // /overview already carries the real live token holdings (same
-        // eth_call+balanceOf source as the dedicated /tokens endpoint) —
+        // eth_call+balanceOf source as the dedicated /tokens endpoint) -
         // read balanceRaw/usdRaw (numeric) rather than the pre-formatted
         // display strings, which fmtNum/parseFloat would mis-parse at the
         // thousands-separator comma.
@@ -1836,7 +2255,8 @@ function iconForKind(k) {
                 }
                 tbody.innerHTML = tokens.map(function(t) {
                     var name = t.name || t.symbol || 'Token';
-                    var link = t.address ? '<a href="/token/' + t.address + '">' + escHtml(name) + '</a>' : escHtml(name);
+                    var href = t.coreUrl || (t.symbol === 'FAT' ? '/core/fat' : (t.address ? '/token/' + t.address : null));
+                    var link = href ? '<a href="' + href + '">' + escHtml(name) + '</a>' : escHtml(name);
                     var usd = (typeof t.usdRaw === 'number' ? t.usdRaw : 0).toFixed(2);
                     return '<tr><td>' + link + '</td><td>' + fmtNum(t.balanceRaw) + ' ' + (t.symbol || '') + '</td><td>$' + usd + '</td></tr>';
                 }).join('');
@@ -1852,10 +2272,10 @@ function iconForKind(k) {
         iconEl.className = 'agent-banner-icon ' + iconType;
         iconEl.innerHTML = '<i class="fas ' + escHtml(agent.iconClass || 'fa-gavel') + '"></i>';
 
-        document.getElementById('agent-name').textContent = agent.name || '—';
-        document.getElementById('agent-type').textContent = agent.type || '—';
-        document.getElementById('agent-org').textContent = agent.org || '—';
-        document.getElementById('agent-desc').textContent = agent.desc || '—';
+        document.getElementById('agent-name').textContent = agent.name || '-';
+        document.getElementById('agent-type').textContent = agent.type || '-';
+        document.getElementById('agent-org').textContent = agent.org || '-';
+        document.getElementById('agent-desc').textContent = agent.desc || '-';
 
         var st = (agent.status || 'standby').toLowerCase();
         var pill = document.getElementById('agent-status-pill');
@@ -1871,10 +2291,10 @@ function iconForKind(k) {
             { label: 'Denied', value: agent.denied != null ? Number(agent.denied).toLocaleString() : '0' },
             { label: 'Balance', value: agent.balance || '0 FAT' },
             { label: 'Rewards Earned', value: agent.rewardsEarned || '0 FAT' },
-            { label: 'Reward Rate', value: agent.rewardRate || '—' },
+            { label: 'Reward Rate', value: agent.rewardRate || '-' },
             { label: 'Transactions', value: agent.txCount != null ? Number(agent.txCount).toLocaleString() : '0' },
-            { label: 'Uptime', value: agent.uptime || '—' },
-            { label: 'Created', value: agent.createdAgo || '—' }
+            { label: 'Uptime', value: agent.uptime || '-' },
+            { label: 'Created', value: agent.createdAgo || '-' }
         ];
         statsGrid.innerHTML = statItems.map(function(s) {
             return '<div class="agent-stat-item"><div class="agent-stat-label">' + escHtml(s.label) + '</div><div class="agent-stat-val">' + escHtml(s.value) + '</div></div>';
@@ -1913,13 +2333,13 @@ function iconForKind(k) {
                 tbody.innerHTML = list.map(function(t) {
                     var verdictCls = (t.verdict || '').toLowerCase() === 'approved' ? 'verdict-approved' :
                                      (t.verdict || '').toLowerCase() === 'denied' ? 'verdict-denied' : 'verdict-transfer';
-                    var conf = t.confidence != null ? (t.confidence * 100).toFixed(0) : '—';
+                    var conf = t.confidence != null ? (t.confidence * 100).toFixed(0) : '-';
                     var confBar = t.confidence != null ? '<span class="confidence-bar"><span class="confidence-fill" style="width:' + (t.confidence * 100) + '%;"></span></span>' : '';
                     return '<tr>' +
                         '<td>' + txLink(t.transaction) + '</td>' +
                         '<td>' + stringLink(t.block) + '</td>' +
                         '<td>' + addrLink(t.to) + '</td>' +
-                        '<td><span class="' + verdictCls + '">' + escHtml(t.verdict || '—') + '</span></td>' +
+                        '<td><span class="' + verdictCls + '">' + escHtml(t.verdict || '-') + '</span></td>' +
                         '<td>' + conf + '%' + confBar + '</td>' +
                         '<td style="color:var(--success);font-weight:600;">+' + escHtml(String(t.rewardFat || 0)) + ' FAT</td>' +
                         '<td>' + timeAgo(t.timestamp) + '</td>' +
@@ -1958,42 +2378,60 @@ function iconForKind(k) {
                 }
 
                 // Don't activate token-mode UI for dead contracts (no
-                // bytecode, no supply) — that's what the deprecation
-                // banner is for.
-                if (!t.symbol || t.symbol === '???' || t.totalSupplyRaw === '0' || !t.isContract) {
-                    return;
-                }
+                // bytecode, no supply) - that's what the deprecation
+                // banner is for. Native DC FAT (no contract) is handled
+                // on /core/fat; WFAT and other DCR-20 contracts continue here.
+                var isNative = (t.standard || '').toLowerCase() === 'native' || t.symbol === 'FAT' && !t.isContract;
+                if (!t.symbol || t.symbol === '???') return;
+                if (!isNative && (!t.isContract || t.totalSupplyRaw === '0')) return;
                 __tokenMeta = t;
 
-                if (t.logoUrl) {
-                    var imgEl = document.getElementById('addr-token-logo');
-                    if (imgEl) {
-                        imgEl.src = t.logoUrl;
-                        imgEl.alt = t.symbol;
-                        imgEl.style.display = 'inline-block';
-                    }
-                }
+                applyTokenLogo(t, document.getElementById('addr-token-logo'));
+                applyTokenLogo(t, document.getElementById('tok-mkt-logo'));
 
                 var typeLbl = document.getElementById('addr-type-label');
-                if (typeLbl) typeLbl.textContent = 'DCR-20 Token';
+                if (typeLbl) {
+                    typeLbl.textContent = isNative ? 'Native DC FAT' : 'DCR-20 Token';
+                }
 
                 var tagsEl = document.getElementById('addr-tags');
                 if (tagsEl) {
                     var altSuffix = t.altName ? ' (' + escHtml(t.altName) + ')' : '';
                     var pill = '<span class="addr-tag" style="background:#dbeafe;color:#1d4ed8;"><i class="fas fa-coins" style="margin-right:4px;"></i> ' + escHtml(t.symbol) + altSuffix + '</span>';
-                    // Also strip the misleading "# EOA" badge if the registry-tag
-                    // logic added one earlier — token-mode means contract.
+                    if (t.coreUrl && t.symbol === 'WFAT') {
+                        pill += '<a class="addr-tag" href="/core/fat" style="background:#fef9c3;color:#854d0e;text-decoration:none;">Native DC FAT</a>';
+                    }
                     var existing = tagsEl.innerHTML.replace(/<span class="addr-tag"># EOA<\/span>/, '<span class="addr-tag contract"># Contract</span>');
                     tagsEl.innerHTML = pill + existing;
                 }
 
-                // Card 1 — Market (Global)
+                var tracker = document.getElementById('addr-token-tracker');
+                if (tracker) {
+                    var thref = t.coreUrl || ('/token/' + address);
+                    var priceBit = (typeof t.priceUsd === 'number' && t.priceUsd > 0)
+                        ? ' · ' + formatLocalUsd(t.priceUsd)
+                        : '';
+                    tracker.innerHTML = '<a href="' + thref + '">' + escHtml(t.name || t.symbol) + '</a>' + priceBit;
+                }
+
+                // Card 1 - Market (Global). Prefer live PriceLens / DCSwap
+                // strings; never leave the card on "-" when the token API
+                // already has marketCap / volume / circulating.
+                function usdStr(n) {
+                    return (typeof n === 'number' && isFinite(n) && n > 0) ? formatLocalUsd(n) : null;
+                }
                 document.getElementById('tok-price').textContent =
-                    (typeof t.priceUsd === 'number' && t.priceUsd > 0) ? '$' + Number(t.priceUsd).toFixed(6) : '—';
+                    (typeof t.priceUsd === 'number' && t.priceUsd > 0) ? '$' + Number(t.priceUsd).toFixed(6) : '-';
                 var meta = t.metadata || {};
-                document.getElementById('tok-mcap-global').textContent = meta.globalMarketCapStr || '—';
-                document.getElementById('tok-vol24-global').textContent = meta.globalVolume24hStr || '—';
-                document.getElementById('tok-circ-global').textContent = meta.globalCirculatingSupplyStr || '—';
+                document.getElementById('tok-mcap-global').textContent = liveOrDash(
+                    meta.globalMarketCapStr, t.marketCapStr, usdStr(t.marketCap), usdStr(meta.globalMarketCapUsd)
+                );
+                document.getElementById('tok-vol24-global').textContent = liveOrDash(
+                    meta.globalVolume24hStr, usdStr(t.volume), usdStr(meta.globalVolume24hUsd)
+                );
+                document.getElementById('tok-circ-global').textContent = liveOrDash(
+                    meta.globalCirculatingSupplyStr, t.circulatingSupplyStr, t.totalSupplyFormatted, t.totalSupply
+                );
 
                 // If CMC is live and reports a 24-h change, decorate
                 // the price cell with a small green/red delta so the
@@ -2003,15 +2441,15 @@ function iconForKind(k) {
                     var sign = pct >= 0 ? '+' : '';
                     var color = pct >= 0 ? '#059669' : '#dc2626';
                     var priceEl = document.getElementById('tok-price');
-                    if (priceEl && priceEl.textContent !== '—') {
+                    if (priceEl && priceEl.textContent !== '-') {
                         priceEl.innerHTML = priceEl.textContent
                             + ' <span style="font-size:11px;color:' + color + ';font-weight:600;margin-left:6px;">'
                             + sign + pct.toFixed(2) + '% (24h)</span>';
                     }
                 }
 
-                // Card 2 — On Datachain Rope
-                // Origin network (bridged stables only — USDC/USDT ->
+                // Card 2 - On Datachain Rope
+                // Origin network (bridged stables only - USDC/USDT ->
                 // Arbitrum, EUROD -> Ethereum/XDC legacy flow). Native
                 // FAT / WFAT carry no `origin` object and the row stays
                 // hidden. Source of truth: bridged_token_origin() in
@@ -2026,32 +2464,32 @@ function iconForKind(k) {
                 } else if (originRow) {
                     originRow.style.display = 'none';
                 }
-                document.getElementById('tok-supply').textContent = (t.totalSupply || '—') + ' ' + (t.symbol || '');
+                document.getElementById('tok-supply').textContent = (t.totalSupply || '-') + ' ' + (t.symbol || '');
                 document.getElementById('tok-holders').textContent =
-                    (typeof t.holders === 'number') ? Number(t.holders).toLocaleString() + (t.holdersIsPartial ? ' (indexing…)' : '') : '—';
+                    (typeof t.holders === 'number') ? Number(t.holders).toLocaleString() + (t.holdersIsPartial ? ' (indexing…)' : '') : '-';
                 document.getElementById('tok-transfers').textContent =
-                    (typeof t.transfers === 'number') ? Number(t.transfers).toLocaleString() : '—';
+                    (typeof t.transfers === 'number') ? Number(t.transfers).toLocaleString() : '-';
 
-                // Card 3 — Other Info
-                document.getElementById('tok-decimals').textContent = (t.decimals != null) ? String(t.decimals) : '—';
-                document.getElementById('tok-altname').textContent = t.altName || '—';
-                document.getElementById('tok-mcap').textContent = t.marketCapStr || '—';
+                // Card 3 - Other Info
+                document.getElementById('tok-decimals').textContent = (t.decimals != null) ? String(t.decimals) : '-';
+                document.getElementById('tok-altname').textContent = t.altName || '-';
+                document.getElementById('tok-mcap').textContent = t.marketCapStr || '-';
 
                 // Profile Summary card (description + creator + links)
                 if (meta.description || meta.creator) {
                     var profile = document.getElementById('addr-token-profile');
                     if (profile) {
-                        document.getElementById('tokp-description').textContent = meta.description || '—';
-                        document.getElementById('tokp-creator').textContent = meta.creator || '—';
+                        document.getElementById('tokp-description').textContent = meta.description || '-';
+                        document.getElementById('tokp-creator').textContent = meta.creator || '-';
                         var siteSlot = document.getElementById('tokp-creator-url').querySelector('a');
                         if (meta.creatorUrl) { siteSlot.href = meta.creatorUrl; siteSlot.textContent = meta.creatorUrl.replace(/^https?:\/\//, '').replace(/\/$/, ''); }
-                        else { document.getElementById('tokp-creator-url').textContent = '—'; }
+                        else { document.getElementById('tokp-creator-url').textContent = '-'; }
                         var projSlot = document.getElementById('tokp-project-url').querySelector('a');
                         if (meta.projectUrl) { projSlot.href = meta.projectUrl; projSlot.textContent = meta.projectUrl.replace(/^https?:\/\//, '').replace(/\/$/, ''); }
-                        else { document.getElementById('tokp-project-url').textContent = '—'; }
+                        else { document.getElementById('tokp-project-url').textContent = '-'; }
                         var socSlot = document.getElementById('tokp-social-url').querySelector('a');
                         if (meta.socialUrl) { socSlot.href = meta.socialUrl; socSlot.textContent = meta.socialUrl.replace(/^https?:\/\//, '').replace(/\/$/, ''); }
-                        else { document.getElementById('tokp-social-url').textContent = '—'; }
+                        else { document.getElementById('tokp-social-url').textContent = '-'; }
                         document.getElementById('tokp-data-source').innerHTML =
                             (meta.isLive
                                 ? '<span style="display:inline-block;width:8px;height:8px;background:#10b981;border-radius:50%;margin-right:6px;vertical-align:middle;animation:pulse 2s infinite;"></span><span style="color:#059669;font-weight:600;">LIVE</span> · '
@@ -2084,8 +2522,13 @@ function iconForKind(k) {
                     .then(function(r) { return r.ok ? r.json() : null; })
                     .then(function(d) {
                         if (d && d.totals) {
-                            var v = d.totals.volume_24h_str || '—';
-                            document.getElementById('tok-vol24').textContent = v;
+                            var v = d.totals.volume_24h_str || '-';
+                            var ropeVol = document.getElementById('tok-vol24');
+                            if (ropeVol) ropeVol.textContent = v;
+                            var g = document.getElementById('tok-vol24-global');
+                            if (g && (g.textContent === '-' || !g.textContent) && v && v !== '-') {
+                                g.textContent = v;
+                            }
                         }
                     })
                     .catch(function() {});
@@ -2094,7 +2537,7 @@ function iconForKind(k) {
     }
 
     // ───────────────────────────────────────────────────────────────────
-    // NFT-mode (ERC-721): the address is an ERC-721 contract — typically
+    // NFT-mode (ERC-721): the address is an ERC-721 contract - typically
     // a Tanastok DCNFT. Light up the hero banner with the asset image,
     // swap the fungible-token cards for NFT cards, and surface the
     // Inventory / Owners / NFT Transfers tabs.
@@ -2115,7 +2558,7 @@ function iconForKind(k) {
                         : 'NFT Collection (ERC-721)';
                 }
 
-                // Header tags — green pill for the standard, gold pill for Tanastok.
+                // Header tags - green pill for the standard, gold pill for Tanastok.
                 var tagsEl = document.getElementById('addr-tags');
                 if (tagsEl) {
                     var pill = '<span class="addr-tag" style="background:#dcfce7;color:#166534;"><i class="fas fa-image" style="margin-right:4px;"></i> ' + escHtml(n.symbol || 'NFT') + '</span>';
@@ -2139,7 +2582,7 @@ function iconForKind(k) {
                     }
                     document.getElementById('dcnft-asset-name').textContent = t.assetName || n.name || 'DCNFT Title Deed';
                     document.getElementById('dcnft-kind').textContent =
-                        'Tanastok DCNFT — ERC-721 Title Deed' + (t.assetType ? ' · ' + String(t.assetType).replace(/_/g, ' ') : '');
+                        'Tanastok DCNFT - ERC-721 Title Deed' + (t.assetType ? ' · ' + String(t.assetType).replace(/_/g, ' ') : '');
                     if (t.isVerified) document.getElementById('dcnft-verified-badge').style.display = 'inline-block';
 
                     var meta = document.getElementById('dcnft-meta');
@@ -2172,7 +2615,7 @@ function iconForKind(k) {
                 document.getElementById('nft-mints').textContent = Number(n.mintCount || 0).toLocaleString();
                 document.getElementById('nft-burns').textContent = Number(n.burnCount || 0).toLocaleString();
                 document.getElementById('nft-transfers-count').textContent = Number(n.transferCount || 0).toLocaleString();
-                document.getElementById('nft-metadata').textContent = n.supportsErc721Metadata ? 'ERC-721 Metadata ✓' : '—';
+                document.getElementById('nft-metadata').textContent = n.supportsErc721Metadata ? 'ERC-721 Metadata ✓' : '-';
                 var idxer = n.indexer || {};
                 document.getElementById('nft-indexer-state').innerHTML = idxer.isPartial
                     ? '<i class="fas fa-circle-notch fa-spin" style="color:var(--warning);margin-right:4px;"></i>Catching up @ block ' + Number(idxer.lastScannedBlock || 0).toLocaleString()
@@ -2186,7 +2629,7 @@ function iconForKind(k) {
 
                 // Hide DCR-20-specific Token Transfers tab if there's nothing
                 // there for an ERC-721 (transfers are on the NFT Transfers tab
-                // instead). Keep the Holders tab hidden — Owners is the
+                // instead). Keep the Holders tab hidden - Owners is the
                 // NFT-shaped equivalent.
                 var transfersTab = document.querySelector('.addr-tab[data-tab="transfers"]');
                 if (transfersTab) transfersTab.style.display = 'none';
@@ -2286,7 +2729,7 @@ function iconForKind(k) {
             .then(function(j) {
                 var items = (j && j.tokens) || [];
                 if (j.isPartial) {
-                    statusEl.innerHTML = '<i class="fas fa-circle-notch fa-spin" style="color:var(--warning);margin-right:6px;"></i>Indexer is still catching up — values reflect every Transfer up to block <strong>' + Number(j.lastScannedBlock || 0).toLocaleString() + '</strong>. Tokens indexed: <strong>' + Number(j.total || 0).toLocaleString() + '</strong>';
+                    statusEl.innerHTML = '<i class="fas fa-circle-notch fa-spin" style="color:var(--warning);margin-right:6px;"></i>Indexer is still catching up - values reflect every Transfer up to block <strong>' + Number(j.lastScannedBlock || 0).toLocaleString() + '</strong>. Tokens indexed: <strong>' + Number(j.total || 0).toLocaleString() + '</strong>';
                 } else {
                     statusEl.innerHTML = '<i class="fas fa-check-circle" style="color:var(--success);margin-right:6px;"></i>Live. Tokens minted: <strong>' + Number(j.total || 0).toLocaleString() + '</strong> at block <strong>' + Number(j.lastScannedBlock || 0).toLocaleString() + '</strong>';
                 }
@@ -2435,7 +2878,7 @@ function iconForKind(k) {
                     return;
                 }
                 if (j.isPartial && j.lastScannedBlock) {
-                    statusEl.innerHTML = '<i class="fas fa-circle-notch fa-spin" style="color:var(--warning);margin-right:6px;"></i>Indexer is still catching up — values reflect every Transfer up to block <strong>' + Number(j.lastScannedBlock).toLocaleString() + '</strong>. Total holders so far: <strong>' + Number(j.total).toLocaleString() + '</strong>';
+                    statusEl.innerHTML = '<i class="fas fa-circle-notch fa-spin" style="color:var(--warning);margin-right:6px;"></i>Indexer is still catching up - values reflect every Transfer up to block <strong>' + Number(j.lastScannedBlock).toLocaleString() + '</strong>. Total holders so far: <strong>' + Number(j.total).toLocaleString() + '</strong>';
                 } else if (j.lastScannedBlock) {
                     statusEl.innerHTML = '<i class="fas fa-check-circle" style="color:var(--success);margin-right:6px;"></i>Live. Total holders: <strong>' + Number(j.total).toLocaleString() + '</strong> at block <strong>' + Number(j.lastScannedBlock).toLocaleString() + '</strong>';
                 } else {
@@ -2507,17 +2950,17 @@ function iconForKind(k) {
                 };
                 totalsEl.innerHTML =
                     statCard('Pools', d.poolCount || 0) +
-                    statCard('TVL', t.tvl_str || '—') +
-                    statCard('24h Volume', t.volume_24h_str || '—') +
-                    statCard('Lifetime Swaps', (t.lifetime_swaps != null) ? Number(t.lifetime_swaps).toLocaleString() : '—');
+                    statCard('TVL', t.tvl_str || '-') +
+                    statCard('24h Volume', t.volume_24h_str || '-') +
+                    statCard('Lifetime Swaps', (t.lifetime_swaps != null) ? Number(t.lifetime_swaps).toLocaleString() : '-');
 
                 poolsBody.innerHTML = d.pools.map(function(p) {
                     var ta = p.token_a || {};
                     var tb = p.token_b || {};
                     var pair = (ta.symbol || '?') + '/' + (tb.symbol || '?');
-                    var tvl = p.tvl_usd ? '$' + Number(p.tvl_usd).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—';
-                    var v24 = p.volume_24h ? '$' + Number(p.volume_24h).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—';
-                    var sc = p.swap_count ? Number(p.swap_count).toLocaleString() : '—';
+                    var tvl = p.tvl_usd ? '$' + Number(p.tvl_usd).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '-';
+                    var v24 = p.volume_24h ? '$' + Number(p.volume_24h).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '-';
+                    var sc = p.swap_count ? Number(p.swap_count).toLocaleString() : '-';
                     return '<tr>' +
                         '<td>' + addrLink(p.id) + '</td>' +
                         '<td>' + escHtml(pair) + '</td>' +
@@ -2534,8 +2977,8 @@ function iconForKind(k) {
                     swapsBody.innerHTML = swaps.slice(0, 30).map(function(s) {
                         var inSym = s.token_in_symbol || '?';
                         var outSym = s.token_out_symbol || '?';
-                        var amtIn = s.amount_in ? Number(s.amount_in).toString() : '—';
-                        var amtOut = s.amount_out ? Number(s.amount_out).toString() : '—';
+                        var amtIn = s.amount_in ? Number(s.amount_in).toString() : '-';
+                        var amtOut = s.amount_out ? Number(s.amount_out).toString() : '-';
                         // Best-effort decimal trim for display.
                         if (amtIn.length > 8) amtIn = amtIn.slice(0, 8) + '…';
                         if (amtOut.length > 8) amtOut = amtOut.slice(0, 8) + '…';
@@ -2584,13 +3027,13 @@ function iconForKind(k) {
                 };
 
                 grid.innerHTML =
-                    card('Holders', (c.holders != null) ? Number(c.holders).toLocaleString() : '—', 'live, full chain history') +
-                    card('Transfers (lifetime)', (c.transfers != null) ? Number(c.transfers).toLocaleString() : '—', 'every Transfer event since genesis') +
-                    card('Total Supply', c.totalSupplyStr || '—', __tokenMeta.symbol || '') +
-                    card('Market Cap', c.marketCapStr || '—', (c.priceUsd ? '$' + Number(c.priceUsd).toFixed(6) + ' / token' : '')) +
+                    card('Holders', (c.holders != null) ? Number(c.holders).toLocaleString() : '-', 'live, full chain history') +
+                    card('Transfers (lifetime)', (c.transfers != null) ? Number(c.transfers).toLocaleString() : '-', 'every Transfer event since genesis') +
+                    card('Total Supply', c.totalSupplyStr || '-', __tokenMeta.symbol || '') +
+                    card('Market Cap', c.marketCapStr || '-', (c.priceUsd ? '$' + Number(c.priceUsd).toFixed(6) + ' / token' : '')) +
                     card('DCSwap Pools', String(d.poolCount || 0), 'pools containing this token') +
-                    card('TVL', d.tvlStr || '—', 'total liquidity across pools') +
-                    card('24h Volume', d.volume24hStr || '—', 'sum across all pools');
+                    card('TVL', d.tvlStr || '-', 'total liquidity across pools') +
+                    card('24h Volume', d.volume24hStr || '-', 'sum across all pools');
 
                 if (i.lastScannedBlock) {
                     extra.innerHTML = '<i class="fas fa-database" style="margin-right:6px;color:var(--gray-500);"></i>' +
@@ -2618,7 +3061,7 @@ function iconForKind(k) {
                     emptyEl.style.display = 'block';
                     if (j && j.scannedFromBlock != null) {
                         emptyEl.innerHTML = 'No internal transactions found in blocks ' +
-                            Number(j.scannedFromBlock).toLocaleString() + '–' + Number(j.scannedToBlock).toLocaleString() + '.';
+                            Number(j.scannedFromBlock).toLocaleString() + '-' + Number(j.scannedToBlock).toLocaleString() + '.';
                     }
                     return;
                 }
@@ -2649,6 +3092,6 @@ function iconForKind(k) {
 </script>
 <script src="/js/dcscan-labels.js"></script>
 <script src="/js/dcscan-stats.js"></script>
-    <script src="/js/dcscan-wallet.js?v=20260707b" defer></script>
+    <script src="/js/dcscan-wallet.js?v=20260730a" defer></script>
 </body>
 </html>

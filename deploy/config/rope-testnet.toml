@@ -1,0 +1,126 @@
+# Rope testnet node config (chainId 271829, xFAT native token,
+# natural mainnet-style ports on a dedicated host).
+#
+# This file is the on-disk materialisation of the
+# `NodeConfig::testnet()` factory in
+# `crates/rope-node/src/config.rs`. It intentionally mirrors
+# `deploy/config/rope-production.toml` block-for-block so operators
+# who know the mainnet config can read this at a glance; the values
+# below are the testnet-specific overrides.
+#
+# Port scheme: identical to mainnet. This is safe because the
+# testnet is single-tenant on `rope-testnet-1`; no mainnet
+# rope-node / Reth listens on the same box. The port shift proposal
+# from the pre-2026-08-31 co-location plan was rejected once we
+# committed to a dedicated droplet — see the
+# `testnet_config_uses_natural_ports_and_disabled_consensus` unit
+# test in `crates/rope-node/src/config.rs` and the handover
+# `.cursor/rules/handover-dedicated-testnet-host-2026-08-31.mdc`.
+#
+# Deployment target: `rope-testnet-1` DigitalOcean droplet
+# (lon1, s-2vcpu-4gb, Ubuntu 24.04). See
+# `.cursor/rules/handover-dedicated-testnet-host-2026-08-31.mdc`
+# for provisioning rationale and
+# `docs/design/rope-testnet-writer-facade.md` for the full topology.
+#
+# ⚠️  Do NOT deploy this to a machine that also runs mainnet reth or
+# rope-node on the same natural ports. It is deliberately single-tenant.
+
+[node]
+name = "rope-testnet-node"
+mode = "relay"
+chain_id = 271829
+
+[network]
+# libp2p listens publicly on 9000/tcp+udp (natural port, opened
+# by the DO firewall in `deploy/scripts/provision-testnet-droplet.sh`).
+# There is no cross-chain peering with mainnet — mainnet's 9000
+# listens on `new-blue`'s public IP, testnet's 9000 listens on
+# `rope-testnet-1`'s public IP, and the two do not gossip.
+listen_addr = "0.0.0.0:9000"
+# Empty on purpose. Testnet is single-node until there is a demand-driven
+# reason for a second box. Adding peers here would silently enable p2p
+# gossip against a non-existent target and log-spam the box.
+bootstrap_nodes = []
+max_peers = 50
+enable_quic = true
+enable_nat = true
+
+[consensus]
+# The testnet facade runs in relay mode; Reth (--dev.block-time 3s)
+# produces blocks. There is no Testimony quorum on 271829 today.
+enabled = false
+block_time_ms = 3000
+min_testimonies = 1
+ai_agents_enabled = false
+
+[storage]
+# Namespaced under testnet/ so a future co-hosting scenario cannot
+# clobber mainnet's ledger_db on the same box (defence-in-depth: the
+# testnet is on its own box, but the DB path is still namespaced).
+db_path = "~/.rope/testnet/db"
+enable_compression = true
+cache_size_mb = 256
+pruning = "archive"
+
+[rpc]
+enabled = true
+# Loopback-only. Nginx on new-blue (temporarily) or on rope-testnet-1
+# (post-soak) terminates TLS and reverse-proxies. Never expose :8545
+# to the public internet.
+http_addr = "127.0.0.1:8545"
+grpc_addr = "127.0.0.1:9001"
+ws_addr   = "127.0.0.1:8546"
+enable_tls = false
+enable_mtls = false
+cors_origins = ["*"]
+rate_limit = 100
+
+[metrics]
+enabled = true
+prometheus_addr = "127.0.0.1:9090"
+
+# EVM execution layer = private RPC. Testnet Reth on rope-testnet-1
+# uses the same natural mainnet-style port (:8595) because there is
+# no mainnet Reth on this host to collide with. Started with
+# `--dev.block-time 3s` and `--chain <testnet-genesis>` per the
+# design doc §3 Phase-B step 5.
+[evm_backend]
+enabled = true
+url = "http://127.0.0.1:8595"
+health_interval_secs = 30
+max_failures = 5
+
+# === Master-node governance ===
+# Master-nodes registry stays pointed at the mainnet governance file;
+# the testnet inherits the same operator ACL but the ACL is only
+# consulted for `rope_suspendNode` / `rope_isolateNode` /
+# `rope_eraseNode`, which are not exercised on the testnet.
+[governance]
+master_nodes_file = "/opt/datachain-rope/config/master-nodes.toml"
+enforce           = true
+log_path          = "~/.rope/testnet/governance.log"
+
+# === Deployer identity attestation ===
+# The testnet is Foundation-operated. Same wallet as mainnet, same
+# self-signature — the attestation is a claim over the node's
+# operator identity, not chain-specific. If we ever transfer testnet
+# operation to a third party, they must run
+# `rope identity sign-deployer` on rope-testnet-1 to produce a new
+# `self_signature` tied to their key.
+[deployer]
+wallet_address = "0x60FB32ef3A2381c2Ed71613F34fd56D56fCF4195"
+did            = "did:datachain:0x60FB32ef3A2381c2Ed71613F34fd56D56fCF4195"
+onchainid      = "0x6A74c57C3A1EE72D9d2cA29462fbD6fc8fE86bd2"
+name           = "Onguene, Kazé Alphonse"
+organization   = "Datachain Foundation"
+incorporation  = ""
+address        = ""
+email          = "kaze.onguene@datachain.one"
+country        = "FR"
+# self_signature is deliberately empty in the committed file.
+# `rope identity sign-deployer` on rope-testnet-1 will populate it
+# after first boot; the unsigned attestation is reported as
+# "claim only, not yet verifiable" until then, per the mainnet
+# behaviour documented in `handover-canonical-agents-live-from-rope-2026-05-05.mdc`.
+self_signature = ""

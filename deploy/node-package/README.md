@@ -162,10 +162,6 @@ sudo ./uninstall.sh --purge      # also deletes chain data, config, keys
 
 ## Known follow-ups (not blocking, tracked for future work)
 
-- `config/networks/mainnet.json` / `testnet.json` still say `"DC-20"` —
-  should read `"DCR-20"` per the DCR-20 naming rule. Unrelated to this
-  package's correctness but worth fixing in the same pass if you're
-  touching those files.
 - Reth's own devp2p discovery (`--bootnodes` / `enode://`) is intentionally
   not configured — sync happens entirely through the Engine-API follower
   against the public RPC, matching how the production fleet itself

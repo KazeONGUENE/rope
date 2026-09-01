@@ -1,4 +1,4 @@
-//! Scheduled report generation — spec v1.0 §6.4: "Scheduled reports:
+//! Scheduled report generation - spec v1.0 §6.4: "Scheduled reports:
 //! statutory / investor reporting generated automatically on a cadence,
 //! grounded in the period's data and anchored on-chain."
 //!
@@ -7,7 +7,7 @@
 //!
 //! 1. selects the readings of the elapsed period from the live store,
 //! 2. runs the full deterministic analytics catalogue over them
-//!    (`ai::build_dossier`) — every figure traces to a named method,
+//!    (`ai::build_dossier`) - every figure traces to a named method,
 //! 3. renders the deterministic narrative (`ai::deterministic_narrative`),
 //! 4. persists the `ReportRecord` to the project journal, and
 //! 5. anchors a `ScheduledReport` knot on the project string with the
@@ -35,7 +35,7 @@ pub fn cadence_secs(cadence: &str) -> Option<i64> {
 }
 
 /// Generate one report for `project` covering `[period_start, period_end]`.
-/// Pure over the live store contents — the caller decides the window.
+/// Pure over the live store contents - the caller decides the window.
 pub fn generate(
     registry: &Arc<Registry>,
     project: &Project,
@@ -83,7 +83,7 @@ pub fn generate(
 }
 
 /// Persist + anchor a generated report. Returns the record with its
-/// anchor knot hash filled in (empty when the chain is unreachable —
+/// anchor knot hash filled in (empty when the chain is unreachable -
 /// the journal remains the primary record either way).
 pub async fn persist_and_anchor(
     registry: &Arc<Registry>,
@@ -230,7 +230,7 @@ mod tests {
         assert!(!report.narrative.is_empty());
         assert!(report.dossier.is_array());
 
-        // A window before the data holds nothing — and says so.
+        // A window before the data holds nothing - and says so.
         let empty = generate(&registry, &p, "daily", now - 200_000, now - 100_000);
         assert_eq!(empty.readings_in_scope, 0);
         assert!(empty.narrative.contains("No telemetry"));

@@ -43,7 +43,7 @@ pub enum ProjectArchetype {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProjectStatus {
-    /// Wizard in progress — steps may be saved and resumed.
+    /// Wizard in progress - steps may be saved and resumed.
     Draft,
     /// Owner confirmed; node provisioning in flight.
     Deploying,
@@ -56,7 +56,7 @@ pub enum ProjectStatus {
 }
 
 // ---------------------------------------------------------------------------
-// Step 1 — Identity & Compliance (v1.0 §4.1)
+// Step 1 - Identity & Compliance (v1.0 §4.1)
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -77,7 +77,7 @@ pub struct IdentityInfo {
 }
 
 // ---------------------------------------------------------------------------
-// Step 2 — Project definition (v1.0 §4.2)
+// Step 2 - Project definition (v1.0 §4.2)
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -113,7 +113,7 @@ pub struct ProjectDefinition {
 }
 
 // ---------------------------------------------------------------------------
-// Step 3 — Crypto asset decision (v1.0 §4.3)
+// Step 3 - Crypto asset decision (v1.0 §4.3)
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -186,7 +186,7 @@ impl Default for CryptoAssetConfig {
 }
 
 // ---------------------------------------------------------------------------
-// Step 4 — Team & governance (v1.0 §4.4)
+// Step 4 - Team & governance (v1.0 §4.4)
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -231,7 +231,7 @@ pub struct TeamMember {
 }
 
 // ---------------------------------------------------------------------------
-// Step 5 — Inventory (v1.0 §4.5.1–4.5.5)
+// Step 5 - Inventory (v1.0 §4.5.1–4.5.5)
 // ---------------------------------------------------------------------------
 
 /// 4.5.1 Physical / IoT asset.
@@ -418,7 +418,7 @@ impl Inventory {
 }
 
 // ---------------------------------------------------------------------------
-// Step 6 — Sovereign node sizing (spec v2.0 §4)
+// Step 6 - Sovereign node sizing (spec v2.0 §4)
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -577,7 +577,7 @@ pub struct ProvisionedNode {
 }
 
 // ---------------------------------------------------------------------------
-// Step 7 — Data governance & mutability policy (v1.0 §8)
+// Step 7 - Data governance & mutability policy (v1.0 §8)
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -656,7 +656,7 @@ pub struct Project {
     pub last_report_at: i64,
 }
 
-/// One scheduled (or on-demand) statutory / investor report — spec v1.0
+/// One scheduled (or on-demand) statutory / investor report - spec v1.0
 /// §6.4 "Scheduled report generation". The narrative is produced by the
 /// deterministic narrator over the period's analytics dossier, so every
 /// figure in it traces to a named method; the dossier itself is stored
@@ -780,7 +780,7 @@ pub struct TelemetryReading {
     pub value: f64,
     pub unit: String,
     pub ts: i64,
-    /// `ok`, `warning`, or `critical` — computed against the sensor bands.
+    /// `ok`, `warning`, or `critical` - computed against the sensor bands.
     pub band: String,
     /// Anchor knot hash when the reading was anchored on the asset string.
     #[serde(default)]

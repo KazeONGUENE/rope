@@ -583,7 +583,7 @@ pub mod semantic {
         /// Entity/wallet
         Entity { public_key: Vec<u8> },
 
-        /// DC-20 Token transfer
+        /// DCR-20 Token transfer
         TokenTransfer { token_id: [u8; 32], amount: u128 },
 
         /// Erasure request (GDPR)

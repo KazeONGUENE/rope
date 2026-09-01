@@ -1122,11 +1122,14 @@
                     </tr>
                 </table>
                 
-                <h4>Testnet</h4>
+                <h4>Testnet <span style="font-size:0.7em; background:#fef9c3; color:#854d0e; padding:0.2em 0.6em; border-radius:12px; font-weight:600; margin-left:0.5em; vertical-align:middle;">PLANNED - NOT YET DEPLOYED</span></h4>
+                <div style="background:#fef9c3; border:1px solid #fde68a; color:#854d0e; padding:1rem; border-radius:8px; margin-bottom:1rem; font-size:0.9375rem;">
+                    <strong>Status:</strong> A public testnet on Chain ID <code>271829</code> is on the roadmap but is <strong>not currently reachable</strong>. The DNS names below are placeholders that will start resolving when the testnet infrastructure ships. Do not point production integrations at them yet. Follow <a href="https://github.com/KazeONGUENE/rope" style="color:#854d0e; text-decoration:underline;">github.com/KazeONGUENE/rope</a> for progress. For today, use <strong>mainnet</strong> (Chain ID <code>271828</code>) above.
+                </div>
                 <table>
                     <tr>
                         <th>Parameter</th>
-                        <th>Value</th>
+                        <th>Value (planned)</th>
                     </tr>
                     <tr>
                         <td>Network Name</td>
@@ -1150,7 +1153,7 @@
                     </tr>
                     <tr>
                         <td>Faucet</td>
-                        <td><a href="https://faucet.testnet.datachain.network">https://faucet.testnet.datachain.network</a></td>
+                        <td><a href="/faucet/">/faucet/</a> (informational until testnet ships)</td>
                     </tr>
                 </table>
                 
@@ -1161,23 +1164,33 @@
                         <th>Multiaddr</th>
                     </tr>
                     <tr>
-                        <td>Testnet Boot1</td>
+                        <td>Mainnet Boot1</td>
                         <td><code>/ip4/92.243.26.189/tcp/9000/p2p/12D3KooWBXNzc2E4Z9CLypkRXro5iSdbM5oTnTkmf8ncZAqjhAfM</code></td>
                     </tr>
                 </table>
                 
                 <h4>Running a Validator Node</h4>
-                <pre><code># 1. Install rope-cli
-cargo install rope-cli
+                <p>You have three supported paths, from easiest to most technical:</p>
+                <ol style="margin:0 0 0.75rem 1.25rem; color: var(--gray-700);">
+                    <li><strong>Console form</strong> - open <a href="https://console.datachain.network/console/"><code>console.datachain.network/console/</code></a>, connect your Datawallet+ identity, click <em>Deploy a Node</em>, and pick DigitalOcean or Exoscale. The Foundation's sub-tenant on each provider spins up a real VM (2 vCPU / 4 GB by default) with cloud-init pre-baked for a Rope node.</li>
+                    <li><strong>REST API</strong> - the same functionality is exposed at <code>POST https://console.datachain.network/api/v1/ecosystem/nodes</code>; see <em>Deploy a Node via API</em> below.</li>
+                    <li><strong>Manual (CLI)</strong> - install the <code>rope</code> binary (one line, <code>curl | sh</code>) and run the node yourself against your own VM:</li>
+                </ol>
+                <pre><code># 1. Install the rope CLI (signed linux-x86_64 binary, SHA-256 pinned)
+curl -fsSL https://get.datachain.network | sh
 
 # 2. Generate node keys (with post-quantum cryptography)
-./rope keygen --quantum --output ~/.rope/keys
+rope keygen --quantum --output ~/.rope/keys
 
 # 3. Get your Peer ID
-./rope peer-id --key ~/.rope/keys/node.key --ip YOUR_IP --port 9000
+rope peer-id --key ~/.rope/keys/node.key --ip YOUR_IP --port 9000
 
-# 4. Start a validator node on testnet
-./rope node --network testnet --mode validator --data-dir ~/.rope/testnet
+# 4. Start a mainnet relay node
+rope node --network mainnet --mode relay --data-dir ~/.rope/mainnet
+
+# Testnet (Chain ID 271829) is not yet deployed; validator-mode enrolment
+# on mainnet requires an accredited-node onboarding attestation.
+# See: cryptographic node onboarding design v1.
 
 # Node will:
 # - Connect to bootstrap nodes automatically
@@ -1205,7 +1218,7 @@ cargo install rope-cli
 });</code></pre>
 
                 <h3>2. Make your first RPC call</h3>
-                <p>The public JSON-RPC endpoint serves both the canonical <code>rope_*</code> namespace and the <code>eth_*</code> compatibility aliases — ethers.js, viem, web3.js, and Foundry <code>cast</code> work out of the box:</p>
+                <p>The public JSON-RPC endpoint serves both the canonical <code>rope_*</code> namespace and the <code>eth_*</code> compatibility aliases - ethers.js, viem, web3.js, and Foundry <code>cast</code> work out of the box:</p>
                 <pre><code># Current knot index (EVM alias: eth_blockNumber)
 curl -s https://erpc.datachain.network \
   -H 'Content-Type: application/json' \
@@ -1217,7 +1230,7 @@ curl -s https://erpc.datachain.network \
   -d '{"jsonrpc":"2.0","method":"rope_globalStats","params":[],"id":1}'</code></pre>
 
                 <h3>3. Query the REST API</h3>
-                <p>DCScan exposes a public REST API for indexed data — stats, strings, transactions, validators, AI agents, and the entity registry. No key is required for casual use; identified traffic with an <a href="#api-keys">API key</a> gets attribution and usage metrics:</p>
+                <p>DCScan exposes a public REST API for indexed data - stats, strings, transactions, validators, AI agents, and the entity registry. No key is required for casual use; identified traffic with an <a href="#api-keys">API key</a> gets attribution and usage metrics:</p>
                 <pre><code>curl -s https://dcscan.io/api/v1/stats
 curl -s -H "X-API-Key: dcsk_…" https://dcscan.io/api/v1/strings/latest</code></pre>
 
@@ -1249,10 +1262,10 @@ console.log(await dcr20.symbol());      // "WFAT"</code></pre>
                 
                 <h3>Key Properties</h3>
                 <ul style="margin: 1rem 0 1rem 1.5rem; color: var(--gray-700);">
-                    <li><strong>Parallel Processing</strong> – Multiple strings can be processed simultaneously, unlike sequential blockchain blocks</li>
-                    <li><strong>Intrinsic Ordering</strong> – Causally ordered events without global timestamps</li>
-                    <li><strong>Efficient Consensus</strong> – Virtual voting based on visibility, no message overhead</li>
-                    <li><strong>Self-Healing</strong> – Reed-Solomon erasure coding enables data recovery</li>
+                    <li><strong>Parallel Processing</strong> - Multiple strings can be processed simultaneously, unlike sequential blockchain blocks</li>
+                    <li><strong>Intrinsic Ordering</strong> - Causally ordered events without global timestamps</li>
+                    <li><strong>Efficient Consensus</strong> - Virtual voting based on visibility, no message overhead</li>
+                    <li><strong>Self-Healing</strong> - Reed-Solomon erasure coding enables data recovery</li>
                 </ul>
                 
                 <h3>String Structure</h3>
@@ -1264,7 +1277,7 @@ console.log(await dcr20.symbol());      // "WFAT"</code></pre>
     self_parent: Option&lt;StringId&gt;,   // Previous string from same creator
     other_parent: Option&lt;StringId&gt;,  // Latest string from other validator
     signature: Signature,       // Post-quantum signature (Dilithium3)
-    nucleotide: Nucleotide,     // A, T, C, G – encodes string type
+    nucleotide: Nucleotide,     // A, T, C, G - encodes string type
 }</code></pre>
                 
                 <h3>Nucleotide Types</h3>
@@ -1304,10 +1317,10 @@ console.log(await dcr20.symbol());      // "WFAT"</code></pre>
                 
                 <h3>Testimony Types</h3>
                 <ul style="margin: 1rem 0 1rem 1.5rem; color: var(--gray-700);">
-                    <li><strong>Semantic Validation</strong> – Verifies that transaction data makes logical sense</li>
-                    <li><strong>Business Logic</strong> – Ensures compliance with application-specific rules</li>
-                    <li><strong>Anomaly Detection</strong> – Identifies unusual patterns that may indicate fraud</li>
-                    <li><strong>Cross-Reference</strong> – Validates consistency with historical data</li>
+                    <li><strong>Semantic Validation</strong> - Verifies that transaction data makes logical sense</li>
+                    <li><strong>Business Logic</strong> - Ensures compliance with application-specific rules</li>
+                    <li><strong>Anomaly Detection</strong> - Identifies unusual patterns that may indicate fraud</li>
+                    <li><strong>Cross-Reference</strong> - Validates consistency with historical data</li>
                 </ul>
                 
                 <h3>Testimony Structure</h3>
@@ -1368,10 +1381,10 @@ console.log(await dcr20.symbol());      // "WFAT"</code></pre>
                 <h3>Controlled Erasure Protocol</h3>
                 <p>Datachain Rope supports GDPR-compliant data erasure through a unique protocol that allows data to be permanently removed while maintaining network integrity:</p>
                 <ul style="margin: 1rem 0 1rem 1.5rem; color: var(--gray-700);">
-                    <li><strong>Erasure Request</strong> – Data owner initiates erasure</li>
-                    <li><strong>Verification</strong> – Network verifies ownership and legal basis</li>
-                    <li><strong>Controlled Erasure</strong> – Data shards are zeroed across all nodes</li>
-                    <li><strong>Tombstone</strong> – Permanent record that data was lawfully erased</li>
+                    <li><strong>Erasure Request</strong> - Data owner initiates erasure</li>
+                    <li><strong>Verification</strong> - Network verifies ownership and legal basis</li>
+                    <li><strong>Controlled Erasure</strong> - Data shards are zeroed across all nodes</li>
+                    <li><strong>Tombstone</strong> - Permanent record that data was lawfully erased</li>
                 </ul>
             </section>
             
@@ -1388,7 +1401,7 @@ console.log(await dcr20.symbol());      // "WFAT"</code></pre>
                             </div>
                             <h3 style="color: var(--white); margin: 0; font-size: 1.25rem;">DkP Consensus</h3>
                         </div>
-                        <p style="color: var(--gray-300); font-size: 0.9rem; margin-bottom: 1rem;"><strong>Delegated Keeper Proof</strong> – Used for Federation consensus</p>
+                        <p style="color: var(--gray-300); font-size: 0.9rem; margin-bottom: 1rem;"><strong>Delegated Keeper Proof</strong> - Used for Federation consensus</p>
                         <ul style="color: var(--gray-400); font-size: 0.85rem; margin: 0 0 0 1rem; padding: 0;">
                             <li>Validators are selected by federation stakeholders</li>
                             <li>Keepers hold delegated authority to validate strings</li>
@@ -1408,7 +1421,7 @@ console.log(await dcr20.symbol());      // "WFAT"</code></pre>
                             </div>
                             <h3 style="color: var(--white); margin: 0; font-size: 1.25rem;">PoA Consensus</h3>
                         </div>
-                        <p style="color: var(--gray-300); font-size: 0.9rem; margin-bottom: 1rem;"><strong>Proof of Authority</strong> – Used for Community consensus</p>
+                        <p style="color: var(--gray-300); font-size: 0.9rem; margin-bottom: 1rem;"><strong>Proof of Authority</strong> - Used for Community consensus</p>
                         <ul style="color: var(--gray-400); font-size: 0.85rem; margin: 0 0 0 1rem; padding: 0;">
                             <li>Pre-approved validators with known identities</li>
                             <li>Round-robin block production</li>
@@ -1428,7 +1441,7 @@ console.log(await dcr20.symbol());      // "WFAT"</code></pre>
                             </div>
                             <h3 style="color: var(--white); margin: 0; font-size: 1.25rem;">Virtual Voting</h3>
                         </div>
-                        <p style="color: var(--gray-300); font-size: 0.9rem; margin-bottom: 1rem;"><strong>String Lattice Consensus</strong> – Global ordering</p>
+                        <p style="color: var(--gray-300); font-size: 0.9rem; margin-bottom: 1rem;"><strong>String Lattice Consensus</strong> - Global ordering</p>
                         <ul style="color: var(--gray-400); font-size: 0.85rem; margin: 0 0 0 1rem; padding: 0;">
                             <li>No explicit voting messages required</li>
                             <li>Consensus derived from string visibility</li>
@@ -1448,7 +1461,7 @@ console.log(await dcr20.symbol());      // "WFAT"</code></pre>
                             </div>
                             <h3 style="color: var(--white); margin: 0; font-size: 1.25rem;">Hashgraph</h3>
                         </div>
-                        <p style="color: var(--gray-300); font-size: 0.9rem; margin-bottom: 1rem;"><strong>Hedera Integration</strong> – Coming soon</p>
+                        <p style="color: var(--gray-300); font-size: 0.9rem; margin-bottom: 1rem;"><strong>Hedera Integration</strong> - Coming soon</p>
                         <ul style="color: var(--gray-400); font-size: 0.85rem; margin: 0 0 0 1rem; padding: 0;">
                             <li>Gossip-about-gossip protocol</li>
                             <li>Virtual voting with complete history</li>
@@ -1519,9 +1532,9 @@ console.log(await dcr20.symbol());      // "WFAT"</code></pre>
                 <h3>Byzantine Fault Tolerance</h3>
                 <p>Datachain Rope maintains safety and liveness with up to <code>f &lt; n/3</code> Byzantine (malicious) validators:</p>
                 <ul style="margin: 1rem 0 1rem 1.5rem; color: var(--gray-700);">
-                    <li><strong>Safety</strong> – Two honest validators never finalize conflicting strings</li>
-                    <li><strong>Liveness</strong> – Honest transactions eventually get finalized</li>
-                    <li><strong>Asynchronous</strong> – No timing assumptions required</li>
+                    <li><strong>Safety</strong> - Two honest validators never finalize conflicting strings</li>
+                    <li><strong>Liveness</strong> - Honest transactions eventually get finalized</li>
+                    <li><strong>Asynchronous</strong> - No timing assumptions required</li>
                 </ul>
             </section>
             
@@ -1700,7 +1713,7 @@ Hashgraph      // Hedera consensus (coming soon)</code></pre>
             
             <!-- CLI Interface Section -->
             <section id="cli" class="content-section">
-                <h2>CLI Interface — <code>rope</code></h2>
+                <h2>CLI Interface - <code>rope</code></h2>
                 <p>The <code>rope</code> CLI is the canonical operator tool for Datachain Rope. It runs nodes, queries chain state, manages deployer identity, exercises master-node governance, and (Phase D) deploys new nodes onto supported cloud providers via the Datachain Foundation's hosted provisioning service.</p>
 
                 <p><strong>Binary name:</strong> <code>rope</code> (not <code>rope-cli</code>) &nbsp;·&nbsp; <strong>Source:</strong> <code>crates/rope-cli/</code> &nbsp;·&nbsp; <strong>Default endpoint:</strong> <code>https://erpc.datachain.network</code></p>
@@ -1711,11 +1724,11 @@ Hashgraph      // Hedera consensus (coming soon)</code></pre>
                         <span class="cli-dot red"></span>
                         <span class="cli-dot yellow"></span>
                         <span class="cli-dot green"></span>
-                        <span class="cli-title">rope — datachain.network</span>
+                        <span class="cli-title">rope - datachain.network</span>
                     </div>
                     <div class="cli-body">
                         <div class="cli-output" id="cli-output">
-<span class="comment"># Datachain Rope CLI — chainId 271828 — LIVE terminal</span>
+<span class="comment"># Datachain Rope CLI - chainId 271828 - LIVE terminal</span>
 <span class="comment"># Read-only commands below run against https://erpc.datachain.network in real time.</span>
 <span class="comment"># Try: rope query status · rope query validators · rope governance list-masters</span>
 <span class="comment">#      rope token balance 0x60FB32ef3A2381c2Ed71613F34fd56D56fCF4195 · rope --help</span>
@@ -1735,7 +1748,7 @@ Usage: rope [OPTIONS] &lt;COMMAND&gt;
   peer-id     Extract peer ID from node key file (useful for bootstrap configuration)
   identity    Manage node deployer identity (Datawallet+ DID + ONCHAINID attestation)
   governance  Master-node governance actions (suspend / isolate / erase nodes)
-  committee   Quipu Canon v2.0 Phase 2 — validator committee management
+  committee   Quipu Canon v2.0 Phase 2 - validator committee management
   deploy      Deploy a new Datachain Rope node on a supported cloud provider
   help        Print this message or the help of the given subcommand(s)
 
@@ -1748,18 +1761,30 @@ Usage: rope [OPTIONS] &lt;COMMAND&gt;
                         </div>
                         <div class="cli-input-line">
                             <span class="cli-prompt">rope&gt;</span>
-                            <input type="text" class="cli-input" id="cli-input" placeholder="Type a real command — e.g. rope query status" autocomplete="off">
+                            <input type="text" class="cli-input" id="cli-input" placeholder="Type a real command - e.g. rope query status" autocomplete="off">
                         </div>
                     </div>
                 </div>
 
                 <h3>Installation</h3>
-                <pre><code># Build from source (recommended — there is no published cargo crate yet)
-git clone https://github.com/KazeONGUENE/rope.git
+                <p>The one-line installer downloads a signed linux-x86_64 <code>rope</code> binary from
+                <a href="https://get.datachain.network"><code>get.datachain.network</code></a>, verifies its SHA-256
+                against a pinned <code>SHA256SUMS</code>, and installs it to
+                <code>$HOME/.local/bin</code> (or <code>/usr/local/bin</code> when run as root).</p>
+                <pre><code># One-line install (recommended)
+curl -fsSL https://get.datachain.network | sh
+
+# Or pin a specific version
+curl -fsSL https://get.datachain.network | sh -s -- --version 0.1.0
+
+# Verify
+rope --version
+rope query status</code></pre>
+                <p style="font-size:0.9em; color:var(--gray-600);"><em>Contributor path (only if you plan to hack on
+                the Rust source):</em></p>
+                <pre><code>git clone https://github.com/KazeONGUENE/rope.git
 cd rope
 cargo build --release -p rope-cli
-
-# Run
 ./target/release/rope --help</code></pre>
 
                 <h3>Operator basics</h3>
@@ -1792,9 +1817,9 @@ rope identity verify --config rope-production.toml</code></pre>
                 <h3>Master-node governance</h3>
                 <p>Datachain Rope mainnet has 4 <strong>master nodes</strong> (BLUE, GREEN, rpc-1, rpc-2) plus 2 <strong>knot witnesses</strong> (val-1, val-2). The Datachain founder identity (Kazé Alphonse Onguene; whitelisted domains <code>datachain.one</code>, <code>epigraam.com</code>, <code>onguene.com</code>, <code>braincities.co</code>) holds L0 authority. Mutating actions are signed Ed25519 payloads:</p>
                 <ul>
-                    <li><code>rope_suspendNode</code> — master node OR founder signature</li>
-                    <li><code>rope_isolateNode</code> — founder signature only</li>
-                    <li><code>rope_eraseNode</code> — founder signature only</li>
+                    <li><code>rope_suspendNode</code> - master node OR founder signature</li>
+                    <li><code>rope_isolateNode</code> - founder signature only</li>
+                    <li><code>rope_eraseNode</code> - founder signature only</li>
                 </ul>
                 <pre><code>rope governance list-masters                          # public, no auth
 rope governance info                                  # registry + recent log
@@ -1811,22 +1836,53 @@ rope governance erase \
     --node-id &lt;hex&gt; --reason "..." \
     --key ~/.rope/founder.key</code></pre>
 
-                <h3>Cloud deployment (Phase D — MVP)</h3>
-                <p>The CLI can provision new Datachain Rope nodes on supported cloud providers via the Datachain Foundation's hosted <code>rope-deployer</code> service. The Foundation maintains a sub-tenant on each provider so that third parties can spin up community nodes, federations, or witnesses without managing their own cloud account.</p>
+                <h3>Cloud deployment - LIVE</h3>
+                <p>The Datachain Foundation runs the <code>rope-deployer</code> service on its ecosystem console.
+                The Foundation maintains a sub-tenant on each supported cloud so third parties can spin up
+                community nodes, federations, or witnesses without managing their own cloud account. Both
+                <strong>Exoscale</strong> and <strong>DigitalOcean</strong> paths are wired to the real cloud API
+                (not stubs) and were end-to-end smoke-tested against production credentials on 2026-08-30.</p>
                 <table style="border-collapse: collapse; margin: 1em 0;">
-                    <thead><tr><th style="text-align:left;padding:0.4em 0.8em;">Provider</th><th style="text-align:left;padding:0.4em 0.8em;">Status</th><th style="text-align:left;padding:0.4em 0.8em;">Notes</th></tr></thead>
+                    <thead><tr><th style="text-align:left;padding:0.4em 0.8em;">Provider</th><th style="text-align:left;padding:0.4em 0.8em;">Status</th><th style="text-align:left;padding:0.4em 0.8em;">Default region / size</th><th style="text-align:left;padding:0.4em 0.8em;">Notes</th></tr></thead>
                     <tbody>
-                        <tr><td style="padding:0.4em 0.8em;"><code>local</code></td><td style="padding:0.4em 0.8em;"><span class="success">ready</span></td><td style="padding:0.4em 0.8em;">Docker compose: reth-rope + datachain-rope + dc-explorer</td></tr>
-                        <tr><td style="padding:0.4em 0.8em;"><code>exoscale</code></td><td style="padding:0.4em 0.8em;"><span class="warning">Phase D MVP</span></td><td style="padding:0.4em 0.8em;">Foundation account in <code>ch-gva-2</code>, private network with per-tenant isolation</td></tr>
-                        <tr><td style="padding:0.4em 0.8em;"><code>digitalocean</code></td><td style="padding:0.4em 0.8em;"><span class="warning">Phase E</span></td><td style="padding:0.4em 0.8em;">Parity with Exoscale, same provider trait</td></tr>
-                        <tr><td style="padding:0.4em 0.8em;"><code>databox</code></td><td style="padding:0.4em 0.8em;"><span class="comment">future</span></td><td style="padding:0.4em 0.8em;">Self-hosted Datachain Databox hardware</td></tr>
+                        <tr><td style="padding:0.4em 0.8em;"><code>local</code></td><td style="padding:0.4em 0.8em;"><span class="success">LIVE</span></td><td style="padding:0.4em 0.8em;">-</td><td style="padding:0.4em 0.8em;">Docker compose: reth-rope + datachain-rope + dc-explorer</td></tr>
+                        <tr><td style="padding:0.4em 0.8em;"><code>digitalocean</code></td><td style="padding:0.4em 0.8em;"><span class="success">LIVE</span></td><td style="padding:0.4em 0.8em;"><code>fra1</code> / <code>s-2vcpu-4gb</code></td><td style="padding:0.4em 0.8em;">Cloud-init pre-bakes rope-node + reth in a docker-compose stack; SSH key optional</td></tr>
+                        <tr><td style="padding:0.4em 0.8em;"><code>exoscale</code></td><td style="padding:0.4em 0.8em;"><span class="success">LIVE</span></td><td style="padding:0.4em 0.8em;"><code>ch-gva-2</code> / <code>standard.medium</code></td><td style="padding:0.4em 0.8em;">HMAC-v4 signing, per-tenant labels, template UUID auto-resolution</td></tr>
+                        <tr><td style="padding:0.4em 0.8em;"><code>databox</code></td><td style="padding:0.4em 0.8em;"><span class="comment">future</span></td><td style="padding:0.4em 0.8em;">-</td><td style="padding:0.4em 0.8em;">Self-hosted Datachain Databox hardware</td></tr>
                     </tbody>
                 </table>
-                <pre><code>rope deploy exoscale     witness        --region ch-gva-2 --size medium
-rope deploy exoscale     community-node --region ch-gva-2 --size large
+
+                <h4>Deploy a Node - console form</h4>
+                <p>Open <a href="https://console.datachain.network/console/"><code>console.datachain.network/console/</code></a>,
+                connect your Datawallet+ identity (or sign in with a wallet), click <em>Deploy a Node</em>,
+                pick a provider + region + size, and submit. The Foundation's sub-tenant on that cloud
+                provisions a real VM under your DID, tags it with <code>tenant:did:dwp:0x…</code>, and returns
+                the IPv4 + status in the browser. You can list and destroy your VMs from the same panel.</p>
+
+                <h4>Deploy a Node - REST API</h4>
+                <pre><code># Provision (JSON body accepts provider, zone, instance_size, node_kind, project_name, ssh_pubkey, labels)
+curl -sS -H "X-Edc-Wallet: 0xYourWalletAddress" -H "Content-Type: application/json" \
+    -d '{"provider":"digitalocean","zone":"fra1","instance_size":"s-2vcpu-4gb","node_kind":"rpc","project_name":"my-relay"}' \
+    https://console.datachain.network/api/v1/ecosystem/nodes
+
+# List (per-DID, filter by provider optional)
+curl -sS -H "X-Edc-Wallet: 0xYourWalletAddress" \
+    "https://console.datachain.network/api/v1/ecosystem/nodes?provider=digitalocean"
+
+# Destroy
+curl -sS -X DELETE -H "X-Edc-Wallet: 0xYourWalletAddress" \
+    "https://console.datachain.network/api/v1/ecosystem/nodes/digitalocean/&lt;instance-id&gt;"
+
+# Available providers + live status
+curl -sS https://console.datachain.network/api/v1/ecosystem/providers</code></pre>
+
+                <h4>Deploy a Node - CLI</h4>
+                <pre><code>rope deploy exoscale     witness        --region ch-gva-2 --size standard.medium
+rope deploy exoscale     community-node --region ch-gva-2 --size standard.large
 rope deploy digitalocean rpc-slot       --region fra1     --size s-2vcpu-4gb
 rope deploy local        community-node --dry-run</code></pre>
-                <p>See <code>deploy/EXOSCALE_AS_A_SERVICE.md</code> for the full architecture (IAM, private networks, billing isolation, instance baking).</p>
+                <p>See <code>deploy/EXOSCALE_AS_A_SERVICE.md</code> for the full architecture (IAM, private networks, billing isolation, instance baking) and the
+                <em>handover-console-node-deploy-live-2026-08-30</em> cursor rule for the exact end-to-end smoke-test transcript against DigitalOcean and Exoscale.</p>
             </section>
             
             <!-- RPC API Section -->
@@ -1834,23 +1890,23 @@ rope deploy local        community-node --dry-run</code></pre>
                 <h2>RPC API Reference</h2>
                 <p>The Datachain Rope JSON-RPC API is available at <code>https://erpc.datachain.network</code> (WebSocket: <code>wss://ws.datachain.network</code>). It exposes two namespaces:</p>
                 <ul style="margin: 1rem 0 1rem 1.5rem; color: var(--gray-700);">
-                    <li><strong><code>rope_*</code></strong> — the canonical Quipu Primitive Canon methods (knots, strings, registry, labels)</li>
-                    <li><strong><code>eth_*</code></strong> — EVM compatibility aliases so MetaMask, ethers.js, viem, and Foundry work unchanged</li>
+                    <li><strong><code>rope_*</code></strong> - the canonical Quipu Primitive Canon methods (knots, strings, registry, labels)</li>
+                    <li><strong><code>eth_*</code></strong> - EVM compatibility aliases so MetaMask, ethers.js, viem, and Foundry work unchanged</li>
                 </ul>
 
                 <h3>Method overview</h3>
                 <table>
                     <tr><th>Method</th><th>Params</th><th>Description</th></tr>
-                    <tr><td><code>rope_knotIndex</code></td><td>—</td><td>Current cord-anchor knot index (alias: <code>eth_blockNumber</code>)</td></tr>
+                    <tr><td><code>rope_knotIndex</code></td><td>-</td><td>Current cord-anchor knot index (alias: <code>eth_blockNumber</code>)</td></tr>
                     <tr><td><code>rope_getKnotByIndex</code></td><td><code>[index, fullTxs]</code></td><td>Fetch an anchor knot by index (alias: <code>eth_getBlockByNumber</code>)</td></tr>
                     <tr><td><code>rope_getKnotByHash</code></td><td><code>[hash, fullTxs]</code></td><td>Fetch an anchor knot by hash (alias: <code>eth_getBlockByHash</code>)</td></tr>
-                    <tr><td><code>rope_globalStats</code></td><td>—</td><td>Registry totals per kind + Quipu invariant (<code>strings ≤ knots</code>)</td></tr>
+                    <tr><td><code>rope_globalStats</code></td><td>-</td><td>Registry totals per kind + Quipu invariant (<code>strings ≤ knots</code>)</td></tr>
                     <tr><td><code>rope_listStrings</code></td><td><code>[{kind?, offset?, limit?}]</code></td><td>Paginated entity-string registry (wallet, contract, asset, did, cord…)</td></tr>
                     <tr><td><code>rope_getString</code></td><td><code>[{string_id}]</code></td><td>One string descriptor with knot count and head pointer</td></tr>
                     <tr><td><code>rope_resolveLabel</code></td><td><code>[{string_id}]</code></td><td>Resolve display name, platform, and role for any entity id</td></tr>
                     <tr><td><code>rope_createPersonalLedger</code></td><td><code>[wallet]</code></td><td>One-shot per wallet before first write <span class="mono">(auth-gated)</span></td></tr>
                     <tr><td><code>rope_appendToLedger</code></td><td><code>[wallet, interaction]</code></td><td>Tie a knot on a wallet string <span class="mono">(auth-gated)</span></td></tr>
-                    <tr><td><code>rope_untieKnot</code></td><td><code>[stringId, eventId]</code></td><td>GDPR Art.17 granular erasure — produces a tombstone knot <span class="mono">(auth-gated)</span></td></tr>
+                    <tr><td><code>rope_untieKnot</code></td><td><code>[stringId, eventId]</code></td><td>GDPR Art.17 granular erasure - produces a tombstone knot <span class="mono">(auth-gated)</span></td></tr>
                 </table>
 
                 <p style="margin-top:1rem"><strong>Auth-gated methods:</strong> the five destructive methods (<code>rope_createPersonalLedger</code>, <code>rope_appendToLedger</code>, <code>rope_untieKnot</code>, <code>rope_erasePersonalLedger</code>, <code>rope_anchorDeployerAttestation</code>) return JSON-RPC error <code>-32401</code> on the public listener. Write access is reserved for authorised operators and the on-box canonical agents. GDPR erasure requests from end users go through the compliance agent at <code>https://compliance-agent.datachain.network/v1/gdpr/article17</code>.</p>
@@ -1917,7 +1973,7 @@ cast balance 0x60FB32ef3A2381c2Ed71613F34fd56D56fCF4195 --rpc-url https://erpc.d
             <!-- REST API Section -->
             <section id="rest-api" class="content-section">
                 <h2>REST API Reference</h2>
-                <p>DCScan (the Datachain Rope explorer) exposes a public REST API at <code>https://dcscan.io/api/v1</code>. CORS is open (<code>Access-Control-Allow-Origin: *</code>) — you can call it from any browser app or backend. Responses are JSON.</p>
+                <p>DCScan (the Datachain Rope explorer) exposes a public REST API at <code>https://dcscan.io/api/v1</code>. CORS is open (<code>Access-Control-Allow-Origin: *</code>) - you can call it from any browser app or backend. Responses are JSON.</p>
 
                 <h3>Network &amp; chain data</h3>
                 <table>
@@ -1947,12 +2003,12 @@ cast balance 0x60FB32ef3A2381c2Ed71613F34fd56D56fCF4195 --rpc-url https://erpc.d
                 <h3>API keys</h3>
                 <table>
                     <tr><th>Endpoint</th><th>Auth</th><th>Description</th></tr>
-                    <tr><td><code>POST /api/v1/keys</code></td><td>Bearer</td><td>Create a key — <code>{"label": "my-app"}</code>; the key value is returned once</td></tr>
+                    <tr><td><code>POST /api/v1/keys</code></td><td>Bearer</td><td>Create a key - <code>{"label": "my-app"}</code>; the key value is returned once</td></tr>
                     <tr><td><code>GET /api/v1/keys</code></td><td>Bearer</td><td>List your keys with usage counts</td></tr>
                     <tr><td><code>DELETE /api/v1/keys/:id</code></td><td>Bearer</td><td>Revoke a key</td></tr>
                     <tr><td><code>GET /api/v1/keys/verify</code></td><td><code>X-API-Key</code></td><td>Check that a key is valid and active</td></tr>
                 </table>
-                <p><strong>Bearer</strong> is a Datachain ID token from <code>id.datachain.network</code> — see <a href="#datachain-id">Datachain ID</a>. Pass your API key as the <code>X-API-Key</code> header on any <code>/api/v1/*</code> request to get identified usage tracking:</p>
+                <p><strong>Bearer</strong> is a Datachain ID token from <code>id.datachain.network</code> - see <a href="#datachain-id">Datachain ID</a>. Pass your API key as the <code>X-API-Key</code> header on any <code>/api/v1/*</code> request to get identified usage tracking:</p>
                 <pre><code># Anonymous (fine for exploration)
 curl -s https://dcscan.io/api/v1/stats
 
@@ -1991,7 +2047,7 @@ curl -s -H "X-API-Key: dcsk_…" https://dcscan.io/api/v1/keys/verify</code></pr
                 <div id="keys-signedin" class="keys-card" style="display:none">
                     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;margin-bottom:1.25rem">
                         <div>
-                            <div style="font-weight:600" id="keys-who">—</div>
+                            <div style="font-weight:600" id="keys-who">-</div>
                             <div class="mono" style="font-size:0.8125rem;color:var(--gray-500)" id="keys-addr"></div>
                         </div>
                         <button class="btn btn-secondary" id="keys-signout" style="padding:0.5rem 1rem;font-size:0.875rem">Sign out</button>
@@ -2015,16 +2071,16 @@ curl -s -H "X-API-Key: dcsk_…" https://dcscan.io/api/v1/keys/verify</code></pr
 
             <!-- Datachain ID Section -->
             <section id="datachain-id" class="content-section">
-                <h2>Datachain ID — Ecosystem Authentication</h2>
+                <h2>Datachain ID - Ecosystem Authentication</h2>
                 <p><code>https://id.datachain.network</code> is the identity gateway for the entire Datachain Rope ecosystem. Any Datawallet+ owner can authenticate on any ecosystem platform (DCScan, Tanastok, DCSwap, NaturaProof, Careaway…) with their credentials or their wallet public key. The gateway issues <strong>Ed25519-signed JWTs</strong> that every service can verify offline against the published JWKS.</p>
 
                 <h3>Endpoints</h3>
                 <table>
                     <tr><th>Endpoint</th><th>Method</th><th>Description</th></tr>
-                    <tr><td><code>/v1/auth/login</code></td><td>POST</td><td>Credential login — <code>{"email", "password"}</code> (Datawallet+ account)</td></tr>
-                    <tr><td><code>/v1/auth/wallet</code></td><td>POST</td><td>Wallet-signature login — <code>{"address", "timestamp", "signature"}</code></td></tr>
+                    <tr><td><code>/v1/auth/login</code></td><td>POST</td><td>Credential login - <code>{"email", "password"}</code> (Datawallet+ account)</td></tr>
+                    <tr><td><code>/v1/auth/wallet</code></td><td>POST</td><td>Wallet-signature login - <code>{"address", "timestamp", "signature"}</code></td></tr>
                     <tr><td><code>/v1/auth/userinfo</code></td><td>GET</td><td>Identity claims for a Bearer token</td></tr>
-                    <tr><td><code>/v1/auth/introspect</code></td><td>POST</td><td>Server-side token verification — <code>{"token"}</code></td></tr>
+                    <tr><td><code>/v1/auth/introspect</code></td><td>POST</td><td>Server-side token verification - <code>{"token"}</code></td></tr>
                     <tr><td><code>/.well-known/jwks.json</code></td><td>GET</td><td>Ed25519 public keys for offline JWT verification</td></tr>
                 </table>
 
@@ -2136,12 +2192,12 @@ provider.on('block', (knotIndex) => console.log('new anchor knot', knotIndex));<
 └─────────────────────────────────────────────────────────────────────────┘</code></pre>
             </section>
             
-            <!-- Data Wallets — Datawallet+ -->
+            <!-- Data Wallets - Datawallet+ -->
             <section id="data-wallets" class="content-section">
-                <h2>Data Wallets — Datawallet+</h2>
+                <h2>Data Wallets - Datawallet+</h2>
                 
                 <p>
-                    Datawallet+ is the <strong>MetaMask of the Datachain Rope ecosystem</strong> — a self-custody identity and asset wallet for mobile (React Native / Expo) and web (React). It is the single entry point for sovereign identity, tokenized asset management, and cross-ecosystem interactions across Tanastok, DCSwap, NaturaProof, Careaway, Luzran, AlterOS, Picentriq, and Skywatcher.
+                    Datawallet+ is the <strong>MetaMask of the Datachain Rope ecosystem</strong> - a self-custody identity and asset wallet for mobile (React Native / Expo) and web (React). It is the single entry point for sovereign identity, tokenized asset management, and cross-ecosystem interactions across Tanastok, DCSwap, NaturaProof, Careaway, Luzran, AlterOS, Picentriq, and Skywatcher.
                 </p>
                 
                 <h3>Architecture Overview</h3>
@@ -2200,7 +2256,7 @@ const dw = new DatawalletConnect({
   appUrl: 'https://mydapp.com',
 });
 
-// Connect — opens Datawallet+ via deep link or QR
+// Connect - opens Datawallet+ via deep link or QR
 const session = await dw.connect();
 console.log(session.address);  // 0x...
 console.log(session.chainId);  // 271828
@@ -2335,10 +2391,10 @@ dw.on('accountsChanged', (accounts) => { /* account switched */ });</code></pre>
                 
                 <p>Every real-world asset in the Datachain Rope ecosystem follows this model:</p>
                 
-                <pre><code>DCNFT (ERC-721)              ←  The DEED — minted once per asset
+                <pre><code>DCNFT (ERC-721)              ←  The DEED - minted once per asset
   │                               Originates from Tanastok, NaturaProof, or Datawallet+
   │
-  ├─► ERC-3643 Contract A    ←  Fractional SHARES — minted per customer purchase
+  ├─► ERC-3643 Contract A    ←  Fractional SHARES - minted per customer purchase
   │     tokenSymbol: "BFST"       maxSupply: 10,000 | mintedSupply: 3,247
   │
   └─► ERC-3643 Contract B    ←  Different tranche / jurisdiction
@@ -2368,8 +2424,8 @@ dw.on('accountsChanged', (accounts) => { /* account switched */ });</code></pre>
                 
                 <table>
                     <tr><th>Provider</th><th>Role</th><th>Integration</th></tr>
-                    <tr><td><strong>Onramper</strong></td><td>Buy/sell crypto with fiat — aggregates MoonPay, Transak, Banxa, etc.</td><td>Widget (WebView) with signed URLs</td></tr>
-                    <tr><td><strong>Blindpay</strong></td><td>Off-ramp — convert stablecoins to fiat bank payout (100+ countries)</td><td>REST API</td></tr>
+                    <tr><td><strong>Onramper</strong></td><td>Buy/sell crypto with fiat - aggregates MoonPay, Transak, Banxa, etc.</td><td>Widget (WebView) with signed URLs</td></tr>
+                    <tr><td><strong>Blindpay</strong></td><td>Off-ramp - convert stablecoins to fiat bank payout (100+ countries)</td><td>REST API</td></tr>
                 </table>
                 
                 <p>
@@ -2424,7 +2480,7 @@ swap.executed         // DCSwap trade completed</code></pre>
                 <!-- Multi-Chain Support -->
                 <h3 id="multi-chain">Multi-Chain Support</h3>
                 
-                <p>While Datachain Rope is the primary chain, Datawallet+ provides real providers for Ethereum, Polygon, and XDC — users bring their entire portfolio into one wallet.</p>
+                <p>While Datachain Rope is the primary chain, Datawallet+ provides real providers for Ethereum, Polygon, and XDC - users bring their entire portfolio into one wallet.</p>
                 
                 <pre><code>// Fetch balances across all chains
 const balances = await multiChainProvider.getAllNativeBalances(address);
@@ -2441,7 +2497,7 @@ await multiChainProvider.sendNative(271828, recipientAddress, '100'); // 100 FAT
                     <tr><th>Layer</th><th>Protection</th></tr>
                     <tr><td><strong>Key storage</strong></td><td>iOS Keychain / Android Keystore via <code>expo-secure-store</code></td></tr>
                     <tr><td><strong>Biometric gate</strong></td><td>Face ID / Touch ID / fingerprint before signing or key export</td></tr>
-                    <tr><td><strong>Post-quantum</strong></td><td>ML-DSA-65 (Dilithium3) dual-signing — local, no API dependency</td></tr>
+                    <tr><td><strong>Post-quantum</strong></td><td>ML-DSA-65 (Dilithium3) dual-signing - local, no API dependency</td></tr>
                     <tr><td><strong>HD derivation</strong></td><td>BIP-39/32/44 with audited <code>@scure</code> libraries (Trail of Bits audit)</td></tr>
                     <tr><td><strong>WalletConnect v2</strong></td><td>Session approval with biometric confirmation</td></tr>
                     <tr><td><strong>ONCHAINID compliance</strong></td><td>ERC-3643 transfers blocked for unverified wallets</td></tr>
@@ -2457,17 +2513,17 @@ const report = await securityAuditService.runFullAudit();
                 <!-- Configuration -->
                 <h3 id="configuration">Configuration</h3>
                 
-                <pre><code># .env — Required
+                <pre><code># .env - Required
 EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID=your-walletconnect-project-id
 EXPO_PUBLIC_INFURA_API_KEY=your-infura-project-id
 
-# IPFS — Ecosystem-owned nodes
+# IPFS - Ecosystem-owned nodes
 EXPO_PUBLIC_IPFS_NODE_URL=http://localhost:5001
 EXPO_PUBLIC_ROPE_IPFS_NODE_URL=https://ipfs.datachain.network
 
-# Onramper — Fiat on/off ramp
+# Onramper - Fiat on/off ramp
 EXPO_PUBLIC_ONRAMPER_API_KEY=pk_prod_...
 EXPO_PUBLIC_ONRAMPER_SIGNING_SECRET=...
 
@@ -2562,7 +2618,7 @@ forge create src/MyToken.sol:MyToken --rpc-url rope --private-key $PK
 cast call 0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4 'symbol()(string)' --rpc-url rope</code></pre>
 
                 <h3>DatawalletConnect (dApp ↔ Datawallet+)</h3>
-                <p>For user-facing dApps, <code>@datawallet/connect</code> adds "Connect with Datawallet+" in one line — see the full <a href="#datawalletconnect-sdk">DatawalletConnect SDK</a> reference above. For backend service authentication, use <a href="#datachain-id">Datachain ID</a> tokens.</p>
+                <p>For user-facing dApps, <code>@datawallet/connect</code> adds "Connect with Datawallet+" in one line - see the full <a href="#datawalletconnect-sdk">DatawalletConnect SDK</a> reference above. For backend service authentication, use <a href="#datachain-id">Datachain ID</a> tokens.</p>
             </section>
 
             <!-- Smart Contracts Section -->
@@ -2574,7 +2630,7 @@ cast call 0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4 'symbol()(string)' --rpc-ur
                 <table>
                     <tr><th>Standard</th><th>Purpose</th><th>Interface</th></tr>
                     <tr><td><strong>DCR-20</strong></td><td>Fungible tokens (WFAT, USDC, USDT, EUROD, LP tokens)</td><td><code>IDCR20</code></td></tr>
-                    <tr><td><strong>ERC-721</strong></td><td>NFTs — DCNFT title deeds for tokenized real-world assets</td><td>Standard</td></tr>
+                    <tr><td><strong>ERC-721</strong></td><td>NFTs - DCNFT title deeds for tokenized real-world assets</td><td>Standard</td></tr>
                     <tr><td><strong>ERC-3643</strong></td><td>T-REX compliance-gated security tokens (fractional asset shares)</td><td>Standard</td></tr>
                     <tr><td><strong>ERC-734/735</strong></td><td>ONCHAINID on-chain identity and claims</td><td>Standard</td></tr>
                 </table>
@@ -2594,10 +2650,10 @@ cast call 0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4 'symbol()(string)' --rpc-ur
                     <tr><td>ONCHAINID IdentityRegistry</td><td class="mono">0x3065138F0CE815eB09f14d2e87E8BCbe98dD172B</td></tr>
                     <tr><td>ONCHAINID TrustedIssuersRegistry</td><td class="mono">0x42d605a05A063d91E83481867839bfD713D21666</td></tr>
                 </table>
-                <p>Browse any contract on <a href="https://dcscan.io">DCScan</a> — Tanastok tokenized-asset contracts (DCNFT + ERC-3643 pairs) are labelled automatically on their address pages.</p>
+                <p>Browse any contract on <a href="https://dcscan.io">DCScan</a> - Tanastok tokenized-asset contracts (DCNFT + ERC-3643 pairs) are labelled automatically on their address pages.</p>
 
                 <h3>Deploying</h3>
-                <pre><code># Hardhat — hardhat.config.js
+                <pre><code># Hardhat - hardhat.config.js
 module.exports = {
   networks: {
     rope: {
@@ -2633,6 +2689,14 @@ forge create src/MyContract.sol:MyContract \
                         <li><a href="https://dcscan.io/strings">Strings</a></li>
                         <li><a href="https://dcscan.io/agents">AI Agents</a></li>
                         <li><a href="https://dcscan.io/validators">Validators</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Console</h4>
+                    <ul>
+                        <li><a href="https://console.datachain.network/console/">Ecosystem Console</a></li>
+                        <li><a href="https://console.datachain.network/console/">Deploy a Node</a></li>
+                        <li><a href="https://get.datachain.network">Install <code>rope</code> CLI</a></li>
                     </ul>
                 </div>
                 <div class="footer-links">
@@ -2848,7 +2912,7 @@ forge create src/MyContract.sol:MyContract \
         }
         
         // ========================================================================
-        // CLI INTERFACE — LIVE terminal
+        // CLI INTERFACE - LIVE terminal
         // Read-only `rope` commands are executed for real against
         // https://erpc.datachain.network (JSON-RPC) and https://dcscan.io/api
         // (explorer API). Output mirrors the actual rope binary
@@ -2896,7 +2960,7 @@ forge create src/MyContract.sol:MyContract \
   peer-id     Extract peer ID from node key file (useful for bootstrap configuration)
   identity    Manage node deployer identity (Datawallet+ DID + ONCHAINID attestation)
   governance  Master-node governance actions (suspend / isolate / erase nodes)
-  committee   Quipu Canon v2.0 Phase 2 — validator committee management
+  committee   Quipu Canon v2.0 Phase 2 - validator committee management
   deploy      Deploy a new Datachain Rope node on a supported cloud provider
   help        Print this message or the help of the given subcommand(s)
 
@@ -3079,7 +3143,7 @@ Type <span class="highlight">rope --help</span> for available commands.`;
             this.value = '';
 
             if (input.toLowerCase() === 'clear') {
-                output.innerHTML = `<span class="comment"># Datachain Rope CLI — chainId 271828 — LIVE terminal</span>
+                output.innerHTML = `<span class="comment"># Datachain Rope CLI - chainId 271828 - LIVE terminal</span>
 <span class="comment"># Read-only commands run against ${CLI_RPC} in real time.</span>
 
 <span class="prompt">rope&gt;</span> _`;
@@ -3161,7 +3225,7 @@ Type <span class="highlight">rope --help</span> for available commands.`;
 
     <script>
     /* ========================================================================
-     * API Keys manager — powered by Datachain ID (id.datachain.network)
+     * API Keys manager - powered by Datachain ID (id.datachain.network)
      * and the DCScan API-key service (dcscan.io/api/v1/keys, open CORS).
      * ===================================================================== */
     (function () {
@@ -3202,7 +3266,7 @@ Type <span class="highlight">rope --help</span> for available commands.`;
         });
       }
       function fmtDate(epoch) {
-        if (!epoch) return '—';
+        if (!epoch) return '-';
         return new Date(epoch * 1000).toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
       }
       function authHeaders() {
@@ -3223,7 +3287,7 @@ Type <span class="highlight">rope --help</span> for available commands.`;
         if (data && (data.error === 'invalid_token' || data.error === 'missing_token')) {
           clearSession();
           render();
-          feedback('Session expired — please sign in again.', true);
+          feedback('Session expired - please sign in again.', true);
           return true;
         }
         return false;
@@ -3252,7 +3316,7 @@ Type <span class="highlight">rope --help</span> for available commands.`;
             }
             var keys = res.data.keys || [];
             if (!keys.length) {
-              elRows.innerHTML = '<tr><td colspan="6" style="color:var(--gray-400)">No keys yet — create your first one above.</td></tr>';
+              elRows.innerHTML = '<tr><td colspan="6" style="color:var(--gray-400)">No keys yet - create your first one above.</td></tr>';
               return;
             }
             elRows.innerHTML = keys.map(function (k) {
@@ -3292,7 +3356,7 @@ Type <span class="highlight">rope --help</span> for available commands.`;
             document.getElementById('keys-label').value = '';
             elNew.innerHTML =
               '<div class="key-new">' +
-                '<div class="key-new-title"><i class="fas fa-circle-check"></i>Key created — copy it now, it is shown only once</div>' +
+                '<div class="key-new-title"><i class="fas fa-circle-check"></i>Key created - copy it now, it is shown only once</div>' +
                 '<div class="key-new-value"><span>' + esc(res.data.key) + '</span>' +
                 '<button class="btn btn-secondary" id="keys-copybtn" style="padding:0.25rem 0.625rem;font-size:0.75rem;flex-shrink:0"><i class="fas fa-copy"></i> Copy</button></div>' +
                 '<div class="key-new-note">Use it as the <code>X-API-Key</code> header on https://dcscan.io/api/v1/*. This value is not recoverable later.</div>' +
@@ -3338,7 +3402,7 @@ Type <span class="highlight">rope --help</span> for available commands.`;
           .then(function (res) {
             btn.disabled = false;
             if (!res.ok || !res.data.token) {
-              feedback((res.data && res.data.message) || 'Sign-in failed — check your credentials.', true);
+              feedback((res.data && res.data.message) || 'Sign-in failed - check your credentials.', true);
               return;
             }
             document.getElementById('keys-password').value = '';
@@ -3353,7 +3417,7 @@ Type <span class="highlight">rope --help</span> for available commands.`;
       function walletSignIn() {
         var btn = document.getElementById('keys-walletsign');
         var eth = window.ethereum;
-        if (!eth) { feedback('No EVM wallet detected — install MetaMask or a compatible wallet.', true); return; }
+        if (!eth) { feedback('No EVM wallet detected - install MetaMask or a compatible wallet.', true); return; }
         btn.disabled = true;
         feedback('Requesting wallet account…');
         eth.request({ method: 'eth_requestAccounts' })

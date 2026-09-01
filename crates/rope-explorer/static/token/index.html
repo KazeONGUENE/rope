@@ -19,12 +19,16 @@
     <script>
         (function () {
             var parts = window.location.pathname.split('/').filter(Boolean);
-            // /token/:id  → parts = ['token', ':id']
-            // /token/:id/<tab> → parts = ['token', ':id', '<tab>']
+            // /token/:id  -> parts = ['token', ':id']
+            // /token/:id/<tab> -> parts = ['token', ':id', '<tab>']
             if (parts.length >= 2 && parts[0] === 'token') {
-                var target = '/address/' + parts.slice(1).join('/') +
-                    (window.location.search || '') + (window.location.hash || '');
-                window.location.replace(target);
+                var id = (parts[1] || '').toLowerCase();
+                var native = id === 'fat' || id === 'native' || id === '0x0'
+                    || id === '0x0000000000000000000000000000000000000000'
+                    || id === '0x0000000000000000000000000000000000000001';
+                var rest = parts.slice(2).join('/');
+                var suffix = (rest ? '/' + rest : '') + (window.location.search || '') + (window.location.hash || '');
+                window.location.replace(native ? ('/core/fat' + suffix) : ('/address/' + parts.slice(1).join('/') + (window.location.search || '') + (window.location.hash || '')));
             } else {
                 window.location.replace('/tokens');
             }
@@ -38,6 +42,6 @@
 <body>
     <p>Redirecting to the unified address view…</p>
     <p><a id="manual-link" href="/tokens">Browse all tokens</a></p>
-    <script src="/js/dcscan-wallet.js?v=20260707b" defer></script>
+    <script src="/js/dcscan-wallet.js?v=20260730a" defer></script>
 </body>
 </html>

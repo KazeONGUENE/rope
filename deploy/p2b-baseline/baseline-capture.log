@@ -1,0 +1,37 @@
+== capture start 2026-08-12T10:53:00Z ==
+== capture start 2026-08-12T10:55:56Z pid=24545 ==
+[2026-08-12T10:55:56Z] sample 1/30 http=200 0.149555s
+== capture start 2026-08-12T11:11:43Z pid=27428 ==
+[2026-08-12T11:11:44Z] sample 1/30 http=200 ok
+[2026-08-12T11:15:02Z] == capture start pid=28058 total=30 interval=60 ==
+[2026-08-12T11:15:12Z] sample 1/30 http=200 ok
+[2026-08-12T11:16:15Z] sample 2/30 http=502 (wedge / edge fail)
+[2026-08-12T11:17:15Z] sample 3/30 http=200 ok
+[2026-08-12T11:18:23Z] sample 4/30 http=200 ok
+[2026-08-12T11:19:23Z] sample 5/30 http=200 ok
+[2026-08-12T11:20:23Z] sample 6/30 http=200 ok
+[2026-08-12T11:21:23Z] sample 7/30 http=200 ok
+[2026-08-12T11:22:27Z] sample 8/30 http=502 (wedge / edge fail)
+[2026-08-12T11:23:27Z] sample 9/30 http=200 ok
+[2026-08-12T11:24:28Z] sample 10/30 http=200 ok
+[2026-08-12T11:25:28Z] sample 11/30 http=200 ok
+[2026-08-12T11:26:29Z] sample 12/30 http=200 ok
+[2026-08-12T11:27:41Z] sample 13/30 http=200 ok
+[2026-08-12T11:28:56Z] sample 14/30 http=000 (wedge / edge fail)
+[2026-08-12T11:29:59Z] sample 15/30 http=200 ok
+[2026-08-12T11:30:59Z] sample 16/30 http=200 ok
+[2026-08-12T11:31:59Z] sample 17/30 http=200 ok
+[2026-08-12T11:33:14Z] sample 18/30 http=000 (wedge / edge fail)
+[2026-08-12T11:34:14Z] sample 19/30 http=200 ok
+[2026-08-12T11:35:29Z] sample 20/30 http=000 (wedge / edge fail)
+[2026-08-12T11:36:30Z] sample 21/30 http=200 ok
+[2026-08-12T11:37:44Z] sample 22/30 http=200 ok
+[2026-08-12T11:38:44Z] sample 23/30 http=200 ok
+[2026-08-12T11:39:59Z] sample 24/30 http=000 (wedge / edge fail)
+[2026-08-12T11:41:14Z] sample 25/30 http=200 ok
+[2026-08-12T11:42:14Z] sample 26/30 http=502 (wedge / edge fail)
+[2026-08-12T11:43:14Z] sample 27/30 http=200 ok
+[2026-08-12T11:44:14Z] sample 28/30 http=000 (wedge / edge fail)
+[2026-08-12T11:45:15Z] sample 29/30 http=200 ok
+[2026-08-12T11:46:30Z] sample 30/30 http=000 (wedge / edge fail)
+[2026-08-12T11:46:30Z] == capture done ok=21 err=9 ==

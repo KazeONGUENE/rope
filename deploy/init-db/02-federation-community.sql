@@ -9,44 +9,64 @@
 -- CREATE -> GENERATE -> Federation -> Banking/Global -> Protocols -> Identity -> Predictability -> Wallet
 -- =============================================================================
 
+-- Postgres has no `CREATE TYPE IF NOT EXISTS` (unlike CREATE TABLE/INDEX),
+-- so every enum below is wrapped in a DO block that checks pg_type first.
+-- Without this, re-running this file against an already-migrated database
+-- (a legitimate disaster-recovery / drift-repair action) aborts on the
+-- very first statement with "type already exists" instead of being a
+-- no-op, exactly the idempotency gap flagged for 01-init.sql/02 in the
+-- 2026-07-25/07-26 security audit.
+
 -- Federation Types (Structured, Unstructured, Autonomous)
-CREATE TYPE federation_type AS ENUM (
-    'structured',       -- City, Object, Contributors
-    'unstructured',     -- Real-Madrid, Fans, Painter, Musicians
-    'autonomous'        -- AI, Expert Systems, Bot, Script
-);
+DO $$ BEGIN
+    CREATE TYPE federation_type AS ENUM (
+        'structured',       -- City, Object, Contributors
+        'unstructured',     -- Real-Madrid, Fans, Painter, Musicians
+        'autonomous'        -- AI, Expert Systems, Bot, Script
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Federation Structure (Monocellular, Multicellular)
-CREATE TYPE federation_structure AS ENUM (
-    'monocellular',     -- Single-entity federation
-    'multicellular'     -- Multi-entity consortium
-);
+DO $$ BEGIN
+    CREATE TYPE federation_structure AS ENUM (
+        'monocellular',     -- Single-entity federation
+        'multicellular'     -- Multi-entity consortium
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Federation Scope
-CREATE TYPE federation_scope AS ENUM (
-    'global',
-    'regional', 
-    'local'
-);
+DO $$ BEGIN
+    CREATE TYPE federation_scope AS ENUM (
+        'global',
+        'regional',
+        'local'
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Industry Sectors
-CREATE TYPE industry_sector AS ENUM (
-    'banking',
-    'healthcare',
-    'automotive',
-    'mobility',
-    'hospitality',
-    'human_rights',
-    'energy',
-    'agricultural',
-    'public_institution',
-    'technology',
-    'entertainment',
-    'education',
-    'retail',
-    'logistics',
-    'manufacturing'
-);
+DO $$ BEGIN
+    CREATE TYPE industry_sector AS ENUM (
+        'banking',
+        'healthcare',
+        'automotive',
+        'mobility',
+        'hospitality',
+        'human_rights',
+        'energy',
+        'agricultural',
+        'public_institution',
+        'technology',
+        'entertainment',
+        'education',
+        'retail',
+        'logistics',
+        'manufacturing'
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Federations table
 CREATE TABLE IF NOT EXISTS federations (
@@ -66,12 +86,12 @@ CREATE TABLE IF NOT EXISTS federations (
     genesis_entry BYTEA,                 -- Link to genesis entry in Datachain main net
     
     -- Wallet generation (10,000,000 per federation as per schema)
-    data_wallets_count BIGINT DEFAULT 10000000,
-    data_wallets_generated BIGINT DEFAULT 0,
+    data_wallets_count BIGINT DEFAULT 10000000 CHECK (data_wallets_count >= 0),
+    data_wallets_generated BIGINT DEFAULT 0 CHECK (data_wallets_generated >= 0),
     
     -- Individual chains (10,000,000 per federation)
-    individual_chains_count BIGINT DEFAULT 10000000,
-    individual_chains_generated BIGINT DEFAULT 0,
+    individual_chains_count BIGINT DEFAULT 10000000 CHECK (individual_chains_count >= 0),
+    individual_chains_generated BIGINT DEFAULT 0 CHECK (individual_chains_generated >= 0),
     
     -- Protocol invocations
     native_protocols JSONB DEFAULT '["datachain"]',  -- Native DC, Hyperledger, NXT, EOS, etc.
@@ -93,18 +113,18 @@ CREATE TABLE IF NOT EXISTS federations (
     
     -- Status
     status VARCHAR(50) DEFAULT 'pending_vote',   -- pending_vote, active, suspended
-    vote_count_for INTEGER DEFAULT 0,
-    vote_count_against INTEGER DEFAULT 0,
+    vote_count_for INTEGER DEFAULT 0 CHECK (vote_count_for >= 0),
+    vote_count_against INTEGER DEFAULT 0 CHECK (vote_count_against >= 0),
     
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     activated_at TIMESTAMP WITH TIME ZONE
 );
 
-CREATE INDEX idx_federations_creator ON federations(creator_id);
-CREATE INDEX idx_federations_type ON federations(federation_type);
-CREATE INDEX idx_federations_industry ON federations(industry);
-CREATE INDEX idx_federations_status ON federations(status);
+CREATE INDEX IF NOT EXISTS idx_federations_creator ON federations(creator_id);
+CREATE INDEX IF NOT EXISTS idx_federations_type ON federations(federation_type);
+CREATE INDEX IF NOT EXISTS idx_federations_industry ON federations(industry);
+CREATE INDEX IF NOT EXISTS idx_federations_status ON federations(status);
 
 -- =============================================================================
 -- COMMUNITY GENERATION
@@ -134,8 +154,8 @@ CREATE TABLE IF NOT EXISTS communities (
     genesis_entry BYTEA,
     
     -- Wallet generation (10,000,000 per community)
-    data_wallets_count BIGINT DEFAULT 10000000,
-    data_wallets_generated BIGINT DEFAULT 0,
+    data_wallets_count BIGINT DEFAULT 10000000 CHECK (data_wallets_count >= 0),
+    data_wallets_generated BIGINT DEFAULT 0 CHECK (data_wallets_generated >= 0),
     
     -- Protocol configuration (inherited from federation or custom)
     native_protocols JSONB DEFAULT '["datachain"]',
@@ -159,17 +179,17 @@ CREATE TABLE IF NOT EXISTS communities (
     
     -- Status
     status VARCHAR(50) DEFAULT 'pending_vote',
-    vote_count_for INTEGER DEFAULT 0,
-    vote_count_against INTEGER DEFAULT 0,
+    vote_count_for INTEGER DEFAULT 0 CHECK (vote_count_for >= 0),
+    vote_count_against INTEGER DEFAULT 0 CHECK (vote_count_against >= 0),
     
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     activated_at TIMESTAMP WITH TIME ZONE
 );
 
-CREATE INDEX idx_communities_federation ON communities(federation_id);
-CREATE INDEX idx_communities_creator ON communities(creator_id);
-CREATE INDEX idx_communities_status ON communities(status);
+CREATE INDEX IF NOT EXISTS idx_communities_federation ON communities(federation_id);
+CREATE INDEX IF NOT EXISTS idx_communities_creator ON communities(creator_id);
+CREATE INDEX IF NOT EXISTS idx_communities_status ON communities(status);
 
 -- =============================================================================
 -- PROJECT SUBMISSIONS
@@ -177,32 +197,38 @@ CREATE INDEX idx_communities_status ON communities(status);
 -- =============================================================================
 
 -- Project categories
-CREATE TYPE project_category AS ENUM (
-    'defi',
-    'nft',
-    'gaming',
-    'social',
-    'infrastructure',
-    'dao',
-    'marketplace',
-    'identity',
-    'supply_chain',
-    'healthcare',
-    'iot',
-    'ai_ml',
-    'oracle',
-    'bridge',
-    'other'
-);
+DO $$ BEGIN
+    CREATE TYPE project_category AS ENUM (
+        'defi',
+        'nft',
+        'gaming',
+        'social',
+        'infrastructure',
+        'dao',
+        'marketplace',
+        'identity',
+        'supply_chain',
+        'healthcare',
+        'iot',
+        'ai_ml',
+        'oracle',
+        'bridge',
+        'other'
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Project stage
-CREATE TYPE project_stage AS ENUM (
-    'idea',
-    'prototype',
-    'mvp',
-    'beta',
-    'production'
-);
+DO $$ BEGIN
+    CREATE TYPE project_stage AS ENUM (
+        'idea',
+        'prototype',
+        'mvp',
+        'beta',
+        'production'
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Project submissions table
 CREATE TABLE IF NOT EXISTS project_submissions (
@@ -259,7 +285,7 @@ CREATE TABLE IF NOT EXISTS project_submissions (
     team_members JSONB DEFAULT '[]',     -- Array of team member objects
     
     -- Funding (if applicable)
-    funding_requested NUMERIC(78, 0) DEFAULT 0,
+    funding_requested NUMERIC(78, 0) DEFAULT 0 CHECK (funding_requested >= 0),
     funding_currency VARCHAR(10) DEFAULT 'FAT',
     funding_breakdown TEXT,
     
@@ -267,10 +293,10 @@ CREATE TABLE IF NOT EXISTS project_submissions (
     status VARCHAR(50) DEFAULT 'pending_review',  -- pending_review, voting, approved, rejected, building, launched
     voting_starts_at TIMESTAMP WITH TIME ZONE,
     voting_ends_at TIMESTAMP WITH TIME ZONE,
-    vote_count_for INTEGER DEFAULT 0,
-    vote_count_against INTEGER DEFAULT 0,
-    required_votes INTEGER DEFAULT 100,          -- Minimum votes needed
-    approval_threshold NUMERIC(5,2) DEFAULT 0.51, -- 51% approval needed
+    vote_count_for INTEGER DEFAULT 0 CHECK (vote_count_for >= 0),
+    vote_count_against INTEGER DEFAULT 0 CHECK (vote_count_against >= 0),
+    required_votes INTEGER DEFAULT 100 CHECK (required_votes >= 0),          -- Minimum votes needed
+    approval_threshold NUMERIC(5,2) DEFAULT 0.51 CHECK (approval_threshold >= 0 AND approval_threshold <= 1), -- 51% approval needed
     
     -- Review
     reviewed_by BYTEA REFERENCES accounts(id),
@@ -283,11 +309,11 @@ CREATE TABLE IF NOT EXISTS project_submissions (
     launched_at TIMESTAMP WITH TIME ZONE
 );
 
-CREATE INDEX idx_projects_submitter ON project_submissions(submitter_id);
-CREATE INDEX idx_projects_category ON project_submissions(category);
-CREATE INDEX idx_projects_status ON project_submissions(status);
-CREATE INDEX idx_projects_stage ON project_submissions(stage);
-CREATE INDEX idx_projects_voting ON project_submissions(status, voting_ends_at) WHERE status = 'voting';
+CREATE INDEX IF NOT EXISTS idx_projects_submitter ON project_submissions(submitter_id);
+CREATE INDEX IF NOT EXISTS idx_projects_category ON project_submissions(category);
+CREATE INDEX IF NOT EXISTS idx_projects_status ON project_submissions(status);
+CREATE INDEX IF NOT EXISTS idx_projects_stage ON project_submissions(stage);
+CREATE INDEX IF NOT EXISTS idx_projects_voting ON project_submissions(status, voting_ends_at) WHERE status = 'voting';
 
 -- =============================================================================
 -- VOTING SYSTEM
@@ -295,13 +321,16 @@ CREATE INDEX idx_projects_voting ON project_submissions(status, voting_ends_at) 
 -- =============================================================================
 
 -- Vote types
-CREATE TYPE vote_target_type AS ENUM (
-    'federation',
-    'community',
-    'project',
-    'proposal',
-    'minting'
-);
+DO $$ BEGIN
+    CREATE TYPE vote_target_type AS ENUM (
+        'federation',
+        'community',
+        'project',
+        'proposal',
+        'minting'
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Votes table
 CREATE TABLE IF NOT EXISTS votes (
@@ -309,7 +338,7 @@ CREATE TABLE IF NOT EXISTS votes (
     
     -- Voter (must hold DC FAT)
     voter_id BYTEA NOT NULL REFERENCES accounts(id),
-    voter_stake NUMERIC(78, 0) NOT NULL,     -- Stake at time of voting (voting power)
+    voter_stake NUMERIC(78, 0) NOT NULL CHECK (voter_stake >= 0),     -- Stake at time of voting (voting power)
     
     -- Target
     target_type vote_target_type NOT NULL,
@@ -317,7 +346,7 @@ CREATE TABLE IF NOT EXISTS votes (
     
     -- Vote
     vote_for BOOLEAN NOT NULL,               -- true = for, false = against
-    vote_weight NUMERIC(78, 0) NOT NULL,     -- Weighted by stake
+    vote_weight NUMERIC(78, 0) NOT NULL CHECK (vote_weight >= 0),     -- Weighted by stake
     comment TEXT,
     
     -- Verification
@@ -330,9 +359,9 @@ CREATE TABLE IF NOT EXISTS votes (
     UNIQUE(voter_id, target_type, target_id)
 );
 
-CREATE INDEX idx_votes_target ON votes(target_type, target_id);
-CREATE INDEX idx_votes_voter ON votes(voter_id);
-CREATE INDEX idx_votes_for ON votes(vote_for);
+CREATE INDEX IF NOT EXISTS idx_votes_target ON votes(target_type, target_id);
+CREATE INDEX IF NOT EXISTS idx_votes_voter ON votes(voter_id);
+CREATE INDEX IF NOT EXISTS idx_votes_for ON votes(vote_for);
 
 -- =============================================================================
 -- DATAWALLETS
@@ -366,10 +395,10 @@ CREATE TABLE IF NOT EXISTS datawallets (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX idx_datawallets_federation ON datawallets(federation_id);
-CREATE INDEX idx_datawallets_community ON datawallets(community_id);
-CREATE INDEX idx_datawallets_owner ON datawallets(owner_id);
-CREATE INDEX idx_datawallets_address ON datawallets(address);
+CREATE INDEX IF NOT EXISTS idx_datawallets_federation ON datawallets(federation_id);
+CREATE INDEX IF NOT EXISTS idx_datawallets_community ON datawallets(community_id);
+CREATE INDEX IF NOT EXISTS idx_datawallets_owner ON datawallets(owner_id);
+CREATE INDEX IF NOT EXISTS idx_datawallets_address ON datawallets(address);
 
 -- =============================================================================
 -- PROTOCOL INVOCATIONS
@@ -401,9 +430,9 @@ CREATE TABLE IF NOT EXISTS protocol_invocations (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX idx_protocol_invocations_federation ON protocol_invocations(federation_id);
-CREATE INDEX idx_protocol_invocations_community ON protocol_invocations(community_id);
-CREATE INDEX idx_protocol_invocations_protocol ON protocol_invocations(protocol_name);
+CREATE INDEX IF NOT EXISTS idx_protocol_invocations_federation ON protocol_invocations(federation_id);
+CREATE INDEX IF NOT EXISTS idx_protocol_invocations_community ON protocol_invocations(community_id);
+CREATE INDEX IF NOT EXISTS idx_protocol_invocations_protocol ON protocol_invocations(protocol_name);
 
 -- =============================================================================
 -- ECOSYSTEMIC AUTONOMOUS MAINTENANCE
@@ -411,13 +440,16 @@ CREATE INDEX idx_protocol_invocations_protocol ON protocol_invocations(protocol_
 -- =============================================================================
 
 -- Stakeholder types
-CREATE TYPE stakeholder_type AS ENUM (
-    'municipality',
-    'supplier',
-    'ai_system',
-    'maintenance_dept',
-    'department_manager'
-);
+DO $$ BEGIN
+    CREATE TYPE stakeholder_type AS ENUM (
+        'municipality',
+        'supplier',
+        'ai_system',
+        'maintenance_dept',
+        'department_manager'
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Stakeholders table
 CREATE TABLE IF NOT EXISTS stakeholders (
@@ -475,7 +507,7 @@ CREATE TABLE IF NOT EXISTS diagnosis_records (
     diagnosis_details JSONB,
     
     ai_agent_id VARCHAR(255),              -- AI agent that performed diagnosis
-    confidence_score NUMERIC(5,4),
+    confidence_score NUMERIC(5,4) CHECK (confidence_score IS NULL OR (confidence_score >= 0 AND confidence_score <= 1)),
     
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -493,7 +525,7 @@ CREATE TABLE IF NOT EXISTS maintenance_recommendations (
     
     -- AI recommendation
     ai_agent_id VARCHAR(255),
-    recommendation_score NUMERIC(5,4),
+    recommendation_score NUMERIC(5,4) CHECK (recommendation_score IS NULL OR (recommendation_score >= 0 AND recommendation_score <= 1)),
     
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -502,19 +534,25 @@ CREATE TABLE IF NOT EXISTS maintenance_recommendations (
 -- TRIGGERS
 -- =============================================================================
 
+-- Postgres has no `CREATE TRIGGER IF NOT EXISTS`; DROP + CREATE is the
+-- idempotent pattern (same rationale as 01-init.sql's validators trigger).
+
 -- Update timestamp trigger for federations
+DROP TRIGGER IF EXISTS trigger_federations_updated_at ON federations;
 CREATE TRIGGER trigger_federations_updated_at
     BEFORE UPDATE ON federations
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at();
 
 -- Update timestamp trigger for communities
+DROP TRIGGER IF EXISTS trigger_communities_updated_at ON communities;
 CREATE TRIGGER trigger_communities_updated_at
     BEFORE UPDATE ON communities
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at();
 
 -- Update timestamp trigger for project_submissions
+DROP TRIGGER IF EXISTS trigger_projects_updated_at ON project_submissions;
 CREATE TRIGGER trigger_projects_updated_at
     BEFORE UPDATE ON project_submissions
     FOR EACH ROW

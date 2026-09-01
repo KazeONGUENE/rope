@@ -14,6 +14,7 @@
             --gray-800: #27272a; --gray-900: #18181b; --success: #22c55e; --success-bg: #dcfce7;
             --warning: #f59e0b; --warning-bg: #fef3c7; --error: #ef4444; --info: #3b82f6; --info-bg: #dbeafe;
             --purple: #8b5cf6; --purple-bg: #f3e8ff;
+            --gold: #f5c100; --gold-bg: #fef9c3; --gold-fg: #854d0e;
             --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             --font-mono: 'JetBrains Mono', monospace;
             --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px; --radius-xl: 16px;
@@ -59,48 +60,141 @@
         .stat-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 1.25rem; }
         .stat-label { font-size: 12px; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
         .stat-value { font-size: 1.5rem; font-weight: 700; }
-        .tabs { display: flex; gap: 0.25rem; margin-bottom: 1.5rem; background: var(--white); padding: 0.5rem; border-radius: var(--radius-lg); border: 1px solid var(--gray-200); }
-        .tab { padding: 0.75rem 1.25rem; background: transparent; border: none; border-radius: var(--radius-md); font-size: 13px; font-weight: 500; cursor: pointer; color: var(--gray-600); }
-        .tab:hover { background: var(--gray-100); color: var(--black); }
-        .tab.active { background: var(--black); color: var(--white); }
-        .proposals-grid { display: grid; gap: 1rem; }
-        .proposal-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-xl); overflow: hidden; transition: all 0.2s; }
-        .proposal-card:hover { border-color: var(--gray-300); box-shadow: var(--shadow-md); }
-        .proposal-header { padding: 1.5rem; border-bottom: 1px solid var(--gray-100); }
-        .proposal-meta { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
-        .proposal-type { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.5rem; font-size: 11px; font-weight: 600; border-radius: 100px; }
-        .type-individual { background: var(--black); color: var(--white); }
-        .type-business { background: var(--black); color: var(--white); }
-        .type-institution { background: var(--black); color: var(--white); }
-        .proposal-status { margin-left: auto; }
-        .status-badge { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.5rem; font-size: 11px; font-weight: 600; border-radius: 100px; }
-        .status-active { background: var(--success-bg); color: #ef4444; }
-        .status-pending { background: var(--warning-bg); color: var(--warning); }
-        .status-ended { background: var(--gray-100); color: var(--gray-500); }
-        .proposal-title { font-size: 1.125rem; font-weight: 700; margin-bottom: 0.5rem; }
-        .proposal-title a { color: var(--black); }
-        .proposal-desc { color: var(--gray-600); font-size: 13px; line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        .proposal-body { padding: 1.5rem; }
-        .progress-section { margin-bottom: 1rem; }
-        .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; font-size: 13px; }
-        .progress-bar { height: 8px; background: var(--gray-100); border-radius: 4px; overflow: hidden; }
-        .progress-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
-        .progress-fill.for { background: var(--success); }
+        .header-actions { display: flex; align-items: center; gap: 0.5rem; }
+        /* Kickstarter Discover-style layout (DCScan monochrome aesthetic) */
+        .discover-layout { display: grid; grid-template-columns: 260px 1fr; gap: 1.75rem; align-items: start; margin-bottom: 2rem; }
+        @media (max-width: 980px) { .discover-layout { grid-template-columns: 1fr; } .discover-filters { position: static !important; } }
+        .discover-filters {
+            position: sticky; top: 80px; background: var(--white); border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg); padding: 1.15rem 1.1rem 1.25rem; box-shadow: 0 1px 2px rgba(0,0,0,.04);
+        }
+        .discover-filters h3 {
+            font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+            color: var(--gray-500); margin: 1.15rem 0 0.65rem; padding-top: 0.85rem; border-top: 1px solid var(--gray-100);
+        }
+        .discover-filters h3:first-child { margin-top: 0; padding-top: 0; border-top: none; }
+        .filter-row { display: flex; align-items: center; gap: 0.55rem; padding: 0.28rem 0; font-size: 13px; color: var(--gray-800); cursor: pointer; user-select: none; }
+        .filter-row:hover { color: var(--black); }
+        .filter-row input { accent-color: var(--gray-900); width: 15px; height: 15px; flex-shrink: 0; }
+        .filter-count { margin-left: auto; font-family: var(--font-mono); font-size: 11px; color: var(--gray-400); font-weight: 500; }
+        .filter-radio-group { display: flex; flex-direction: column; gap: 0.1rem; }
+        .discover-toolbar {
+            display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: space-between;
+            margin-bottom: 1rem; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg);
+            padding: 0.85rem 1rem;
+        }
+        .discover-search { position: relative; flex: 1; min-width: 200px; max-width: 420px; }
+        .discover-search i { position: absolute; left: 0.85rem; top: 50%; transform: translateY(-50%); color: var(--gray-400); font-size: 13px; }
+        .discover-search input {
+            width: 100%; padding: 0.65rem 0.85rem 0.65rem 2.35rem; border: 1px solid var(--gray-200);
+            border-radius: var(--radius-md); font-size: 13px; font-family: var(--font-sans); background: var(--gray-50);
+            color: var(--gray-900); outline: none; transition: border-color .15s, background .15s;
+        }
+        .discover-search input:focus { border-color: var(--gray-900); background: var(--white); }
+        .discover-sort { display: flex; align-items: center; gap: 0.5rem; font-size: 13px; color: var(--gray-500); }
+        .discover-sort select {
+            border: 1px solid var(--gray-200); border-radius: var(--radius-md); padding: 0.55rem 0.75rem;
+            font-size: 13px; font-weight: 600; font-family: var(--font-sans); background: var(--white); color: var(--gray-900);
+            cursor: pointer;
+        }
+        .discover-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.65rem; margin-bottom: 1rem; min-height: 28px; }
+        .discover-count { font-size: 13px; color: var(--gray-600); font-weight: 500; }
+        .discover-count strong { color: var(--gray-900); font-family: var(--font-mono); font-weight: 600; }
+        .chip-row { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+        .filter-chip {
+            display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.55rem 0.3rem 0.7rem;
+            background: var(--gray-100); border: 1px solid var(--gray-200); border-radius: 999px;
+            font-size: 12px; font-weight: 600; color: var(--gray-800);
+        }
+        .filter-chip button {
+            border: none; background: transparent; color: var(--gray-500); cursor: pointer; padding: 0 0.15rem;
+            font-size: 14px; line-height: 1;
+        }
+        .filter-chip button:hover { color: var(--black); }
+        .clear-filters {
+            border: none; background: none; color: var(--gray-500); font-size: 12px; font-weight: 600;
+            cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+        }
+        .clear-filters:hover { color: var(--black); }
+        .status-pills { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
+        .status-pill {
+            border: 1px solid var(--gray-200); background: var(--white); color: var(--gray-700);
+            border-radius: 999px; padding: 0.4rem 0.85rem; font-size: 12px; font-weight: 600; cursor: pointer;
+            transition: all .15s;
+        }
+        .status-pill:hover { border-color: var(--gray-400); color: var(--black); }
+        .status-pill.active { background: var(--gray-900); color: var(--white); border-color: var(--gray-900); }
+        .status-pill .pill-n { font-family: var(--font-mono); font-weight: 500; opacity: .7; margin-left: 0.25rem; }
+        .discover-empty {
+            grid-column: 1 / -1; text-align: center; padding: 3.5rem 1.5rem; color: var(--gray-500);
+            background: var(--white); border: 1px dashed var(--gray-200); border-radius: var(--radius-lg);
+        }
+        .discover-empty i { font-size: 2rem; margin-bottom: 0.75rem; display: block; color: var(--gray-400); }
+        .discover-empty h4 { color: var(--gray-900); font-size: 1.05rem; margin-bottom: 0.35rem; }
+        .filter-mobile-toggle {
+            display: none; width: 100%; margin-bottom: 0.75rem; justify-content: center; gap: 0.5rem;
+            padding: 0.7rem 1rem; background: var(--white); border: 1px solid var(--gray-200);
+            border-radius: var(--radius-md); font-weight: 600; font-size: 13px; cursor: pointer; color: var(--gray-800);
+        }
+        @media (max-width: 980px) {
+            .filter-mobile-toggle { display: inline-flex; }
+            .discover-filters { display: none; }
+            .discover-filters.open { display: block; }
+        }
+        .proposals-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.25rem; }
+        @media (min-width: 1200px) { .proposals-grid { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 700px) { .proposals-grid { grid-template-columns: 1fr; } }
+        .page-header-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+        .btn-join-pool {
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            padding: 0.875rem 1.5rem; background: transparent; color: var(--white);
+            font-size: 14px; font-weight: 600; border-radius: var(--radius-lg);
+            border: 1px solid rgba(255,255,255,0.45); cursor: pointer; transition: all 0.2s;
+        }
+        .btn-join-pool:hover { background: rgba(255,255,255,0.1); }
+        .pool-stat { font-size: 12px; color: var(--gray-500); margin-top: 0.25rem; }
+        /* Kickstarter-style featured project cards */
+        .proposal-card {
+            background: var(--white); border: 1px solid var(--gray-200); border-radius: 4px;
+            overflow: hidden; transition: box-shadow 0.2s, transform 0.2s; display: flex; flex-direction: column;
+            text-decoration: none; color: inherit;
+        }
+        .proposal-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.08); transform: translateY(-2px); text-decoration: none; }
+        .card-media {
+            aspect-ratio: 16/9; background: linear-gradient(135deg, #18181b 0%, #52525b 100%);
+            display: flex; align-items: center; justify-content: center; color: #fff; position: relative;
+            overflow: hidden;
+        }
+        .card-media i { font-size: 2.5rem; opacity: 0.35; position: relative; z-index: 1; }
+        .card-media .card-hero-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+        .card-media.has-image i { display: none; }
+        .card-media .status-badge { position: absolute; top: 0.75rem; left: 0.75rem; z-index: 2; }
+        .status-badge { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.55rem; font-size: 11px; font-weight: 600; border-radius: 2px; background: var(--white); color: var(--gray-800); }
+        .status-active { background: #dcfce7; color: #166534; }
+        .status-pending { background: #fef3c7; color: #92400e; }
+        .status-ended { background: var(--gray-100); color: var(--gray-600); }
+        .status-rejected { background: #fee2e2; color: #991b1b; }
+        .card-body { padding: 1.1rem 1.15rem 0.85rem; flex: 1; display: flex; flex-direction: column; }
+        .proposal-title { font-size: 1.125rem; font-weight: 700; margin-bottom: 0.35rem; line-height: 1.3; color: var(--black); }
+        .proposal-desc { color: var(--gray-600); font-size: 13px; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 0.85rem; flex: 1; }
+        .card-creator { font-size: 12px; color: var(--gray-500); margin-bottom: 0.85rem; }
+        .card-creator strong { color: var(--gray-800); font-weight: 600; }
+        .progress-bar { height: 6px; background: var(--gray-100); border-radius: 0; overflow: hidden; display: flex; margin-bottom: 0.65rem; }
+        .progress-fill { height: 100%; transition: width 0.3s; }
+        .progress-fill.for { background: #05ce78; }
         .progress-fill.against { background: var(--error); }
-        .vote-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1rem; }
-        .vote-stat { text-align: center; padding: 0.75rem; background: var(--gray-50); border-radius: var(--radius-md); }
-        .vote-stat-value { font-size: 1.25rem; font-weight: 700; }
-        .vote-stat-label { font-size: 11px; color: var(--gray-500); }
-        .vote-stat.for .vote-stat-value { color: #ef4444; }
-        .vote-stat.against .vote-stat-value { color: var(--error); }
-        .proposal-footer { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.5rem; border-top: 1px solid var(--gray-100); background: var(--gray-50); }
-        .proposer { display: flex; align-items: center; gap: 0.5rem; font-size: 12px; color: var(--gray-500); }
-        .proposer-avatar { width: 24px; height: 24px; border-radius: 50%; background: url('/assets/user-avatar.png') center/cover no-repeat; }
-        .vote-actions { display: flex; gap: 0.5rem; }
-        .vote-btn { padding: 0.5rem 1rem; border: 1px solid var(--gray-200); background: var(--white); border-radius: var(--radius-md); font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.375rem; }
+        .progress-fill.quorum { background: var(--gray-900); }
+        .card-stats { display: flex; gap: 1.25rem; margin-bottom: 0.85rem; flex-wrap: wrap; }
+        .card-stat-value { font-size: 14px; font-weight: 700; font-family: var(--font-mono); color: var(--gray-900); }
+        .card-stat-label { font-size: 11px; color: var(--gray-500); text-transform: lowercase; }
+        .card-footer { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1.15rem; border-top: 1px solid var(--gray-100); background: var(--gray-50); gap: 0.5rem; }
+        .card-meta { font-size: 11px; color: var(--gray-500); text-transform: capitalize; }
+        .vote-actions { display: flex; gap: 0.4rem; flex-shrink: 0; }
+        .vote-btn { padding: 0.4rem 0.7rem; border: 1px solid var(--gray-200); background: var(--white); border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.3rem; }
         .vote-btn:hover { background: var(--gray-100); }
-        .vote-btn.for:hover { background: var(--success-bg); border-color: #ef4444; color: #ef4444; }
+        .vote-btn.for:hover { background: #dcfce7; border-color: #22c55e; color: #166534; }
         .vote-btn.against:hover { background: #fee2e2; border-color: var(--error); color: var(--error); }
+        .vote-btn:disabled { opacity: 0.45; cursor: not-allowed; }
         footer { background: var(--white); border-top: 1px solid var(--gray-200); padding: 2rem 0; margin-top: 3rem; }
         .footer-content { display: flex; justify-content: space-between; align-items: center; }
         .footer-brand { display: flex; align-items: center; gap: 0.5rem; color: var(--gray-500); }
@@ -204,6 +298,46 @@
         .submission-info h4 { font-size: 0.875rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.375rem; }
         .submission-info ol { margin: 0; padding-left: 1.25rem; font-size: 0.8125rem; color: var(--gray-600); }
         .submission-info li { margin-bottom: 0.25rem; }
+        .weight-strip {
+            display: none; flex-wrap: wrap; align-items: center; gap: 0.75rem 1.25rem;
+            margin-bottom: 1rem; padding: 0.75rem 1rem; background: var(--white);
+            border: 1px solid var(--gray-200); border-radius: var(--radius-lg);
+            font-size: 13px; color: var(--gray-700);
+        }
+        .weight-strip strong { font-family: var(--font-mono); color: var(--gray-900); font-weight: 600; }
+        .weight-strip .weight-label { font-weight: 600; color: var(--gray-900); }
+        .weight-strip .weight-breakdown { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; color: var(--gray-500); font-size: 12px; }
+        .weight-strip .weight-breakdown span { font-family: var(--font-mono); }
+        .badge-cause {
+            display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.2rem 0.45rem;
+            font-size: 10px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+            border-radius: 2px; background: var(--gold-bg); color: var(--gold-fg);
+        }
+        .badge-disposition {
+            display: inline-flex; align-items: center; padding: 0.2rem 0.45rem;
+            font-size: 10px; font-weight: 600; border-radius: 2px;
+            background: var(--gray-100); color: var(--gray-700); text-transform: capitalize;
+        }
+        .badge-onchain {
+            display: inline-flex; align-items: center; gap: 0.2rem; padding: 0.2rem 0.45rem;
+            font-size: 10px; font-weight: 600; border-radius: 2px;
+            background: var(--info-bg); color: #1e40af; text-decoration: none;
+        }
+        .badge-onchain:hover { text-decoration: underline; }
+        .card-badges { position: absolute; top: 0.75rem; right: 0.75rem; z-index: 2; display: flex; flex-wrap: wrap; gap: 0.35rem; justify-content: flex-end; max-width: 55%; }
+        .submit-type-tabs {
+            display: flex; gap: 0.5rem; margin-bottom: 1.25rem; border-bottom: 1px solid var(--gray-200); padding-bottom: 0.75rem;
+        }
+        .submit-type-tab {
+            flex: 1; padding: 0.65rem 1rem; border: 1px solid var(--gray-200); background: var(--gray-50);
+            border-radius: var(--radius-md); font-size: 13px; font-weight: 600; color: var(--gray-600);
+            cursor: pointer; transition: all .15s;
+        }
+        .submit-type-tab:hover { border-color: var(--gray-400); color: var(--black); }
+        .submit-type-tab.active { background: var(--gray-900); color: var(--white); border-color: var(--gray-900); }
+        #causeSubmitPanel { display: none; }
+        #causeSubmitPanel.active { display: block; }
+        #projectSubmitPanel.hidden { display: none; }
         
         @media (max-width: 1024px) { .stats-row { grid-template-columns: repeat(2, 1fr); } }
         @media (max-width: 768px) { 
@@ -219,10 +353,10 @@
 </head>
 <body>
     <div class="top-bar">
-        <div class="container top-bar-content">
+        <div class="container top-bar-container top-bar-content">
             <div class="top-bar-left">
-                <div class="top-bar-item"><span>DC FAT Price:</span><span class="top-bar-value">$0.00390</span><span style="color: #ef4444; margin-left: 0.25rem;">-2.94%</span></div>
-                <div class="top-bar-item"><span>Gas:</span><span class="top-bar-value">0.001 gwei</span></div>
+                <div class="top-bar-item"><span>DC FAT Price:</span><span class="top-bar-value" id="topbar-fat-price">-</span><span class="top-bar-change" id="topbar-fat-change"></span></div>
+                <div class="top-bar-item"><span>Gas:</span><span class="top-bar-value" id="topbar-gas">-</span></div>
             </div>
         </div>
     </div>
@@ -233,7 +367,7 @@
                 <span class="logo-text"><span>DC</span><span>Explorer</span></span>
             </a>
             <nav class="main-nav">
-                <div class="nav-item"><a href="#" class="nav-link">Smartchain <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link">Smartchain <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/strings" class="dropdown-item">View Strings</a>
                         <a href="/txs" class="dropdown-item">Transactions</a>
@@ -242,45 +376,48 @@
                         <a href="/contracts" class="dropdown-item">Verified Contracts</a>
                     </div>
                 </div>
-                <div class="nav-item"><a href="#" class="nav-link">AI Agents <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link">AI Agents <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/agents" class="dropdown-item">All Agents</a>
                         <a href="/testimonies" class="dropdown-item">Testimonies</a>
                         <a href="/validations" class="dropdown-item">Validators</a>
                     </div>
                 </div>
-                <div class="nav-item"><a href="#" class="nav-link active">Tokens <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link">Tokens <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/tokens" class="dropdown-item">DCR-20 Tokens</a>
+                        <a href="/core/fat" class="dropdown-item">Native DC FAT</a>
                         <a href="/tokentxns" class="dropdown-item">Token Transfers</a>
                         <a href="/vote" class="dropdown-item">Vote</a>
                     </div>
                 </div>
-                <div class="nav-item"><a href="#" class="nav-link">Network <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link active">Network <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/ecosystem" class="dropdown-item">Ecosystem Projects</a>
-                        <a href="/vote" class="dropdown-item" id="nav-governance-voting">Governance &amp; Voting</a>
+                        <a href="/vote" class="dropdown-item">Governance &amp; Voting</a>
                         <a href="/defi" class="dropdown-item">DeFi</a>
                         <a href="/supply" class="dropdown-item">Supply Reconciliation</a>
                         <a href="/validators" class="dropdown-item">Validators</a>
                         <a href="/databases" class="dropdown-item">Databases</a>
-                        <a href="/databoxes" class="dropdown-item" id="nav-databox-network">Global Databox Network</a>
-                        <a href="/stats" class="dropdown-item">Charts & Stats</a>
+                        <a href="/databoxes" class="dropdown-item">Global Databox Network</a>
+                        <a href="/stats" class="dropdown-item">Charts &amp; Stats</a>
                     </div>
                 </div>
-                <div class="nav-item"><a href="#" class="nav-link">More <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                <div class="nav-item"><a href="#" class="nav-link">More <i class="fa-solid fa-chevron-down"></i></a>
                     <div class="nav-dropdown">
                         <a href="/apis" class="dropdown-item">API Docs</a>
+                        <a href="/apis/exchange-integration" class="dropdown-item">Exchange Integration</a>
+                        <a href="/admin-tokens" class="dropdown-item">Admin Tokens</a>
                         <a href="/verify" class="dropdown-item">Verify Contract</a>
-                        <a href="/create-wallet" class="dropdown-item" id="nav-create-wallet">Create Wallet</a>
+                        <a href="/create-wallet" class="dropdown-item">Create Wallet</a>
                         <a href="/faucet" class="dropdown-item">Faucet</a>
-                        <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank">GitHub</a>
+                        <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank" rel="noopener">GitHub</a>
                         <a href="/partners" class="dropdown-item">Partners</a>
                         <a href="/contact" class="dropdown-item">Contact</a>
                     </div>
                 </div>
             </nav>
-            <button class="btn btn-secondary"><i class="fas fa-wallet"></i> Connect</button>
+            <div class="header-actions"><button class="btn btn-secondary"><i class="fa-solid fa-wallet"></i> Connect</button></div>
         </div>
     </header>
 
@@ -290,10 +427,66 @@
                 <div class="page-header-text">
                     <h1 class="page-title">Community Vote</h1>
                     <p class="page-subtitle">Vote on projects from individuals, businesses, and institutions that want to run on Datachain Rope. DC FAT holders decide which projects get approved.</p>
+                    <p class="pool-stat" id="poolMemberHint" style="color:var(--gray-400);margin-top:0.5rem;">Governance pool: loading…</p>
                 </div>
-                <button class="btn-start-building" onclick="openProjectModal()">
-                    <i class="fas fa-rocket"></i> Start Building
-                </button>
+                <div class="page-header-actions">
+                    <button class="btn-join-pool" type="button" onclick="openPoolModal()">
+                        <i class="fas fa-users"></i> Join Governance Pool
+                    </button>
+                    <button class="btn-start-building" type="button" onclick="openProjectModal()">
+                        <i class="fas fa-rocket"></i> Submit A Project
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Governance Pool Join Modal -->
+    <div id="poolModal" class="modal">
+        <div class="modal-content" style="max-width:560px">
+            <div class="modal-header">
+                <h2 class="modal-title"><i class="fas fa-users"></i> Join Governance Pool</h2>
+                <button class="close-btn" type="button" onclick="closePoolModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-info">
+                    Register your email and the wallet addresses that hold your DC / DC FAT / FAT / WFAT.
+                    Sign with one of those wallets to prove ownership. At least one chain address is required.
+                </div>
+                <form id="poolJoinForm" onsubmit="return false;">
+                    <div class="form-group">
+                        <label class="form-label">Email <span class="required">*</span></label>
+                        <input class="form-input" type="email" id="poolEmail" required placeholder="you@example.com" autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Datachain Rope wallet (DCR-20 - DC FAT / FAT / WFAT)</label>
+                        <input class="form-input" type="text" id="poolRope" placeholder="0x… on chainId 271828" autocomplete="off" spellcheck="false">
+                        <div class="form-hint">Native / wrapped FAT on Datachain Rope</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Ethereum wallet (ERC-20 / ERC-777 DC)</label>
+                        <input class="form-input" type="text" id="poolEth" placeholder="0x… on Ethereum" autocomplete="off" spellcheck="false">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">XDC Network wallet (XRC-20 DC)</label>
+                        <input class="form-input" type="text" id="poolXdc" placeholder="0x… or xdc…" autocomplete="off" spellcheck="false">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Sign with <span class="required">*</span></label>
+                        <select class="form-select" id="poolSignerChain">
+                            <option value="rope">Datachain Rope address</option>
+                            <option value="eth">Ethereum address</option>
+                            <option value="xdc">XDC address</option>
+                        </select>
+                        <div class="form-hint">Your connected wallet must match the address you choose to sign with.</div>
+                    </div>
+                    <p id="poolFormError" style="display:none;color:var(--error);font-size:13px;margin-bottom:0.75rem;"></p>
+                    <p id="poolFormOk" style="display:none;color:#166534;font-size:13px;margin-bottom:0.75rem;"></p>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-nav" type="button" onclick="closePoolModal()">Cancel</button>
+                <button class="btn-nav primary" type="button" id="poolSubmitBtn" onclick="submitPoolJoin()">Sign &amp; Join</button>
             </div>
         </div>
     </div>
@@ -307,10 +500,15 @@
             </div>
             <div class="modal-body">
                 <div class="modal-info">
-                    Submit your project to build on Datachain Rope. Your submission will be reviewed and then put to a community vote by DC FAT holders.
+                    Submit a project or nominate a cause/NGO for community vote. Cross-chain DC FAT (Ethereum + XDC + Rope) determines voting power once a vote opens on-chain.
+                </div>
+
+                <div class="submit-type-tabs" id="submitTypeTabs" role="tablist">
+                    <button type="button" class="submit-type-tab active" data-submit-type="project" role="tab" aria-selected="true">Project</button>
+                    <button type="button" class="submit-type-tab" data-submit-type="cause" role="tab" aria-selected="false">Cause / NGO</button>
                 </div>
                 
-                <div class="form-steps">
+                <div class="form-steps" id="projectFormSteps">
                     <button class="form-step active" data-step="1">1. Project Info</button>
                     <button class="form-step" data-step="2">2. Technical</button>
                     <button class="form-step" data-step="3">3. Team & Funding</button>
@@ -318,6 +516,7 @@
                 </div>
                 
                 <form id="projectForm">
+                    <div id="projectSubmitPanel">
                     <!-- Step 1: Project Info -->
                     <div class="step-content active" data-step="1">
                         <div class="form-group">
@@ -500,7 +699,7 @@
                                     <span class="dot yellow"></span>
                                     <span class="dot green"></span>
                                 </div>
-                                <span class="cli-title">rope-cli — Instance Deployment</span>
+                                <span class="cli-title">rope-cli - Instance Deployment</span>
                             </div>
                             <div class="cli-body" id="modal-cli-body">
                                 <div class="cli-output" id="modal-cli-output">
@@ -543,11 +742,130 @@
                             </ol>
                         </div>
                     </div>
+                    </div>
+
+                    <div id="causeSubmitPanel">
+                        <p class="form-hint" style="margin-bottom:1rem;">NGO nomination (Phase 5): detailed proposal → community jury + pay-to-vote → winner creates a wallet at <a href="https://dcscan.io/create-wallet" target="_blank" rel="noopener">dcscan.io/create-wallet</a> → legacy ERC-20 DC grant + FAT cause-token grant.</p>
+                        <div class="form-group">
+                            <label class="form-label">Cause / NGO name <span class="required">*</span></label>
+                            <input type="text" class="form-input" name="cause_name" placeholder="e.g., Clean Water Initiative" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Legal entity <span class="required">*</span></label>
+                            <input type="text" class="form-input" name="cause_legal_entity" placeholder="Registered NGO or legal name" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Mission statement <span class="required">*</span></label>
+                            <textarea class="form-textarea" name="cause_mission" placeholder="What change will this cause deliver?" required></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Impact <span class="required">*</span></label>
+                            <textarea class="form-textarea" name="cause_impact" placeholder="Who benefits, measurable outcomes, geography / communities served" required></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Value proposition <span class="required">*</span></label>
+                            <textarea class="form-textarea" name="cause_value" placeholder="Why this NGO creates durable value for the Datachain community" required></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Full description <span class="required">*</span></label>
+                            <textarea class="form-textarea" name="cause_description" placeholder="Detailed NGO description for voters…" required></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Milestones <span class="required">*</span></label>
+                            <textarea class="form-textarea" name="cause_milestones" placeholder="One milestone per line: title - description - due date (YYYY-MM)" required></textarea>
+                            <div class="form-hint">Used for contractualization after the vote wins.</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Team <span class="required">*</span></label>
+                            <textarea class="form-textarea" name="cause_team" placeholder="One member per line: Name - Role - LinkedIn/bio URL" required></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Why the community should vote for this NGO <span class="required">*</span></label>
+                            <input type="text" class="form-input" name="cause_why1" placeholder="Argument 1" required style="margin-bottom:0.5rem;">
+                            <input type="text" class="form-input" name="cause_why2" placeholder="Argument 2" required style="margin-bottom:0.5rem;">
+                            <input type="text" class="form-input" name="cause_why3" placeholder="Argument 3" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Organization name</label>
+                            <input type="text" class="form-input" name="cause_organization_name" placeholder="Operating organization (if different)">
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Contact name <span class="required">*</span></label>
+                                <input type="text" class="form-input" name="cause_contact_name" placeholder="Primary contact" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Contact email <span class="required">*</span></label>
+                                <input type="email" class="form-input" name="cause_contact_email" placeholder="ngo@example.org" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Contact phone</label>
+                            <input type="text" class="form-input" name="cause_contact_phone" placeholder="+1 …">
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Website</label>
+                                <input type="url" class="form-input" name="cause_social_website" placeholder="https://">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Twitter / X</label>
+                                <input type="text" class="form-input" name="cause_social_twitter" placeholder="@handle or URL">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">LinkedIn</label>
+                                <input type="url" class="form-input" name="cause_social_linkedin" placeholder="https://linkedin.com/…">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Other social</label>
+                                <input type="text" class="form-input" name="cause_social_other" placeholder="Telegram, Discord, Instagram…">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Funding requested</label>
+                                <input type="number" class="form-input" name="cause_funding_requested" placeholder="e.g., 50000" min="0">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Currency</label>
+                                <select class="form-select" name="cause_funding_currency">
+                                    <option value="FAT">DC FAT</option>
+                                    <option value="USD">USD Equivalent</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">References / links</label>
+                            <textarea class="form-textarea" name="cause_references" placeholder="Registry IDs, audit links, prior impact reports (one per line)"></textarea>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Nominator name <span class="required">*</span></label>
+                                <input type="text" class="form-input" name="cause_submitter_name" placeholder="Your name" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Nominator email <span class="required">*</span></label>
+                                <input type="email" class="form-input" name="cause_submitter_email" placeholder="you@example.com" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Token disposition after vote</label>
+                            <select class="form-select" name="cause_disposition">
+                                <option value="return" selected>Return - locked FAT returns to voters</option>
+                                <option value="burn">Burn - locked FAT sent to burn sink</option>
+                                <option value="reward">Reward - pro-rata reward pool</option>
+                            </select>
+                            <div class="form-hint">Default for causes is Return. Voting uses a 60% random jury + pay-to-vote fee path; weight = Ethereum ERC-20 DC + XDC XRC-20 DC + Rope native FAT + DCR-20 WFAT.</div>
+                        </div>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button class="btn-nav" id="prevBtn" onclick="prevStep()" disabled>← Previous</button>
                 <button class="btn-nav primary" id="nextBtn" onclick="nextStep()">Next →</button>
+                <button class="btn-nav primary" id="causeSubmitBtn" type="button" onclick="submitCause()" style="display:none;">Submit Cause</button>
             </div>
         </div>
     </div>
@@ -564,40 +882,181 @@
         <div class="stats-row">
             <div class="stat-card">
                 <div class="stat-label">Active Proposals</div>
-                <div class="stat-value" id="stat-active-proposals">—</div>
+                <div class="stat-value" id="stat-active-proposals">-</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Total Proposals</div>
-                <div class="stat-value" id="stat-total-proposals">—</div>
+                <div class="stat-value" id="stat-total-proposals">-</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Total Votes Cast</div>
-                <div class="stat-value" id="stat-total-votes">—</div>
+                <div class="stat-value" id="stat-total-votes">-</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Unique Voters</div>
-                <div class="stat-value" id="stat-unique-voters">—</div>
+                <div class="stat-value" id="stat-unique-voters">-</div>
             </div>
         </div>
 
-        <div class="tabs">
-            <button class="tab active" id="tab-active">Active</button>
-            <button class="tab" id="tab-pending">Pending</button>
-            <button class="tab" id="tab-approved">Approved</button>
-            <button class="tab" id="tab-rejected">Rejected</button>
-        </div>
+        <button type="button" class="filter-mobile-toggle" id="filterMobileToggle" aria-expanded="false">
+            <i class="fas fa-sliders"></i> Filters
+        </button>
 
-        <div class="proposals-grid" id="proposalsGrid"></div>
+        <div class="discover-layout">
+            <aside class="discover-filters" id="discoverFilters" aria-label="Project filters">
+                <h3>Type</h3>
+                <div class="filter-radio-group" id="filterVoteClassGroup">
+                    <label class="filter-row"><input type="radio" name="voteClass" value="" checked> All types</label>
+                    <label class="filter-row"><input type="radio" name="voteClass" value="project"> Projects <span class="filter-count" data-facet="voteClass.project">0</span></label>
+                    <label class="filter-row"><input type="radio" name="voteClass" value="cause"> Causes (NGO) <span class="filter-count" data-facet="voteClass.cause">0</span></label>
+                    <label class="filter-row"><input type="radio" name="voteClass" value="critical_protocol"> Critical protocol <span class="filter-count" data-facet="voteClass.critical_protocol">0</span></label>
+                </div>
+
+                <h3>Status</h3>
+                <div class="filter-radio-group" id="filterStatusGroup">
+                    <label class="filter-row"><input type="checkbox" name="status" value="voting"> Live / voting <span class="filter-count" data-facet="status.voting">0</span></label>
+                    <label class="filter-row"><input type="checkbox" name="status" value="pending_review"> Upcoming / pending <span class="filter-count" data-facet="status.pending_review">0</span></label>
+                    <label class="filter-row"><input type="checkbox" name="status" value="approved"> Approved <span class="filter-count" data-facet="status.approved">0</span></label>
+                    <label class="filter-row"><input type="checkbox" name="status" value="rejected"> Rejected <span class="filter-count" data-facet="status.rejected">0</span></label>
+                    <label class="filter-row"><input type="checkbox" name="status" value="building"> Building <span class="filter-count" data-facet="status.building">0</span></label>
+                </div>
+
+                <h3>Category</h3>
+                <div class="filter-radio-group" id="filterCategoryGroup">
+                    <label class="filter-row"><input type="checkbox" name="category" value="defi"> DeFi <span class="filter-count" data-facet="category.defi">0</span></label>
+                    <label class="filter-row"><input type="checkbox" name="category" value="nft"> NFT <span class="filter-count" data-facet="category.nft">0</span></label>
+                    <label class="filter-row"><input type="checkbox" name="category" value="gaming"> Gaming <span class="filter-count" data-facet="category.gaming">0</span></label>
+                    <label class="filter-row"><input type="checkbox" name="category" value="infrastructure"> Infrastructure <span class="filter-count" data-facet="category.infrastructure">0</span></label>
+                    <label class="filter-row"><input type="checkbox" name="category" value="marketplace"> Marketplace <span class="filter-count" data-facet="category.marketplace">0</span></label>
+                    <label class="filter-row"><input type="checkbox" name="category" value="identity"> Identity <span class="filter-count" data-facet="category.identity">0</span></label>
+                    <label class="filter-row"><input type="checkbox" name="category" value="ai_ml"> AI / ML <span class="filter-count" data-facet="category.ai_ml">0</span></label>
+                    <label class="filter-row"><input type="checkbox" name="category" value="dao"> DAO <span class="filter-count" data-facet="category.dao">0</span></label>
+                    <label class="filter-row"><input type="checkbox" name="category" value="social"> Social <span class="filter-count" data-facet="category.social">0</span></label>
+                    <label class="filter-row"><input type="checkbox" name="category" value="other"> Other <span class="filter-count" data-facet="category.other">0</span></label>
+                </div>
+
+                <h3>Organization</h3>
+                <div class="filter-radio-group" id="filterOrgGroup">
+                    <label class="filter-row"><input type="checkbox" name="org" value="individual"> Individual <span class="filter-count" data-facet="organizationType.individual">0</span></label>
+                    <label class="filter-row"><input type="checkbox" name="org" value="business"> Business <span class="filter-count" data-facet="organizationType.business">0</span></label>
+                    <label class="filter-row"><input type="checkbox" name="org" value="institution"> Institution <span class="filter-count" data-facet="organizationType.institution">0</span></label>
+                </div>
+
+                <h3>Stage</h3>
+                <div class="filter-radio-group" id="filterStageGroup">
+                    <label class="filter-row"><input type="checkbox" name="stage" value="idea"> Idea <span class="filter-count" data-facet="stage.idea">0</span></label>
+                    <label class="filter-row"><input type="checkbox" name="stage" value="prototype"> Prototype <span class="filter-count" data-facet="stage.prototype">0</span></label>
+                    <label class="filter-row"><input type="checkbox" name="stage" value="mvp"> MVP <span class="filter-count" data-facet="stage.mvp">0</span></label>
+                    <label class="filter-row"><input type="checkbox" name="stage" value="beta"> Beta <span class="filter-count" data-facet="stage.beta">0</span></label>
+                    <label class="filter-row"><input type="checkbox" name="stage" value="production"> Production <span class="filter-count" data-facet="stage.production">0</span></label>
+                </div>
+
+                <h3>Funding ask</h3>
+                <div class="filter-radio-group" id="filterFundingGroup">
+                    <label class="filter-row"><input type="radio" name="funding" value="" checked> Any</label>
+                    <label class="filter-row"><input type="radio" name="funding" value="none"> No ask</label>
+                    <label class="filter-row"><input type="radio" name="funding" value="under_1k"> Under 1K</label>
+                    <label class="filter-row"><input type="radio" name="funding" value="1k_10k"> 1K - 10K</label>
+                    <label class="filter-row"><input type="radio" name="funding" value="10k_100k"> 10K - 100K</label>
+                    <label class="filter-row"><input type="radio" name="funding" value="over_100k"> 100K+</label>
+                </div>
+
+                <h3>Quorum progress</h3>
+                <div class="filter-radio-group" id="filterQuorumGroup">
+                    <label class="filter-row"><input type="radio" name="quorum" value="" checked> Any</label>
+                    <label class="filter-row"><input type="radio" name="quorum" value="under_25"> Under 25%</label>
+                    <label class="filter-row"><input type="radio" name="quorum" value="25_50"> 25 - 50%</label>
+                    <label class="filter-row"><input type="radio" name="quorum" value="50_75"> 50 - 75%</label>
+                    <label class="filter-row"><input type="radio" name="quorum" value="75_100"> 75 - 100%</label>
+                </div>
+
+                <h3>More</h3>
+                <label class="filter-row"><input type="checkbox" id="filterAiOnly" name="ai"> Requires AI testimony</label>
+                <label class="filter-row"><input type="checkbox" id="filterIncludeEnded" name="includeEnded" checked> Include ended campaigns</label>
+            </aside>
+
+            <div class="discover-main">
+                <div class="weight-strip" id="votingWeightStrip" aria-live="polite">
+                    <span class="weight-label"><i class="fas fa-scale-balanced"></i> Your voting power</span>
+                    <span id="votingWeightTotal">Connect a wallet to see cross-chain weight.</span>
+                    <div class="weight-breakdown" id="votingWeightBreakdown"></div>
+                </div>
+
+                <div class="status-pills" id="statusPills" aria-label="Quick status filters">
+                    <button type="button" class="status-pill" data-quick="live">Live <span class="pill-n" data-facet="status.voting">0</span></button>
+                    <button type="button" class="status-pill" data-quick="upcoming">Upcoming <span class="pill-n" data-facet="status.pending_review">0</span></button>
+                    <button type="button" class="status-pill" data-quick="ended">Ended <span class="pill-n" data-facet-sum="ended">0</span></button>
+                    <button type="button" class="status-pill active" data-quick="all">All</button>
+                </div>
+
+                <div class="discover-toolbar">
+                    <div class="discover-search">
+                        <i class="fas fa-search" aria-hidden="true"></i>
+                        <input type="search" id="discoverSearch" placeholder="Search projects, creators, categories…" autocomplete="off">
+                    </div>
+                    <div class="discover-sort">
+                        <label for="discoverSort">Sort by</label>
+                        <select id="discoverSort">
+                            <option value="newest">Newest</option>
+                            <option value="ending_soon">Ending soon</option>
+                            <option value="most_support">Most support</option>
+                            <option value="quorum">Closest to quorum</option>
+                            <option value="funding">Highest funding ask</option>
+                            <option value="name">Name A-Z</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="discover-meta">
+                    <div class="discover-count" id="discoverCount">Loading proposals…</div>
+                    <div class="chip-row" id="activeChips"></div>
+                </div>
+
+                <div class="proposals-grid" id="proposalsGrid"></div>
+
+                <section class="panel" id="influencePanel" style="margin-top:2rem;padding:1.25rem 1.5rem;background:var(--white);border:1px solid var(--gray-200);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm)">
+                    <h3 style="margin:0 0 .35rem;font-size:1rem;color:var(--gray-900)">Influence leaderboard</h3>
+                    <p style="margin:0 0 1rem;font-size:13px;color:var(--gray-500)">Aggregate discover-ballot weight (ETH DC + XDC DC + Rope FAT + WFAT). On-chain VoteEscrow locks remain authoritative for escrow votes.</p>
+                    <div id="influenceTable" style="overflow-x:auto">
+                        <table style="width:100%;border-collapse:collapse;font-size:13px">
+                            <thead>
+                                <tr style="text-align:left;color:var(--gray-500);font-size:10.5px;letter-spacing:.04em;text-transform:uppercase">
+                                    <th style="padding:7px 8px;border-bottom:1px solid var(--gray-100)">#</th>
+                                    <th style="padding:7px 8px;border-bottom:1px solid var(--gray-100)">Wallet</th>
+                                    <th style="padding:7px 8px;border-bottom:1px solid var(--gray-100)">Weight</th>
+                                    <th style="padding:7px 8px;border-bottom:1px solid var(--gray-100)">Ballots</th>
+                                </tr>
+                            </thead>
+                            <tbody id="influenceBody"><tr><td colspan="4" style="padding:1rem;color:var(--gray-400)">Loading…</td></tr></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="panel" id="mintingPanel" style="margin-top:1.25rem;padding:1.25rem 1.5rem;background:var(--white);border:1px solid var(--gray-200);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm)">
+                    <h3 style="margin:0 0 .35rem;font-size:1rem;color:var(--gray-900)">Critical protocol → MintingGovernance</h3>
+                    <p style="margin:0 0 1rem;font-size:13px;color:var(--gray-500)">Public VoteEscrow sentiment never mints. After a CriticalProtocol vote finalises Approved, the staged AI → random governors → Foundation pipeline opens; Timelock runs only after that.</p>
+                    <div id="mintingList" style="font-size:13px;color:var(--gray-600)">Loading…</div>
+                </section>
+            </div>
+        </div>
     </main>
 
     <footer>
-        <div class="container footer-content">
-            <div class="footer-brand"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 24px; height: 24px;"> DC Explorer - Powered by Datachain Rope</div>
+        <div class="footer-container container footer-content">
+            <div class="footer-brand">
+                <div class="logo-icon" style="width: 24px; height: 24px;">
+                    <img src="/assets/logo.svg" alt="DC Explorer Logo" style="width: 100%; height: 100%; object-fit: contain;">
+                </div>
+                DC Explorer - Powered by Datachain Rope
+            </div>
             <div class="footer-links">
                 <a href="https://datachain.network">Datachain</a>
                 <a href="/apis">API</a>
-                <a href="https://github.com/KazeONGUENE/rope" target="_blank">GitHub</a>
-                <a href="/partners">Partners</a><a href="/contact">Contact</a>
+                <a href="/apis/exchange-integration">Exchange Integration</a>
+                <a href="/admin-tokens">Admin Tokens</a>
+                <a href="https://github.com/KazeONGUENE/rope">GitHub</a>
+                <a href="/partners">Partners</a>
+                <a href="/contact">Contact</a>
             </div>
         </div>
     </footer>
@@ -606,23 +1065,568 @@
         // API Configuration
         const API_BASE = '/api/v1';
         
-        // Fetch projects from the real, chain-anchored API. No mock
-        // fallback: an unreachable API surfaces as an honest empty/error
-        // state so the community never votes on fabricated numbers.
-        async function fetchProjects() {
+        // Discover filter state - synced to URL query params and the API.
+        const discoverState = {
+            q: '',
+            voteClass: '',
+            status: [],
+            category: [],
+            org: [],
+            stage: [],
+            funding: '',
+            quorum: '',
+            ai: false,
+            includeEnded: true,
+            sort: 'newest',
+            page: 1,
+            limit: 60,
+            quick: 'all',
+            facets: null,
+            pagination: null,
+            loading: false
+        };
+        let searchTimer = null;
+        let lastProjects = [];
+        let loadGeneration = 0;
+        let voteEscrowAddress = null;
+        let submitType = 'project';
+
+        async function loadVoteEscrowInfo() {
             try {
-                const response = await fetch(`${API_BASE}/projects?limit=100`);
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                const data = await response.json();
-                return data.projects || [];
-            } catch (error) {
-                console.error('Error fetching projects:', error);
-                document.getElementById('proposalsGrid').innerHTML =
-                    '<div style="grid-column: 1/-1; text-align:center; padding: 3rem; color: var(--gray-500);">' +
-                    '<i class="fas fa-exclamation-triangle" style="font-size: 2rem; margin-bottom: 1rem;"></i>' +
-                    '<p>Could not load proposals right now. Please refresh in a moment.</p></div>';
-                return [];
+                const res = await fetch(API_BASE + '/governance/escrow');
+                const d = await res.json();
+                if (d.success && d.address) voteEscrowAddress = d.address;
+            } catch (e) {
+                console.warn('VoteEscrow info unavailable:', e);
             }
+        }
+
+        function ensureEthers() {
+            return new Promise(function (resolve, reject) {
+                if (window.ethers) return resolve(window.ethers);
+                var existing = document.querySelector('script[data-vote-ethers]');
+                if (existing) {
+                    existing.addEventListener('load', function () { resolve(window.ethers); });
+                    existing.addEventListener('error', function () { reject(new Error('Failed to load ethers')); });
+                    return;
+                }
+                var s = document.createElement('script');
+                s.src = 'https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js?v=20260730c';
+                s.setAttribute('data-vote-ethers', '1');
+                s.onload = function () { resolve(window.ethers); };
+                s.onerror = function () { reject(new Error('Failed to load ethers')); };
+                document.head.appendChild(s);
+            });
+        }
+
+        const VOTE_ESCROW_ABI = [
+            'function createVote((uint8 voteClass,uint8 disposition,uint64 startsAt,uint64 endsAt,uint256 minWeightToVote,uint256 quorumWeight,uint16 approvalThresholdBps,address rewardPoolFunder,bytes32 metadataHash,uint8 eligibleVoterSet,uint256 payToVoteFee) params, uint256 creatorWeight, uint256 creatorExpiresAt, bytes creatorAttestation) payable returns (uint256 voteId)',
+            'function castVote(uint256 voteId, bool choice, uint256 weight, uint256 expiresAt, bytes attestation) payable',
+            'function payToVote(uint256 voteId) payable',
+            'function setJury(uint256 voteId, address[] jurors)',
+            'function withdrawLocked(uint256 voteId)',
+            'function finalizeVote(uint256 voteId)',
+            'function votesLength() view returns (uint256)',
+            'event VoteCreated(uint256 indexed voteId, uint8 voteClass, uint8 disposition, address indexed creator, uint64 startsAt, uint64 endsAt, uint256 quorumWeight, uint16 approvalThresholdBps, uint256 rewardPoolAmount, bytes32 metadataHash, uint8 eligibleVoterSet, uint256 payToVoteFee)'
+        ];
+
+        async function getEthersSigner() {
+            if (!window.DatachainWallet || !window.DatachainWallet.isConnected()) {
+                throw new Error('Connect a wallet first');
+            }
+            const provider = window.DatachainWallet.getEvmProvider();
+            const { address } = window.DatachainWallet.getState();
+            if (!provider || !address) {
+                throw new Error('Connect an EVM wallet (MetaMask, etc.) for on-chain governance');
+            }
+            const ethers = await ensureEthers();
+            const browserProvider = new ethers.BrowserProvider(provider);
+            const signer = await browserProvider.getSigner();
+            return { ethers, signer, address };
+        }
+
+        async function fetchGovernanceWeight(address, purpose, voteId) {
+            var url = API_BASE + '/governance/weight/' + encodeURIComponent(address) + '?purpose=' + encodeURIComponent(purpose || 'cast');
+            if (voteId != null) url += '&vote_id=' + encodeURIComponent(String(voteId));
+            const res = await fetch(url);
+            const d = await res.json();
+            if (!res.ok || !d.success) throw new Error(d.error || 'weight fetch failed');
+            return d;
+        }
+
+        async function refreshVotingWeight() {
+            const strip = document.getElementById('votingWeightStrip');
+            const totalEl = document.getElementById('votingWeightTotal');
+            const breakdownEl = document.getElementById('votingWeightBreakdown');
+            if (!strip || !totalEl || !breakdownEl) return;
+            if (!window.DatachainWallet || !window.DatachainWallet.isConnected()) {
+                strip.style.display = 'none';
+                totalEl.textContent = 'Connect a wallet to see cross-chain weight.';
+                breakdownEl.innerHTML = '';
+                return;
+            }
+            const st = window.DatachainWallet.getState();
+            if (!st || !st.address) {
+                strip.style.display = 'none';
+                return;
+            }
+            try {
+                const d = await fetchGovernanceWeight(st.address, 'create');
+                strip.style.display = 'flex';
+                const human = d.weight_dc_equivalent != null ? d.weight_dc_equivalent : (Number(d.weight_wei || 0) / 1e18);
+                totalEl.innerHTML = '<strong>' + fmtFatShort(human) + '</strong> FAT-equivalent (cross-chain)';
+                const b = d.breakdown || {};
+                const parts = [];
+                if (b.ethereum) parts.push('<span>ETH DC <span>' + fmtFatShort(b.ethereum.balance_human || 0) + '</span></span>');
+                if (b.xdc) parts.push('<span>XDC DC <span>' + fmtFatShort(b.xdc.balance_human || 0) + '</span></span>');
+                if (b.rope) parts.push('<span>FAT <span>' + fmtFatShort(b.rope.balance_human || 0) + '</span></span>');
+                if (b.rope_wfat) parts.push('<span>WFAT <span>' + fmtFatShort(b.rope_wfat.balance_human || 0) + '</span></span>');
+                breakdownEl.innerHTML = parts.join('');
+                if (d.contract && !voteEscrowAddress) voteEscrowAddress = d.contract;
+            } catch (e) {
+                strip.style.display = 'flex';
+                totalEl.textContent = 'Could not load voting weight';
+                breakdownEl.innerHTML = '';
+            }
+        }
+
+        function dispositionLabel(raw) {
+            var d = String(raw || 'return').toLowerCase();
+            if (d === 'burn') return 'Burn';
+            if (d === 'reward') return 'Reward';
+            return 'Return';
+        }
+
+        function findProjectById(projectId) {
+            return lastProjects.find(function (p) { return (p.id || '') === projectId; }) || null;
+        }
+
+        async function parseVoteIdFromReceipt(ethers, receipt, contract) {
+            const iface = new ethers.Interface(VOTE_ESCROW_ABI);
+            for (var i = 0; i < receipt.logs.length; i++) {
+                var log = receipt.logs[i];
+                try {
+                    var parsed = iface.parseLog({ topics: log.topics.slice(), data: log.data });
+                    if (parsed && parsed.name === 'VoteCreated') return parsed.args.voteId;
+                } catch (_) { /* not our event */ }
+            }
+            var len = await contract.votesLength();
+            return len > 0n ? len - 1n : 0n;
+        }
+
+        async function linkEscrowVote(projectId, voteId, txHash) {
+            const res = await fetch(API_BASE + '/projects/' + encodeURIComponent(projectId) + '/escrow/link', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    escrow_vote_id: Number(voteId),
+                    tx_hash: txHash
+                })
+            });
+            const result = await res.json();
+            if (!res.ok || !result.success) throw new Error(result.error || 'escrow link failed');
+            return result;
+        }
+
+        async function openOnChainVote(projectId) {
+            if (!window.DatachainWallet || !window.DatachainWallet.isConnected()) {
+                if (window.DatachainWallet) window.DatachainWallet.open();
+                alert('Connect your wallet to open an on-chain VoteEscrow vote.');
+                return;
+            }
+            const project = findProjectById(projectId);
+            if (!project) {
+                alert('Project not found in the current list - refresh and try again.');
+                return;
+            }
+            const voteClass = (project.voteClass || project.vote_class || 'project').toLowerCase();
+            const disposition = (project.disposition || 'return').toLowerCase();
+            try {
+                const prepUrl = API_BASE + '/governance/escrow/prepare/create?project_id=' +
+                    encodeURIComponent(projectId) + '&vote_class=' + encodeURIComponent(voteClass) +
+                    '&disposition=' + encodeURIComponent(disposition);
+                const prepRes = await fetch(prepUrl);
+                const prep = await prepRes.json();
+                if (!prepRes.ok || !prep.success) throw new Error(prep.error || 'prepare/create failed');
+
+                const { ethers, signer, address } = await getEthersSigner();
+                const weightData = await fetchGovernanceWeight(address, 'create');
+                if (!weightData.attestation_available) {
+                    alert('On-chain vote creation needs a signed weight attestation.\n\n' +
+                        (weightData.attestation_unavailable_reason || 'Attestor not configured yet.') +
+                        '\n\nYour cross-chain balance breakdown is still shown in “Your voting power”.');
+                    return;
+                }
+
+                const contractAddr = prep.contract || voteEscrowAddress;
+                if (!contractAddr) throw new Error('VoteEscrow contract address unknown');
+                voteEscrowAddress = contractAddr;
+
+                const cp = prep.create_vote_params;
+                const params = {
+                    voteClass: Number(cp.voteClass),
+                    disposition: Number(cp.disposition),
+                    startsAt: BigInt(cp.startsAt),
+                    endsAt: BigInt(cp.endsAt),
+                    minWeightToVote: BigInt(cp.minWeightToVote),
+                    quorumWeight: BigInt(cp.quorumWeight),
+                    approvalThresholdBps: Number(cp.approvalThresholdBps),
+                    rewardPoolFunder: cp.rewardPoolFunder,
+                    metadataHash: cp.metadataHash,
+                    eligibleVoterSet: Number(cp.eligibleVoterSet || 0),
+                    payToVoteFee: BigInt(cp.payToVoteFee || '0')
+                };
+
+                var msgValue = 0n;
+                if (Number(cp.disposition) === 2) {
+                    var rewardAmt = prompt('Disposition is Reward - enter native FAT to fund the reward pool (wei, or 0 to cancel):', '0');
+                    if (rewardAmt === null) return;
+                    msgValue = BigInt(rewardAmt || '0');
+                    if (msgValue === 0n) {
+                        alert('Reward disposition requires a nonzero reward pool (msg.value).');
+                        return;
+                    }
+                }
+
+                const contract = new ethers.Contract(contractAddr, VOTE_ESCROW_ABI, signer);
+                const tx = await contract.createVote(
+                    params,
+                    BigInt(weightData.weight_wei),
+                    BigInt(weightData.expires_at),
+                    weightData.attestation,
+                    { value: msgValue }
+                );
+                const receipt = await tx.wait();
+                const voteId = await parseVoteIdFromReceipt(ethers, receipt, contract);
+                await linkEscrowVote(projectId, voteId, receipt.hash);
+
+                var juryNote = '';
+                if (Number(cp.eligibleVoterSet) === 1) {
+                    var jurors = Array.isArray(prep.jury) ? prep.jury : (Array.isArray(project.jury) ? project.jury : []);
+                    if (jurors.length) {
+                        try {
+                            const juryTx = await contract.setJury(voteId, jurors);
+                            await juryTx.wait();
+                            juryNote = '\nJury of ' + jurors.length + ' addresses set on-chain.';
+                        } catch (juryErr) {
+                            console.warn('setJury deferred:', juryErr);
+                            juryNote = '\nJury list is ready off-chain (' + jurors.length + ') - call setJury as creator/owner if this wallet is not authorised.';
+                        }
+                    } else {
+                        juryNote = '\nJuryAndPay mode: draw jury (admin) then call setJury before the window opens.';
+                    }
+                }
+
+                alert('On-chain vote #' + voteId.toString() + ' created and linked.' + juryNote +
+                    '\n\nVoters use ETH DC + XDC DC + Rope FAT + WFAT weight. Non-jurors pay the vote-right fee first.');
+                loadProjects();
+            } catch (err) {
+                console.error('openOnChainVote:', err);
+                alert('On-chain vote failed: ' + (err.message || err));
+            }
+        }
+        window.openOnChainVote = openOnChainVote;
+
+        async function recordEscrowPay(voteId, txHash, voterAddress) {
+            const res = await fetch(API_BASE + '/governance/escrow/pay', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    vote_id: Number(voteId),
+                    tx_hash: txHash,
+                    voter_address: voterAddress
+                })
+            });
+            const result = await res.json();
+            if (!res.ok || !result.success) throw new Error(result.error || 'escrow pay record failed');
+            return result;
+        }
+
+        async function ensurePayToVoteRight(ethers, signer, address, contractAddr, escrowVoteId, weightData) {
+            const elig = weightData.eligibility || {};
+            if (elig.is_juror || elig.has_paid) return weightData;
+            if ((elig.mode || '').toLowerCase().indexOf('jury') === -1 &&
+                String(weightData.attestation_unavailable_reason || '').indexOf('jury') === -1) {
+                return weightData;
+            }
+            const feeWei = BigInt(elig.pay_to_vote_fee_wei || '100000000000000000000');
+            const proceed = confirm(
+                'You are not on the 60% random jury for this cause.\n\n' +
+                'Pay the vote-right fee of ' + feeWei.toString() + ' wei native FAT to cast with your cross-chain weight?'
+            );
+            if (!proceed) throw new Error('pay-to-vote cancelled');
+            const contract = new ethers.Contract(contractAddr, VOTE_ESCROW_ABI, signer);
+            const payTx = await contract.payToVote(BigInt(escrowVoteId), { value: feeWei });
+            const payReceipt = await payTx.wait();
+            await recordEscrowPay(escrowVoteId, payReceipt.hash, address);
+            return await fetchGovernanceWeight(address, 'cast', escrowVoteId);
+        }
+
+        async function maybeCastEscrowVote(projectId, voteFor, escrowVoteId) {
+            if (escrowVoteId == null || escrowVoteId === '') return;
+            const proceed = confirm(
+                'This proposal has on-chain VoteEscrow vote #' + escrowVoteId + '.\n\n' +
+                'Submit an on-chain castVote with your cross-chain weight (ETH DC + XDC DC + FAT + WFAT)?\n\n' +
+                'Your off-chain ballot is already recorded; this step anchors weight on-chain.'
+            );
+            if (!proceed) return;
+
+            try {
+                const { ethers, signer, address } = await getEthersSigner();
+                var weightData = await fetchGovernanceWeight(address, 'cast', escrowVoteId);
+                const contractAddr = weightData.contract || voteEscrowAddress;
+                if (!contractAddr) throw new Error('VoteEscrow contract address unknown');
+                voteEscrowAddress = contractAddr;
+
+                if (!weightData.attestation_available) {
+                    weightData = await ensurePayToVoteRight(ethers, signer, address, contractAddr, escrowVoteId, weightData);
+                }
+                if (!weightData.attestation_available) {
+                    alert('On-chain cast needs a signed attestation.\n\n' +
+                        (weightData.attestation_unavailable_reason || 'Attestor unavailable.'));
+                    return;
+                }
+
+                var lockInput = prompt('Lock native FAT for this vote\'s disposition? Enter wei amount or 0:', '0');
+                if (lockInput === null) return;
+                var lockWei = BigInt(lockInput || '0');
+
+                const contract = new ethers.Contract(contractAddr, VOTE_ESCROW_ABI, signer);
+                const tx = await contract.castVote(
+                    BigInt(escrowVoteId),
+                    !!voteFor,
+                    BigInt(weightData.weight_wei),
+                    BigInt(weightData.expires_at),
+                    weightData.attestation,
+                    { value: lockWei }
+                );
+                await tx.wait();
+                alert('On-chain castVote recorded for vote #' + escrowVoteId + ' with ' +
+                    fmtFatShort(weightData.weight_dc_equivalent || 0) + ' FAT-equivalent weight.');
+            } catch (err) {
+                console.error('maybeCastEscrowVote:', err);
+                alert('On-chain cast failed: ' + (err.message || err));
+            }
+        }
+
+        function checkedValues(name) {
+            return Array.from(document.querySelectorAll('input[name="' + name + '"]:checked'))
+                .map(function (el) { return el.value; })
+                .filter(Boolean);
+        }
+
+        function readFiltersFromDom() {
+            discoverState.q = (document.getElementById('discoverSearch').value || '').trim();
+            var vcEl = document.querySelector('input[name="voteClass"]:checked');
+            discoverState.voteClass = vcEl ? (vcEl.value || '') : '';
+            discoverState.status = checkedValues('status');
+            discoverState.category = checkedValues('category');
+            discoverState.org = checkedValues('org');
+            discoverState.stage = checkedValues('stage');
+            var fund = document.querySelector('input[name="funding"]:checked');
+            discoverState.funding = fund ? fund.value : '';
+            var qu = document.querySelector('input[name="quorum"]:checked');
+            discoverState.quorum = qu ? qu.value : '';
+            discoverState.ai = !!document.getElementById('filterAiOnly').checked;
+            discoverState.includeEnded = !!document.getElementById('filterIncludeEnded').checked;
+            discoverState.sort = document.getElementById('discoverSort').value || 'newest';
+        }
+
+        function applyFiltersToDom() {
+            document.getElementById('discoverSearch').value = discoverState.q || '';
+            document.getElementById('discoverSort').value = discoverState.sort || 'newest';
+            document.getElementById('filterAiOnly').checked = !!discoverState.ai;
+            document.getElementById('filterIncludeEnded').checked = discoverState.includeEnded !== false;
+            document.querySelectorAll('input[name="status"], input[name="category"], input[name="org"], input[name="stage"]').forEach(function (el) {
+                var list = discoverState[el.name] || [];
+                el.checked = list.indexOf(el.value) !== -1;
+            });
+            document.querySelectorAll('input[name="funding"]').forEach(function (el) {
+                el.checked = (el.value || '') === (discoverState.funding || '');
+            });
+            document.querySelectorAll('input[name="quorum"]').forEach(function (el) {
+                el.checked = (el.value || '') === (discoverState.quorum || '');
+            });
+            document.querySelectorAll('#statusPills .status-pill').forEach(function (pill) {
+                pill.classList.toggle('active', pill.getAttribute('data-quick') === (discoverState.quick || 'all'));
+            });
+            document.querySelectorAll('input[name="voteClass"]').forEach(function (el) {
+                el.checked = (el.value || '') === (discoverState.voteClass || '');
+            });
+        }
+
+        function buildQueryParams() {
+            var p = new URLSearchParams();
+            p.set('limit', String(discoverState.limit));
+            p.set('page', String(discoverState.page));
+            p.set('sort', discoverState.sort || 'newest');
+            if (discoverState.q) p.set('q', discoverState.q);
+            if (discoverState.voteClass) p.set('voteClass', discoverState.voteClass);
+            if (discoverState.status.length) p.set('status', discoverState.status.join(','));
+            if (discoverState.category.length) p.set('category', discoverState.category.join(','));
+            if (discoverState.org.length) p.set('org', discoverState.org.join(','));
+            if (discoverState.stage.length) p.set('stage', discoverState.stage.join(','));
+            if (discoverState.funding) p.set('funding', discoverState.funding);
+            if (discoverState.quorum) p.set('quorum', discoverState.quorum);
+            if (discoverState.ai) p.set('ai', 'true');
+            if (!discoverState.includeEnded) p.set('includeEnded', 'false');
+            return p;
+        }
+
+        function syncUrl() {
+            var p = buildQueryParams();
+            // Keep UI-only quick pill in the URL for shareable links.
+            if (discoverState.quick && discoverState.quick !== 'all') p.set('quick', discoverState.quick);
+            var qs = p.toString();
+            var next = window.location.pathname + (qs ? ('?' + qs) : '');
+            if (next !== window.location.pathname + window.location.search) {
+                history.replaceState(null, '', next);
+            }
+        }
+
+        function parseUrlIntoState() {
+            var p = new URLSearchParams(window.location.search);
+            discoverState.q = p.get('q') || '';
+            discoverState.voteClass = p.get('voteClass') || '';
+            discoverState.sort = p.get('sort') || 'newest';
+            discoverState.status = (p.get('status') || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+            discoverState.category = (p.get('category') || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+            discoverState.org = (p.get('org') || p.get('organizationType') || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+            discoverState.stage = (p.get('stage') || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+            discoverState.funding = p.get('funding') || '';
+            discoverState.quorum = p.get('quorum') || '';
+            discoverState.ai = p.get('ai') === 'true' || p.get('ai') === '1';
+            discoverState.includeEnded = p.get('includeEnded') !== 'false';
+            discoverState.page = Math.max(1, parseInt(p.get('page') || '1', 10) || 1);
+            discoverState.quick = p.get('quick') || (discoverState.status.length ? 'custom' : 'all');
+            if (!discoverState.status.length && discoverState.quick === 'live') discoverState.status = ['voting'];
+            if (!discoverState.status.length && discoverState.quick === 'upcoming') discoverState.status = ['pending_review'];
+            if (!discoverState.status.length && discoverState.quick === 'ended') {
+                discoverState.status = ['approved', 'rejected', 'building'];
+                discoverState.includeEnded = true;
+            }
+        }
+
+        function facetCount(path) {
+            if (!discoverState.facets) return 0;
+            var parts = path.split('.');
+            var cur = discoverState.facets;
+            for (var i = 0; i < parts.length; i++) {
+                if (!cur || typeof cur !== 'object') return 0;
+                cur = cur[parts[i]];
+            }
+            return Number(cur) || 0;
+        }
+
+        function updateFacetCounts() {
+            document.querySelectorAll('[data-facet]').forEach(function (el) {
+                el.textContent = String(facetCount(el.getAttribute('data-facet')));
+            });
+            var rejectedSum = facetCount('status.rejected') + facetCount('status.rejected_by_admin')
+                + facetCount('status.rejected_no_quorum');
+            document.querySelectorAll('[data-facet="status.rejected"]').forEach(function (el) {
+                el.textContent = String(rejectedSum);
+            });
+            var ended = facetCount('status.approved') + facetCount('status.building') + rejectedSum;
+            document.querySelectorAll('[data-facet-sum="ended"]').forEach(function (el) {
+                el.textContent = String(ended);
+            });
+            var active = facetCount('status.voting');
+            var total = Number(discoverState.facets && discoverState.facets.total) || 0;
+            var setStat = function (id, val) {
+                var el = document.getElementById(id);
+                if (el) el.textContent = (val !== undefined && val !== null && val !== '') ? val : '-';
+            };
+            setStat('stat-active-proposals', active);
+            setStat('stat-total-proposals', total);
+            var totalWeight = lastProjects.reduce(function (sum, p) {
+                return sum + (Number(p.weightFor) || 0) + (Number(p.weightAgainst) || 0);
+            }, 0);
+            var totalBallots = lastProjects.reduce(function (sum, p) {
+                return sum + (Number(p.votesFor) || 0) + (Number(p.votesAgainst) || 0);
+            }, 0);
+            setStat('stat-total-votes', totalWeight > 0 ? (fmtFatShort(totalWeight) + ' FAT') : (totalBallots || '-'));
+            setStat('stat-unique-voters', totalBallots || '-');
+        }
+
+        function labelFor(kind, value) {
+            var map = {
+                status: { voting: 'Live', pending_review: 'Upcoming', approved: 'Approved', rejected: 'Rejected', building: 'Building', ended: 'Ended' },
+                category: { defi: 'DeFi', nft: 'NFT', gaming: 'Gaming', infrastructure: 'Infrastructure', marketplace: 'Marketplace', identity: 'Identity', ai_ml: 'AI/ML', dao: 'DAO', social: 'Social', other: 'Other' },
+                org: { individual: 'Individual', business: 'Business', institution: 'Institution' },
+                stage: { idea: 'Idea', prototype: 'Prototype', mvp: 'MVP', beta: 'Beta', production: 'Production' },
+                funding: { none: 'No ask', under_1k: '<1K ask', '1k_10k': '1K-10K ask', '10k_100k': '10K-100K ask', over_100k: '100K+ ask' },
+                quorum: { under_25: 'Quorum <25%', '25_50': 'Quorum 25-50%', '50_75': 'Quorum 50-75%', '75_100': 'Quorum 75-100%' },
+                voteClass: { project: 'Projects', cause: 'Causes (NGO)' }
+            };
+            return (map[kind] && map[kind][value]) || value;
+        }
+
+        function renderChips() {
+            var chips = [];
+            discoverState.status.forEach(function (v) { chips.push({ kind: 'status', value: v }); });
+            discoverState.category.forEach(function (v) { chips.push({ kind: 'category', value: v }); });
+            discoverState.org.forEach(function (v) { chips.push({ kind: 'org', value: v }); });
+            discoverState.stage.forEach(function (v) { chips.push({ kind: 'stage', value: v }); });
+            if (discoverState.funding) chips.push({ kind: 'funding', value: discoverState.funding });
+            if (discoverState.quorum) chips.push({ kind: 'quorum', value: discoverState.quorum });
+            if (discoverState.voteClass) chips.push({ kind: 'voteClass', value: discoverState.voteClass });
+            if (discoverState.ai) chips.push({ kind: 'ai', value: 'true' });
+            if (discoverState.q) chips.push({ kind: 'q', value: discoverState.q });
+            var el = document.getElementById('activeChips');
+            if (!chips.length) {
+                el.innerHTML = '';
+                return;
+            }
+            el.innerHTML = chips.map(function (c) {
+                var label = c.kind === 'q' ? ('“' + escHtml(c.value) + '”') : escHtml(labelFor(c.kind, c.value));
+                if (c.kind === 'ai') label = 'AI testimony';
+                return '<span class="filter-chip">' + label +
+                    '<button type="button" aria-label="Remove filter" data-remove-kind="' + escHtml(c.kind) +
+                    '" data-remove-value="' + escHtml(c.value) + '">&times;</button></span>';
+            }).join('') + '<button type="button" class="clear-filters" id="clearAllFilters">Clear all</button>';
+        }
+
+        function removeChip(kind, value) {
+            if (kind === 'q') discoverState.q = '';
+            else if (kind === 'ai') discoverState.ai = false;
+            else if (kind === 'funding') discoverState.funding = '';
+            else if (kind === 'quorum') discoverState.quorum = '';
+            else if (kind === 'voteClass') discoverState.voteClass = '';
+            else if (Array.isArray(discoverState[kind])) {
+                discoverState[kind] = discoverState[kind].filter(function (v) { return v !== value; });
+            }
+            discoverState.quick = 'custom';
+            discoverState.page = 1;
+            applyFiltersToDom();
+            loadProjects();
+        }
+
+        function clearAllFilters() {
+            discoverState.q = '';
+            discoverState.voteClass = '';
+            discoverState.status = [];
+            discoverState.category = [];
+            discoverState.org = [];
+            discoverState.stage = [];
+            discoverState.funding = '';
+            discoverState.quorum = '';
+            discoverState.ai = false;
+            discoverState.includeEnded = true;
+            discoverState.sort = 'newest';
+            discoverState.quick = 'all';
+            discoverState.page = 1;
+            applyFiltersToDom();
+            loadProjects();
+        }
+
+        // Fetch projects from the real, chain-anchored API with discover filters.
+        // No mock fallback: failures surface an honest empty/error state.
+        async function fetchProjects() {
+            var qs = buildQueryParams().toString();
+            const response = await fetch(API_BASE + '/projects?' + qs);
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            return response.json();
         }
 
         // Domain-separated EIP-191 vote-signing message. MUST match
@@ -632,20 +1636,20 @@
             return `DCROPE-VOTE-AUTH\nvote\n${projectId}\n${voteFor}\n${timestamp}`;
         }
 
-        // Vote on a project — real signature-verified, FAT-balance-weighted
+        // Vote on a project - real signature-verified, FAT-balance-weighted
         // ballot casting. Requires a connected EVM wallet (MetaMask, etc.);
         // the voter's LIVE native DC FAT balance on Datachain Rope becomes
         // their voting weight (checked server-side at cast time).
         async function voteOnProject(projectId, voteFor) {
             if (!window.DatachainWallet || !window.DatachainWallet.isConnected()) {
                 if (window.DatachainWallet) window.DatachainWallet.open();
-                alert('Connect your wallet first — your vote weight is your live DC FAT balance on Datachain Rope.');
+                alert('Connect your wallet first - voting weight is your cross-chain DC FAT (Ethereum + XDC + Datachain Rope).');
                 return;
             }
             const provider = window.DatachainWallet.getEvmProvider();
             const { address } = window.DatachainWallet.getState();
             if (!provider || !address) {
-                alert('Connect an EVM wallet (MetaMask, etc.) to vote — Datawallet+ email sign-in and Phantom are not supported for on-chain voting.');
+                alert('Connect an EVM wallet (MetaMask, etc.) to vote - Datawallet+ email sign-in alone is not enough for signed ballots.');
                 return;
             }
 
@@ -660,7 +1664,7 @@
                 });
             } catch (err) {
                 console.error('Vote signing rejected:', err);
-                alert('Signature request was rejected — your vote was not cast.');
+                alert('Signature request was rejected - your vote was not cast.');
                 return;
             }
 
@@ -678,136 +1682,422 @@
                 const result = await response.json();
 
                 if (response.ok && result.success) {
-                    alert(`Vote recorded! You voted ${voteFor ? 'FOR' : 'AGAINST'} this project with ${Number(result.vote.weightFat).toLocaleString(undefined, {maximumFractionDigits: 4})} FAT of weight.`);
-                    loadProjects(); // Refresh with the real, updated tally
+                    const wFat = Number(result.vote && result.vote.weightFat != null ? result.vote.weightFat : 0);
+                    const escrowId = result.escrowVoteId != null ? result.escrowVoteId :
+                        (findProjectById(projectId) && findProjectById(projectId).escrowVoteId);
+                    alert(
+                        'Off-chain ballot recorded (' + (voteFor ? 'FOR' : 'AGAINST') + ') with ' +
+                        wFat.toLocaleString(undefined, { maximumFractionDigits: 4 }) +
+                        ' FAT-equivalent cross-chain weight.\n\n' +
+                        (escrowId != null
+                            ? 'Next: confirm the on-chain VoteEscrow cast to anchor this weight on-chain.'
+                            : 'Tip: use “Open on-chain vote” on the card to link VoteEscrow when ready.')
+                    );
+                    loadProjects();
+                    if (escrowId != null) {
+                        await maybeCastEscrowVote(projectId, voteFor, escrowId);
+                    }
                 } else {
                     alert(`Vote failed: ${result.error || 'unknown error'}`);
                 }
             } catch (error) {
                 console.error('Vote error:', error);
-                alert('Vote failed — could not reach the API. Please try again.');
+                alert('Vote failed - could not reach the API. Please try again.');
             }
+        }
+
+        const CAT_ICON = {
+            defi: 'fa-chart-line', nft: 'fa-image', gaming: 'fa-gamepad',
+            infrastructure: 'fa-server', marketplace: 'fa-store', identity: 'fa-id-card',
+            ai_ml: 'fa-robot', dao: 'fa-users', social: 'fa-comments', other: 'fa-cube'
+        };
+
+        function escHtml(s) {
+            return String(s == null ? '' : s)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function fmtFatShort(n) {
+            const v = Number(n) || 0;
+            if (v >= 1e6) return (v / 1e6).toFixed(2) + 'M';
+            if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
+            return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+        }
+
+        function isRejectedStatus(s) {
+            return s === 'rejected' || s === 'rejected_by_admin' || s === 'rejected_no_quorum';
         }
 
         function generateProposalCard(p, idx) {
-            const forVotes = p.votesFor || p.vote_count_for || 0;
-            const againstVotes = p.votesAgainst || p.vote_count_against || 0;
-            const total = forVotes + againstVotes;
-            const forPct = total > 0 ? ((forVotes / total) * 100).toFixed(1) : 50;
-            const againstPct = total > 0 ? ((againstVotes / total) * 100).toFixed(1) : 50;
-            const quorum = total > 0 ? Math.min(100, Math.round((total / 1000000) * 100)) : 0;
-            
-            const type = p.organizationType || p.organization_type || 'business';
-            const typeClass = type === 'individual' ? 'type-individual' : type === 'business' ? 'type-business' : 'type-institution';
-            const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
-            
-            const daysLeft = p.votingEndsAt ? Math.max(0, Math.ceil((p.votingEndsAt - Date.now() / 1000) / 86400)) : 7;
-            const status = p.status || 'voting';
-            const statusClass = status === 'voting' ? 'status-active' : status === 'approved' ? 'status-active' : 'status-pending';
-            const statusLabel = status === 'voting' ? `${daysLeft} days left` : status;
-            
+            const wFor = Number(p.weightFor) || 0;
+            const wAgainst = Number(p.weightAgainst) || 0;
+            const totalW = wFor + wAgainst;
+            const forPct = totalW > 0 ? (wFor / totalW) * 100 : 0;
+            const againstPct = totalW > 0 ? (wAgainst / totalW) * 100 : 0;
+            const quorumNeed = Number(p.requiredQuorumFat) || 1000000;
+            const quorumPct = Math.min(100, (totalW / quorumNeed) * 100);
+
+            const status = p.status || 'pending_review';
+            const daysLeft = p.daysRemaining != null
+                ? p.daysRemaining
+                : (p.votingEndsAt ? Math.max(0, Math.ceil((p.votingEndsAt - Date.now() / 1000) / 86400)) : null);
+            let statusClass = 'status-pending';
+            let statusLabel = status.replace(/_/g, ' ');
+            if (status === 'voting') {
+                statusClass = 'status-active';
+                statusLabel = daysLeft != null ? (daysLeft + ' days to go') : 'Voting';
+            } else if (status === 'approved' || status === 'building') {
+                statusClass = 'status-active';
+                statusLabel = 'Funded / approved';
+            } else if (isRejectedStatus(status)) {
+                statusClass = 'status-rejected';
+            }
+
             const projectName = p.name || 'Unnamed Project';
-            const projectTagline = p.tagline || '';
-            const projectDesc = p.description || '';
-            const projectId = p.id || `proj-${idx}`;
-            
+            const blurb = p.tagline || p.description || '';
+            const projectId = p.id || ('proj-' + idx);
+            const creator = p.submitterName || p.organizationName || 'Anonymous';
+            const icon = CAT_ICON[p.category] || 'fa-cube';
+            const canVote = status === 'voting';
+            const fundAsk = Number(p.fundingRequested) || 0;
+            const heroUrl = p.heroImage || p.heroImageUrl || p.hero_image || '';
+            const mediaClass = heroUrl ? 'card-media has-image' : 'card-media';
+            const mediaInner = heroUrl
+                ? '<img class="card-hero-img" src="' + escHtml(heroUrl) + '" alt="" loading="lazy" decoding="async">'
+                : '<i class="fas ' + icon + '"></i>';
+
+            const voteClassRaw = (p.voteClass || p.vote_class || 'project').toLowerCase();
+            const isCause = voteClassRaw === 'cause';
+            const disposition = (p.disposition || 'return').toLowerCase();
+            const escrowId = p.escrowVoteId != null ? p.escrowVoteId : p.escrow_vote_id;
+            const escrowAddr = voteEscrowAddress || '';
+            var badgeParts = [];
+            if (isCause) {
+                badgeParts.push('<span class="badge-cause">Cause</span>');
+                badgeParts.push('<span class="badge-disposition">' + escHtml(dispositionLabel(disposition)) + '</span>');
+            }
+            if (escrowId != null && escrowAddr) {
+                badgeParts.push('<a class="badge-onchain" href="/address/' + escHtml(escrowAddr) + '" onclick="event.stopPropagation();" title="VoteEscrow on Datachain Rope">On-chain #' + escHtml(String(escrowId)) + '</a>');
+            }
+            const badgeHtml = badgeParts.length ? '<span class="card-badges">' + badgeParts.join('') + '</span>' : '';
+            const voteTitle = 'Cross-chain DC weight (ETH + XDC + Rope); on-chain VoteEscrow cast when linked';
+            const openChainBtn = (canVote && escrowId == null)
+                ? '<button type="button" class="vote-btn" onclick="event.preventDefault();openOnChainVote(\'' + escHtml(projectId) + '\')">Open on-chain vote</button>'
+                : '';
+
             return `
-                <div class="proposal-card" data-project-id="${projectId}">
-                    <div class="proposal-header">
-                        <div class="proposal-meta">
-                            <span class="proposal-type ${typeClass}"><i class="fas fa-${type === 'individual' ? 'user' : type === 'business' ? 'building' : 'university'}"></i> ${typeLabel}</span>
-                            <span style="font-size: 12px; color: var(--gray-500);">${p.category || 'Project'}</span>
-                            <div class="proposal-status">
-                                <span class="status-badge ${statusClass}">${statusLabel}</span>
-                            </div>
+                <article class="proposal-card" data-project-id="${escHtml(projectId)}" data-status="${escHtml(status)}" data-vote-class="${escHtml(voteClassRaw)}">
+                    <a href="/project/${encodeURIComponent(projectId)}" class="${mediaClass}" aria-label="Open ${escHtml(projectName)}">
+                        <span class="status-badge ${statusClass}">${escHtml(statusLabel)}</span>
+                        ${badgeHtml}
+                        ${mediaInner}
+                    </a>
+                    <div class="card-body">
+                        <h3 class="proposal-title"><a href="/project/${encodeURIComponent(projectId)}">${escHtml(projectName)}</a></h3>
+                        <p class="proposal-desc">${escHtml(blurb)}</p>
+                        <div class="card-creator">by <strong>${escHtml(creator)}</strong></div>
+                        <div class="progress-bar" title="Approval split by FAT weight">
+                            <div class="progress-fill for" style="width:${forPct.toFixed(1)}%"></div>
+                            <div class="progress-fill against" style="width:${againstPct.toFixed(1)}%"></div>
                         </div>
-                        <h3 class="proposal-title"><a href="/project/${projectId}">${projectName}${projectTagline ? ' - ' + projectTagline : ''}</a></h3>
-                        <p class="proposal-desc">${projectDesc}</p>
-                    </div>
-                    <div class="proposal-body">
-                        <div class="progress-section">
-                            <div class="progress-header">
-                                <span style="color: #ef4444;"><i class="fas fa-check"></i> For: ${forPct}%</span>
-                                <span style="color: var(--error);"><i class="fas fa-times"></i> Against: ${againstPct}%</span>
-                            </div>
-                            <div class="progress-bar" style="display: flex;">
-                                <div class="progress-fill for" style="width: ${forPct}%;"></div>
-                                <div class="progress-fill against" style="width: ${againstPct}%;"></div>
-                            </div>
+                        <div class="progress-bar" title="Quorum progress" style="height:3px;margin-top:-0.35rem;margin-bottom:0.75rem;">
+                            <div class="progress-fill quorum" style="width:${quorumPct.toFixed(1)}%"></div>
                         </div>
-                        <div class="vote-stats">
-                            <div class="vote-stat for">
-                                <div class="vote-stat-value">${(forVotes / 1000).toFixed(0)}K</div>
-                                <div class="vote-stat-label">FAT For</div>
+                        <div class="card-stats">
+                            <div>
+                                <div class="card-stat-value">${fmtFatShort(wFor)}</div>
+                                <div class="card-stat-label">FAT for</div>
                             </div>
-                            <div class="vote-stat against">
-                                <div class="vote-stat-value">${(againstVotes / 1000).toFixed(0)}K</div>
-                                <div class="vote-stat-label">FAT Against</div>
+                            <div>
+                                <div class="card-stat-value">${quorumPct.toFixed(0)}%</div>
+                                <div class="card-stat-label">of quorum</div>
                             </div>
-                            <div class="vote-stat">
-                                <div class="vote-stat-value">${quorum}%</div>
-                                <div class="vote-stat-label">Quorum</div>
+                            <div>
+                                <div class="card-stat-value">${fundAsk > 0 ? fmtFatShort(fundAsk) : '-'}</div>
+                                <div class="card-stat-label">${fundAsk > 0 ? ((p.fundingCurrency || 'FAT') + ' ask') : 'no ask'}</div>
                             </div>
                         </div>
                     </div>
-                    <div class="proposal-footer">
-                        <div class="proposer">
-                            <div class="proposer-avatar"></div>
-                            <span>Proposed by ${p.submitterName || '0x7f3a...8d2e'}</span>
-                        </div>
+                    <div class="card-footer">
+                        <span class="card-meta">${escHtml((p.category || 'project').replace(/_/g, ' '))} · ${escHtml((p.organizationType || '').replace(/_/g, ' '))}</span>
                         <div class="vote-actions">
-                            <button class="vote-btn for" onclick="voteOnProject('${projectId}', true)"><i class="fas fa-check"></i> Vote For</button>
-                            <button class="vote-btn against" onclick="voteOnProject('${projectId}', false)"><i class="fas fa-times"></i> Vote Against</button>
+                            <a class="vote-btn" href="/project/${encodeURIComponent(projectId)}">View</a>
+                            ${openChainBtn}
+                            <button class="vote-btn for" ${canVote ? '' : 'disabled'} title="${escHtml(voteTitle)}" onclick="event.preventDefault();voteOnProject('${escHtml(projectId)}', true)"><i class="fas fa-check"></i> For</button>
+                            <button class="vote-btn against" ${canVote ? '' : 'disabled'} title="${escHtml(voteTitle)}" onclick="event.preventDefault();voteOnProject('${escHtml(projectId)}', false)"><i class="fas fa-times"></i></button>
                         </div>
                     </div>
-                </div>
+                </article>
             `;
         }
-        
-        // Load and render projects
-        async function loadProjects() {
-            const projects = await fetchProjects();
-            document.getElementById('proposalsGrid').innerHTML = projects.map((p, i) => generateProposalCard(p, i)).join('');
 
-            // Compute stats from projects
-            var active = projects.filter(function(p) { return (p.status || '') === 'voting'; }).length;
-            var pending = projects.filter(function(p) { return (p.status || '') === 'pending_review'; }).length;
-            var approved = projects.filter(function(p) { return (p.status || '') === 'approved' || (p.status || '') === 'building'; }).length;
-            var rejected = projects.filter(function(p) { return (p.status || '') === 'rejected'; }).length;
-            var totalProposals = projects.length;
-            var totalVotesFAT = projects.reduce(function(sum, p) {
-                return sum + (p.votesFor || p.vote_count_for || 0) + (p.votesAgainst || p.vote_count_against || 0);
-            }, 0);
-
-            function setStat(id, val) {
-                var el = document.getElementById(id);
-                if (el) el.textContent = (val !== undefined && val !== null && val !== '') ? val : '—';
+        function renderProjectGrid(list) {
+            const grid = document.getElementById('proposalsGrid');
+            if (!list.length) {
+                grid.innerHTML =
+                    '<div class="discover-empty">' +
+                    '<i class="fas fa-compass"></i>' +
+                    '<h4>No projects match these filters</h4>' +
+                    '<p>Try clearing a filter or broadening your search.</p>' +
+                    '<button type="button" class="btn btn-primary" style="margin-top:1rem;" onclick="clearAllFilters()">Clear filters</button>' +
+                    '</div>';
+                return;
             }
-            var totalVotesStr = totalVotesFAT > 0 ? (totalVotesFAT >= 1000000 ? (totalVotesFAT / 1000000).toFixed(1) + 'M FAT' : totalVotesFAT.toLocaleString() + ' FAT') : '—';
-            setStat('stat-active-proposals', active);
-            setStat('stat-total-proposals', totalProposals);
-            setStat('stat-total-votes', totalVotesStr);
-            setStat('stat-unique-voters', '—');
-
-            // Update tab labels (no hardcoded counts)
-            var tabActive = document.getElementById('tab-active');
-            var tabPending = document.getElementById('tab-pending');
-            var tabApproved = document.getElementById('tab-approved');
-            var tabRejected = document.getElementById('tab-rejected');
-            if (tabActive) tabActive.textContent = 'Active (' + active + ')';
-            if (tabPending) tabPending.textContent = 'Pending (' + pending + ')';
-            if (tabApproved) tabApproved.textContent = 'Approved (' + approved + ')';
-            if (tabRejected) tabRejected.textContent = 'Rejected (' + rejected + ')';
+            grid.innerHTML = list.map(function (p, i) { return generateProposalCard(p, i); }).join('');
         }
-        
-        // Initialize
-        loadProjects();
 
-        document.querySelectorAll('.tab').forEach(tab => {
-            tab.addEventListener('click', function() {
-                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-                this.classList.add('active');
-            });
+        async function loadProjects() {
+            var gen = ++loadGeneration;
+            discoverState.loading = true;
+            syncUrl();
+            renderChips();
+            var countEl = document.getElementById('discoverCount');
+            countEl.innerHTML = 'Loading proposals…';
+            try {
+                const data = await fetchProjects();
+                if (gen !== loadGeneration) return;
+                lastProjects = data.projects || [];
+                discoverState.facets = data.facets || null;
+                discoverState.pagination = data.pagination || null;
+                if (data.sortOptions && data.sortOptions.length) {
+                    var sortSel = document.getElementById('discoverSort');
+                    var current = discoverState.sort;
+                    var known = {};
+                    data.sortOptions.forEach(function (o) { known[o.id] = o.label; });
+                    Array.from(sortSel.options).forEach(function (opt) {
+                        if (known[opt.value]) opt.textContent = known[opt.value];
+                    });
+                    sortSel.value = current;
+                }
+                updateFacetCounts();
+                var total = (discoverState.pagination && discoverState.pagination.total) || lastProjects.length;
+                var unfiltered = (discoverState.pagination && discoverState.pagination.totalUnfiltered) || total;
+                countEl.innerHTML = 'Showing <strong>' + total + '</strong> of <strong>' + unfiltered + '</strong> proposals';
+                renderProjectGrid(lastProjects);
+            } catch (error) {
+                if (gen !== loadGeneration) return;
+                console.error('Error fetching projects:', error);
+                countEl.textContent = 'Could not load proposals';
+                document.getElementById('proposalsGrid').innerHTML =
+                    '<div class="discover-empty">' +
+                    '<i class="fas fa-exclamation-triangle"></i>' +
+                    '<h4>Could not load proposals</h4>' +
+                    '<p>Please refresh in a moment - the governance API did not respond.</p></div>';
+            } finally {
+                if (gen === loadGeneration) discoverState.loading = false;
+            }
+        }
+
+        // Used by the empty-state CTA (inline onclick).
+        window.clearAllFilters = clearAllFilters;
+
+        function onFiltersChanged() {
+            readFiltersFromDom();
+            discoverState.quick = 'custom';
+            discoverState.page = 1;
+            loadProjects();
+        }
+
+        function applyQuickPill(quick) {
+            discoverState.quick = quick;
+            discoverState.page = 1;
+            if (quick === 'all') {
+                discoverState.status = [];
+                discoverState.includeEnded = true;
+            } else if (quick === 'live') {
+                discoverState.status = ['voting'];
+                discoverState.includeEnded = true;
+            } else if (quick === 'upcoming') {
+                discoverState.status = ['pending_review'];
+                discoverState.includeEnded = true;
+            } else if (quick === 'ended') {
+                discoverState.status = ['approved', 'rejected', 'building'];
+                discoverState.includeEnded = true;
+            }
+            applyFiltersToDom();
+            loadProjects();
+        }
+
+        async function refreshPoolStats() {
+            try {
+                const res = await fetch(API_BASE + '/governance/pool');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const d = await res.json();
+                const el = document.getElementById('poolMemberHint');
+                if (el) {
+                    el.textContent = 'Governance pool: ' + (d.memberCount || 0) + ' members registered · Rope ' +
+                        (d.withRopeAddress || 0) + ' · Ethereum ' + (d.withEthAddress || 0) +
+                        ' · XDC ' + (d.withXdcAddress || 0);
+                }
+            } catch (e) {
+                const el = document.getElementById('poolMemberHint');
+                if (el) el.textContent = 'Governance pool: join to register your DC wallets across Rope, Ethereum, and XDC.';
+            }
+        }
+
+        function openPoolModal() {
+            document.getElementById('poolModal').classList.add('active');
+            document.body.style.overflow = 'hidden';
+            document.getElementById('poolFormError').style.display = 'none';
+            document.getElementById('poolFormOk').style.display = 'none';
+            if (window.DatachainWallet && window.DatachainWallet.isConnected()) {
+                var st = window.DatachainWallet.getState();
+                if (st.address && !document.getElementById('poolRope').value) {
+                    document.getElementById('poolRope').value = st.address;
+                }
+            }
+        }
+        function closePoolModal() {
+            document.getElementById('poolModal').classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        function poolJoinMessage(email, rope, eth, xdc, timestamp) {
+            return 'DCROPE-GOV-POOL-JOIN\n' + email + '\n' + rope + '\n' + eth + '\n' + xdc + '\n' + timestamp;
+        }
+
+        async function submitPoolJoin() {
+            const errEl = document.getElementById('poolFormError');
+            const okEl = document.getElementById('poolFormOk');
+            errEl.style.display = 'none';
+            okEl.style.display = 'none';
+            const email = (document.getElementById('poolEmail').value || '').trim().toLowerCase();
+            const rope = (document.getElementById('poolRope').value || '').trim();
+            const eth = (document.getElementById('poolEth').value || '').trim();
+            const xdc = (document.getElementById('poolXdc').value || '').trim();
+            const signerChain = document.getElementById('poolSignerChain').value;
+            if (!email || email.indexOf('@') < 1) {
+                errEl.textContent = 'A valid email is required.';
+                errEl.style.display = 'block';
+                return;
+            }
+            if (!rope && !eth && !xdc) {
+                errEl.textContent = 'Register at least one wallet address (Rope, Ethereum, or XDC).';
+                errEl.style.display = 'block';
+                return;
+            }
+            const signAddr = signerChain === 'eth' ? eth : (signerChain === 'xdc' ? xdc : rope);
+            if (!signAddr) {
+                errEl.textContent = 'Fill in the address for the chain you selected to sign with.';
+                errEl.style.display = 'block';
+                return;
+            }
+            if (!window.DatachainWallet || !window.DatachainWallet.isConnected()) {
+                if (window.DatachainWallet) window.DatachainWallet.open();
+                errEl.textContent = 'Connect a wallet, then click Sign & Join again.';
+                errEl.style.display = 'block';
+                return;
+            }
+            const provider = window.DatachainWallet.getEvmProvider();
+            const { address } = window.DatachainWallet.getState();
+            if (!provider || !address) {
+                errEl.textContent = 'Connect an EVM wallet (MetaMask, etc.) to sign your membership.';
+                errEl.style.display = 'block';
+                return;
+            }
+            if (address.toLowerCase().replace(/^xdc/, '0x') !== signAddr.toLowerCase().replace(/^xdc/, '0x')) {
+                errEl.textContent = 'Connected wallet (' + address + ') must match the ' + signerChain + ' address you are registering.';
+                errEl.style.display = 'block';
+                return;
+            }
+            const timestamp = Math.floor(Date.now() / 1000);
+            const ropeS = rope || '-';
+            const ethS = eth || '-';
+            const xdcS = xdc || '-';
+            const message = poolJoinMessage(email, ropeS, ethS, xdcS, timestamp);
+            let signature;
+            try {
+                document.getElementById('poolSubmitBtn').disabled = true;
+                signature = await provider.request({ method: 'personal_sign', params: [message, address] });
+            } catch (e) {
+                document.getElementById('poolSubmitBtn').disabled = false;
+                errEl.textContent = 'Signature rejected - membership not registered.';
+                errEl.style.display = 'block';
+                return;
+            }
+            try {
+                const res = await fetch(API_BASE + '/governance/pool/join', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: email,
+                        ropeAddress: rope || null,
+                        ethAddress: eth || null,
+                        xdcAddress: xdc || null,
+                        timestamp: timestamp,
+                        signature: signature,
+                        signerChain: signerChain
+                    })
+                });
+                const result = await res.json();
+                document.getElementById('poolSubmitBtn').disabled = false;
+                if (res.ok && result.success) {
+                    okEl.textContent = 'Joined governance pool. Member id: ' + (result.member && result.member.id ? result.member.id : 'ok');
+                    okEl.style.display = 'block';
+                    refreshPoolStats();
+                    setTimeout(closePoolModal, 1200);
+                } else {
+                    errEl.textContent = result.error || 'Join failed';
+                    errEl.style.display = 'block';
+                }
+            } catch (e) {
+                document.getElementById('poolSubmitBtn').disabled = false;
+                errEl.textContent = 'Could not reach the API. Please try again.';
+                errEl.style.display = 'block';
+            }
+        }
+
+        // Initialize discover filters from URL, then load.
+        parseUrlIntoState();
+        applyFiltersToDom();
+        loadVoteEscrowInfo().then(function () { loadProjects(); });
+        refreshPoolStats();
+        refreshVotingWeight();
+
+        window.addEventListener('datachain-wallet:connected', function () {
+            refreshVotingWeight();
+        });
+        window.addEventListener('datachain-wallet:disconnected', function () {
+            refreshVotingWeight();
+        });
+        setInterval(function () {
+            if (window.DatachainWallet && window.DatachainWallet.isConnected()) refreshVotingWeight();
+        }, 45000);
+
+        document.getElementById('discoverSearch').addEventListener('input', function () {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(onFiltersChanged, 280);
+        });
+        document.getElementById('discoverSort').addEventListener('change', onFiltersChanged);
+        document.getElementById('discoverFilters').addEventListener('change', onFiltersChanged);
+        document.getElementById('submitTypeTabs').addEventListener('click', function (e) {
+            var tab = e.target.closest('.submit-type-tab');
+            if (!tab) return;
+            setSubmitType(tab.getAttribute('data-submit-type') || 'project');
+        });
+        document.getElementById('statusPills').addEventListener('click', function (e) {
+            var pill = e.target.closest('.status-pill');
+            if (!pill) return;
+            applyQuickPill(pill.getAttribute('data-quick'));
+        });
+        document.getElementById('activeChips').addEventListener('click', function (e) {
+            if (e.target.id === 'clearAllFilters') {
+                clearAllFilters();
+                return;
+            }
+            var btn = e.target.closest('[data-remove-kind]');
+            if (!btn) return;
+            removeChip(btn.getAttribute('data-remove-kind'), btn.getAttribute('data-remove-value'));
+        });
+        document.getElementById('filterMobileToggle').addEventListener('click', function () {
+            var panel = document.getElementById('discoverFilters');
+            var open = panel.classList.toggle('open');
+            this.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+
+        document.getElementById('poolModal').addEventListener('click', function (e) {
+            if (e.target === this) closePoolModal();
         });
         
         // =========================================
@@ -896,6 +2186,7 @@
             instanceConfigured = false;
             selectedInstanceSize = null;
             modalWizardState = { active: false, type: null, step: 0, config: {} };
+            setSubmitType('project');
             updateStepUI();
         }
         
@@ -905,6 +2196,7 @@
         }
         
         function updateStepUI() {
+            if (submitType === 'cause') return;
             document.querySelectorAll('.form-step').forEach((btn, idx) => {
                 btn.classList.remove('active', 'completed');
                 if (idx + 1 === currentStep) btn.classList.add('active');
@@ -1154,9 +2446,79 @@
             }
         }
         
+        function fmtWeightShort(n) {
+            var x = Number(n) || 0;
+            if (x >= 1e9) return (x / 1e9).toFixed(2) + 'B';
+            if (x >= 1e6) return (x / 1e6).toFixed(2) + 'M';
+            if (x >= 1e3) return (x / 1e3).toFixed(1) + 'K';
+            return x.toFixed(2);
+        }
+
+        async function loadInfluenceLeaderboard() {
+            var body = document.getElementById('influenceBody');
+            if (!body) return;
+            try {
+                var res = await fetch(API_BASE + '/governance/influence');
+                var j = await res.json();
+                var rows = (j && j.leaderboard) || [];
+                if (!rows.length) {
+                    body.innerHTML = '<tr><td colspan="4" style="padding:1rem;color:var(--gray-400)">No ballots yet - cast a signed vote to appear here.</td></tr>';
+                    return;
+                }
+                body.innerHTML = rows.slice(0, 20).map(function (r, i) {
+                    var addr = String(r.address || '');
+                    var short = addr.slice(0, 6) + '…' + addr.slice(-4);
+                    return '<tr style="border-bottom:1px solid var(--gray-100)">' +
+                        '<td style="padding:8px;font-family:var(--font-mono);color:var(--gray-500)">' + (i + 1) + '</td>' +
+                        '<td style="padding:8px;font-family:var(--font-mono)"><a href="/address/' + encodeURIComponent(addr) + '" style="color:var(--gray-900)">' + short + '</a></td>' +
+                        '<td style="padding:8px;font-family:var(--font-mono);font-weight:600">' + fmtWeightShort(r.totalWeight) + '</td>' +
+                        '<td style="padding:8px;font-family:var(--font-mono)">' + (r.ballots || 0) + '</td></tr>';
+                }).join('');
+            } catch (e) {
+                body.innerHTML = '<tr><td colspan="4" style="padding:1rem;color:var(--error-fg)">Could not load leaderboard.</td></tr>';
+            }
+        }
+
+        async function loadMintingProposals() {
+            var el = document.getElementById('mintingList');
+            if (!el) return;
+            try {
+                var res = await fetch(API_BASE + '/governance/minting');
+                var j = await res.json();
+                var ready = j && j.registry && j.registry.ready;
+                var rows = (j && j.proposals) || [];
+                if (!rows.length) {
+                    el.innerHTML = '<div style="color:var(--gray-500)">No CriticalProtocol minting proposals open. Registry ' +
+                        (ready ? '<span style="color:var(--success-fg)">ready</span>' : '<span style="color:var(--warning-fg)">not ready</span>') +
+                        ' (validators ' + ((j.registry && j.registry.validators) || 0) +
+                        ', foundation ' + ((j.registry && j.registry.foundationMembers) || 0) + ').</div>';
+                    return;
+                }
+                el.innerHTML = rows.map(function (p) {
+                    var pipe = p.pipeline || {};
+                    var ai = pipe.ai || {};
+                    var gov = pipe.governors || {};
+                    var found = pipe.foundation || {};
+                    return '<div style="padding:.75rem 0;border-bottom:1px solid var(--gray-100)">' +
+                        '<div style="font-weight:600;color:var(--gray-900)">' + (p.reason || p.id || 'Proposal') +
+                        ' · <span style="font-family:var(--font-mono);font-weight:500">' + (p.status || '') + '</span></div>' +
+                        '<div style="margin-top:.35rem;color:var(--gray-500);font-size:12px">AI ' +
+                        (ai.approved || 0) + '/' + (ai.required || 5) +
+                        ' · Governors ' + (gov.approved || 0) + '/' + (gov.required || 5) +
+                        ' · Foundation ' + (found.approved || 0) + '/' + (found.required || 2) +
+                        (p.escrowVoteId != null ? ' · escrow #' + p.escrowVoteId : '') +
+                        '</div></div>';
+                }).join('');
+            } catch (e) {
+                el.textContent = 'Could not load MintingGovernance proposals.';
+            }
+        }
+
         // Initialize CLI when DOM is ready
         document.addEventListener('DOMContentLoaded', function() {
             initCliInput();
+            loadInfluenceLeaderboard();
+            loadMintingProposals();
         });
         
         // Also initialize on modal open in case it's not ready yet
@@ -1166,6 +2528,115 @@
             setTimeout(initCliInput, 100);
         };
         
+        function setSubmitType(type) {
+            submitType = type === 'cause' ? 'cause' : 'project';
+            document.querySelectorAll('.submit-type-tab').forEach(function (btn) {
+                var active = btn.getAttribute('data-submit-type') === submitType;
+                btn.classList.toggle('active', active);
+                btn.setAttribute('aria-selected', active ? 'true' : 'false');
+            });
+            var stepsEl = document.getElementById('projectFormSteps');
+            var projectPanel = document.getElementById('projectSubmitPanel');
+            var causePanel = document.getElementById('causeSubmitPanel');
+            if (stepsEl) stepsEl.style.display = submitType === 'project' ? '' : 'none';
+            if (projectPanel) projectPanel.classList.toggle('hidden', submitType !== 'project');
+            if (causePanel) causePanel.classList.toggle('active', submitType === 'cause');
+            document.getElementById('prevBtn').style.display = submitType === 'cause' ? 'none' : '';
+            document.getElementById('nextBtn').style.display = submitType === 'cause' ? 'none' : '';
+            document.getElementById('causeSubmitBtn').style.display = submitType === 'cause' ? '' : 'none';
+        }
+
+        async function submitCause() {
+            const form = document.getElementById('projectForm');
+            const formData = new FormData(form);
+            const orgName = (formData.get('cause_organization_name') || '').trim();
+            const contactEmail = (formData.get('cause_contact_email') || formData.get('cause_submitter_email') || '').trim();
+            const teamLines = (formData.get('cause_team') || '').split('\n').map(function (t) { return t.trim(); }).filter(Boolean);
+            const milestoneLines = (formData.get('cause_milestones') || '').split('\n').map(function (t) { return t.trim(); }).filter(Boolean);
+            const payload = {
+                vote_class: 'cause',
+                name: (formData.get('cause_name') || '').trim(),
+                legal_entity: (formData.get('cause_legal_entity') || '').trim(),
+                mission: (formData.get('cause_mission') || '').trim(),
+                impact: (formData.get('cause_impact') || '').trim(),
+                value: (formData.get('cause_value') || '').trim(),
+                valueProposition: (formData.get('cause_value') || '').trim(),
+                description: (formData.get('cause_description') || formData.get('cause_mission') || '').trim(),
+                whyVote1: (formData.get('cause_why1') || '').trim(),
+                whyVote2: (formData.get('cause_why2') || '').trim(),
+                whyVote3: (formData.get('cause_why3') || '').trim(),
+                team: (formData.get('cause_team') || '').trim(),
+                team_members: teamLines.map(function (t) {
+                    const parts = t.split(/[---]/).map(function (p) { return p.trim(); });
+                    return { name: parts[0] || '', role: parts[1] || '', linkedinUrl: parts[2] || null };
+                }),
+                milestones: milestoneLines.map(function (t, i) {
+                    const parts = t.split(/[---]/).map(function (p) { return p.trim(); });
+                    return { title: parts[0] || ('Milestone ' + (i + 1)), description: parts[1] || t, due: parts[2] || null };
+                }),
+                contactName: (formData.get('cause_contact_name') || '').trim(),
+                contactEmail: contactEmail,
+                contactPhone: (formData.get('cause_contact_phone') || '').trim() || null,
+                socials: {
+                    website: (formData.get('cause_social_website') || '').trim() || null,
+                    twitter: (formData.get('cause_social_twitter') || '').trim() || null,
+                    linkedin: (formData.get('cause_social_linkedin') || '').trim() || null,
+                    other: (formData.get('cause_social_other') || '').trim() || null
+                },
+                organization_name: orgName || null,
+                organization_type: 'institution',
+                category: 'other',
+                stage: 'idea',
+                disposition: formData.get('cause_disposition') || 'return',
+                eligibleVoterSet: 'jury_and_pay',
+                references: (formData.get('cause_references') || '').trim() || null,
+                submitter_name: (formData.get('cause_submitter_name') || '').trim(),
+                submitter_email: (formData.get('cause_submitter_email') || '').trim(),
+                funding_requested: parseInt(formData.get('cause_funding_requested'), 10) || 0,
+                funding_currency: formData.get('cause_funding_currency') || 'FAT',
+                tech_stack: [],
+                features: [],
+                requires_ai_testimony: false
+            };
+            if (!payload.name || !payload.legal_entity || !payload.mission) {
+                alert('Cause name, legal entity, and mission are required.');
+                return;
+            }
+            if (!payload.impact || !payload.value || !payload.description) {
+                alert('Impact, value proposition, and full description are required.');
+                return;
+            }
+            if (!payload.whyVote1 || !payload.whyVote2 || !payload.whyVote3) {
+                alert('Please provide all three reasons the community should vote for this NGO.');
+                return;
+            }
+            if (!payload.team || !milestoneLines.length) {
+                alert('Team and at least one milestone are required.');
+                return;
+            }
+            if (!payload.submitter_name || !payload.submitter_email || !payload.contactEmail) {
+                alert('Nominator name/email and NGO contact email are required.');
+                return;
+            }
+            try {
+                const response = await fetch(API_BASE + '/projects', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    showSuccessMessage(payload, 'NGO nomination submitted for Foundation review → 60% jury + pay-to-vote.');
+                } else {
+                    alert('Submission failed: ' + (result.error || 'please try again.'));
+                }
+            } catch (error) {
+                console.error('Submit cause error:', error);
+                alert('Submission failed - could not reach the API. Please try again.');
+            }
+        }
+        window.submitCause = submitCause;
+
         async function submitProject() {
             const form = document.getElementById('projectForm');
             const formData = new FormData(form);
@@ -1220,11 +2691,11 @@
                 }
             } catch (error) {
                 console.error('Submit error:', error);
-                alert('❌ Submission failed — could not reach the API. Please try again in a moment.');
+                alert('❌ Submission failed - could not reach the API. Please try again in a moment.');
             }
         }
         
-        function showSuccessMessage(payload) {
+        function showSuccessMessage(payload, headline) {
             const instanceInfo = payload.instance_config ? `
                 <div style="background: #1a1a2e; border-radius: 8px; padding: 1rem; margin: 1rem 0; color: #e0e0e0; text-align: left; font-size: 13px;">
                     <div style="color: #4fc3f7; font-weight: 600; margin-bottom: 0.5rem;"><i class="fas fa-server"></i> Instance Configuration</div>
@@ -1237,8 +2708,8 @@
             document.querySelector('.modal-body').innerHTML = `
                 <div style="text-align: center; padding: 2rem;">
                     <i class="fas fa-check-circle" style="font-size: 3rem; color: #22c55e; margin-bottom: 1rem;"></i>
-                    <h3 style="margin-bottom: 0.5rem;">Project Submitted Successfully!</h3>
-                    <p style="color: var(--gray-600);">Your project "${payload.name}" has been submitted for community vote.</p>
+                    <h3 style="margin-bottom: 0.5rem;">${headline || 'Project Submitted Successfully!'}</h3>
+                    <p style="color: var(--gray-600);">"${escHtml(payload.name)}" has been submitted for community review.</p>
                     ${instanceInfo}
                     <div style="background: var(--gray-50); border-radius: 8px; padding: 1rem; margin: 1rem 0; text-align: left; font-size: 13px;">
                         <div style="font-weight: 600; margin-bottom: 0.5rem;"><i class="fas fa-info-circle"></i> What happens next?</div>
@@ -1275,8 +2746,8 @@
             });
         });
     </script>
-<script src="/js/dcscan-stats.js"></script>
-    <script src="/js/dcscan-wallet.js?v=20260707b" defer></script>
+<script src="/js/dcscan-stats.js?v="></script>
+    <script src="/js/dcscan-wallet.js?v=20260730a" defer></script>
 </body>
 </html>
 

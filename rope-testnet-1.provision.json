@@ -1,0 +1,14 @@
+{
+  "name": "rope-testnet-1",
+  "id": 596549440,
+  "region": "lon1",
+  "size": "s-2vcpu-4gb",
+  "image": "ubuntu-24-04-x64",
+  "status": "active",
+  "public_ipv4": "159.65.82.207",
+  "public_ipv6": "2a03:b0c0:1:e0:0:1:b229:c001",
+  "tags": [
+    "rope-testnet"
+  ],
+  "created_at": "2026-08-31T09:21:30Z"
+}

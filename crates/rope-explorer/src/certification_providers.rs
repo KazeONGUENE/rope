@@ -6,7 +6,7 @@
 //! on the internet could inject a fabricated "CertiK audited this
 //! contract" (or any other trusted auditor's name) certification, which
 //! would then render on the public `/address` page next to a real
-//! contract — a direct rug-pull / impersonation vector against users who
+//! contract - a direct rug-pull / impersonation vector against users who
 //! trust the certification badge.
 //!
 //! This module gives each onboarded third-party certification provider
@@ -14,7 +14,7 @@
 //! secret, so a certification can only be recorded under a given
 //! `provider_id` by the party that holds that specific provider's secret.
 //! Minting a *generic* self-service DCScan API key (`api_keys.rs`) is
-//! deliberately **not** sufficient here — that would only prove "some
+//! deliberately **not** sufficient here - that would only prove "some
 //! Datachain ID account made this call", not "the real CertiK made this
 //! call". Provider identity has to be provisioned out-of-band by the
 //! Datachain Foundation once a real due-diligence relationship exists
@@ -25,11 +25,11 @@
 //! Providers are configured via the `DCSCAN_CERTIFICATION_PROVIDERS` env
 //! var: a JSON array of `{ "provider_id": "...", "display_name": "...",
 //! "secret": "..." }` objects, loaded once at boot. Only the BLAKE3 hash
-//! of each secret is ever kept in memory or on disk — the plaintext lives
+//! of each secret is ever kept in memory or on disk - the plaintext lives
 //! only in the operator's secret manager / env file.
 //!
 //! **No-stubs guarantee:** when the env var is unset or empty (the
-//! out-of-the-box state — no auditor has been onboarded yet), the
+//! out-of-the-box state - no auditor has been onboarded yet), the
 //! registry is empty and every certification submission is honestly
 //! refused with `501 Not Implemented`, never silently accepted. This
 //! matches the "honest empty/501 over fabricated success" directive
@@ -63,10 +63,10 @@ impl CertificationProviderRegistry {
         let raw = std::env::var("DCSCAN_CERTIFICATION_PROVIDERS").unwrap_or_default();
         if raw.trim().is_empty() {
             tracing::info!(
-                "CertificationProviderRegistry: DCSCAN_CERTIFICATION_PROVIDERS not set — \
+                "CertificationProviderRegistry: DCSCAN_CERTIFICATION_PROVIDERS not set - \
                  POST /api/v1/verify/certify will fail closed (501) for every submission until \
                  at least one provider is onboarded. This is intentional (see finding C8 of \
-                 SECURITY_AUDIT_2026-07-25_FULL_WORKSPACE.md) — it replaces the previous \
+                 SECURITY_AUDIT_2026-07-25_FULL_WORKSPACE.md) - it replaces the previous \
                  behaviour of silently accepting an unauthenticated certification under any \
                  claimed provider name."
             );
@@ -80,7 +80,7 @@ impl CertificationProviderRegistry {
                 tracing::error!(
                     "CertificationProviderRegistry: DCSCAN_CERTIFICATION_PROVIDERS is set but \
                      failed to parse as a JSON array of {{provider_id,display_name,secret}} \
-                     objects ({e}) — starting with ZERO providers (fail closed, not fail open)"
+                     objects ({e}) - starting with ZERO providers (fail closed, not fail open)"
                 );
                 Vec::new()
             }
@@ -135,7 +135,7 @@ impl CertificationProviderRegistry {
     }
 }
 
-/// Constant-time byte comparison — avoids a timing side-channel on the
+/// Constant-time byte comparison - avoids a timing side-channel on the
 /// hash comparison (defense in depth; the hash itself already collapses
 /// most of the signal, but there is no reason to accept any leak).
 fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
@@ -156,7 +156,7 @@ mod tests {
 
     // Tests that mutate `DCSCAN_CERTIFICATION_PROVIDERS` must not run
     // concurrently with each other (Rust runs `#[test]` fns on multiple
-    // threads sharing one process env) — same pattern as
+    // threads sharing one process env) - same pattern as
     // `rope_auth::tests::with_env`.
     static ENV_LOCK: Mutex<()> = Mutex::new(());
 

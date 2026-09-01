@@ -18,6 +18,7 @@
 //! | `rope_eraseLedger` | `{ wallet, reason }` | `{ audit_hash, entries_erased }` |
 //! | `rope_getLedgerStatus` | `{ wallet }` | `{ descriptor }` |
 
+use crate::lattice_metrics::{instrument_head_lock, LatticeOp};
 use crate::oes_key_cache::OESKeyCache;
 use rope_core::clock::ClockManager;
 use rope_core::lattice::StringLattice;
@@ -37,6 +38,74 @@ use rope_protocols::ledger_lifecycle::{
 use rope_storage::LedgerStore;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use std::time::Duration;
+
+/// Durability policy for high-volume ledger writes (`create` / `append`).
+///
+/// Default **ack-after-enqueue** (2026-07-27 residual-5xx P1): the RPC
+/// returns as soon as the write is queued to the RocksDB flusher. The
+/// flusher fsyncs within `FLUSH_INTERVAL` (~10 ms). This removes the
+/// per-RPC `Condvar::wait_timeout` that — even behind `spawn_blocking` —
+/// saturated the blocking pool under DCSwap Quipu bursts and correlated
+/// with the ~14 min hang / watchdog SIGKILL cycle after MemoryHigh
+/// headroom was already raised.
+///
+/// Set `ROPE_SYNC_DURABILITY=1` to restore the Phase 1.6 "RPC success ⇒
+/// fsync'd" contract (bounded 5 s wait; timeout becomes a hard error).
+/// GDPR paths (`erase` / `untie`) always use sync durability regardless.
+fn parse_sync_durability(val: Option<&str>) -> bool {
+    match val {
+        Some(v) => matches!(
+            v.trim().to_ascii_lowercase().as_str(),
+            "1" | "true" | "yes" | "on"
+        ),
+        None => false,
+    }
+}
+
+fn sync_durability_enabled() -> bool {
+    parse_sync_durability(std::env::var("ROPE_SYNC_DURABILITY").ok().as_deref())
+}
+
+/// Map persistence errors to RPC-facing strings. QueueFull becomes an
+/// explicit OVERLOAD token so `rpc_server` can emit JSON-RPC `-32005`
+/// (retryable; message carries `Retry-After: 1`).
+fn persist_err(e: rope_storage::RocksError) -> String {
+    match e {
+        rope_storage::RocksError::QueueFull => {
+            "OVERLOAD: ledger write queue full; Retry-After: 1".to_string()
+        }
+        other => other.to_string(),
+    }
+}
+
+/// Optional sync wait for create/append. No-op when ack-after-enqueue.
+fn await_durable_create_append(store: &LedgerStore, op: &str) -> Result<(), String> {
+    if !sync_durability_enabled() {
+        return Ok(());
+    }
+    if store.await_all_durable(Duration::from_secs(5)) {
+        Ok(())
+    } else {
+        Err(format!(
+            "durability timeout after {op}; write may not survive restart \
+             (ROPE_SYNC_DURABILITY=1)"
+        ))
+    }
+}
+
+/// Mandatory sync wait for GDPR erase/untie — Art. 17 is only satisfied
+/// once the payload cannot survive a restart.
+fn await_durable_required(store: &LedgerStore, op: &str) -> Result<(), String> {
+    if store.await_all_durable(Duration::from_secs(5)) {
+        Ok(())
+    } else {
+        Err(format!(
+            "durability timeout after {op}; refusing to ack before fsync \
+             (GDPR / erasure path)"
+        ))
+    }
+}
 
 fn oes_proof_to_core(proof: rope_crypto::oes::OESProof) -> rope_core::string::OESProof {
     rope_core::string::OESProof {
@@ -325,6 +394,310 @@ impl LedgerManager {
         (strings_restored, tombstones_restored, ledgers_restored)
     }
 
+    /// Phase 1.6.1 (2026-08-11 P1) — metadata-only rehydration.
+    ///
+    /// Restores tombstones and ledger descriptors from disk, but
+    /// **does not** load any knot payloads (RopeString blobs) into
+    /// the lattice. Used together with
+    /// [`rope_storage::LedgerStore::open_with_recovery_lazy`] to boot
+    /// the node without paying the ~4.5 GB / ~5 min eager-rehydration
+    /// cost that crash-looped the service on 2026-08-11.
+    ///
+    /// After this call, individual knots are loaded on demand via
+    /// [`Self::ensure_string_loaded`] (typically triggered from within
+    /// the lattice `get_string` fast-path in the caller's own RPC
+    /// handlers) or by a background task spawned from
+    /// [`Self::spawn_background_rehydration`].
+    ///
+    /// Tombstones are still restored eagerly because the total set is
+    /// small (< 200 B each, ~4 today, capped at O(k) where k = untie
+    /// rate) and the lattice needs the complete tombstone set at every
+    /// read to correctly return `None` for erased knots. Ledger
+    /// descriptors are restored eagerly for the same reason: they're
+    /// small in aggregate and hot-path readers (rope_getStringStatus,
+    /// rope_globalStats) depend on them.
+    ///
+    /// Returns `(tombstones_restored, ledgers_restored)`.
+    pub fn rehydrate_metadata_only(
+        &self,
+        tombstones: Vec<([u8; 32], rope_storage::StoredTombstone)>,
+    ) -> (usize, usize) {
+        use rope_core::personal_ledger::LedgerDescriptor;
+
+        let mut tombstones_restored = 0usize;
+        for (sid, stored) in tombstones {
+            let parents = stored
+                .parents
+                .iter()
+                .map(|p| StringId::new(*p))
+                .collect::<Vec<_>>();
+            self.lattice.restore_tombstone(
+                StringId::new(sid),
+                rope_core::lattice::KnotTombstone {
+                    untied_at: stored.untied_at,
+                    audit_hash: stored.audit_hash,
+                    reason: stored.reason,
+                },
+                parents,
+            );
+            tombstones_restored += 1;
+        }
+
+        let mut ledgers_restored = 0usize;
+        for wallet in self.store.all_wallets() {
+            let Some(stored) = self.store.get_descriptor(&wallet) else {
+                continue;
+            };
+            let chain: Vec<StringId> = self
+                .store
+                .get_chain(&wallet)
+                .into_iter()
+                .map(StringId::new)
+                .collect();
+            let descriptor = LedgerDescriptor {
+                kind: rope_core::personal_ledger::StringKind::Wallet,
+                wallet_address: stored.wallet_address.clone(),
+                genesis_string_id: StringId::new(stored.genesis_string_id),
+                head_string_id: StringId::new(stored.head_string_id),
+                entry_count: stored.entry_count,
+                total_size_bytes: stored.total_size_bytes,
+                oes_generation_at_creation: stored.oes_generation_at_creation,
+                current_oes_generation: stored.current_oes_generation,
+                created_at: stored.created_at,
+                last_appended_at: stored.last_appended_at,
+                is_deleted: stored.is_deleted,
+                deleted_at: stored.deleted_at,
+                piece_count: 0,
+                replication_factor: stored.replication_factor,
+            };
+            if self.registry.restore_string_state(descriptor, &chain) {
+                ledgers_restored += 1;
+            }
+        }
+
+        tracing::info!(
+            target: "rope_node::ledger",
+            "Lazy rehydration (metadata only): {} tombstones, {} ledgers restored; \
+             knot payloads will be loaded on demand",
+            tombstones_restored,
+            ledgers_restored
+        );
+
+        (tombstones_restored, ledgers_restored)
+    }
+
+    /// Phase 1.6.1 (2026-08-11 P1) — ensure a single knot's payload is
+    /// present in the lattice, loading it from disk on cache miss.
+    ///
+    /// Returns `true` if the string is now present in the lattice
+    /// (either it was already loaded, was just loaded from disk, or
+    /// its restore is otherwise unnecessary because it is tombstoned).
+    /// Returns `false` if the string is not on disk and never was
+    /// (i.e. genuinely unknown).
+    ///
+    /// This is a no-op fast-path when the string is already in the
+    /// lattice — the cost is a single dashmap read on the shard.
+    /// On cache miss it performs one RocksDB point-read + one bincode
+    /// deserialise, both O(log store) and cheap.
+    ///
+    /// Callers that iterate over many knots (e.g. `rope_walkString`)
+    /// should call this once per id before touching the lattice, so a
+    /// lazy-booted node fills its working set exactly to the query
+    /// pattern rather than eagerly loading the entire history at boot.
+    pub fn ensure_string_loaded(&self, id: &StringId) -> bool {
+        // Fast path: already in the lattice (this includes the
+        // tombstoned case, because `get_string` returns None for
+        // erased knots but the shard still holds the tombstone entry
+        // — we treat both "present + live" and "present + tombstoned"
+        // as no-op success).
+        if self.lattice.get_string(id).is_some() {
+            return true;
+        }
+        // The lattice can also legitimately hold nothing for this id
+        // even though it's a live knot — that's the lazy case. Fall
+        // through to a disk read.
+        let sid_bytes = *id.as_bytes();
+        match self.store.read_string_blob(&sid_bytes) {
+            Ok(Some(blob)) => match bincode::deserialize::<rope_core::string::RopeString>(&blob) {
+                Ok(string) => {
+                    let restored_id = self.lattice.restore_string(string);
+                    if restored_id.as_bytes() != &sid_bytes {
+                        tracing::error!(
+                            target: "rope_node::ledger",
+                            "ensure_string_loaded: restored id mismatch \
+                             (key={}, recomputed={}) — investigate the ledger DB",
+                            hex::encode(sid_bytes),
+                            restored_id.to_hex()
+                        );
+                        return false;
+                    }
+                    true
+                }
+                Err(e) => {
+                    tracing::error!(
+                        target: "rope_node::ledger",
+                        "ensure_string_loaded: undecodable blob {} ({}) — skipped",
+                        hex::encode(sid_bytes),
+                        e
+                    );
+                    false
+                }
+            },
+            Ok(None) => false, // Not on disk — genuinely unknown.
+            Err(e) => {
+                tracing::warn!(
+                    target: "rope_node::ledger",
+                    "ensure_string_loaded: disk read failed for {} ({}); \
+                     treating as unknown",
+                    hex::encode(sid_bytes),
+                    e
+                );
+                false
+            }
+        }
+    }
+
+    /// Phase 1.6.1 (2026-08-11 P1) — prime the in-memory lattice with
+    /// every knot on `wallet`'s chain from persistent storage.
+    ///
+    /// Under lazy rehydration, `LedgerManager` boots with metadata only
+    /// — no knot payloads are in the lattice. The lattice walkers
+    /// (`walk_ledger_chain`, `walk_string_with_tombstones`) depend on
+    /// `shard.strings.get(&id)` returning the live `RopeString`, so a
+    /// naive walk against an unloaded chain terminates at the first
+    /// missing knot. This helper reads the wallet's persistent chain
+    /// mirror (which is authoritative and cheap: just a `Vec<[u8;32]>`
+    /// per wallet) and calls `ensure_string_loaded` for every id so a
+    /// subsequent walk sees the whole thing.
+    ///
+    /// Cost: one RocksDB point-read per knot on the chain. For a
+    /// 100-knot personal ledger this is ~100 × ~50 µs ≈ 5 ms and is
+    /// entirely acceptable for a rope_repatriateLedger / erase_ledger
+    /// call. For a 100k-knot ledger it's 5 s, which is orders of
+    /// magnitude cheaper than paying for all 100k knots at every node
+    /// boot (which is what the eager path did).
+    ///
+    /// Returns the number of knot payloads that had to be loaded from
+    /// disk (i.e. were not already in the lattice).
+    pub fn prime_wallet_chain(&self, wallet_bytes: &[u8]) -> usize {
+        let mut loaded = 0usize;
+        for sid_bytes in self.store.get_chain(wallet_bytes) {
+            let id = StringId::new(sid_bytes);
+            if self.lattice.get_string(&id).is_none() {
+                if self.ensure_string_loaded(&id) {
+                    loaded += 1;
+                }
+            }
+        }
+        if loaded > 0 {
+            tracing::debug!(
+                target: "rope_node::ledger",
+                "prime_wallet_chain: hydrated {} knot(s) on demand",
+                loaded
+            );
+        }
+        loaded
+    }
+
+    /// Phase 1.6.1 (2026-08-11 P1) — background rehydration pass.
+    ///
+    /// Streams every persisted knot payload from disk in fixed-size
+    /// batches, restoring each batch into the lattice. Sleeps
+    /// `sleep_between_batches` between batches so RSS growth is
+    /// spread over time and does not spike past the systemd cgroup
+    /// ceiling.
+    ///
+    /// **This method is synchronous — it blocks the calling thread
+    /// until every persisted knot has been streamed.** The RPC
+    /// listener has typically already bound to `:8545` before this
+    /// runs, so external callers see a working node throughout.
+    /// Callers that want fire-and-forget behaviour should wrap this
+    /// in `tokio::task::spawn_blocking`.
+    ///
+    /// Returns the number of knots restored (including any that were
+    /// already present from prior `ensure_string_loaded` calls — the
+    /// lattice's `restore_string` is idempotent, so racing with
+    /// on-demand loads is safe and returns the same total).
+    ///
+    /// Logs progress at INFO every batch so operators watching
+    /// `journalctl -u datachain-rope -f` can see the pass advance.
+    pub fn rehydrate_strings_in_background(
+        &self,
+        batch_size: usize,
+        sleep_between_batches: Duration,
+    ) -> Result<usize, String> {
+        let batch_size = batch_size.max(1);
+        let mut batch_index = 0usize;
+        let mut total_restored = 0usize;
+        let mut total_mismatched = 0usize;
+        let start = std::time::Instant::now();
+
+        tracing::info!(
+            target: "rope_node::ledger",
+            "Background rehydration starting: batch_size={}, sleep_between_batches={}ms",
+            batch_size,
+            sleep_between_batches.as_millis()
+        );
+
+        let streamed = self
+            .store
+            .stream_string_blobs(batch_size, sleep_between_batches, |batch| {
+                batch_index += 1;
+                let batch_len = batch.len();
+                for (sid, blob) in batch {
+                    match bincode::deserialize::<rope_core::string::RopeString>(&blob) {
+                        Ok(string) => {
+                            let restored_id = self.lattice.restore_string(string);
+                            if restored_id.as_bytes() != &sid {
+                                total_mismatched += 1;
+                                tracing::error!(
+                                    target: "rope_node::ledger",
+                                    "background rehydrate: restored id mismatch \
+                                     (key={}, recomputed={})",
+                                    hex::encode(sid),
+                                    restored_id.to_hex()
+                                );
+                            } else {
+                                total_restored += 1;
+                            }
+                        }
+                        Err(e) => {
+                            total_mismatched += 1;
+                            tracing::error!(
+                                target: "rope_node::ledger",
+                                "background rehydrate: undecodable blob {} ({}) — skipped",
+                                hex::encode(sid),
+                                e
+                            );
+                        }
+                    }
+                }
+                tracing::info!(
+                    target: "rope_node::ledger",
+                    "Background rehydration: batch #{} ({} knots), \
+                     cumulative restored={}, mismatched={}, elapsed={}s",
+                    batch_index,
+                    batch_len,
+                    total_restored,
+                    total_mismatched,
+                    start.elapsed().as_secs()
+                );
+                Ok(())
+            })
+            .map_err(|e| format!("stream_string_blobs failed: {}", e))?;
+
+        tracing::info!(
+            target: "rope_node::ledger",
+            "Background rehydration complete: {} knots streamed, {} restored, \
+             {} mismatched, elapsed={}s",
+            streamed,
+            total_restored,
+            total_mismatched,
+            start.elapsed().as_secs()
+        );
+        Ok(total_restored)
+    }
+
     /// Create a new personal ledger for a wallet.
     ///
     /// 1. Derive OES ledger key for this wallet
@@ -341,8 +714,12 @@ impl LedgerManager {
         // Without this, a concurrent append could observe a partially-
         // initialised registry state. The lock is interned per-wallet so
         // distinct wallets still create in parallel.
+        //
+        // P1 lattice-metrics (§17.5 #1): wrap the acquisition so wait +
+        // hold nanoseconds land in the head_guard_* histograms and the
+        // create_ledger per-op counters. Metrics are recorded on Drop.
         let head_lock = self.registry.wallet_head_lock(&wallet_bytes);
-        let _head_guard = head_lock.lock();
+        let head_guard = instrument_head_lock(&head_lock, LatticeOp::CreateLedger);
 
         if self.registry.get_descriptor(&wallet_bytes).is_some() {
             return Err(format!("Ledger already exists for wallet {}", wallet_hex));
@@ -374,7 +751,9 @@ impl LedgerManager {
             .lattice
             .add_string(genesis_string)
             .map_err(|e| e.to_string())?;
-        self.store.put_string_blob(*genesis_id.as_bytes(), genesis_blob);
+        self.store
+            .put_string_blob(*genesis_id.as_bytes(), genesis_blob)
+            .map_err(persist_err)?;
 
         let desc = self
             .registry
@@ -382,7 +761,8 @@ impl LedgerManager {
             .map_err(|e| e.to_string())?;
 
         self.store
-            .append_to_chain(&wallet_bytes, *genesis_id.as_bytes());
+            .append_to_chain(&wallet_bytes, *genesis_id.as_bytes())
+            .map_err(persist_err)?;
         let stored_desc = rope_storage::ledger_db::StoredLedgerDescriptor {
             wallet_address: wallet_bytes.clone(),
             genesis_string_id: *genesis_id.as_bytes(),
@@ -397,16 +777,20 @@ impl LedgerManager {
             deleted_at: None,
             replication_factor: replication,
         };
-        self.store.put_descriptor(&wallet_bytes, stored_desc);
+        self.store
+            .put_descriptor(&wallet_bytes, stored_desc)
+            .map_err(persist_err)?;
 
         self.lifecycle
             .record_creation(wallet_bytes, *genesis_id.as_bytes(), generation);
 
-        // Phase 1.6 — the RPC success reply implies the ledger exists
-        // across restarts. Block (bounded) until the creation batch is
-        // fsync'd. No-op in in-memory mode.
-        self.store
-            .await_all_durable(std::time::Duration::from_secs(5));
+        // 2026-07-27 P1.2: never wait on Condvar / fsync while holding
+        // the per-wallet head lock (stalls every concurrent append).
+        drop(head_guard);
+
+        // Phase 1.6 + 2026-07-27 P1: default ack-after-enqueue. Opt into
+        // the original "RPC ⇒ fsync'd" contract with ROPE_SYNC_DURABILITY=1.
+        await_durable_create_append(&self.store, "create_ledger")?;
 
         tracing::info!(
             "Created personal ledger for wallet {} — genesis {}",
@@ -440,6 +824,42 @@ impl LedgerManager {
         let wallet = WalletAddress::from_hex(wallet_hex).map_err(|e| e.to_string())?;
         let wallet_bytes = wallet.as_bytes().to_vec();
 
+        // Phase 1.6.γ (2026-08-12 wedge remediation) — pre-compute the
+        // work that does NOT depend on the wallet's head_id BEFORE we
+        // take the per-wallet head lock. This shrinks the critical
+        // section width so a slow OES cache-miss on one wallet no
+        // longer stalls same-wallet appends (and, in combination with
+        // per-wallet locks, still lets appends to different wallets
+        // execute their pre-work in parallel).
+        //
+        // Two things are safe to pre-compute:
+        //
+        //   1. `plaintext = serde_json::to_vec(interaction)` — a pure
+        //      function of the caller-supplied `interaction`. No shared
+        //      state involved.
+        //
+        //   2. `key = key_cache.get_or_derive_for_oes(wallet, gen, oes)`
+        //      — a pure function of `(wallet, generation)`. The OES
+        //      generation is a globally-monotonic counter; we snapshot
+        //      it here and re-read it under the lock. Cache hit is
+        //      essentially free; cache miss pays the 30-50µs BLAKE3
+        //      work OUTSIDE the lock. The cache is thread-safe
+        //      (`parking_lot::RwLock<HashMap<...>>`), so concurrent
+        //      derivations for the same (wallet, gen) are correct.
+        //
+        // Correctness under generation rotation: the OES `generation()`
+        // read below is best-effort. If a rotation happens between
+        // this snapshot and the head_guard acquisition, we detect the
+        // drift under the lock and re-derive. Rotation is rare
+        // (every ~100 anchors, several minutes), so the fast path is
+        // taken essentially always.
+        let plaintext =
+            serde_json::to_vec(&interaction).map_err(|e| format!("Serialization: {}", e))?;
+        let snapshot_generation = self.oes.generation();
+        let pre_derived_key =
+            self.key_cache
+                .get_or_derive_for_oes(&wallet, snapshot_generation, &self.oes);
+
         // Quipu Canon v2.0 Phase 1.2: per-wallet head lock.
         //
         // The read-build-insert-update sequence below is non-atomic: we
@@ -454,8 +874,13 @@ impl LedgerManager {
         // The lock is interned per-wallet by `StringRegistry`, so
         // appends to DIFFERENT wallets do not contend. See
         // `EntityHeadLocks` in `rope-core::personal_ledger`.
+        //
+        // P1 lattice-metrics (§17.5 #1): the append_to_ledger op is the
+        // primary contention target under the §17 wedge. Instrumented so
+        // we can prove whether Phase C removed the contention or just
+        // moved it (per-op mean_wait_ns comparison across deploys).
         let head_lock = self.registry.wallet_head_lock(&wallet_bytes);
-        let _head_guard = head_lock.lock();
+        let head_guard = instrument_head_lock(&head_lock, LatticeOp::AppendToLedger);
 
         let desc = self
             .registry
@@ -470,16 +895,90 @@ impl LedgerManager {
         let generation = self.oes.generation();
         let sequence_number = desc.entry_count;
 
-        let plaintext =
-            serde_json::to_vec(&interaction).map_err(|e| format!("Serialization: {}", e))?;
+        // Phase 1.6.δ (2026-08-24 lazy-append fix) — under
+        // ROPE_LAZY_REHYDRATE=1 the head knot is registry-metadata-only
+        // and is NOT in the in-memory lattice. `add_string` below
+        // verifies that every declared parent is present in the lattice;
+        // if the head is only on disk it returns `MissingParent(head_id)`
+        // and the whole append fails.
+        //
+        // Every OTHER path that touches the lattice for a wallet's chain
+        // (`walk_ledger_chain`, `repatriate_ledger`, `erase_ledger`,
+        // `walk_string_with_tombstones`) calls `prime_wallet_chain`
+        // before doing lattice work. `append_to_ledger` was the sole
+        // path that skipped it — so the first append after a lazy-boot
+        // on any wallet whose head had not yet been touched by an
+        // unrelated read failed with a spurious "Missing parent string"
+        // error. In production this manifested on the system ledgers
+        // (`d001` node-requests, `d002` governance, `d003` databox,
+        // `d004` revenue-conversion, `d005` admin-tokens) after the
+        // 2026-08-24 new-BLUE cutover, where dc-explorer's governance
+        // and revenue-conversion append paths failed until each ledger
+        // was primed via `rope_repatriatePersonalLedger`.
+        //
+        // Fix: prime the head knot (depth-1, O(1) lattice check + at
+        // most one RocksDB point-read on cache-miss) before we hand a
+        // new knot to the lattice. This is the smallest-possible
+        // priming that preserves `add_string`'s parent invariant —
+        // deeper ancestors are irrelevant because `add_string` only
+        // verifies immediate parents (see `lattice::add_string` step
+        // 1+2). We deliberately do NOT call `prime_wallet_chain` here
+        // because that walks the full chain and pays ~50 µs × N knots
+        // per append — on the oracle-agent (C002, 84k knots) that
+        // would be ~4 s of RocksDB reads on the hot append path. Full
+        // chain priming belongs on the walker RPCs
+        // (`rope_repatriatePersonalLedger`, `rope_walkString`), not
+        // here.
+        //
+        // Safe on the genesis sentinel (`[0u8; 32]`):
+        // `ensure_string_loaded` returns `false` (not on disk, never
+        // was) and `add_string` skips the all-zero parent explicitly
+        // (see step 1+2 of `lattice::add_string`), so we never fail
+        // on the very first append after `create_personal_ledger`.
+        //
+        // Runs inside the wallet head lock (`head_guard`), which is
+        // deliberate: it serialises priming with the append itself so
+        // a concurrent same-wallet append cannot start reading a
+        // half-primed lattice. The extra latency inside the critical
+        // section is one dashmap probe (fast path) or one RocksDB
+        // point-read (~50 µs on cold cache) — negligible against the
+        // encryption + serialisation work already inside the lock.
+        //
+        // Fallback on disk failure: `ensure_string_loaded` returns
+        // `false` and logs a warning, then we fall through to
+        // `add_string` which surfaces the authentic
+        // `MissingParent(head_id)` error to the caller. The caller
+        // can then use `rope_repatriatePersonalLedger` to prime the
+        // full chain and retry — matching the operational unblock
+        // already validated in production 2026-08-24.
+        if !head_id.as_bytes().iter().all(|&b| b == 0)
+            && !self.ensure_string_loaded(&head_id)
+        {
+            tracing::warn!(
+                target: "rope_node::ledger",
+                "append_to_ledger: head {} for wallet {} is neither in \
+                 the lattice nor on disk; add_string will surface \
+                 MissingParent — caller must prime via \
+                 rope_repatriatePersonalLedger and retry",
+                head_id,
+                wallet_hex
+            );
+        }
 
-        // Quipu Canon v2.0 Phase 1.4 — OES key derivation is memoised
-        // per `(wallet, generation)`. First call per generation pays the
-        // ~30–50µs OES BLAKE3-iterated work; subsequent appends within
-        // the same generation pay an Arc clone.
-        let key = self
-            .key_cache
-            .get_or_derive_for_oes(&wallet, generation, &self.oes);
+        // Phase 1.6.γ — reuse the pre-derived key from outside the lock
+        // when generation is stable (99%+ of the time). Fall back to
+        // an inside-lock derivation if OES rotated during the window
+        // between snapshot and lock acquisition — still cheap because
+        // the cache is a `RwLock<HashMap>` read, but the derive itself
+        // now happens inside the lock. Correctness is unchanged: the
+        // key is a pure function of (wallet, generation), and we always
+        // encrypt with the current generation.
+        let key = if generation == snapshot_generation {
+            pre_derived_key
+        } else {
+            self.key_cache
+                .get_or_derive_for_oes(&wallet, generation, &self.oes)
+        };
 
         let encrypted =
             encrypt_ledger_content(&key, &plaintext, &wallet, generation, sequence_number)
@@ -514,7 +1013,9 @@ impl LedgerManager {
             .lattice
             .add_string(new_string)
             .map_err(|e| e.to_string())?;
-        self.store.put_string_blob(*new_id.as_bytes(), knot_blob);
+        self.store
+            .put_string_blob(*new_id.as_bytes(), knot_blob)
+            .map_err(persist_err)?;
 
         let slicing = slice_encrypted_content(&envelope_bytes, self.config.piece_size);
         let piece_count = slicing.pieces.len() as u32;
@@ -523,7 +1024,8 @@ impl LedgerManager {
             .record_append(&wallet_bytes, new_id, encrypted_size, generation)
             .map_err(|e| e.to_string())?;
         self.store
-            .append_to_chain(&wallet_bytes, *new_id.as_bytes());
+            .append_to_chain(&wallet_bytes, *new_id.as_bytes())
+            .map_err(persist_err)?;
         // Phase 1.6 — keep the persisted descriptor in lockstep with the
         // registry so recovery restores accurate head/entry-count/
         // last-appended values, not the creation-time snapshot.
@@ -533,7 +1035,9 @@ impl LedgerManager {
             stored.total_size_bytes += encrypted_size;
             stored.current_oes_generation = generation;
             stored.last_appended_at = chrono::Utc::now().timestamp();
-            self.store.put_descriptor(&wallet_bytes, stored);
+            self.store
+                .put_descriptor(&wallet_bytes, stored)
+                .map_err(persist_err)?;
         }
 
         self.lifecycle.record_append(
@@ -544,10 +1048,13 @@ impl LedgerManager {
             piece_count,
         );
 
-        // Phase 1.6 — the RPC success reply implies the knot survives a
-        // restart. Bounded durability wait; no-op in in-memory mode.
-        self.store
-            .await_all_durable(std::time::Duration::from_secs(5));
+        // 2026-07-27 P1.2: release head lock before any durability wait.
+        drop(head_guard);
+
+        // Phase 1.6 + 2026-07-27 P1: default ack-after-enqueue (see
+        // `sync_durability_enabled`). High-volume Quipu appends must not
+        // park a blocking thread on every fsync.
+        await_durable_create_append(&self.store, "append_to_ledger")?;
 
         tracing::debug!(
             "Appended to ledger {} — entry {} ({} pieces, {} bytes encrypted)",
@@ -756,12 +1263,16 @@ impl LedgerManager {
         let wallet_bytes = wallet.as_bytes().to_vec();
 
         // Quipu Canon v2.0 Phase 1.2: hold the per-wallet head lock
-        // across the full erase sequence. Without it a concurrent append
-        // could land a new knot on the chain AFTER `walk_ledger_chain`
-        // has snapshotted the entry list, leaving a dangling unrecorded
-        // knot. The lock is released only when this function returns.
+        // across mutation + enqueue so a concurrent append cannot land
+        // after `walk_ledger_chain` and before `mark_deleted`. Released
+        // before the durability Condvar wait (2026-07-27 P1.2).
+        //
+        // P1 lattice-metrics (§17.5 #1): GDPR paths generally hold the
+        // lock much longer than append (chain walk + N delete_string_blob
+        // enqueues); instrumented so a spike in erase_ledger hold time
+        // does not get misdiagnosed as an append-side regression.
         let head_lock = self.registry.wallet_head_lock(&wallet_bytes);
-        let _head_guard = head_lock.lock();
+        let head_guard = instrument_head_lock(&head_lock, LatticeOp::EraseLedger);
 
         let desc = self
             .registry
@@ -771,6 +1282,11 @@ impl LedgerManager {
         if desc.is_deleted {
             return Err(format!("Ledger already deleted for {}", wallet_hex));
         }
+
+        // Phase 1.6.1: under lazy rehydration the chain knots may not
+        // be in the lattice yet — prime them from disk so the walk
+        // below sees the whole ledger.
+        self.prime_wallet_chain(&wallet_bytes);
 
         let chain = self.lattice.walk_ledger_chain(&desc.head_string_id);
 
@@ -789,18 +1305,23 @@ impl LedgerManager {
                 // Phase 1.6 — cryptographic erasure must reach disk too:
                 // delete the persisted knot payload so it cannot be
                 // resurrected by a restart.
-                self.store.delete_string_blob(*id.as_bytes());
+                self.store
+                    .delete_string_blob(*id.as_bytes())
+                    .map_err(persist_err)?;
             }
         }
 
         self.registry
             .mark_deleted(&wallet_bytes)
             .map_err(|e| e.to_string())?;
-        self.store.mark_deleted(&wallet_bytes);
+        self.store.mark_deleted(&wallet_bytes).map_err(persist_err)?;
+        // Enqueues above ran under the head lock (after any prior append
+        // enqueue for this wallet). Safe to release before fsync wait.
+        drop(head_guard);
         // Phase 1.6 — GDPR erasure is only real once the blob deletions
-        // are fsync'd. Bounded wait; no-op in in-memory mode.
-        self.store
-            .await_all_durable(std::time::Duration::from_secs(5));
+        // are fsync'd. Always sync; timeout is a hard error (never
+        // ack-after-enqueue on this path).
+        await_durable_required(&self.store, "erase_ledger")?;
 
         // Quipu Canon v2.0 Phase 1.4 — drop every cached OES key for
         // this wallet. The Arc<LedgerKey> values zeroize on drop, so
@@ -871,8 +1392,12 @@ impl LedgerManager {
         // `walk_string_with_tombstones`) intentionally skip this lock —
         // a slightly stale snapshot is acceptable for audit views and
         // keeps read scalability high.
+        //
+        // P1 lattice-metrics (§17.5 #1): untie is rare but very expensive
+        // when it hits (chain walk + blob delete + tombstone put + fsync).
+        // Instrumented so ad-hoc untie storms are attributable.
         let head_lock = self.registry.wallet_head_lock(&wallet_bytes);
-        let _head_guard = head_lock.lock();
+        let head_guard = instrument_head_lock(&head_lock, LatticeOp::UntieKnot);
 
         let desc = self
             .registry
@@ -934,20 +1459,26 @@ impl LedgerManager {
             .map_err(|e| format!("mark_knot_untied failed: {}", e))?;
 
         // Phase 1.6 — mirror the erasure + tombstone to disk in the same
-        // flush wave, then block (bounded) until fsync'd. GDPR Art. 17
-        // is only satisfied once the payload cannot survive a restart.
-        self.store.delete_string_blob(*knot_id.as_bytes());
-        self.store.put_tombstone(
-            *knot_id.as_bytes(),
-            rope_storage::StoredTombstone {
-                untied_at: tombstone.untied_at,
-                audit_hash: tombstone.audit_hash,
-                reason: tombstone.reason.clone(),
-                parents: knot_parents,
-            },
-        );
+        // flush wave, then block until fsync'd. GDPR Art. 17 is only
+        // satisfied once the payload cannot survive a restart — always
+        // sync; timeout is a hard error.
         self.store
-            .await_all_durable(std::time::Duration::from_secs(5));
+            .delete_string_blob(*knot_id.as_bytes())
+            .map_err(persist_err)?;
+        self.store
+            .put_tombstone(
+                *knot_id.as_bytes(),
+                rope_storage::StoredTombstone {
+                    untied_at: tombstone.untied_at,
+                    audit_hash: tombstone.audit_hash,
+                    reason: tombstone.reason.clone(),
+                    parents: knot_parents,
+                },
+            )
+            .map_err(persist_err)?;
+        // Enqueues done under head lock; release before Condvar wait.
+        drop(head_guard);
+        await_durable_required(&self.store, "untie_knot")?;
 
         // Recompute counts after the untying for the response.
         let entries_after = self
@@ -994,6 +1525,9 @@ impl LedgerManager {
             .get_descriptor(&wallet_bytes)
             .ok_or_else(|| format!("No ledger for wallet {}", wallet_hex))?;
 
+        // Phase 1.6.1: prime chain from disk for lazy-boot correctness.
+        self.prime_wallet_chain(&wallet_bytes);
+
         let entries = self
             .lattice
             .walk_string_with_tombstones(&desc.head_string_id);
@@ -1024,6 +1558,9 @@ impl LedgerManager {
         if desc.is_deleted {
             return Err(format!("Ledger deleted for wallet {}", wallet_hex));
         }
+
+        // Phase 1.6.1: prime chain from disk for lazy-boot correctness.
+        self.prime_wallet_chain(&wallet_bytes);
 
         let chain = self.lattice.walk_ledger_chain(&desc.head_string_id);
 
@@ -1104,6 +1641,18 @@ mod tests {
     use super::*;
     use rope_core::personal_ledger::InteractionType;
 
+    #[test]
+    fn sync_durability_env_defaults_to_ack_after_enqueue() {
+        assert!(!parse_sync_durability(None));
+        assert!(!parse_sync_durability(Some("")));
+        assert!(!parse_sync_durability(Some("0")));
+        assert!(!parse_sync_durability(Some("false")));
+        assert!(parse_sync_durability(Some("1")));
+        assert!(parse_sync_durability(Some("true")));
+        assert!(parse_sync_durability(Some("YES")));
+        assert!(parse_sync_durability(Some(" on ")));
+    }
+
     fn make_test_manager() -> LedgerManager {
         let lattice = Arc::new(StringLattice::new());
         let store = Arc::new(LedgerStore::new());
@@ -1134,6 +1683,34 @@ mod tests {
             clock,
         );
         manager.rehydrate_from_disk(blobs, tombstones);
+        manager
+    }
+
+    /// Phase 1.6.1 — same as `make_persistent_manager` but opens the
+    /// store lazily and only replays tombstone/ledger metadata. Knot
+    /// payloads must be loaded on demand via `ensure_string_loaded`
+    /// or `prime_wallet_chain`.
+    fn make_lazy_persistent_manager(path: &std::path::Path) -> LedgerManager {
+        let (store, blobs, tombstones) =
+            LedgerStore::open_with_recovery_lazy(path).expect("open lazy ledger store");
+        assert!(
+            blobs.is_empty(),
+            "lazy open must NOT preload knot blobs into RAM"
+        );
+        let lattice = Arc::new(StringLattice::new());
+        let oes = Arc::new(OESManager::genesis(&[0u8; 32]));
+        let node_id = NodeId::new([1u8; 32]);
+        let creator_key = PublicKey::from_ed25519([2u8; 32]);
+        let clock = Arc::new(ClockManager::new(node_id));
+        let manager = LedgerManager::new(
+            lattice,
+            Arc::new(store),
+            oes,
+            node_id,
+            creator_key,
+            clock,
+        );
+        manager.rehydrate_metadata_only(tombstones);
         manager
     }
 
@@ -1516,5 +2093,321 @@ mod tests {
                 "erased knot payload must NOT reappear after restart"
             );
         }
+    }
+
+    /// Phase 1.6.1 (2026-08-11 P1) — end-to-end lazy-rehydration read path.
+    ///
+    /// Writes a wallet with a few knots, closes the store, reopens it
+    /// LAZILY (metadata only), and confirms that:
+    ///   1. the lattice is initially empty for that wallet's knots,
+    ///   2. calling `walk_string_with_tombstones` transparently primes
+    ///      the chain from disk and returns the full history,
+    ///   3. after the walk the lattice is populated (proving the
+    ///      on-demand load actually landed).
+    ///
+    /// This is the regression guard for the OOM crash-loop we fixed
+    /// on 2026-08-11: it proves the lazy path doesn't need the
+    /// megabytes-of-blobs eager load to answer read queries correctly.
+    #[test]
+    fn lazy_rehydrate_walk_primes_chain_on_demand() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("ledger_db");
+        let wallet_hex = "0x000000000000000000000000000000000000c010";
+
+        let mut appended_ids = Vec::new();
+        {
+            let manager = make_persistent_manager(&db_path);
+            manager.create_ledger(wallet_hex).unwrap();
+            for i in 0..5u32 {
+                let r = manager
+                    .append_to_ledger(wallet_hex, make_test_interaction(i))
+                    .unwrap();
+                appended_ids.push(r.string_id);
+            }
+            assert!(manager
+                .store
+                .await_all_durable(std::time::Duration::from_secs(10)));
+        }
+
+        // Reopen lazily — no knot blobs eagerly loaded.
+        let manager = make_lazy_persistent_manager(&db_path);
+        let wallet_bytes = WalletAddress::from_hex(wallet_hex)
+            .unwrap()
+            .as_bytes()
+            .to_vec();
+        let chain_on_disk = manager.store.get_chain(&wallet_bytes);
+        assert!(
+            !chain_on_disk.is_empty(),
+            "the on-disk chain mirror must be non-empty after restart"
+        );
+        // Every knot payload is absent from the lattice at this point.
+        for sid in &chain_on_disk {
+            assert!(
+                manager.lattice.get_string(&StringId::new(*sid)).is_none(),
+                "lazy reopen must NOT preload knot payloads"
+            );
+        }
+
+        // The read path transparently primes the chain and returns the
+        // full history (genesis + 5 appends = 6 entries).
+        let (_genesis, entries) = manager.walk_string_with_tombstones(wallet_hex).unwrap();
+        assert_eq!(entries.len(), 6, "genesis + 5 appended knots");
+        assert!(
+            entries.iter().all(|e| !e.is_tombstone()),
+            "no tombstones on a clean wallet"
+        );
+
+        // After the walk, the lattice is populated (i.e. the on-demand
+        // load actually landed).
+        for sid in &chain_on_disk {
+            assert!(
+                manager.lattice.get_string(&StringId::new(*sid)).is_some(),
+                "priming must have loaded every knot"
+            );
+        }
+
+        // And the same call is now cheap: subsequent walks hit the
+        // fast-path fully in-memory.
+        let (_, entries_again) = manager.walk_string_with_tombstones(wallet_hex).unwrap();
+        assert_eq!(entries.len(), entries_again.len());
+    }
+
+    /// Phase 1.6.1 (2026-08-11 P1) — repatriate_ledger under lazy
+    /// rehydration returns every knot's payload correctly, proving
+    /// the priming step also feeds the encrypted read path.
+    #[test]
+    fn lazy_rehydrate_repatriate_returns_full_ledger() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("ledger_db");
+        let wallet_hex = "0x000000000000000000000000000000000000c011";
+
+        {
+            let manager = make_persistent_manager(&db_path);
+            manager.create_ledger(wallet_hex).unwrap();
+            for i in 100..103u32 {
+                manager
+                    .append_to_ledger(wallet_hex, make_test_interaction(i))
+                    .unwrap();
+            }
+            assert!(manager
+                .store
+                .await_all_durable(std::time::Duration::from_secs(10)));
+        }
+
+        // Reopen lazily and repatriate — must round-trip all 4 knots
+        // (genesis + 3 appends) even though none of them were preloaded.
+        let manager = make_lazy_persistent_manager(&db_path);
+        let rep = manager.repatriate_ledger(wallet_hex, true).unwrap();
+        assert_eq!(
+            rep.entries.len(),
+            4,
+            "genesis + 3 appended knots must all repatriate under lazy mode"
+        );
+    }
+
+    /// Phase 1.6.δ (2026-08-24 lazy-append regression guard).
+    ///
+    /// Reproduces the "Missing parent string: <head_id>" bug that
+    /// blocked every append to the system ledgers (d001..d005) on
+    /// new BLUE right after the Phase 10 DNS cutover:
+    ///
+    ///   1. Write a wallet with a genesis + a few appends, close.
+    ///   2. Reopen the store LAZILY (metadata only — knot blobs are
+    ///      NOT loaded into the in-memory lattice).
+    ///   3. Attempt `append_to_ledger` on that wallet.
+    ///
+    /// With the pre-fix `append_to_ledger` (no priming), step 3 must
+    /// call `add_string(new_string)` with `parent = head_id`,
+    /// `add_string` looks up `head_id` in the (empty) lattice, and
+    /// returns `RopeError::MissingParent(head_id)` — the caller sees
+    /// "Missing parent string: <16 hex>" bubbled through
+    /// `append_to_ledger`'s `.map_err(|e| e.to_string())`.
+    ///
+    /// With the post-fix `append_to_ledger` (calls
+    /// `ensure_string_loaded(&head_id)` first), the head is primed
+    /// from disk into the lattice, `add_string` finds it, and the
+    /// append succeeds. Registry `entry_count` advances by one and
+    /// the chain in the lattice extends by one.
+    ///
+    /// The test also covers the genesis-sentinel edge case
+    /// (`head_id == [0u8; 32]` right after `create_ledger`): the
+    /// priming call must not fail spuriously because the sentinel is
+    /// never on disk and `add_string` already special-cases it.
+    #[test]
+    fn lazy_rehydrate_append_primes_head_and_succeeds() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("ledger_db");
+        let wallet_hex = "0x000000000000000000000000000000000000d001";
+
+        // Phase A — write, close.
+        {
+            let manager = make_persistent_manager(&db_path);
+            manager.create_ledger(wallet_hex).unwrap();
+            for i in 200..203u32 {
+                manager
+                    .append_to_ledger(wallet_hex, make_test_interaction(i))
+                    .unwrap();
+            }
+            assert!(manager
+                .store
+                .await_all_durable(std::time::Duration::from_secs(10)));
+        }
+
+        // Phase B — reopen LAZILY (metadata only). Prove no knots are
+        // preloaded before we attempt the append.
+        let manager = make_lazy_persistent_manager(&db_path);
+        let wallet_bytes = WalletAddress::from_hex(wallet_hex)
+            .unwrap()
+            .as_bytes()
+            .to_vec();
+        let chain_on_disk = manager.store.get_chain(&wallet_bytes);
+        assert_eq!(
+            chain_on_disk.len(),
+            4,
+            "on-disk chain must have genesis + 3 appends"
+        );
+        for sid in &chain_on_disk {
+            assert!(
+                manager.lattice.get_string(&StringId::new(*sid)).is_none(),
+                "lazy reopen must NOT preload knot payloads (regression \
+                 guard for 2026-08-11 OOM fix)"
+            );
+        }
+        let pre_desc = manager
+            .registry
+            .get_descriptor(&wallet_bytes)
+            .expect("descriptor must survive lazy reopen");
+        let pre_head = pre_desc.head_string_id;
+        let pre_count = pre_desc.entry_count;
+        assert_eq!(
+            pre_count, 4,
+            "descriptor must remember the 4 knots written before reopen"
+        );
+
+        // Phase C — attempt append_to_ledger. With the pre-fix this
+        // call fails with `Missing parent string: <16 hex of pre_head>`.
+        // With the post-fix it must succeed AND leave the head knot
+        // primed in the lattice.
+        let resp = manager
+            .append_to_ledger(wallet_hex, make_test_interaction(203))
+            .expect(
+                "append after lazy reopen MUST succeed — if you see \
+                 'Missing parent string' here, the head-priming call \
+                 in append_to_ledger was removed and the 2026-08-24 \
+                 d001..d005 governance-append bug has been reintroduced",
+            );
+
+        // Post-check: the newly-appended knot must extend the chain,
+        // and the OLD head that used to be disk-only is now in the
+        // lattice (proof that the priming step landed).
+        let post_desc = manager
+            .registry
+            .get_descriptor(&wallet_bytes)
+            .expect("descriptor must remain");
+        assert_eq!(
+            post_desc.entry_count,
+            pre_count + 1,
+            "entry_count must advance by exactly one after the append"
+        );
+        assert_ne!(
+            post_desc.head_string_id, pre_head,
+            "head must move to the newly-appended knot"
+        );
+        assert!(
+            manager.lattice.get_string(&pre_head).is_some(),
+            "the head that WAS disk-only before the append must now be \
+             in the lattice — this is the direct behavioural proof that \
+             ensure_string_loaded(&head_id) ran inside append_to_ledger"
+        );
+        // The knot we just appended must also be in the lattice.
+        let new_head_id = StringId::from_hex(&resp.string_id).unwrap();
+        assert!(
+            manager.lattice.get_string(&new_head_id).is_some(),
+            "the newly-appended knot must be in the lattice"
+        );
+
+        // Second append on the same wallet must also succeed (fast
+        // path: new head is now in the lattice from the previous
+        // append, so priming is a no-op).
+        manager
+            .append_to_ledger(wallet_hex, make_test_interaction(204))
+            .expect("second append after lazy reopen must also succeed");
+    }
+
+    /// Phase 1.6.δ first-append-after-create-then-lazy-reopen guard.
+    ///
+    /// Covers the smallest possible reproducer of the d001..d005 bug:
+    /// a wallet that has ONLY the genesis knot on disk (created by
+    /// `create_ledger` and then the store closed). Under lazy reopen
+    /// the genesis knot's payload is NOT in the lattice; the priming
+    /// step in `append_to_ledger` must load it before `add_string`
+    /// checks the parent. Without priming this first-append fails with
+    /// "Missing parent string: <genesis knot id>".
+    #[test]
+    fn lazy_rehydrate_append_on_genesis_only_wallet_succeeds() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("ledger_db");
+        let wallet_hex = "0x000000000000000000000000000000000000d0aa";
+
+        // Phase A — create the ledger (writes only the genesis knot),
+        // close before appending anything.
+        let genesis_head: StringId = {
+            let manager = make_persistent_manager(&db_path);
+            manager.create_ledger(wallet_hex).unwrap();
+            assert!(manager
+                .store
+                .await_all_durable(std::time::Duration::from_secs(10)));
+            let wallet_bytes = WalletAddress::from_hex(wallet_hex)
+                .unwrap()
+                .as_bytes()
+                .to_vec();
+            manager
+                .registry
+                .get_descriptor(&wallet_bytes)
+                .expect("descriptor")
+                .head_string_id
+        };
+
+        // Phase B — reopen lazily. head_string_id is a real 32-byte
+        // hash (the genesis knot), NOT the all-zero sentinel, and
+        // it is NOT in the lattice.
+        let manager = make_lazy_persistent_manager(&db_path);
+        assert!(
+            !genesis_head.as_bytes().iter().all(|&b| b == 0),
+            "post-create head must be a real genesis knot id, not the \
+             all-zero sentinel — the sentinel is only used internally \
+             during genesis construction, never as a persisted head"
+        );
+        assert!(
+            manager.lattice.get_string(&genesis_head).is_none(),
+            "genesis knot must be disk-only after lazy reopen"
+        );
+
+        // Phase C — first append after lazy reopen must succeed. This
+        // is the exact production reproducer that hit d001..d005 on
+        // new BLUE 2026-08-24: a wallet whose head is on disk and not
+        // in the lattice at append time.
+        manager
+            .append_to_ledger(wallet_hex, make_test_interaction(1))
+            .expect(
+                "first append after create_ledger + lazy reopen must \
+                 succeed — this is the d001..d005 production reproducer",
+            );
+
+        // After the append, the genesis knot is now in the lattice
+        // (primed) and the new knot is chained to it.
+        assert!(
+            manager.lattice.get_string(&genesis_head).is_some(),
+            "genesis knot must be primed into the lattice by the append"
+        );
+        let wallet_bytes = WalletAddress::from_hex(wallet_hex)
+            .unwrap()
+            .as_bytes()
+            .to_vec();
+        let post = manager
+            .registry
+            .get_descriptor(&wallet_bytes)
+            .expect("descriptor remains");
+        assert_eq!(post.entry_count, 2, "genesis (1) + first append (1)");
     }
 }

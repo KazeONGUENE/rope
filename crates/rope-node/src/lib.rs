@@ -18,6 +18,7 @@ pub mod entity_manifest;
 pub mod evm_backend;
 pub mod genesis;
 pub mod governance;
+pub mod lattice_metrics;
 pub mod ledger_manager;
 pub mod metrics;
 pub mod node;
@@ -25,9 +26,19 @@ pub mod oes_key_cache;
 pub mod rpc_auth;
 pub mod rpc_server;
 pub mod rpc_signature;
+pub mod self_watchdog;
 pub mod string_producer;
 pub mod dag_ledger;
 pub mod validator_keystore;
+/// Per-client-connection bridge from the rope-node WSS listener to
+/// Reth's `--ws` port so that `eth_subscribe` / `eth_unsubscribe` and
+/// the resulting `eth_subscription` push notifications work end-to-end
+/// on `wss://ws.datachain.network` / `wss://ws.rope.network`. See the
+/// module docs for the rationale (ChainList red-Score badge closure)
+/// and design (per-connection, lazy, verbatim forwarding, no id
+/// remapping).
+pub mod probe_listener;
+pub mod ws_subscription_bridge;
 
 /// Backwards-compatibility re-export for the legacy module path
 /// `rope_node::anvil_backend`. The module was renamed `evm_backend`

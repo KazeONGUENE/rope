@@ -75,6 +75,21 @@ pub struct EvmBackendConfig {
     pub health_interval: Duration,
     /// Expected chain ID (must match rope-node's chain ID)
     pub expected_chain_id: u64,
+    /// Optional WebSocket URL for Reth's `--ws` port. Used by
+    /// `ws_subscription_bridge` to open a per-client-connection upstream
+    /// session so `eth_subscribe` / `eth_unsubscribe` and the resulting
+    /// `eth_subscription` push notifications work end-to-end on the public
+    /// `wss://ws.datachain.network` and `wss://ws.rope.network` endpoints.
+    ///
+    /// Resolution order (see `node.rs::init_evm_backend`):
+    ///   1. `ROPE_RETH_WS_URL` env var
+    ///   2. This field if pre-populated by the TOML config
+    ///   3. `ws://127.0.0.1:8547` (the production Reth WS listener from
+    ///      `deploy/systemd/reth-rope.service`)
+    ///
+    /// `None` disables the bridge entirely: `eth_subscribe` then returns a
+    /// canonical JSON-RPC error rather than hanging or misreporting success.
+    pub reth_ws_url: Option<String>,
 }
 
 impl EvmBackendConfig {
@@ -85,6 +100,12 @@ impl EvmBackendConfig {
             .first()
             .map(|s| s.as_str())
             .unwrap_or("http://127.0.0.1:8595")
+    }
+
+    /// The upstream Reth WebSocket URL, if configured. See the field docs
+    /// on `reth_ws_url` for resolution order and semantics.
+    pub fn reth_ws_url(&self) -> Option<&str> {
+        self.reth_ws_url.as_deref()
     }
 }
 
@@ -97,6 +118,12 @@ impl Default for EvmBackendConfig {
             max_failures: 5,
             health_interval: Duration::from_secs(30),
             expected_chain_id: 271828,
+            // Default matches `--ws.port 8547` in
+            // `deploy/systemd/reth-rope.service`. Callers that want to
+            // disable the subscription bridge (e.g. a validator-only node
+            // with no local Reth) can set this to `None` at construction
+            // time via `node.rs::init_evm_backend`.
+            reth_ws_url: Some("ws://127.0.0.1:8547".to_string()),
         }
     }
 }
@@ -152,6 +179,16 @@ impl EvmBackend {
     pub fn active_url(&self) -> &str {
         let idx = self.active_idx.load(Ordering::Relaxed) % self.config.urls.len();
         &self.config.urls[idx]
+    }
+
+    /// The upstream Reth WebSocket URL (`ws://…:8547` by default), if the
+    /// operator has configured one. Used by `ws_subscription_bridge` when a
+    /// client sends `eth_subscribe` on the public `wss://ws.datachain.network`
+    /// / `wss://ws.rope.network` listeners. `None` means the subscription
+    /// bridge is disabled and `eth_subscribe` returns a canonical JSON-RPC
+    /// error rather than a misleading dead subscription id.
+    pub fn reth_ws_url(&self) -> Option<&str> {
+        self.config.reth_ws_url()
     }
 
     /// POST a JSON-RPC request body to the EVM backend, trying each configured

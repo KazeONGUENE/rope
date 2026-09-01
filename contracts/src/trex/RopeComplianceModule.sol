@@ -29,6 +29,39 @@ interface IIdentityRegistry {
     function identity(address _userAddress) external view returns (address);
 }
 
+/// @dev Minimal ERC-735 claim-holder interface (ONCHAINID Identity). Used to
+///      enumerate and read the accredited-investor (topic 4) claim(s) on a
+///      holder's identity for the {requireAccreditedInvestor} gate below.
+interface IClaimHolder {
+    function getClaimIdsByTopic(uint256 _topic) external view returns (bytes32[] memory);
+    function getClaim(bytes32 _claimId)
+        external
+        view
+        returns (
+            uint256 topic,
+            uint256 scheme,
+            address issuer,
+            bytes memory sig,
+            bytes memory data,
+            string memory uri
+        );
+}
+
+/// @dev Matches `IDatawalletClaimIssuer.isClaimValid` (and any ERC-735
+///      IClaimIssuer-compatible issuer) at the ABI level — Solidity encodes
+///      contract/interface-typed parameters as `address` for selector
+///      purposes, so this resolves to the same call regardless of whether
+///      the issuer's own source declares its first parameter as `address`
+///      or as an identity interface type.
+interface IAccreditationClaimIssuer {
+    function isClaimValid(
+        address _identity,
+        uint256 _claimTopic,
+        bytes memory _sig,
+        bytes memory _data
+    ) external view returns (bool valid);
+}
+
 contract RopeComplianceModule is AccessControl {
     // =========================================================================
     // Roles
@@ -69,6 +102,22 @@ contract RopeComplianceModule is AccessControl {
     /// @notice Bound compliance contract.
     address public complianceContract;
 
+    /// @notice ERC-735 claim topic for "accredited investor" — matches
+    ///         `DatawalletClaimIssuer.ACCREDITED_INVESTOR`.
+    uint256 public constant ACCREDITED_INVESTOR_TOPIC = 4;
+
+    /// @notice Trusted issuer consulted by {requireAccreditedInvestor}.
+    ///         SECURITY (2026-07-26 counter-audit fix): {canTransfer}
+    ///         previously read this flag from storage but never checked
+    ///         it against anything — flipping it via
+    ///         {setRequireAccreditedInvestor}/{updateRules} had zero
+    ///         on-chain effect. Until an admin calls
+    ///         {setAccreditationClaimIssuer}, this stays `address(0)` and
+    ///         the gate below fails CLOSED (denies every transfer) rather
+    ///         than silently passing everyone, which is what actually
+    ///         happened before this fix.
+    IAccreditationClaimIssuer public accreditationClaimIssuer;
+
     // =========================================================================
     // State — Testimony
     // =========================================================================
@@ -108,6 +157,31 @@ contract RopeComplianceModule is AccessControl {
     event CountryRestrictionUpdated(uint16 indexed country, bool restricted);
     event MaxHoldersUpdated(uint16 indexed country, uint256 max);
     event RulesUpdated(uint256 minAmount, bool accredited, uint256 lockup);
+    event AccreditationClaimIssuerUpdated(address indexed issuer);
+
+    // =========================================================================
+    // Modifiers
+    // =========================================================================
+
+    /// @notice SECURITY (2026-07-26 counter-audit fix): {canTransfer} and
+    ///         {transferred} previously had NO access control at all —
+    ///         any address could call {transferred} directly to arbitrarily
+    ///         inflate/deflate {holderCountByCountry} for any jurisdiction
+    ///         (griefing the max-holders check for everyone else), or call
+    ///         {canTransfer} directly to reset a target's
+    ///         {firstMintTimestamp} early / spam fabricated `allowed=true`
+    ///         entries into the {testimonies} audit log. Per this module's
+    ///         own docstring ("The token calls canTransfer() before every
+    ///         transfer" via the bound ModularCompliance), the only
+    ///         legitimate caller of either function is the bound
+    ///         `complianceContract` set via {bindCompliance}.
+    modifier onlyComplianceContract() {
+        require(
+            complianceContract != address(0) && msg.sender == complianceContract,
+            "caller is not the bound compliance contract"
+        );
+        _;
+    }
 
     // =========================================================================
     // Constructor
@@ -136,7 +210,7 @@ contract RopeComplianceModule is AccessControl {
         address _from,
         address _to,
         uint256 _amount
-    ) external returns (bool allowed) {
+    ) external onlyComplianceContract returns (bool allowed) {
         if (_from == address(0)) {
             if (firstMintTimestamp[_to] == 0) {
                 firstMintTimestamp[_to] = block.timestamp;
@@ -176,6 +250,22 @@ contract RopeComplianceModule is AccessControl {
             }
         }
 
+        // SECURITY (2026-07-26 counter-audit fix, finding #2): this gate
+        // previously read `requireAccreditedInvestor` from storage and
+        // then never checked it against anything, so toggling the flag
+        // had zero effect and every transfer passed regardless of
+        // accreditation status.
+        if (requireAccreditedInvestor) {
+            if (_from != address(0) && !_hasAccreditedClaim(_from)) {
+                _recordTestimony(_from, _to, _amount, false, "sender not accredited");
+                return false;
+            }
+            if (!_hasAccreditedClaim(_to)) {
+                _recordTestimony(_from, _to, _amount, false, "receiver not accredited");
+                return false;
+            }
+        }
+
         _recordTestimony(_from, _to, _amount, true, "");
         return true;
     }
@@ -188,7 +278,7 @@ contract RopeComplianceModule is AccessControl {
         address _from,
         address _to,
         uint256 /* _amount */
-    ) external {
+    ) external onlyComplianceContract {
         if (_from != address(0)) {
             uint16 fromCountry = identityRegistry.investorCountry(_from);
             if (holderCountByCountry[fromCountry] > 0) {
@@ -199,6 +289,33 @@ contract RopeComplianceModule is AccessControl {
             uint16 toCountry = identityRegistry.investorCountry(_to);
             holderCountByCountry[toCountry]++;
         }
+    }
+
+    /// @dev Returns true only when `_user`'s ONCHAINID carries a claim for
+    ///      {ACCREDITED_INVESTOR_TOPIC} issued by (and still considered
+    ///      valid by) {accreditationClaimIssuer}. Fails CLOSED — returns
+    ///      false whenever no issuer is configured, the user has no
+    ///      identity on file, or no matching claim is found — so an admin
+    ///      flipping {requireAccreditedInvestor} on before configuring
+    ///      {setAccreditationClaimIssuer} blocks transfers instead of
+    ///      silently allowing them.
+    function _hasAccreditedClaim(address _user) internal view returns (bool) {
+        if (address(accreditationClaimIssuer) == address(0)) return false;
+
+        address identityAddr = identityRegistry.identity(_user);
+        if (identityAddr == address(0)) return false;
+
+        IClaimHolder holder = IClaimHolder(identityAddr);
+        bytes32[] memory claimIds = holder.getClaimIdsByTopic(ACCREDITED_INVESTOR_TOPIC);
+
+        for (uint256 i = 0; i < claimIds.length; i++) {
+            (, , address issuer, bytes memory sig, bytes memory data, ) = holder.getClaim(claimIds[i]);
+            if (issuer != address(accreditationClaimIssuer)) continue;
+            if (accreditationClaimIssuer.isClaimValid(identityAddr, ACCREDITED_INVESTOR_TOPIC, sig, data)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // =========================================================================
@@ -253,6 +370,19 @@ contract RopeComplianceModule is AccessControl {
         onlyRole(COMPLIANCE_ADMIN_ROLE)
     {
         requireAccreditedInvestor = _required;
+    }
+
+    /// @notice Configure the trusted claim issuer consulted by
+    ///         {_hasAccreditedClaim} when {requireAccreditedInvestor} is
+    ///         true. Pass `address(0)` to intentionally fail-closed (deny
+    ///         all transfers while the flag is on) — e.g. while rotating
+    ///         issuers.
+    function setAccreditationClaimIssuer(address _issuer)
+        external
+        onlyRole(COMPLIANCE_ADMIN_ROLE)
+    {
+        accreditationClaimIssuer = IAccreditationClaimIssuer(_issuer);
+        emit AccreditationClaimIssuerUpdated(_issuer);
     }
 
     function setLockupPeriod(uint256 _seconds)

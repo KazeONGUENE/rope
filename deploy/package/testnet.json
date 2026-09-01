@@ -15,7 +15,7 @@
     "name": "DC FAT",
     "symbol": "FAT",
     "decimals": 18,
-    "standard": "DC-20"
+    "standard": "DCR-20"
   },
   "rpc": {
     "primary": "https://testnet.erpc.datachain.network",

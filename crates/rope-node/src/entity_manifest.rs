@@ -462,7 +462,29 @@ pub fn spawn_refresh_task(sources: Vec<ManifestSource>) {
             loop {
                 match fetch_manifest(&src.url).await {
                     Ok(resp) => {
-                        let _ = apply_response(&src, resp);
+                        // Rebuild touches parking_lot locks and walks 1,600+
+                        // entities — keep it off the Tokio RPC worker pool so
+                        // loopback health probes (eth_blockNumber) cannot be
+                        // starved during the 5-min refresh tick.
+                        let src_for_apply = src.clone();
+                        match tokio::task::spawn_blocking(move || {
+                            apply_response(&src_for_apply, resp)
+                        })
+                        .await
+                        {
+                            Ok(applied) => {
+                                if applied {
+                                    debug!(source = src.name, "manifest registry rebuilt");
+                                }
+                            }
+                            Err(join_err) => {
+                                warn!(
+                                    source = src.name,
+                                    error = %join_err,
+                                    "entity-manifest apply task panicked",
+                                );
+                            }
+                        }
                     }
                     Err(err) => {
                         warn!(

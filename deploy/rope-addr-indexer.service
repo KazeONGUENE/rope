@@ -1,0 +1,74 @@
+# /etc/systemd/system/rope-addr-indexer.service
+# rope-addr-indexer - persistent per-address transaction / log index for
+# Datachain Rope (Workstream C of the 2026-08-11 dcscan-parity handover).
+#
+# Reads canonical blocks + logs from a Reth node (BLUE loopback, GREEN,
+# DO-rpc-1, DO-rpc-2 - failover order) and writes them into a RocksDB
+# store at /var/lib/rope-addr-index/. DCScan (dc-explorer) opens the
+# same store read-only once the ADDR_INDEX_PATH env var is set on the
+# dc-explorer unit, at which point address pages answer transaction and
+# event queries in O(page_size) via reverse-iterator seeks instead of
+# scanning O(N) blocks via JSON-RPC on every request.
+#
+# Rollout posture: this service can run for hours or days doing nothing
+# more than filling RocksDB. Turning reads on is a one-flag flip
+# (`ADDR_INDEX_PATH=/var/lib/rope-addr-index` in dc-explorer.env) with
+# an immediate rollback path (unset the flag, restart dc-explorer).
+#
+# Config: /etc/rope-addr-indexer.toml (see deploy/rope-addr-indexer.example.toml).
+# Data dir: /var/lib/rope-addr-index/ (~few hundred MB per year of chain
+# history; the address partitioning keeps compaction cheap).
+
+[Unit]
+Description=Rope Address Index (per-address tx / log RocksDB indexer)
+After=network-online.target reth-rope.service datachain-rope.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/datachain-rope
+Environment="PATH=/home/ubuntu/.cargo/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="RUST_LOG=rope_addr_index=info,rope_addr_indexer=info,warn"
+# Optional per-host overrides (leading dash tolerates absent file at first boot).
+EnvironmentFile=-/opt/datachain-rope/code/deploy/rope-addr-indexer.env
+
+ExecStart=/home/ubuntu/datachain-rope/target/release/rope-addr-indexer \
+    --config /etc/rope-addr-indexer.toml
+
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=rope-addr-indexer
+
+# Filesystem sandbox
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+ReadWritePaths=/var/lib/rope-addr-index
+# The TOML config lives under /etc and stays read-only for the service.
+
+# Kernel + IPC hardening (same posture as dc-explorer per the 2026-07-25 audit).
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RemoveIPC=yes
+
+# Resource ceiling. Backfill occasionally allocates ~50 MB when a
+# large-log block lands; the ceiling below is deliberately generous to
+# ride out spikes without OOM-killing the process mid-batch.
+MemoryMax=1G
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target

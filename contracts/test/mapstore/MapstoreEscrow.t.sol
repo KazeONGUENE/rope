@@ -26,9 +26,76 @@ contract MapstoreEscrowTest is Test {
     address internal platform  = makeAddr("platform");
     address internal operator  = makeAddr("operator");
     address internal guardian  = makeAddr("guardian");
-    address internal buyer     = makeAddr("buyer");
     address internal payee     = makeAddr("payee");
     address internal stranger  = makeAddr("stranger");
+
+    // `buyer` must be a key we can sign with (EIP-712 buyer authorization
+    // fix, 2026-07-26 counter-audit) — makeAddr() alone gives no private key.
+    uint256 internal buyerPk = 0xB0459;
+    address internal buyer   = vm.addr(buyerPk);
+
+    uint256 internal constant FAR_FUTURE_DEADLINE = type(uint256).max;
+
+    // -- EIP-712 signing helpers (mirror MapstoreEscrow's typehashes) ------
+
+    bytes32 internal constant OPEN_JOB_TYPEHASH = keccak256(
+        "OpenJobAuthorization(bytes32 id,address payee,address token,uint256 amount,bytes32 metadataHash,uint256 platformFeeBps,uint256 deadline)"
+    );
+    bytes32 internal constant ASSIGN_PAYEE_TYPEHASH = keccak256(
+        "AssignPayeeAuthorization(bytes32 id,address newPayee,uint256 deadline)"
+    );
+    bytes32 internal constant RELEASE_JOB_TYPEHASH = keccak256(
+        "ReleaseJobAuthorization(bytes32 id,uint256 deadline)"
+    );
+
+    function _domainSeparator() internal view returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256(bytes("MapstoreEscrow")),
+                keccak256(bytes("1")),
+                block.chainid,
+                address(escrow)
+            )
+        );
+    }
+
+    function _digest(bytes32 structHash) internal view returns (bytes32) {
+        return keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
+    }
+
+    function _signOpenJob(
+        uint256 pk,
+        bytes32 id,
+        address payeeAddr,
+        address token,
+        uint256 amount,
+        bytes32 metadataHash,
+        uint256 platformFeeBps,
+        uint256 deadline
+    ) internal view returns (bytes memory) {
+        bytes32 structHash = keccak256(
+            abi.encode(OPEN_JOB_TYPEHASH, id, payeeAddr, token, amount, metadataHash, platformFeeBps, deadline)
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, _digest(structHash));
+        return abi.encodePacked(r, s, v);
+    }
+
+    function _signAssignPayee(uint256 pk, bytes32 id, address newPayee, uint256 deadline)
+        internal
+        view
+        returns (bytes memory)
+    {
+        bytes32 structHash = keccak256(abi.encode(ASSIGN_PAYEE_TYPEHASH, id, newPayee, deadline));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, _digest(structHash));
+        return abi.encodePacked(r, s, v);
+    }
+
+    function _signRelease(uint256 pk, bytes32 id, uint256 deadline) internal view returns (bytes memory) {
+        bytes32 structHash = keccak256(abi.encode(RELEASE_JOB_TYPEHASH, id, deadline));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, _digest(structHash));
+        return abi.encodePacked(r, s, v);
+    }
 
     bytes32 internal constant JOB_ID = keccak256("job:0001");
     bytes32 internal constant META   = keccak256("metadata:0001");
@@ -141,7 +208,15 @@ contract MapstoreEscrowTest is Test {
 
     function _openJobByBuyer() internal {
         vm.prank(buyer);
-        escrow.openJob(JOB_ID, buyer, payee, IERC20(address(usdc)), AMOUNT, META, 0);
+        escrow.openJob(JOB_ID, buyer, payee, IERC20(address(usdc)), AMOUNT, META, 0, 0, bytes(""));
+    }
+
+    function _openJobByPlatform(bytes32 id, address payeeAddr, uint256 amount, uint256 feeBps) internal {
+        bytes memory sig = _signOpenJob(
+            buyerPk, id, payeeAddr, address(usdc), amount, META, feeBps, FAR_FUTURE_DEADLINE
+        );
+        vm.prank(platform);
+        escrow.openJob(id, buyer, payeeAddr, IERC20(address(usdc)), amount, META, feeBps, FAR_FUTURE_DEADLINE, sig);
     }
 
     function _readJob(bytes32 id)
@@ -158,7 +233,7 @@ contract MapstoreEscrowTest is Test {
         vm.prank(buyer);
         vm.expectEmit(true, true, true, true);
         emit JobOpened(JOB_ID, buyer, payee, address(usdc), AMOUNT, META, 800);
-        escrow.openJob(JOB_ID, buyer, payee, IERC20(address(usdc)), AMOUNT, META, 0);
+        escrow.openJob(JOB_ID, buyer, payee, IERC20(address(usdc)), AMOUNT, META, 0, 0, bytes(""));
 
         assertEq(usdc.balanceOf(address(escrow)), escrowBalBefore + AMOUNT);
         assertEq(usdc.balanceOf(buyer), BUYER_INITIAL - AMOUNT);
@@ -176,34 +251,73 @@ contract MapstoreEscrowTest is Test {
     function test_openJob_strangerCannotOpenForBuyer() public {
         vm.prank(stranger);
         vm.expectRevert(bytes("MapstoreEscrow: not buyer or platform"));
-        escrow.openJob(JOB_ID, buyer, payee, IERC20(address(usdc)), AMOUNT, META, 0);
+        escrow.openJob(JOB_ID, buyer, payee, IERC20(address(usdc)), AMOUNT, META, 0, 0, bytes(""));
     }
 
-    function test_openJob_platformCanOpenForBuyer() public {
-        vm.prank(platform);
-        escrow.openJob(JOB_ID, buyer, payee, IERC20(address(usdc)), AMOUNT, META, 0);
+    function test_openJob_platformCanOpenForBuyer_withValidAuthorization() public {
+        _openJobByPlatform(JOB_ID, payee, AMOUNT, 0);
         MapstoreEscrow.Job memory j = _readJob(JOB_ID);
         assertEq(j.buyer, buyer);
         assertEq(uint256(j.status), uint256(MapstoreEscrow.JobStatus.Pending));
+    }
+
+    // 2026-07-26 counter-audit fix: PLATFORM_ROLE alone (no buyer signature)
+    // must NOT be able to open a job against a victim, even though the
+    // victim has an outstanding token approval to the escrow.
+    function test_openJob_platformWithoutAuthorization_reverts() public {
+        vm.prank(platform);
+        vm.expectRevert(bytes("MapstoreEscrow: authorization expired"));
+        escrow.openJob(JOB_ID, buyer, payee, IERC20(address(usdc)), AMOUNT, META, 0, 0, bytes(""));
+    }
+
+    function test_openJob_platformWithWrongSigner_reverts() public {
+        uint256 attackerPk = 0xBAD1;
+        bytes memory badSig = _signOpenJob(
+            attackerPk, JOB_ID, payee, address(usdc), AMOUNT, META, 0, FAR_FUTURE_DEADLINE
+        );
+        vm.prank(platform);
+        vm.expectRevert(bytes("MapstoreEscrow: bad buyer authorization"));
+        escrow.openJob(JOB_ID, buyer, payee, IERC20(address(usdc)), AMOUNT, META, 0, FAR_FUTURE_DEADLINE, badSig);
+    }
+
+    function test_openJob_platformWithExpiredAuthorization_reverts() public {
+        uint256 pastDeadline = block.timestamp == 0 ? 0 : block.timestamp - 1;
+        bytes memory sig = _signOpenJob(buyerPk, JOB_ID, payee, address(usdc), AMOUNT, META, 0, pastDeadline);
+        vm.prank(platform);
+        vm.expectRevert(bytes("MapstoreEscrow: authorization expired"));
+        escrow.openJob(JOB_ID, buyer, payee, IERC20(address(usdc)), AMOUNT, META, 0, pastDeadline, sig);
+    }
+
+    function test_openJob_platformCannotRedirectPayeeBeyondSignedAuthorization() public {
+        // Buyer signs for `payee`; platform tries to substitute an attacker
+        // address as the payee in the actual call. The struct hash no longer
+        // matches, so recovery yields a signer != buyer and the call reverts.
+        address attackerPayee = makeAddr("attackerPayee");
+        bytes memory sig = _signOpenJob(buyerPk, JOB_ID, payee, address(usdc), AMOUNT, META, 0, FAR_FUTURE_DEADLINE);
+        vm.prank(platform);
+        vm.expectRevert(bytes("MapstoreEscrow: bad buyer authorization"));
+        escrow.openJob(
+            JOB_ID, buyer, attackerPayee, IERC20(address(usdc)), AMOUNT, META, 0, FAR_FUTURE_DEADLINE, sig
+        );
     }
 
     function test_openJob_rejectsDuplicate() public {
         _openJobByBuyer();
         vm.prank(buyer);
         vm.expectRevert(bytes("MapstoreEscrow: job exists"));
-        escrow.openJob(JOB_ID, buyer, payee, IERC20(address(usdc)), AMOUNT, META, 0);
+        escrow.openJob(JOB_ID, buyer, payee, IERC20(address(usdc)), AMOUNT, META, 0, 0, bytes(""));
     }
 
     function test_openJob_rejectsZeroAmount() public {
         vm.prank(buyer);
         vm.expectRevert(bytes("MapstoreEscrow: amount=0"));
-        escrow.openJob(JOB_ID, buyer, payee, IERC20(address(usdc)), 0, META, 0);
+        escrow.openJob(JOB_ID, buyer, payee, IERC20(address(usdc)), 0, META, 0, 0, bytes(""));
     }
 
     function test_openJob_rejectsFeeAboveCap() public {
         vm.prank(buyer);
         vm.expectRevert(bytes("MapstoreEscrow: fee>cap"));
-        escrow.openJob(JOB_ID, buyer, payee, IERC20(address(usdc)), AMOUNT, META, 2_001);
+        escrow.openJob(JOB_ID, buyer, payee, IERC20(address(usdc)), AMOUNT, META, 2_001, 0, bytes(""));
     }
 
     // ------------------------------------------------------------------
@@ -212,19 +326,58 @@ contract MapstoreEscrowTest is Test {
 
     function test_assignPayee_pendingOnly_byBuyerOrPlatform() public {
         vm.prank(buyer);
-        escrow.openJob(JOB_ID, buyer, address(0), IERC20(address(usdc)), AMOUNT, META, 0);
+        escrow.openJob(JOB_ID, buyer, address(0), IERC20(address(usdc)), AMOUNT, META, 0, 0, bytes(""));
 
         vm.prank(stranger);
         vm.expectRevert(bytes("MapstoreEscrow: not buyer or platform"));
-        escrow.assignPayee(JOB_ID, payee);
+        escrow.assignPayee(JOB_ID, payee, 0, bytes(""));
 
         vm.prank(buyer);
         vm.expectEmit(true, true, true, true);
         emit PayeeReassigned(JOB_ID, address(0), payee);
-        escrow.assignPayee(JOB_ID, payee);
+        escrow.assignPayee(JOB_ID, payee, 0, bytes(""));
 
         MapstoreEscrow.Job memory j = _readJob(JOB_ID);
         assertEq(j.payee, payee);
+    }
+
+    // 2026-07-26 counter-audit fix: PLATFORM_ROLE alone must NOT be able to
+    // redirect an already-opened job's payee to an attacker address.
+    function test_assignPayee_platformWithoutAuthorization_reverts() public {
+        vm.prank(buyer);
+        escrow.openJob(JOB_ID, buyer, address(0), IERC20(address(usdc)), AMOUNT, META, 0, 0, bytes(""));
+
+        address attackerPayee = makeAddr("attackerPayee");
+        vm.prank(platform);
+        vm.expectRevert(bytes("MapstoreEscrow: authorization expired"));
+        escrow.assignPayee(JOB_ID, attackerPayee, 0, bytes(""));
+    }
+
+    function test_assignPayee_platformWithValidAuthorization_succeeds() public {
+        vm.prank(buyer);
+        escrow.openJob(JOB_ID, buyer, address(0), IERC20(address(usdc)), AMOUNT, META, 0, 0, bytes(""));
+
+        bytes memory sig = _signAssignPayee(buyerPk, JOB_ID, payee, FAR_FUTURE_DEADLINE);
+        vm.prank(platform);
+        vm.expectEmit(true, true, true, true);
+        emit PayeeReassigned(JOB_ID, address(0), payee);
+        escrow.assignPayee(JOB_ID, payee, FAR_FUTURE_DEADLINE, sig);
+
+        MapstoreEscrow.Job memory j = _readJob(JOB_ID);
+        assertEq(j.payee, payee);
+    }
+
+    function test_assignPayee_platformCannotRedirectBeyondSignedAuthorization() public {
+        vm.prank(buyer);
+        escrow.openJob(JOB_ID, buyer, address(0), IERC20(address(usdc)), AMOUNT, META, 0, 0, bytes(""));
+
+        address attackerPayee = makeAddr("attackerPayee");
+        // Buyer signed for the legitimate `payee`; platform tries to submit
+        // `attackerPayee` instead using that same signature.
+        bytes memory sig = _signAssignPayee(buyerPk, JOB_ID, payee, FAR_FUTURE_DEADLINE);
+        vm.prank(platform);
+        vm.expectRevert(bytes("MapstoreEscrow: bad buyer authorization"));
+        escrow.assignPayee(JOB_ID, attackerPayee, FAR_FUTURE_DEADLINE, sig);
     }
 
     function test_startJob_movesToInProgress_byPayee() public {
@@ -259,7 +412,7 @@ contract MapstoreEscrowTest is Test {
 
     function test_startJob_requiresPayee() public {
         vm.prank(buyer);
-        escrow.openJob(JOB_ID, buyer, address(0), IERC20(address(usdc)), AMOUNT, META, 0);
+        escrow.openJob(JOB_ID, buyer, address(0), IERC20(address(usdc)), AMOUNT, META, 0, 0, bytes(""));
         vm.prank(buyer);
         vm.expectRevert(bytes("MapstoreEscrow: payee unset"));
         escrow.startJob(JOB_ID);
@@ -280,7 +433,7 @@ contract MapstoreEscrowTest is Test {
         vm.prank(buyer);
         vm.expectEmit(true, true, false, true);
         emit JobReleased(JOB_ID, payee, net, fee);
-        escrow.releaseJob(JOB_ID);
+        escrow.releaseJob(JOB_ID, 0, bytes(""));
 
         assertEq(usdc.balanceOf(payee), net);
         assertEq(usdc.balanceOf(treasury), fee);
@@ -290,15 +443,40 @@ contract MapstoreEscrowTest is Test {
         assertEq(uint256(j.status), uint256(MapstoreEscrow.JobStatus.Completed));
     }
 
-    function test_release_byPlatform_works() public {
+    function test_release_byPlatform_withValidAuthorization_works() public {
+        _openJobByBuyer();
+        vm.prank(payee);
+        escrow.startJob(JOB_ID);
+
+        bytes memory sig = _signRelease(buyerPk, JOB_ID, FAR_FUTURE_DEADLINE);
+        vm.prank(platform);
+        escrow.releaseJob(JOB_ID, FAR_FUTURE_DEADLINE, sig);
+        MapstoreEscrow.Job memory j = _readJob(JOB_ID);
+        assertEq(uint256(j.status), uint256(MapstoreEscrow.JobStatus.Completed));
+    }
+
+    // 2026-07-26 counter-audit fix: PLATFORM_ROLE alone (no buyer signature)
+    // must NOT be able to force-settle a job to its payee.
+    function test_release_byPlatformWithoutAuthorization_reverts() public {
         _openJobByBuyer();
         vm.prank(payee);
         escrow.startJob(JOB_ID);
 
         vm.prank(platform);
-        escrow.releaseJob(JOB_ID);
-        MapstoreEscrow.Job memory j = _readJob(JOB_ID);
-        assertEq(uint256(j.status), uint256(MapstoreEscrow.JobStatus.Completed));
+        vm.expectRevert(bytes("MapstoreEscrow: authorization expired"));
+        escrow.releaseJob(JOB_ID, 0, bytes(""));
+    }
+
+    function test_release_byPlatformWithWrongSigner_reverts() public {
+        _openJobByBuyer();
+        vm.prank(payee);
+        escrow.startJob(JOB_ID);
+
+        uint256 attackerPk = 0xBAD2;
+        bytes memory badSig = _signRelease(attackerPk, JOB_ID, FAR_FUTURE_DEADLINE);
+        vm.prank(platform);
+        vm.expectRevert(bytes("MapstoreEscrow: bad buyer authorization"));
+        escrow.releaseJob(JOB_ID, FAR_FUTURE_DEADLINE, badSig);
     }
 
     function test_release_byStranger_reverts() public {
@@ -307,14 +485,14 @@ contract MapstoreEscrowTest is Test {
         escrow.startJob(JOB_ID);
         vm.prank(stranger);
         vm.expectRevert(bytes("MapstoreEscrow: not buyer or platform"));
-        escrow.releaseJob(JOB_ID);
+        escrow.releaseJob(JOB_ID, 0, bytes(""));
     }
 
     function test_release_requiresInProgress() public {
         _openJobByBuyer();
         vm.prank(buyer);
         vm.expectRevert(bytes("MapstoreEscrow: not InProgress"));
-        escrow.releaseJob(JOB_ID);
+        escrow.releaseJob(JOB_ID, 0, bytes(""));
     }
 
     function test_release_doubleRelease_reverts() public {
@@ -322,10 +500,10 @@ contract MapstoreEscrowTest is Test {
         vm.prank(payee);
         escrow.startJob(JOB_ID);
         vm.prank(buyer);
-        escrow.releaseJob(JOB_ID);
+        escrow.releaseJob(JOB_ID, 0, bytes(""));
         vm.prank(buyer);
         vm.expectRevert(bytes("MapstoreEscrow: not InProgress"));
-        escrow.releaseJob(JOB_ID);
+        escrow.releaseJob(JOB_ID, 0, bytes(""));
     }
 
     // ------------------------------------------------------------------
@@ -513,13 +691,13 @@ contract MapstoreEscrowTest is Test {
 
         vm.prank(buyer);
         vm.expectRevert();
-        escrow.openJob(JOB_ID, buyer, payee, IERC20(address(usdc)), AMOUNT, META, 0);
+        escrow.openJob(JOB_ID, buyer, payee, IERC20(address(usdc)), AMOUNT, META, 0, 0, bytes(""));
 
         vm.prank(guardian);
         escrow.unpause();
 
         vm.prank(buyer);
-        escrow.openJob(JOB_ID, buyer, payee, IERC20(address(usdc)), AMOUNT, META, 0);
+        escrow.openJob(JOB_ID, buyer, payee, IERC20(address(usdc)), AMOUNT, META, 0, 0, bytes(""));
     }
 
     function test_pause_byStranger_reverts() public {
@@ -537,12 +715,12 @@ contract MapstoreEscrowTest is Test {
         vm.prank(payee);
         escrow.startJob(JOB_ID);
         vm.prank(buyer);
-        escrow.releaseJob(JOB_ID);
+        escrow.releaseJob(JOB_ID, 0, bytes(""));
 
         // Same JOB_ID after Completed MUST NOT re-open (status != None blocks).
         vm.prank(buyer);
         vm.expectRevert(bytes("MapstoreEscrow: job exists"));
-        escrow.openJob(JOB_ID, buyer, payee, IERC20(address(usdc)), AMOUNT, META, 0);
+        escrow.openJob(JOB_ID, buyer, payee, IERC20(address(usdc)), AMOUNT, META, 0, 0, bytes(""));
     }
 
     function test_escrowRefFor_format() public view {
@@ -566,7 +744,7 @@ contract MapstoreEscrowTest is Test {
 
         bytes32 id = keccak256(abi.encode("fuzz", amount, feeBps));
         vm.prank(buyer);
-        escrow.openJob(id, buyer, payee, IERC20(address(usdc)), amount, META, feeBps);
+        escrow.openJob(id, buyer, payee, IERC20(address(usdc)), amount, META, feeBps, 0, bytes(""));
 
         vm.prank(payee);
         escrow.startJob(id);
@@ -578,7 +756,7 @@ contract MapstoreEscrowTest is Test {
         uint256 payeeBefore = usdc.balanceOf(payee);
 
         vm.prank(buyer);
-        escrow.releaseJob(id);
+        escrow.releaseJob(id, 0, bytes(""));
 
         assertEq(usdc.balanceOf(treasury), treasuryBefore + fee);
         assertEq(usdc.balanceOf(payee), payeeBefore + net);

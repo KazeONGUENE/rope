@@ -1,0 +1,21 @@
+[Unit]
+Description=CERBER R15 - docs-vs-production drift monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+EnvironmentFile=-/etc/cerber-alert.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node /opt/datachain-rope/cerber/bin/cerber-docs-drift.mjs --report both
+Nice=10
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/datachain-rope/cerber
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

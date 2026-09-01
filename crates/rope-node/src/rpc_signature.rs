@@ -39,11 +39,48 @@ use serde::{Deserialize, Serialize};
 use sha3::{Digest, Keccak256};
 
 
-/// Domain-separation tag woven into every canonical message. Prevents
-/// cross-method replay (e.g. taking a `rope_appendToLedger` signature and
-/// reusing it as a `rope_untieKnot` signature) and prevents cross-chain
-/// replay against any other Datachain Rope-flavoured deployment.
+/// Domain-separation tag woven into every canonical message on
+/// **mainnet (chain 271828)**. Preserved as a fixed byte string for
+/// backward compatibility with every Phase-2 client that was built
+/// against v1 of the wire format (DCSwap `quipuEmitter.ts`, the Rust
+/// SDK example, TypeScript SDK example, and every already-signed
+/// nonce currently in the replay window).
+///
+/// All other chains (testnet 271829 and any future flavour) derive a
+/// **chain-scoped** tag of the shape `DCROPE/destructive-rpc/v1/{chain_id}\0`
+/// via [`chain_domain_tag`]. This keeps mainnet on the frozen v1 wire
+/// format while making a testnet signature unusable against mainnet
+/// and vice versa. See `docs/design/testnet-parity-roadmap-2026-08-30.md`
+/// §2.2 for the rationale.
 pub const DOMAIN_TAG: &[u8] = b"DCROPE/destructive-rpc/v1\0";
+
+/// Chain ID for Datachain Rope mainnet. Mainnet gets the fixed
+/// legacy [`DOMAIN_TAG`]; every other chain gets a chain-scoped tag.
+pub const MAINNET_CHAIN_ID: u64 = 271828;
+
+/// Build the domain-separation tag for `chain_id`.
+///
+/// * Mainnet (271828) returns the fixed [`DOMAIN_TAG`] bytes verbatim.
+///   This is a hard carve-out: mainnet's wire format is frozen so
+///   existing signed calls, cached nonces, and third-party SDK
+///   implementations keep working with zero coordination.
+/// * All other chains return `format!("DCROPE/destructive-rpc/v1/{chain_id}\0")`
+///   encoded as UTF-8 bytes. A signature produced under one chain's
+///   tag cannot be replayed under another chain's tag because the
+///   canonical pre-image bytes differ from the very first byte.
+///
+/// The trailing NUL byte matches the legacy tag's shape and gives
+/// consumers a stable termination when reading the tag from a hex
+/// dump.
+pub fn chain_domain_tag(chain_id: u64) -> Vec<u8> {
+    if chain_id == MAINNET_CHAIN_ID {
+        DOMAIN_TAG.to_vec()
+    } else {
+        let mut tag = format!("DCROPE/destructive-rpc/v1/{chain_id}").into_bytes();
+        tag.push(0);
+        tag
+    }
+}
 
 /// Default replay window if not configured otherwise. 5 minutes.
 pub const DEFAULT_REPLAY_WINDOW_SECS: i64 = 300;
@@ -284,8 +321,26 @@ pub fn canonical_message(
     signed_at: u64,
     nonce: &[u8; NONCE_LEN],
 ) -> Result<Vec<u8>, AuthError> {
+    canonical_message_with_chain(MAINNET_CHAIN_ID, method, params_without_auth, signed_at, nonce)
+}
+
+/// Chain-scoped variant of [`canonical_message`].
+///
+/// Uses the domain tag returned by [`chain_domain_tag`] as the pre-image
+/// prefix. For `chain_id == MAINNET_CHAIN_ID` the output is bit-for-bit
+/// identical to [`canonical_message`], so already-signed mainnet nonces
+/// remain valid. For any other chain, the tag encodes the chain id and
+/// signatures cannot be replayed across chains.
+pub fn canonical_message_with_chain(
+    chain_id: u64,
+    method: &str,
+    params_without_auth: &serde_json::Value,
+    signed_at: u64,
+    nonce: &[u8; NONCE_LEN],
+) -> Result<Vec<u8>, AuthError> {
     let mut buf = Vec::with_capacity(256);
-    buf.extend_from_slice(DOMAIN_TAG);
+    let tag = chain_domain_tag(chain_id);
+    buf.extend_from_slice(&tag);
     let method_bytes = method.as_bytes();
     buf.extend_from_slice(&(method_bytes.len() as u32).to_be_bytes());
     buf.extend_from_slice(method_bytes);
@@ -416,6 +471,25 @@ pub fn verify_destructive_call(
     method: &str,
     params: &serde_json::Value,
 ) -> Result<VerifiedAuth, AuthError> {
+    verify_destructive_call_for_chain(verifier, MAINNET_CHAIN_ID, method, params)
+}
+
+/// Chain-scoped variant of [`verify_destructive_call`].
+///
+/// Uses [`canonical_message_with_chain`] to reconstruct the pre-image
+/// under the chain-scoped domain tag. On mainnet (`chain_id ==
+/// MAINNET_CHAIN_ID`) this is identical to [`verify_destructive_call`]
+/// so the frozen v1 wire format keeps working. On any other chain, a
+/// signature signed against a different chain's tag will fail the
+/// signer-mismatch or ed25519-verify check because the recovered
+/// address / verified signature cannot match a pre-image the peer
+/// never signed.
+pub fn verify_destructive_call_for_chain(
+    verifier: &AuthVerifier,
+    chain_id: u64,
+    method: &str,
+    params: &serde_json::Value,
+) -> Result<VerifiedAuth, AuthError> {
     let (envelope, params_without_auth) = split_auth(params)?;
 
     let now = now_unix();
@@ -429,7 +503,13 @@ pub fn verify_destructive_call(
 
     let nonce = parse_nonce_hex(&envelope.nonce)?;
     let sig_bytes = parse_sig_hex(&envelope.signature)?;
-    let canonical = canonical_message(method, &params_without_auth, envelope.signed_at, &nonce)?;
+    let canonical = canonical_message_with_chain(
+        chain_id,
+        method,
+        &params_without_auth,
+        envelope.signed_at,
+        &nonce,
+    )?;
 
     let result = match envelope.scheme {
         AuthScheme::Secp256k1Eip191 => {
@@ -608,6 +688,61 @@ mod tests {
         let b = canonical_message("rope_appendToLedger", &p, 1781336400, &nonce).unwrap();
         assert_eq!(a, b);
         assert!(a.starts_with(DOMAIN_TAG));
+    }
+
+    /// Regression test for the 2026-07-26 DCSwap Quipu-emitter incident:
+    /// production `handle_json_rpc_with_auth` does NOT sign an in-memory
+    /// `json!()` value directly — it `serde_json::from_str`s the wire body,
+    /// slices off the auth envelope, then `serde_json::to_vec`s the
+    /// remaining params to reconstruct the bytes a real client signed. Any
+    /// non-Rust client (TypeScript, the DCSwap bot's ethers.js signer, etc.)
+    /// builds its object literals in insertion order and signs
+    /// `JSON.stringify` bytes in that same order. If `Value::Object` here
+    /// were a plain `BTreeMap` (the serde_json default without the
+    /// `preserve_order` feature), this round trip would silently
+    /// alphabetize the keys and produce different bytes than the client
+    /// signed — recovering a signer address that doesn't match, with no
+    /// hint that ordering was the cause. This test exercises exactly that
+    /// parse-strip-reserialize path with keys that are NOT already in
+    /// alphabetical order, so it fails loudly if `preserve_order` is ever
+    /// dropped from the workspace `serde_json` feature set.
+    #[test]
+    fn canonical_message_round_trips_object_key_order_from_json_text() {
+        // Deliberately non-alphabetical key order, mirroring a real
+        // rope_appendToLedger interaction payload (interaction_type,
+        // description, metadata — not alphabetical).
+        let wire_body = r#"{"jsonrpc":"2.0","id":1,"method":"rope_appendToLedger","params":["0xabc",{"interaction_type":"StateUpdate","description":"x","metadata":{"emitter":"dcswap","schema":"Probe","quipu_version":"1.2","timestamp":"1"}}]}"#;
+        let parsed: serde_json::Value = serde_json::from_str(wire_body).unwrap();
+        let params_from_wire = parsed.get("params").cloned().unwrap();
+
+        // What a non-Rust client computes: JSON.stringify of the exact same
+        // logical structure, keys in original insertion order.
+        let client_serialized = json!([
+            "0xabc",
+            {
+                "interaction_type": "StateUpdate",
+                "description": "x",
+                "metadata": {
+                    "emitter": "dcswap",
+                    "schema": "Probe",
+                    "quipu_version": "1.2",
+                    "timestamp": "1"
+                }
+            }
+        ]);
+
+        let nonce = [3u8; NONCE_LEN];
+        let server_side =
+            canonical_message("rope_appendToLedger", &params_from_wire, 100, &nonce).unwrap();
+        let client_side =
+            canonical_message("rope_appendToLedger", &client_serialized, 100, &nonce).unwrap();
+        assert_eq!(
+            server_side, client_side,
+            "server's parse->strip->reserialize of the wire body must byte-for-byte match \
+             what an insertion-order-preserving client (JS/TS) would sign; if this fails, \
+             Value::Object lost insertion order (preserve_order feature missing) and every \
+             Phase-2 signed call with object params will be rejected as a signer mismatch"
+        );
     }
 
     #[test]
@@ -863,6 +998,210 @@ mod tests {
         let full = embed_auth(&p, &env, None);
         let err = verify_destructive_call(&verifier, "rope_appendToLedger", &full).unwrap_err();
         assert!(matches!(err, AuthError::StaleSignature { .. }));
+    }
+
+    // -------------------------------------------------------------------
+    // Chain-scoped DOMAIN_TAG regression tests (Phase 0 §2.2)
+    // -------------------------------------------------------------------
+    //
+    // Mainnet's wire format is frozen. Every existing Phase-2 client
+    // (DCSwap `quipuEmitter.ts`, the Rust / TypeScript SDK examples,
+    // and every cached nonce currently in the replay window) was
+    // built against `DOMAIN_TAG = b"DCROPE/destructive-rpc/v1\0"` with
+    // no chain-id byte. If we ever accidentally add a chain-id byte to
+    // the mainnet pre-image, every one of those signatures becomes
+    // invalid and destructive RPCs silently break in production. These
+    // tests are the byte-for-byte tripwire for that regression.
+
+    #[test]
+    fn chain_domain_tag_mainnet_is_frozen_legacy_bytes() {
+        assert_eq!(chain_domain_tag(MAINNET_CHAIN_ID), DOMAIN_TAG.to_vec());
+        assert_eq!(chain_domain_tag(271828), DOMAIN_TAG.to_vec());
+    }
+
+    #[test]
+    fn chain_domain_tag_testnet_encodes_chain_id() {
+        let tag = chain_domain_tag(271829);
+        assert_eq!(tag, b"DCROPE/destructive-rpc/v1/271829\0".to_vec());
+        assert!(tag.ends_with(&[0]));
+        assert_ne!(tag, DOMAIN_TAG.to_vec());
+    }
+
+    #[test]
+    fn chain_domain_tag_distinct_per_chain() {
+        let mainnet = chain_domain_tag(271828);
+        let testnet = chain_domain_tag(271829);
+        let hypothetical = chain_domain_tag(31337);
+        assert_ne!(mainnet, testnet);
+        assert_ne!(mainnet, hypothetical);
+        assert_ne!(testnet, hypothetical);
+    }
+
+    #[test]
+    fn canonical_message_mainnet_default_matches_frozen_wire_format() {
+        // The bare `canonical_message` MUST stay bit-for-bit identical
+        // to the pre-2026-08-30 output. This asserts the exact tag +
+        // length + payload framing so an unrelated refactor cannot
+        // silently shift the pre-image.
+        let nonce = [7u8; NONCE_LEN];
+        let p = json!(["0xabc"]);
+        let canonical =
+            canonical_message("rope_untieKnot", &p, 1_781_336_400, &nonce).unwrap();
+        assert!(canonical.starts_with(DOMAIN_TAG));
+        let with_chain = canonical_message_with_chain(
+            MAINNET_CHAIN_ID,
+            "rope_untieKnot",
+            &p,
+            1_781_336_400,
+            &nonce,
+        )
+        .unwrap();
+        assert_eq!(canonical, with_chain);
+    }
+
+    #[test]
+    fn canonical_message_testnet_differs_from_mainnet_from_first_byte() {
+        let nonce = [7u8; NONCE_LEN];
+        let p = json!(["0xabc"]);
+        let mainnet = canonical_message_with_chain(
+            MAINNET_CHAIN_ID,
+            "rope_untieKnot",
+            &p,
+            1_781_336_400,
+            &nonce,
+        )
+        .unwrap();
+        let testnet =
+            canonical_message_with_chain(271829, "rope_untieKnot", &p, 1_781_336_400, &nonce)
+                .unwrap();
+        assert_ne!(mainnet, testnet);
+        assert!(testnet.starts_with(b"DCROPE/destructive-rpc/v1/271829\0"));
+    }
+
+    /// The core replay-protection guarantee: a wallet signature that
+    /// was correctly minted against testnet's tag MUST NOT verify
+    /// against mainnet's chain-scoped verifier, and vice versa.
+    #[test]
+    fn signature_from_testnet_is_rejected_on_mainnet() {
+        let verifier = fresh_verifier(&[]);
+        let sk = EcdsaSigningKey::random(&mut OsRng);
+        let addr = eth_addr_for(&sk);
+        let now = now_unix() as u64;
+        let nonce = random_nonce();
+        let p = json!([addr.to_hex(), {"interaction_type": "x"}]);
+
+        // Sign against the testnet tag.
+        let canonical =
+            canonical_message_with_chain(271829, "rope_appendToLedger", &p, now, &nonce)
+                .unwrap();
+        let sig = sign_eip191(&sk, &canonical);
+        let env = AuthEnvelope {
+            scheme: AuthScheme::Secp256k1Eip191,
+            signed_at: now,
+            nonce: format!("0x{}", hex::encode(nonce)),
+            signature: format!("0x{}", hex::encode(sig)),
+        };
+        let full = embed_auth(&p, &env, None);
+
+        // Present it to a mainnet verifier: signer recovery
+        // reconstructs the pre-image with the mainnet tag, so it
+        // recovers a different (garbage) address that does not match
+        // the claimed `params[0]` wallet.
+        let err = verify_destructive_call_for_chain(
+            &verifier,
+            MAINNET_CHAIN_ID,
+            "rope_appendToLedger",
+            &full,
+        )
+        .unwrap_err();
+        assert!(
+            matches!(err, AuthError::SignerMismatch { .. }),
+            "testnet signature must fail on mainnet with SignerMismatch, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn signature_from_mainnet_is_rejected_on_testnet() {
+        let verifier = fresh_verifier(&[]);
+        let sk = EcdsaSigningKey::random(&mut OsRng);
+        let addr = eth_addr_for(&sk);
+        let now = now_unix() as u64;
+        let nonce = random_nonce();
+        let p = json!([addr.to_hex(), {"interaction_type": "x"}]);
+
+        // Sign against the mainnet tag (default `canonical_message`).
+        let env = build_wallet_envelope(&sk, "rope_appendToLedger", &p, now, &nonce);
+        let full = embed_auth(&p, &env, None);
+
+        let err = verify_destructive_call_for_chain(
+            &verifier,
+            271829,
+            "rope_appendToLedger",
+            &full,
+        )
+        .unwrap_err();
+        assert!(
+            matches!(err, AuthError::SignerMismatch { .. }),
+            "mainnet signature must fail on testnet with SignerMismatch, got: {err:?}"
+        );
+    }
+
+    /// Backward-compatibility guardrail: a mainnet-signed call must
+    /// keep working end-to-end when routed through the new chain-
+    /// scoped verifier with `chain_id = MAINNET_CHAIN_ID`. This
+    /// protects every DCSwap `quipuEmitter.ts` signature currently in
+    /// flight against the Phase-2 gate.
+    #[test]
+    fn mainnet_signature_still_verifies_via_chain_scoped_verifier() {
+        let verifier = fresh_verifier(&[]);
+        let sk = EcdsaSigningKey::random(&mut OsRng);
+        let addr = eth_addr_for(&sk);
+        let now = now_unix() as u64;
+        let nonce = random_nonce();
+        let p = json!([addr.to_hex(), {"interaction_type": "x"}]);
+        let env = build_wallet_envelope(&sk, "rope_appendToLedger", &p, now, &nonce);
+        let full = embed_auth(&p, &env, None);
+
+        let ok = verify_destructive_call_for_chain(
+            &verifier,
+            MAINNET_CHAIN_ID,
+            "rope_appendToLedger",
+            &full,
+        )
+        .expect("mainnet-signed call must still verify on mainnet");
+        assert!(matches!(ok, VerifiedAuth::WalletEoa(_)));
+    }
+
+    /// Positive path on testnet: signing against the testnet tag and
+    /// verifying against the testnet tag succeeds.
+    #[test]
+    fn testnet_signature_verifies_end_to_end_under_chain_scoped_tag() {
+        let verifier = fresh_verifier(&[]);
+        let sk = EcdsaSigningKey::random(&mut OsRng);
+        let addr = eth_addr_for(&sk);
+        let now = now_unix() as u64;
+        let nonce = random_nonce();
+        let p = json!([addr.to_hex(), {"interaction_type": "x"}]);
+        let canonical =
+            canonical_message_with_chain(271829, "rope_appendToLedger", &p, now, &nonce)
+                .unwrap();
+        let sig = sign_eip191(&sk, &canonical);
+        let env = AuthEnvelope {
+            scheme: AuthScheme::Secp256k1Eip191,
+            signed_at: now,
+            nonce: format!("0x{}", hex::encode(nonce)),
+            signature: format!("0x{}", hex::encode(sig)),
+        };
+        let full = embed_auth(&p, &env, None);
+
+        let ok = verify_destructive_call_for_chain(
+            &verifier,
+            271829,
+            "rope_appendToLedger",
+            &full,
+        )
+        .expect("testnet-signed call must verify under testnet chain-scoped tag");
+        assert!(matches!(ok, VerifiedAuth::WalletEoa(_)));
     }
 }
 

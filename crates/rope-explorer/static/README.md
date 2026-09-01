@@ -9,7 +9,7 @@ This directory contains the **same HTML/CSS frontend** that was previously serve
 
 ## Contents
 
-- `index.html` — landing and SPA entry
+- `index.html` - landing and SPA entry
 - Pages: `strings.html`, `txs.html`, `accounts.html`, `tokens.html`, `verify.html`, `defi.html`, `stats.html`, `testimonies.html`, `agents.html`, etc.
 - Detail routes: `tx/`, `address/`, `string/`, `token/`, `blockchain/`, `agents/`, `tokens/`
 - Assets: `css/`, `assets/`

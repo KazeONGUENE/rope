@@ -1,0 +1,53 @@
+[Unit]
+Description=Datachain CERBER edge.external_probes ingest (frozen v1 spec)
+Documentation=file:///opt/datachain-rope/code/docs/EDGE_EXTERNAL_PROBES_INGEST_SPEC_v1.md
+After=network-online.target
+Wants=network-online.target
+
+# Independent of datachain-rope.service on purpose: the ingest endpoint MUST
+# stay up during a rope-node wedge so external peers can still push probes
+# that will be aggregated on the next erpc-fleet-ha.sh tick once rope-node
+# recovers. It does not talk to rope-node.
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/datachain-rope/cerber
+
+# Same alert mailbox as every other CERBER surface.
+EnvironmentFile=-/etc/cerber-alert.env
+
+# Peer registry (pinned Ed25519 pubkeys). Same file cerber-mesh reads.
+Environment=CERBER_PEERS_FILE=/opt/datachain-rope/cerber/config/peers.production.json
+Environment=CERBER_PEERS_RUNTIME=/var/lib/datachain-rope/cerber/peers.runtime.json
+
+# Audit trail (shared with cerber-mesh so peer accept/reject history is
+# consolidated in one NDJSON stream).
+Environment=CERBER_AUDIT_DIR=/var/lib/datachain-rope/cerber/audit
+
+# Loopback bind: nginx (docker rope-nginx container) reaches this via
+# host.docker.internal. Public internet CANNOT hit this port directly.
+Environment=CERBER_EDGE_INGEST_HOST=127.0.0.1
+Environment=CERBER_EDGE_INGEST_PORT=9109
+
+# Ring buffer path (auto-rotated at ~40 MB into <path>.1).
+Environment=CERBER_EDGE_PROBES_FILE=/var/lib/datachain-rope/fleet/external-probes.ndjson
+
+ExecStart=/usr/bin/node /opt/datachain-rope/cerber/bin/cerber-edge-ingest.mjs
+Restart=always
+RestartSec=5
+Nice=5
+
+# Sandbox: this process only needs to read config, write two directories,
+# and bind loopback:9109. Everything else is denied.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/datachain-rope/fleet /var/lib/datachain-rope/cerber
+MemoryMax=256M
+TasksMax=32
+
+[Install]
+WantedBy=multi-user.target

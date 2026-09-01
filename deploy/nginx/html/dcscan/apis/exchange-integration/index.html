@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exchange Integration Guide | DC Explorer</title>
+    <meta name="description" content="Production-ready integration guide for centralised exchanges (MintMe, MEXC, ...) and DEX aggregators (XSwap, 1inch, Rango, ...) that want to support Datachain Rope (chainId 271828, native coin FAT). Every API surface is live today.">
+    <link rel="canonical" href="https://dcscan.io/apis/exchange-integration">
+    <meta property="og:title" content="Datachain Rope - Exchange Integration Guide (v1)">
+    <meta property="og:description" content="EVM-compatible L1 (chainId 271828). Standard JSON-RPC, DCSwap DEX for aggregators, MintMe + XSwap playbooks, CoinGecko DEX ticker endpoints already live.">
+    <meta property="og:url" content="https://dcscan.io/apis/exchange-integration">
+    <meta property="og:type" content="article">
+    <meta property="og:image" content="https://dcscan.io/assets/logo.svg">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Datachain Rope - Exchange Integration Guide (v1)">
+    <meta name="twitter:description" content="EVM-compatible L1 integration guide for exchanges and DEX aggregators.">
+    <link rel="icon" type="image/svg+xml" href="/assets/logo.svg">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root { --black: #000; --white: #fff; --gray-50: #fafafa; --gray-100: #f4f4f5; --gray-200: #e4e4e7; --gray-400: #a1a1aa; --gray-500: #71717a; --gray-600: #52525b; --gray-700: #3f3f46; --gray-800: #27272a; --gray-900: #18181b; --success: #22c55e; --info: #3b82f6; --warning: #f59e0b; --danger: #ef4444; --font-sans: 'Inter', sans-serif; --font-mono: 'JetBrains Mono', monospace; --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: var(--font-sans); background: var(--gray-50); color: var(--gray-900); font-size: 14px; }
+        a { color: var(--info); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 0 1rem; }
+        .top-bar { background: var(--gray-900); color: var(--white); padding: 0.5rem 0; font-size: 12px; }
+        .top-bar-content { display: flex; justify-content: space-between; }
+        .top-bar-left { display: flex; gap: 1.5rem; }
+        .top-bar-item { display: flex; gap: 0.375rem; color: #a1a1aa; }
+        .top-bar-value { color: var(--white); font-weight: 500; }
+        .top-bar-change.pos { color: #86efac; }
+        .top-bar-change.neg { color: #fca5a5; }
+        header { background: var(--white); border-bottom: 1px solid var(--gray-200); position: sticky; top: 0; z-index: 100; }
+        .header-container { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+        .logo { display: flex; align-items: center; gap: 0.625rem; font-weight: 450; font-size: 1rem; color: #000; line-height: 1.2; }
+        .logo-text { display: flex; flex-direction: column; }
+        .logo-icon { width: 32px; height: 32px; }
+        .main-nav { display: flex; align-items: center; gap: 0.25rem; }
+        .nav-item { position: relative; }
+        .nav-link { display: flex; align-items: center; gap: 0.375rem; padding: 0.5rem 0.875rem; color: var(--gray-600); font-weight: 500; font-size: 13px; border-radius: var(--radius-md); transition: all 0.15s; }
+        .nav-link:hover { color: var(--black); background: var(--gray-100); text-decoration: none; }
+        .nav-link.active { background: var(--gray-100); color: var(--black); }
+        .nav-link i { font-size: 11px; }
+        .nav-dropdown { position: absolute; top: 100%; left: 0; min-width: 220px; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); padding: 0.5rem; opacity: 0; visibility: hidden; transform: translateY(10px); transition: all 0.2s; z-index: 200; }
+        .nav-item:hover .nav-dropdown { opacity: 1; visibility: visible; transform: translateY(0); }
+        .dropdown-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.625rem 0.75rem; color: var(--gray-700); border-radius: var(--radius-sm); font-size: 13px; }
+        .dropdown-item:hover { background: var(--gray-100); color: var(--black); text-decoration: none; }
+        .header-actions { display: flex; align-items: center; gap: 0.75rem; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.375rem; padding: 0.5rem 1rem; font-size: 13px; font-weight: 600; border-radius: var(--radius-md); border: none; cursor: pointer; transition: all 0.15s; font-family: inherit; }
+        .btn-secondary { background: var(--gray-100); color: var(--gray-700); }
+        .btn-secondary:hover { background: var(--gray-200); text-decoration: none; }
+        .btn-primary { background: var(--black); color: var(--white); }
+        .btn-primary:hover { background: var(--gray-800); text-decoration: none; }
+        .btn i { font-size: 12px; }
+        .page-header { background: linear-gradient(135deg, var(--gray-900), var(--gray-800)); color: var(--white); padding: 3rem 0; }
+        .page-header .breadcrumb { color: #a1a1aa; font-size: 12px; margin-bottom: 0.5rem; }
+        .page-header .breadcrumb a { color: #d4d4d8; }
+        .page-title { font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; }
+        .page-subtitle { color: #a1a1aa; max-width: 780px; margin-bottom: 1rem; }
+        .page-meta { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
+        .badge-live { background: #dcfce7; color: #166534; padding: 0.25rem 0.625rem; border-radius: 999px; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 0.375rem; }
+        .badge-live::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #22c55e; }
+        .badge-version { background: rgba(255,255,255,0.1); color: var(--white); padding: 0.25rem 0.625rem; border-radius: 999px; font-size: 11px; font-weight: 600; font-family: var(--font-mono); }
+        .badge-chain { background: rgba(59,130,246,0.15); color: #93c5fd; padding: 0.25rem 0.625rem; border-radius: 999px; font-size: 11px; font-weight: 600; font-family: var(--font-mono); }
+        .content-grid { display: grid; grid-template-columns: 280px 1fr; gap: 2rem; margin-top: 2rem; }
+        .sidebar { position: sticky; top: 80px; height: fit-content; max-height: calc(100vh - 96px); overflow-y: auto; }
+        .sidebar-section { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 1rem; margin-bottom: 1rem; }
+        .sidebar-title { font-weight: 600; font-size: 12px; text-transform: uppercase; color: var(--gray-500); margin-bottom: 0.75rem; letter-spacing: 0.05em; }
+        .sidebar-link { display: block; padding: 0.5rem 0.75rem; color: var(--gray-600); border-radius: var(--radius-md); font-size: 13px; margin-bottom: 0.125rem; }
+        .sidebar-link:hover { background: var(--gray-100); color: var(--black); text-decoration: none; }
+        .api-section { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 1.5rem; margin-bottom: 1.5rem; scroll-margin-top: 80px; }
+        .section-title { font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; }
+        .section-title .section-num { color: var(--gray-400); font-family: var(--font-mono); font-weight: 500; font-size: 1rem; }
+        .section-subtitle { font-size: 1rem; font-weight: 600; margin: 1.25rem 0 0.5rem; color: var(--gray-800); }
+        .section-desc { color: var(--gray-700); line-height: 1.6; margin-bottom: 0.75rem; }
+        p { line-height: 1.6; color: var(--gray-700); margin-bottom: 0.75rem; }
+        p:last-child { margin-bottom: 0; }
+        ul, ol { margin: 0 0 0.75rem 1.25rem; color: var(--gray-700); line-height: 1.6; }
+        ul li, ol li { margin-bottom: 0.25rem; }
+        strong { color: var(--gray-900); font-weight: 600; }
+        code { font-family: var(--font-mono); font-size: 12px; background: var(--gray-100); padding: 0.125rem 0.375rem; border-radius: 4px; color: var(--gray-800); word-break: break-all; }
+        .code-block { background: var(--gray-900); color: #e5e7eb; border-radius: var(--radius-md); padding: 1rem; font-family: var(--font-mono); font-size: 12px; overflow-x: auto; margin: 0.75rem 0; line-height: 1.6; white-space: pre; }
+        .code-block .keyword { color: #f472b6; }
+        .code-block .string { color: #a5d6ff; }
+        .code-block .comment { color: #8b949e; }
+        .code-block .number { color: #d2a8ff; }
+        table.data { width: 100%; border-collapse: collapse; font-size: 13px; margin: 0.75rem 0; }
+        table.data th { text-align: left; font-size: 11px; text-transform: uppercase; color: var(--gray-500); padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--gray-200); letter-spacing: 0.03em; font-weight: 600; background: var(--gray-50); }
+        table.data td { padding: 0.625rem 0.75rem; border-bottom: 1px solid var(--gray-100); vertical-align: top; color: var(--gray-700); }
+        table.data td.mono, table.data td code { font-family: var(--font-mono); font-size: 12px; }
+        table.data tr:last-child td { border-bottom: none; }
+        .method-badge { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 11px; font-weight: 700; font-family: var(--font-mono); flex-shrink: 0; display: inline-block; }
+        .method-get { background: #dcfce7; color: #166534; }
+        .method-post { background: #dbeafe; color: #1e40af; }
+        .method-jsonrpc { background: #ede9fe; color: #5b21b6; }
+        /* Flat text-block callouts.
+           Left-border accents on text blocks are a forbidden stylistic
+           effect across Datachain workspaces (see .cursor rule
+           ban-left-border-text-block-callouts). Semantic status is
+           carried by the background tint + icon color on the title
+           only. Do NOT reintroduce `border-left`, `border-left-color`,
+           or asymmetric `border-radius: 0 ... 0` on `.callout` or any
+           similarly decorative text-block variant (callouts, quotes,
+           milestones, sidebar text notes, ...). */
+        .callout { background: #eff6ff; padding: 0.875rem 1rem; border-radius: var(--radius-md); margin: 0.75rem 0; }
+        .callout-title { font-weight: 600; color: #1e40af; font-size: 13px; margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.375rem; }
+        .callout p { color: var(--gray-700); margin-bottom: 0; font-size: 13px; }
+        .callout.warn { background: #fffbeb; }
+        .callout.warn .callout-title { color: #92400e; }
+        .callout.ok { background: #f0fdf4; }
+        .callout.ok .callout-title { color: #166534; }
+        .callout.danger { background: #fef2f2; }
+        .callout.danger .callout-title { color: #991b1b; }
+        .cta-row { display: flex; gap: 0.75rem; margin-top: 1rem; flex-wrap: wrap; }
+        .cta-row .btn { padding: 0.625rem 1.25rem; }
+        footer { background: var(--white); border-top: 1px solid var(--gray-200); padding: 2rem 0; margin-top: 3rem; }
+        .footer-content { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+        .footer-brand { display: flex; align-items: center; gap: 0.5rem; color: var(--gray-500); font-size: 13px; }
+        .footer-links { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+        .footer-links a { font-size: 12px; color: var(--gray-500); }
+        .footer-links a:hover { color: var(--black); text-decoration: none; }
+        hr { border: 0; border-top: 1px solid var(--gray-200); margin: 1.25rem 0; }
+        @media (max-width: 1024px) { .content-grid { grid-template-columns: 1fr; } .sidebar { position: static; max-height: none; } }
+        @media (max-width: 640px) { .page-title { font-size: 1.5rem; } .top-bar-left { gap: 0.75rem; } .main-nav { display: none; } .header-container { justify-content: space-between; } }
+
+        /* ---- Integration-request modal ------------------------------- */
+        .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.55); display: none; align-items: flex-start; justify-content: center; z-index: 1000; overflow-y: auto; padding: 3rem 1rem; }
+        .modal-backdrop.open { display: flex; }
+        .modal-card { background: var(--white); width: 100%; max-width: 640px; border-radius: var(--radius-lg); box-shadow: 0 20px 40px -8px rgba(0,0,0,0.25); overflow: hidden; }
+        .modal-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--gray-200); background: var(--gray-50); }
+        .modal-title { font-size: 1.125rem; font-weight: 700; color: var(--gray-900); margin: 0; }
+        .modal-subtitle { font-size: 12px; color: var(--gray-500); margin-top: 0.25rem; }
+        .modal-close { background: transparent; border: none; font-size: 1.25rem; color: var(--gray-500); cursor: pointer; padding: 0.25rem 0.5rem; border-radius: 4px; line-height: 1; }
+        .modal-close:hover { color: var(--gray-900); background: var(--gray-200); }
+        .modal-body { padding: 1.25rem 1.5rem 1.5rem; max-height: calc(100vh - 200px); overflow-y: auto; }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.875rem; }
+        .form-grid.full { grid-template-columns: 1fr; }
+        .form-field { display: flex; flex-direction: column; gap: 0.3125rem; }
+        .form-field.span-2 { grid-column: 1 / -1; }
+        .form-label { font-size: 12px; font-weight: 600; color: var(--gray-700); }
+        .form-label .req { color: var(--danger); }
+        .form-hint { font-size: 11px; color: var(--gray-500); }
+        .form-input, .form-select, .form-textarea { width: 100%; padding: 0.5rem 0.625rem; font-size: 13px; font-family: inherit; color: var(--gray-900); background: var(--white); border: 1px solid var(--gray-300, #d4d4d8); border-radius: var(--radius-sm); outline: none; transition: border-color 0.15s; }
+        .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--info); box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+        .form-textarea { resize: vertical; min-height: 120px; font-family: var(--font-sans); line-height: 1.5; }
+        .form-honeypot { position: absolute; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 0.625rem; margin-top: 1.25rem; }
+        .modal-status { font-size: 12px; margin-top: 0.75rem; padding: 0.625rem 0.75rem; border-radius: var(--radius-sm); display: none; }
+        .modal-status.info { display: block; background: #eff6ff; color: #1e40af; }
+        .modal-status.ok { display: block; background: #f0fdf4; color: #166534; }
+        .modal-status.err { display: block; background: #fef2f2; color: #991b1b; }
+        body.modal-open { overflow: hidden; }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <div class="container top-bar-container top-bar-content">
+            <div class="top-bar-left">
+                <div class="top-bar-item"><span>DC FAT Price:</span><span class="top-bar-value" id="topbar-fat-price">-</span><span class="top-bar-change" id="topbar-fat-change"></span></div>
+                <div class="top-bar-item"><span>Gas:</span><span class="top-bar-value" id="topbar-gas">-</span></div>
+            </div>
+        </div>
+    </div>
+    <header>
+        <div class="container header-container">
+            <a href="/" class="logo">
+                <div class="logo-icon"><img src="/assets/logo.svg" alt="DC Explorer" style="width: 100%; height: 100%; object-fit: contain;"></div>
+                <span class="logo-text"><span>DC</span><span>Explorer</span></span>
+            </a>
+            <nav class="main-nav">
+                <div class="nav-item"><a href="#" class="nav-link">Smartchain <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/strings" class="dropdown-item">View Strings</a>
+                        <a href="/txs" class="dropdown-item">Transactions</a>
+                        <a href="/txsPending" class="dropdown-item">Pending Txns</a>
+                        <a href="/accounts" class="dropdown-item">Top Accounts</a>
+                        <a href="/contracts" class="dropdown-item">Verified Contracts</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">AI Agents <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/agents" class="dropdown-item">All Agents</a>
+                        <a href="/testimonies" class="dropdown-item">Testimonies</a>
+                        <a href="/validations" class="dropdown-item">Validators</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">Tokens <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/tokens" class="dropdown-item">DCR-20 Tokens</a>
+                        <a href="/core/fat" class="dropdown-item">Native DC FAT</a>
+                        <a href="/tokentxns" class="dropdown-item">Token Transfers</a>
+                        <a href="/vote" class="dropdown-item">Vote</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link">Network <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/ecosystem" class="dropdown-item">Ecosystem Projects</a>
+                        <a href="/vote" class="dropdown-item">Governance &amp; Voting</a>
+                        <a href="/defi" class="dropdown-item">DeFi</a>
+                        <a href="/supply" class="dropdown-item">Supply Reconciliation</a>
+                        <a href="/validators" class="dropdown-item">Validators</a>
+                        <a href="/databases" class="dropdown-item">Databases</a>
+                        <a href="/databoxes" class="dropdown-item">Global Databox Network</a>
+                        <a href="/stats" class="dropdown-item">Charts &amp; Stats</a>
+                    </div>
+                </div>
+                <div class="nav-item"><a href="#" class="nav-link active">More <i class="fa-solid fa-chevron-down"></i></a>
+                    <div class="nav-dropdown">
+                        <a href="/apis" class="dropdown-item">API Docs</a>
+                        <a href="/apis/exchange-integration" class="dropdown-item">Exchange Integration</a>
+                        <a href="/admin-tokens" class="dropdown-item">Admin Tokens</a>
+                        <a href="/verify" class="dropdown-item">Verify Contract</a>
+                        <a href="/create-wallet" class="dropdown-item">Create Wallet</a>
+                        <a href="/faucet" class="dropdown-item">Faucet</a>
+                        <a href="https://github.com/KazeONGUENE/rope" class="dropdown-item" target="_blank" rel="noopener">GitHub</a>
+                        <a href="/partners" class="dropdown-item">Partners</a>
+                        <a href="/contact" class="dropdown-item">Contact</a>
+                    </div>
+                </div>
+            </nav>
+            <div class="header-actions"><button class="btn btn-secondary"><i class="fa-solid fa-wallet"></i> Connect</button></div>
+        </div>
+    </header>
+
+    <div class="page-header">
+        <div class="container">
+            <div class="breadcrumb"><a href="/">DC Explorer</a> &nbsp;/&nbsp; <a href="/apis">APIs</a> &nbsp;/&nbsp; Exchange Integration</div>
+            <h1 class="page-title">Exchange Integration Guide</h1>
+            <p class="page-subtitle">Production-ready integration for centralised exchanges (MintMe, MEXC, Gate, KuCoin, ...) and decentralised exchange front-ends / aggregators (XSwap Protocol, 1inch, Uniswap Interface forks, Rango, Li.Fi, CoinGecko DEX tracking, ...) that want to add Datachain Rope to their supported-network list.</p>
+            <div class="page-meta">
+                <span class="badge-live">Live</span>
+                <span class="badge-version">v1.0 &middot; 2026-08-14</span>
+                <span class="badge-chain">chainId 271828</span>
+                <span class="badge-chain">native FAT</span>
+            </div>
+            <div class="cta-row">
+                <button type="button" class="btn btn-primary" data-open-integration-modal><i class="fa-solid fa-headset"></i> Contact integration engineering</button>
+                <a href="https://erpc.datachain.network/v1/fleet-status" class="btn btn-secondary" target="_blank" rel="noopener"><i class="fa-solid fa-heart-pulse"></i> Live fleet status</a>
+                <a href="/apis" class="btn btn-secondary"><i class="fa-solid fa-book"></i> Full API docs</a>
+            </div>
+        </div>
+    </div>
+
+    <main class="container">
+        <div class="content-grid">
+            <aside class="sidebar">
+                <div class="sidebar-section">
+                    <div class="sidebar-title">Overview</div>
+                    <a href="#tldr" class="sidebar-link">0. TL;DR</a>
+                    <a href="#models" class="sidebar-link">1. Two integration models</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-title">Chain surface</div>
+                    <a href="#network" class="sidebar-link">2. Network parameters</a>
+                    <a href="#rpc" class="sidebar-link">3. JSON-RPC surface</a>
+                    <a href="#explorer" class="sidebar-link">4. Block explorer API</a>
+                    <a href="#assets" class="sidebar-link">5. Asset registry</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-title">DEX + Playbooks</div>
+                    <a href="#dcswap" class="sidebar-link">6. DCSwap (Rope DEX)</a>
+                    <a href="#mintme" class="sidebar-link">7. MintMe playbook</a>
+                    <a href="#xswap" class="sidebar-link">8. XSwap playbook</a>
+                    <a href="#coingecko" class="sidebar-link">9. CoinGecko DEX listing</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-title">Go-live</div>
+                    <a href="#acceptance" class="sidebar-link">10. Acceptance criteria</a>
+                    <a href="#contacts" class="sidebar-link">11. Points of contact</a>
+                    <a href="#versioning" class="sidebar-link">12. Versioning</a>
+                </div>
+            </aside>
+
+            <div class="main-content">
+                <div class="api-section" id="tldr">
+                    <h2 class="section-title"><span class="section-num">0.</span> TL;DR</h2>
+                    <p class="section-desc">Datachain Rope is a fully EVM-compatible L1. You do not need any Rope-specific SDK or bespoke API to integrate. Every call in this document is either:</p>
+                    <ul>
+                        <li><strong>A standard Ethereum JSON-RPC method</strong> served by <code>https://erpc.datachain.network</code> (or <code>https://erpc.rope.network</code>) - same wire format as Ethereum, same tooling (ethers.js, viem, web3.py, foundry <code>cast</code>, go-ethereum client, ...).</li>
+                        <li><strong>A CMC / CoinGecko-style public JSON API</strong> served by <code>https://dcscan.io/api/v1/*</code> (block explorer + supply reconciliation + token labels).</li>
+                        <li><strong>A DCSwap DEX contract</strong> (Uniswap V2 fork) already deployed on-chain, addressable by any Router-aware aggregator.</li>
+                    </ul>
+                    <p>If your integration works against Ethereum today, adding Rope is a matter of appending one entry to your chains config and (for centralised exchanges) allocating a hot wallet. There is no code to write against a proprietary surface.</p>
+                    <div class="callout ok">
+                        <div class="callout-title"><i class="fa-solid fa-circle-check"></i> Applies to</div>
+                        <p>Datachain Rope <strong>mainnet only</strong> (chainId <code>271828</code>). No testnet is exposed externally at this time. Owner: Datachain Foundation SAS. Technical contact: <code>contact@datachain.one</code>. Ops SLA: <a href="https://erpc.datachain.network/v1/fleet-status" target="_blank" rel="noopener">/v1/fleet-status</a>.</p>
+                    </div>
+                </div>
+
+                <div class="api-section" id="models">
+                    <h2 class="section-title"><span class="section-num">1.</span> Two integration models</h2>
+                    <p class="section-desc">The rest of the guide separates by which model applies.</p>
+
+                    <h3 class="section-subtitle">Model A - Centralised exchange with custody (MintMe, MEXC, Gate, ...)</h3>
+                    <p>You custody user funds. You need:</p>
+                    <ol>
+                        <li>A way to talk to the chain (JSON-RPC + WSS).</li>
+                        <li>Deposit-address generation, funded-tx confirmation, and withdrawal-broadcast paths.</li>
+                        <li>A canonical way to represent the asset on your side (name, ticker, decimals, contract if any).</li>
+                        <li>Optional: internal risk parameters (finality depth, min withdrawal, fee schedule).</li>
+                    </ol>
+                    <p>Model A does <strong>not</strong> need to touch DCSwap or any Rope-specific contract. You are trading against your own order book off-chain.</p>
+
+                    <h3 class="section-subtitle">Model B - DEX / aggregator / DEX front-end (XSwap, 1inch, Rango, ...)</h3>
+                    <p>You do <strong>not</strong> custody. You need:</p>
+                    <ol>
+                        <li>A way to talk to the chain (JSON-RPC + WSS) - same as Model A.</li>
+                        <li>A canonical liquidity source on Rope. <strong>DCSwap</strong> is a UniswapV2-compatible AMM already deployed; use its Router + Factory directly, or index its pools for quoting.</li>
+                        <li>A canonical asset registry (contract address, decimals, logo). See <a href="#assets">§5</a>.</li>
+                    </ol>
+                    <p>Model B does <strong>not</strong> need to redeploy any contracts on Rope unless you want your own venue rather than routing through DCSwap.</p>
+                </div>
+
+                <div class="api-section" id="network">
+                    <h2 class="section-title"><span class="section-num">2.</span> Network parameters (paste-safe values)</h2>
+                    <table class="data">
+                        <tr><td>Chain name</td><td><code>Datachain Rope Mainnet</code></td></tr>
+                        <tr><td>Chain ID (hex)</td><td><code>0x425d4</code></td></tr>
+                        <tr><td>Chain ID (decimal)</td><td><code>271828</code></td></tr>
+                        <tr><td>Native coin name</td><td><code>DC FAT</code></td></tr>
+                        <tr><td>Native coin symbol</td><td><code>FAT</code></td></tr>
+                        <tr><td>Native coin decimals</td><td><code>18</code></td></tr>
+                        <tr><td>Consensus</td><td>Testimony Consensus (proposer + independent-attester quorum, Reth-based execution, Engine-API driven)</td></tr>
+                        <tr><td>Block time (avg)</td><td><code>~4.2 s</code></td></tr>
+                        <tr><td>Finality (recommended confirmation depth)</td><td><code>2 blocks</code> (soft) / <code>10 blocks</code> (hard, ~42 s)</td></tr>
+                        <tr><td>Public JSON-RPC</td><td><code>https://erpc.datachain.network</code> (primary), <code>https://erpc.rope.network</code> (secondary)</td></tr>
+                        <tr><td>Public WebSocket</td><td><code>wss://ws.datachain.network</code> (primary), <code>wss://ws.rope.network</code> (secondary)</td></tr>
+                        <tr><td>Public block explorer</td><td><a href="https://dcscan.io" target="_blank" rel="noopener">https://dcscan.io</a></td></tr>
+                        <tr><td>Block explorer JSON API</td><td><code>https://dcscan.io/api/v1/*</code></td></tr>
+                        <tr><td>Fleet status (uptime SLA)</td><td><a href="https://erpc.datachain.network/v1/fleet-status" target="_blank" rel="noopener">/v1/fleet-status</a></td></tr>
+                        <tr><td>Liveness probe</td><td><a href="https://erpc.datachain.network/healthz" target="_blank" rel="noopener">/healthz</a></td></tr>
+                        <tr><td>HD derivation path</td><td><code>m/44'/60'/0'/0/0</code> (BIP-44 Ethereum coin type 60, deliberate for tooling parity)</td></tr>
+                        <tr><td>Address format</td><td>EIP-55 checksummed (identical to Ethereum)</td></tr>
+                        <tr><td>Signature scheme</td><td>secp256k1 (identical to Ethereum). Post-quantum hybrid (Ed25519 + Dilithium3) is enforced at consensus but transparent to EVM tooling</td></tr>
+                        <tr><td>Genesis date</td><td>2026-03-25</td></tr>
+                        <tr><td>Chainlist</td><td><a href="https://chainlist.org/chain/271828" target="_blank" rel="noopener">chainlist.org/chain/271828</a></td></tr>
+                    </table>
+
+                    <div class="callout">
+                        <div class="callout-title"><i class="fa-solid fa-circle-info"></i> Self-serve config endpoint (recommended)</div>
+                        <p>Every wallet and dApp that integrates Rope should fetch <a href="https://dcscan.io/api/v1/network/config" target="_blank" rel="noopener"><code>/api/v1/network/config</code></a> at connect time and push the <code>eip3085</code> sub-object to the user's wallet via <code>wallet_addEthereumChain</code>. This is how RPC URL rotations are propagated without dApp deploys. <strong>Do not hard-code RPC URLs</strong> - fetch and cache (5-minute TTL is fine).</p>
+                    </div>
+
+                    <p><strong>Sample response</strong> (verified live 2026-08-14):</p>
+                    <div class="code-block"><span class="keyword">{</span>
+  <span class="string">"eip3085"</span>: {
+    <span class="string">"chainId"</span>: <span class="string">"0x425d4"</span>,
+    <span class="string">"chainName"</span>: <span class="string">"Datachain Rope Mainnet"</span>,
+    <span class="string">"nativeCurrency"</span>: { <span class="string">"name"</span>: <span class="string">"DC FAT"</span>, <span class="string">"symbol"</span>: <span class="string">"FAT"</span>, <span class="string">"decimals"</span>: <span class="number">18</span> },
+    <span class="string">"rpcUrls"</span>: [<span class="string">"https://erpc.datachain.network"</span>, <span class="string">"https://erpc.rope.network"</span>],
+    <span class="string">"blockExplorerUrls"</span>: [<span class="string">"https://dcscan.io"</span>],
+    <span class="string">"iconUrls"</span>: [<span class="string">"https://dcscan.io/assets/logo.png"</span>, <span class="string">"https://dcscan.io/assets/logo.svg"</span>]
+  },
+  <span class="string">"chainIdDecimal"</span>: <span class="number">271828</span>,
+  <span class="string">"wsUrl"</span>: <span class="string">"wss://ws.datachain.network"</span>,
+  <span class="string">"wsUrls"</span>: [<span class="string">"wss://ws.datachain.network"</span>, <span class="string">"wss://ws.rope.network"</span>],
+  <span class="string">"fleetStatusUrl"</span>: <span class="string">"https://erpc.datachain.network/v1/fleet-status"</span>,
+  <span class="string">"healthzUrl"</span>: <span class="string">"https://erpc.datachain.network/healthz"</span>,
+  <span class="string">"derivationPath"</span>: <span class="string">"m/44'/60'/0'/0/0"</span>,
+  <span class="string">"dcswapUrl"</span>: <span class="string">"https://dcswap.net"</span>,
+  <span class="string">"docsUrl"</span>: <span class="string">"https://dcscan.io/apis"</span>
+<span class="keyword">}</span></div>
+                </div>
+
+                <div class="api-section" id="rpc">
+                    <h2 class="section-title"><span class="section-num">3.</span> JSON-RPC surface</h2>
+                    <p class="section-desc">Every standard Ethereum method works unchanged. The only additions are <code>rope_*</code> methods for Datachain Rope's per-entity ledger primitives (Quipu Canon v1.2). Exchanges and DEXes do not need the <code>rope_*</code> methods for basic listing - they are available if you want richer analytics or per-wallet activity streams.</p>
+
+                    <h3 class="section-subtitle">3.1 Standard eth_* methods (verified compatible)</h3>
+                    <p><code>eth_chainId</code>, <code>eth_blockNumber</code>, <code>eth_gasPrice</code>, <code>eth_getBalance</code>, <code>eth_getTransactionCount</code>, <code>eth_getBlockByNumber</code>, <code>eth_getBlockByHash</code>, <code>eth_getTransactionByHash</code>, <code>eth_getTransactionReceipt</code>, <code>eth_getLogs</code>, <code>eth_sendRawTransaction</code>, <code>eth_call</code>, <code>eth_estimateGas</code>, <code>eth_feeHistory</code>, <code>eth_getCode</code>, <code>eth_getStorageAt</code>, <code>eth_syncing</code>, <code>net_version</code>, <code>web3_clientVersion</code>.</p>
+                    <p>WebSocket subscriptions (<code>eth_subscribe</code>) supported for: <code>newHeads</code>, <code>logs</code>, <code>newPendingTransactions</code>.</p>
+
+                    <div class="callout warn">
+                        <div class="callout-title"><i class="fa-solid fa-triangle-exclamation"></i> Ghost-tx guard (exchanges must know this)</div>
+                        <p><code>eth_sendRawTransaction</code> is pinned by the nginx router to the sole active sequencer (BLUE). If your infra ever hits an attester read-endpoint directly and gets an accepted-looking response with no receipt within 30 s, the tx was reclaimed by the autonomous ghost-tx reclaim loop and injected onto the sequencer. In practice, you will never see this if you use <code>https://erpc.datachain.network</code> because the router handles it.</p>
+                    </div>
+
+                    <h3 class="section-subtitle">3.2 Additive rope_* methods (optional)</h3>
+                    <table class="data">
+                        <thead><tr><th>Method</th><th>Purpose</th></tr></thead>
+                        <tr><td><code>rope_globalStats</code></td><td>Global cord + string + knot counts + per-kind breakdown + invariant flag</td></tr>
+                        <tr><td><code>rope_listStrings</code></td><td>Paginated list of registered per-entity strings (wallet, contract, asset, did, cord)</td></tr>
+                        <tr><td><code>rope_getString</code></td><td>Descriptor for a single string (genesis knot, head knot, knot count)</td></tr>
+                        <tr><td><code>rope_knotIndex</code> / <code>eth_blockNumber</code></td><td>Canonical name for cord-anchor knot index (block height alias for EVM tooling)</td></tr>
+                        <tr><td><code>rope_getKnotByIndex</code> / <code>eth_getBlockByNumber</code></td><td>Same</td></tr>
+                        <tr><td><code>rope_getKnotByHash</code> / <code>eth_getBlockByHash</code></td><td>Same</td></tr>
+                    </table>
+
+                    <h3 class="section-subtitle">3.3 Rate limits, endpoints, and SLA</h3>
+                    <ul>
+                        <li>Public RPC has no auth key required. Use conservative pacing: peer traffic bursts to ~100 r/s were absorbed on 2026-08-04, but sustained &gt; 200 r/s per client will hit the <code>limit_req</code> zone and return HTTP <code>429</code>.</li>
+                        <li>Two RPCs and two WSS URLs are exposed. Round-robin or health-check between them. Behind each URL there is a 4-node failover fleet (BLUE, GREEN, DO-rpc-1, DO-rpc-2) transparent to the client.</li>
+                        <li>Uptime signal: fetch <code>/v1/fleet-status</code> every 60 s. Watch <code>writer.status</code>, <code>edge.status</code>, and <code>self_heal.escalate_to_cerber</code> (paging signal).</li>
+                        <li>Historical outage class: BLUE MTBF ~30 min under peak load. Adaptive <code>estimated_recovery_at</code> and <code>recommended_deadline_padding_secs</code> are published in <code>self_heal</code> - use them to pad transaction deadlines during a restart window.</li>
+                        <li>If you need a private high-limit endpoint (bots, indexers, MM engines), request it via <code>contact@datachain.one</code>.</li>
+                    </ul>
+                </div>
+
+                <div class="api-section" id="explorer">
+                    <h2 class="section-title"><span class="section-num">4.</span> Block explorer API</h2>
+                    <p class="section-desc">Standard read-only JSON at <code>https://dcscan.io/api/v1/*</code>. All endpoints CORS-open. No auth key required.</p>
+
+                    <h3 class="section-subtitle">4.1 Endpoints exchanges typically use</h3>
+                    <table class="data">
+                        <thead><tr><th>Endpoint</th><th>Returns</th><th>Update</th></tr></thead>
+                        <tr><td><span class="method-badge method-get">GET</span> <code>/api/v1/stats</code></td><td>Network-wide: chainId, latest knot, cord anchors, transactions, events, FAT price, market cap, holders</td><td>Realtime (cached 15 s)</td></tr>
+                        <tr><td><span class="method-badge method-get">GET</span> <code>/api/v1/supply/circulating</code></td><td>Bare <code>text/plain</code> number of circulating FAT (<strong>this is what CMC / CG poll</strong>). Scenario A methodology.</td><td>Realtime (5-min recompute)</td></tr>
+                        <tr><td><span class="method-badge method-get">GET</span> <code>/api/v1/supply/total</code></td><td>Bare <code>text/plain</code> number of total FAT (native emission + migrated legacy DC)</td><td>Realtime</td></tr>
+                        <tr><td><span class="method-badge method-get">GET</span> <code>/api/v1/supply/reconciliation</code></td><td>Full JSON: total, circulating, per-bucket breakdown, per-wallet uncirculated list, as-of timestamp</td><td>Realtime</td></tr>
+                        <tr><td><span class="method-badge method-get">GET</span> <code>/api/v1/labels</code></td><td>Canonical <code>(address -&gt; label)</code> registry (foundation reserves, DCSwap contracts, Tanastok treasuries, ...)</td><td>Cache 5 min</td></tr>
+                        <tr><td><span class="method-badge method-get">GET</span> <code>/api/v1/accounts/:address/overview</code></td><td>Balance, tokens, tx count, first-seen, label</td><td>Realtime</td></tr>
+                        <tr><td><span class="method-badge method-get">GET</span> <code>/api/v1/accounts/:address/tokens</code></td><td>DCR-20 token balances + USD values (via <code>PriceLens</code>)</td><td>Realtime</td></tr>
+                        <tr><td><span class="method-badge method-get">GET</span> <code>/api/v1/tokens/:address</code></td><td>Token detail (name, symbol, decimals, totalSupply, priceUsd, marketCap)</td><td>Realtime</td></tr>
+                        <tr><td><span class="method-badge method-get">GET</span> <code>/api/v1/tokens</code></td><td>Paginated token summary list</td><td>Cache 30 s</td></tr>
+                    </table>
+
+                    <h3 class="section-subtitle">4.2 Price feed (canonical)</h3>
+                    <p>The single source of truth for FAT / DCR-20 spot price is <a href="https://dcswap.net/v1/prices" target="_blank" rel="noopener"><code>https://dcswap.net/v1/prices</code></a>. Sample:</p>
+                    <div class="code-block"><span class="keyword">{</span>
+  <span class="string">"data"</span>: {
+    <span class="string">"FAT"</span>: { <span class="string">"usd"</span>: <span class="number">0.037089</span>, <span class="string">"source"</span>: <span class="string">"dcswap-reserves(outlier-rejected-gecko)"</span> },
+    <span class="string">"USDC"</span>: { <span class="string">"usd"</span>: <span class="number">0.999967</span>, <span class="string">"source"</span>: <span class="string">"coingecko"</span> },
+    <span class="string">"USDT"</span>: { <span class="string">"usd"</span>: <span class="number">1.0</span>, <span class="string">"source"</span>: <span class="string">"coingecko"</span> },
+    <span class="string">"EUROD"</span>: { <span class="string">"usd"</span>: <span class="number">1.1447</span>, <span class="string">"source"</span>: <span class="string">"exchangerate-api"</span> }
+  },
+  <span class="string">"timestamp"</span>: <span class="number">1786860000</span>,
+  <span class="string">"priceMechanism"</span>: { <span class="string">"version"</span>: <span class="string">"2.1"</span>, <span class="string">"phase"</span>: <span class="string">"market"</span> }
+<span class="keyword">}</span></div>
+                    <div class="callout ok">
+                        <div class="callout-title"><i class="fa-solid fa-lock"></i> WFAT price invariant</div>
+                        <p>WFAT price <strong>equals FAT price 1:1</strong> (WFAT is the DCR-20 wrap, same mechanic as WETH:ETH). Any integration that displays WFAT must use <code>data.FAT.usd</code>. This invariant is enforced across DCScan by the <code>PriceLens</code> diffusion module.</p>
+                    </div>
+                </div>
+
+                <div class="api-section" id="assets">
+                    <h2 class="section-title"><span class="section-num">5.</span> Asset registry</h2>
+                    <p class="section-desc">FAT has three on-chain surfaces, tied by an audited 1:1 burn-and-mint migration. Exchanges list <strong>one</strong> (native FAT); DEXes may need the DCR-20 wrap.</p>
+
+                    <h3 class="section-subtitle">5.1 Primary asset</h3>
+                    <table class="data">
+                        <tr><td>Asset name</td><td><code>Datachain</code> (formerly <code>Datachain Foundation</code>)</td></tr>
+                        <tr><td>Ticker</td><td><code>FAT</code> (formerly <code>DC</code>)</td></tr>
+                        <tr><td>Standard</td><td>Native coin of Datachain Rope (chainId <code>271828</code>)</td></tr>
+                        <tr><td>Contract</td><td>None - it is the native gas asset</td></tr>
+                        <tr><td>Decimals</td><td><code>18</code></td></tr>
+                        <tr><td>Genesis supply</td><td><code>10,000,000,000 FAT</code></td></tr>
+                        <tr><td>Max supply</td><td><code>~18,000,000,000 FAT (asymptotic)</code> - emitted via anchor-knot rewards under Bitcoin-style 4-year halving. Not pre-minted, not PoW-mined.</td></tr>
+                        <tr><td>Current circulating</td><td>Poll <a href="https://dcscan.io/api/v1/supply/circulating" target="_blank" rel="noopener"><code>/api/v1/supply/circulating</code></a></td></tr>
+                        <tr><td>Logo</td><td><a href="https://dcscan.io/assets/logo.svg" target="_blank" rel="noopener">/assets/logo.svg</a></td></tr>
+                        <tr><td>CMC listing</td><td><code>id 10357</code> (<a href="https://coinmarketcap.com/currencies/datachain-foundation/" target="_blank" rel="noopener">coinmarketcap.com/currencies/datachain-foundation/</a>)</td></tr>
+                    </table>
+
+                    <h3 class="section-subtitle">5.2 Wrapped FAT (WFAT) - DCR-20, ERC-20 wire-compatible</h3>
+                    <p>Required by any DEX / aggregator that routes swaps against Uniswap-V2-style pools. This is what MetaMask reads for <code>balanceOf</code> and what DCSwap LP pairs trade.</p>
+                    <table class="data">
+                        <tr><td>Contract</td><td><code>0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4</code></td></tr>
+                        <tr><td>Standard</td><td><strong>DCR-20</strong> (Datachain Rope's native fungible token standard, ERC-20 wire-compatible - identical function selectors and events)</td></tr>
+                        <tr><td>Name / Symbol</td><td><code>Wrapped DC FAT</code> / <code>WFAT</code></td></tr>
+                        <tr><td>Decimals</td><td><code>18</code></td></tr>
+                        <tr><td>Extra methods</td><td><code>deposit() payable</code>, <code>withdraw(uint256)</code> (same as WETH9)</td></tr>
+                        <tr><td>Price</td><td>Always equals FAT price 1:1</td></tr>
+                    </table>
+
+                    <h3 class="section-subtitle">5.3 Legacy DC (pre-migration)</h3>
+                    <table class="data">
+                        <thead><tr><th>Chain</th><th>Contract</th><th>Standard</th></tr></thead>
+                        <tr><td>Ethereum (1)</td><td><code>0x0B44547be0A0Df5dCd5327de8EA73680517c5a54</code></td><td>ERC-777</td></tr>
+                        <tr><td>XDC Network (50)</td><td><code>0x20b59e6c5deb7d7ced2ca823c6ca81dd3f7e9a3a</code></td><td>XRC-20</td></tr>
+                    </table>
+                    <p>These are being <strong>migrated 1:1 to native FAT</strong> via the audited burn-and-mint contracts below. Exchanges should list native FAT, not legacy DC.</p>
+
+                    <h3 class="section-subtitle">5.4 Migration contracts (for CMC / CG due diligence)</h3>
+                    <table class="data">
+                        <thead><tr><th>Contract</th><th>Chain</th><th>Address</th></tr></thead>
+                        <tr><td><code>EthereumOriginBurn</code></td><td>Ethereum (1)</td><td><code>0xAdbE9b023475cf6A150c58F60b65ACB07536e07d</code></td></tr>
+                        <tr><td><code>XdcOriginBurn</code></td><td>XDC (50)</td><td><code>0xBf010DAd0C44Ed0481Ed9eDCc01A2DcfD8eE6742</code></td></tr>
+                        <tr><td><code>FATMigrationMinter</code></td><td>Datachain Rope (271828)</td><td><code>0x70406ae110D6ccff9a73a2AC2b82d3B666B5a51a</code></td></tr>
+                    </table>
+                    <p>Caps: <code>5,000,000</code> DC/FAT per tx, <code>25,000,000</code> rolling 24h aggregate.</p>
+
+                    <h3 class="section-subtitle">5.5 Bridged stablecoins (for DEX quote-currency pairs)</h3>
+                    <table class="data">
+                        <thead><tr><th>Symbol</th><th>Contract</th><th>Decimals</th></tr></thead>
+                        <tr><td>USDC</td><td><code>0xb93bd8db94f1baff474aa9cba0739daaad01641f</code></td><td>6</td></tr>
+                        <tr><td>USDT</td><td><code>0x79a26132f48394421382c13b54ae77fa3af73289</code></td><td>6</td></tr>
+                        <tr><td>EUROD</td><td><code>0x24d6137807fa8a592888726d87ac748d018c6d4a</code></td><td>6</td></tr>
+                    </table>
+                </div>
+
+                <div class="api-section" id="dcswap">
+                    <h2 class="section-title"><span class="section-num">6.</span> DCSwap - the canonical DEX on Datachain Rope</h2>
+                    <p class="section-desc">DCSwap is a Uniswap V2 fork audited and operated by Datachain Foundation. It is the reference liquidity source on chainId 271828. Any aggregator that supports UniswapV2Router02 can integrate DCSwap by adding a new chains entry with these addresses.</p>
+
+                    <h3 class="section-subtitle">6.1 Router + Factory</h3>
+                    <table class="data">
+                        <thead><tr><th>Contract</th><th>Address</th><th>Interface</th></tr></thead>
+                        <tr><td><code>DCSwapFactory</code></td><td><code>0x772e5fd559069aecce5e6983c0c415c8579d780d</code></td><td>UniswapV2Factory ABI (identical)</td></tr>
+                        <tr><td><code>DCSwapRouter</code></td><td><code>0x8ebdd966e9e9af2ec5d02c886b1c4b5ba617e7c4</code></td><td>UniswapV2Router02 ABI (identical, <code>WETH()</code> returns WFAT)</td></tr>
+                        <tr><td><code>Multicall3</code></td><td><code>0xc2eeb0100aa7e81a3193bdce6733ff767f3bb93a</code></td><td>Standard Multicall3</td></tr>
+                    </table>
+
+                    <h3 class="section-subtitle">6.2 Live pools</h3>
+                    <table class="data">
+                        <thead><tr><th>Pair</th><th>Address</th><th>Fee</th><th>token0 / token1</th></tr></thead>
+                        <tr><td>FAT/USDC</td><td><code>0xd9ebc3da001618a3ae90481d33ae7ef85e130317</code></td><td>0 bps (fee-free)</td><td>WFAT / USDC</td></tr>
+                        <tr><td>FAT/USDT</td><td><code>0x644da44bcd5f453c593781dbe22dfd733e8d1441</code></td><td>0 bps</td><td>WFAT / USDT</td></tr>
+                        <tr><td>FAT/EUROD</td><td><code>0x1e9c2ccf67320459bc4999a9f8be4a063d4021e4</code></td><td>0 bps</td><td>EUROD / WFAT</td></tr>
+                        <tr><td>USDC/USDT</td><td><code>0xb86bdcecad93573d6ca21313aa7eac52800513c8</code></td><td>30 bps</td><td>USDC / USDT</td></tr>
+                    </table>
+                    <p>Reserves and TWAP checks are the standard <code>getReserves()</code> and <code>price0CumulativeLast()</code> / <code>price1CumulativeLast()</code> calls. Nothing about the ABI has been changed from UniswapV2 canonical.</p>
+
+                    <h3 class="section-subtitle">6.3 Aggregator integration pattern</h3>
+                    <ol>
+                        <li>Append a <code>chains[271828]</code> entry with the RPC + explorer + native coin as documented in <a href="#network">§2</a>.</li>
+                        <li>Register the <code>DCSwapFactory</code> address (protocol type: <code>uniswap_v2</code>). Init-code-hash for off-chain CREATE2 pair-address derivation is <code>0x17abb07a6866e0805d5525f8aa38bfb7e6e0b51cb92df1a1a981d5a96ebdff28</code> (verified live 2026-08-14 via <code>Factory.pairCodeHash()</code>, selector <code>0x9aab9248</code>).</li>
+                        <li>Register the four pool addresses in your pool registry (or discover via <code>Factory.allPairs(i)</code> / <code>Factory.allPairsLength()</code>).</li>
+                        <li>Route swaps via <code>DCSwapRouter.swapExactTokensForTokens</code>, <code>swapExactETHForTokens</code>, <code>swapExactTokensForETH</code>, etc. - identical calldata as UniswapV2Router02, <code>WETH()</code> returns WFAT.</li>
+                        <li>Optional: index Router logs (<code>Swap</code>, <code>Mint</code>, <code>Burn</code>) for realtime pool metrics.</li>
+                    </ol>
+                </div>
+
+                <div class="api-section" id="mintme">
+                    <h2 class="section-title"><span class="section-num">7.</span> MintMe integration playbook (Model A)</h2>
+                    <p class="section-desc">MintMe already supports Ethereum, BSC, Solana, BASE, Avalanche, CRO, Arbitrum, Polygon, and MintMe.com Coin. Adding Datachain Rope is mechanically identical to how MintMe added BASE and Arbitrum - it is another EVM chain, no bespoke SDK.</p>
+
+                    <h3 class="section-subtitle">7.1 What MintMe engineering needs to do</h3>
+                    <ol>
+                        <li><strong>Chain config entry.</strong> One row: <code>chain_name: "Datachain Rope"</code>, <code>chain_id: 271828</code>, <code>native_coin: "FAT"</code>, <code>decimals: 18</code>, <code>explorer: "https://dcscan.io"</code>, <code>rpc: "https://erpc.datachain.network"</code> (fallback <code>https://erpc.rope.network</code>), <code>ws: "wss://ws.datachain.network"</code>, <code>finality_depth: 10 blocks</code> (~42 s), <code>min_confirmations_for_credit: 2 blocks</code> for user deposits.</li>
+                        <li><strong>Wallet infra.</strong> Same as any other EVM chain. HD-derive using <code>m/44'/60'/0'/0/N</code>. Ledger and Trezor detect Rope as an EVM chain automatically. Deposit-address generation: HD-derive as normal.</li>
+                        <li><strong>Deposit detection.</strong> Subscribe via <code>wss://ws.datachain.network</code> to <code>newHeads</code>, iterate transactions, filter by <code>to = user_deposit_address</code>. For DCR-20 token deposits (if MintMe lists USDC/USDT on Rope): subscribe to <code>Transfer(from, to, value)</code> logs on the token contract.</li>
+                        <li><strong>Withdrawal broadcast.</strong> Standard <code>eth_sendRawTransaction</code>. Two Rope-specific hardenings recommended:
+                            <ul>
+                                <li><strong>Deadline padding</strong>: read <code>self_heal.recommended_deadline_padding_secs</code> from <code>/v1/fleet-status</code> at broadcast time and add it to your usual deadline. Zero during normal operation; ~180 s during a BLUE restart.</li>
+                                <li><strong>Idempotent submit</strong>: if you get no receipt after 60 s, retry with the same signed tx. The ghost-tx reclaim loop guarantees the tx will land on the sequencer within ~30 s even if it hit an attester's mempool first.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Listing form fields for the FAT market:</strong>
+                            <table class="data" style="margin-top:0.5rem">
+                                <tr><td>Coin/Token name</td><td><code>Datachain</code></td></tr>
+                                <tr><td>Ticker</td><td><code>FAT</code></td></tr>
+                                <tr><td>Network</td><td><code>Datachain Rope</code> (native coin)</td></tr>
+                                <tr><td>Legacy tickers</td><td><code>DC</code> on Ethereum (ERC-777) + <code>DC</code> on XDC (XRC-20); merged 1:1 via <code>FATMigrationMinter</code></td></tr>
+                                <tr><td>Decimals</td><td><code>18</code></td></tr>
+                                <tr><td>Circulating supply URL</td><td><a href="https://dcscan.io/api/v1/supply/circulating" target="_blank" rel="noopener"><code>/api/v1/supply/circulating</code></a></td></tr>
+                                <tr><td>Total supply URL</td><td><a href="https://dcscan.io/api/v1/supply/total" target="_blank" rel="noopener"><code>/api/v1/supply/total</code></a></td></tr>
+                                <tr><td>Max supply</td><td><code>18,000,000,000 FAT</code> (asymptotic)</td></tr>
+                                <tr><td>Website / Explorer / DEX</td><td><a href="https://datachain.network" target="_blank" rel="noopener">datachain.network</a> / <a href="https://dcscan.io" target="_blank" rel="noopener">dcscan.io</a> / <a href="https://dcswap.net" target="_blank" rel="noopener">dcswap.net</a></td></tr>
+                                <tr><td>Contact</td><td><code>contact@datachain.one</code></td></tr>
+                            </table>
+                        </li>
+                    </ol>
+
+                    <h3 class="section-subtitle">7.2 Recommended trading pairs</h3>
+                    <ol>
+                        <li><code>FAT/USDT</code> - first choice. CMC and CoinGecko weight pairs against USDT/BTC/ETH highest.</li>
+                        <li><code>FAT/BTC</code> - second choice, same reason.</li>
+                        <li><code>FAT/MINTME</code> - useful as a fallback.</li>
+                    </ol>
+                    <p>For CMC data-quality scoring, at least one of the first two is required.</p>
+
+                    <h3 class="section-subtitle">7.3 Liquidity commitment</h3>
+                    <p>Datachain Foundation commits to running a two-sided market-maker on MintMe's FAT/USDT (and FAT/BTC when live), reusing the existing 62-wallet / 9-strategy DCSwap bot architecture redirected at MintMe's order book. Contact: <code>contact@datachain.one</code>.</p>
+                </div>
+
+                <div class="api-section" id="xswap">
+                    <h2 class="section-title"><span class="section-num">8.</span> XSwap Protocol integration playbook (Model B)</h2>
+                    <p class="section-desc">XSwap Protocol (<a href="https://app.xspswap.finance" target="_blank" rel="noopener">app.xspswap.finance</a>) is a Uniswap V2-style DEX front-end on XDC Network. Two integration options exist.</p>
+
+                    <h3 class="section-subtitle">8.1 Option A - route swaps through DCSwap (recommended)</h3>
+                    <p>Zero on-chain deployment on XSwap's side. XSwap adds Rope as a supported network in the front-end and routes trades through <code>DCSwapRouter</code>.</p>
+                    <p><strong>Frontend chain config (wagmi / viem):</strong></p>
+                    <div class="code-block"><span class="keyword">export const</span> datachainRope = {
+  id: <span class="number">271828</span>,
+  name: <span class="string">'Datachain Rope'</span>,
+  network: <span class="string">'datachain-rope'</span>,
+  nativeCurrency: { name: <span class="string">'DC FAT'</span>, symbol: <span class="string">'FAT'</span>, decimals: <span class="number">18</span> },
+  rpcUrls: {
+    default: { http: [<span class="string">'https://erpc.datachain.network'</span>], webSocket: [<span class="string">'wss://ws.datachain.network'</span>] },
+    public: { http: [<span class="string">'https://erpc.datachain.network'</span>, <span class="string">'https://erpc.rope.network'</span>] },
+  },
+  blockExplorers: { default: { name: <span class="string">'DCScan'</span>, url: <span class="string">'https://dcscan.io'</span> } },
+  contracts: {
+    multicall3: {
+      address: <span class="string">'0xc2eeb0100aa7e81a3193bdce6733ff767f3bb93a'</span>,
+      blockCreated: <span class="number">1</span>,
+    },
+  },
+} <span class="keyword">as const</span>;</div>
+
+                    <p><strong>DEX protocol registration:</strong></p>
+                    <div class="code-block"><span class="keyword">export const</span> DCSWAP_ON_ROPE = {
+  chainId: <span class="number">271828</span>,
+  routerAddress: <span class="string">'0x8ebdd966e9e9af2ec5d02c886b1c4b5ba617e7c4'</span>,
+  factoryAddress: <span class="string">'0x772e5fd559069aecce5e6983c0c415c8579d780d'</span>,
+  wrappedNativeAddress: <span class="string">'0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4'</span>, <span class="comment">// WFAT</span>
+  routerAbi: UniswapV2Router02Abi, <span class="comment">// unchanged from Ethereum/BSC</span>
+  factoryAbi: UniswapV2FactoryAbi,
+  <span class="comment">// Verified live 2026-08-14 via Factory.pairCodeHash() (selector 0x9aab9248)</span>
+  initCodeHash: <span class="string">'0x17abb07a6866e0805d5525f8aa38bfb7e6e0b51cb92df1a1a981d5a96ebdff28'</span>,
+  defaultQuoteAssets: [
+    <span class="string">'0xb93bd8db94f1baff474aa9cba0739daaad01641f'</span>, <span class="comment">// USDC</span>
+    <span class="string">'0x79a26132f48394421382c13b54ae77fa3af73289'</span>, <span class="comment">// USDT</span>
+    <span class="string">'0x24d6137807fa8a592888726d87ac748d018c6d4a'</span>, <span class="comment">// EUROD</span>
+  ],
+} <span class="keyword">as const</span>;</div>
+                    <p>Any existing UniswapV2 quoting / swap code works unchanged.</p>
+
+                    <h3 class="section-subtitle">8.2 Option B - deploy XSwap's own DEX contracts on Rope</h3>
+                    <p>If XSwap wants its own venue: deploy Factory + Router + WFAT wrapper (or reuse existing WFAT), seed pools, register in the DCSwap analytics indexer. Recommended only if XSwap plans to differentiate on features (V3 concentrated liquidity, custom fee tiers).</p>
+
+                    <h3 class="section-subtitle">8.3 Cross-chain flow (XDC XSwap &lt;-&gt; Datachain Rope FAT)</h3>
+                    <p>To enable native XDC &lt;-&gt; Rope FAT swaps:</p>
+                    <ol>
+                        <li>XDC-side: user swaps XDC-native or XRC-20 assets on XSwap for <strong>legacy DC (XRC-20)</strong> at <code>0x20b59e6c5deb7d7ced2ca823c6ca81dd3f7e9a3a</code>.</li>
+                        <li>XDC-side: user calls <code>initiateMigration(amount, destinationDatawallet)</code> on <code>XdcOriginBurn</code> at <code>0xBf010DAd0C44Ed0481Ed9eDCc01A2DcfD8eE6742</code>. This burns the legacy DC.</li>
+                        <li>Rope-side: within ~2 minutes, the migration relayer mints native FAT to the destination address on Rope via <code>FATMigrationMinter</code>.</li>
+                        <li>Rope-side: user can then swap on DCSwap for WFAT / USDC / USDT / EUROD.</li>
+                    </ol>
+                    <p>Migration status: <a href="https://dcswap.net/v1/migration/stats" target="_blank" rel="noopener"><code>/v1/migration/stats</code></a>. Per-burn tracking: <code>/v1/migration/status/:burnId</code>. XSwap could wrap steps 1-4 in a single UX flow ("swap XDC for FAT on Rope") once the migration Phase 1 opens.</p>
+                </div>
+
+                <div class="api-section" id="coingecko">
+                    <h2 class="section-title"><span class="section-num">9.</span> CoinGecko DEX listing (DCSwap as tracked DEX on Rope)</h2>
+                    <p class="section-desc">Written for CoinGecko's integration team and anyone shepherding DCSwap through the CoinGecko new-DEX submission. The goal is for CoinGecko to list DCSwap as a tracked decentralised exchange under Datachain Rope so DCSwap pools start reporting real-time volume + liquidity on <code>coingecko.com</code>.</p>
+
+                    <h3 class="section-subtitle">9.1 What's already live (verified 2026-08-14)</h3>
+                    <p>DCSwap already exposes the two JSON endpoints CoinGecko's DEX schema requires. No code work on the DCSwap side is required for CoinGecko to start polling.</p>
+                    <table class="data">
+                        <thead><tr><th>CoinGecko required endpoint</th><th>Live URL</th><th>Status</th></tr></thead>
+                        <tr><td>Pairs list</td><td><a href="https://dcswap.net/api/pairs" target="_blank" rel="noopener"><code>https://dcswap.net/api/pairs</code></a></td><td><span class="badge-live">HTTP 200</span></td></tr>
+                        <tr><td>Tickers</td><td><a href="https://dcswap.net/api/tickers" target="_blank" rel="noopener"><code>https://dcswap.net/api/tickers</code></a></td><td><span class="badge-live">HTTP 200</span></td></tr>
+                        <tr><td>Historical trades (optional)</td><td>not exposed</td><td>Optional per CG spec; can be added on request</td></tr>
+                        <tr><td>Canonical price feed (auxiliary)</td><td><a href="https://dcswap.net/v1/prices" target="_blank" rel="noopener"><code>https://dcswap.net/v1/prices</code></a></td><td><span class="badge-live">HTTP 200</span></td></tr>
+                    </table>
+
+                    <p><strong>Sample response</strong> (<code>/api/tickers</code>, one ticker abbreviated):</p>
+                    <div class="code-block">[
+  {
+    <span class="string">"ticker_id"</span>: <span class="string">"FAT_USDC"</span>,
+    <span class="string">"base_currency"</span>: <span class="string">"FAT"</span>,
+    <span class="string">"target_currency"</span>: <span class="string">"USDC"</span>,
+    <span class="string">"pool_id"</span>: <span class="string">"0xd9ebc3da001618a3ae90481d33ae7ef85e130317"</span>,
+    <span class="string">"last_price"</span>: <span class="string">"0.03710279"</span>,
+    <span class="string">"base_volume"</span>: <span class="string">"317133.69942705"</span>,
+    <span class="string">"target_volume"</span>: <span class="string">"11763.46625600"</span>,
+    <span class="string">"liquidity_in_usd"</span>: <span class="string">"3853788.20"</span>,
+    <span class="string">"peg_expected_price"</span>: <span class="string">"1.00000000"</span>,
+    <span class="string">"peg_deviation_bps"</span>: <span class="number">0</span>,
+    <span class="string">"peg_status"</span>: <span class="string">"on_peg"</span>
+  }
+]</div>
+
+                    <h3 class="section-subtitle">9.2 Field mapping (DCSwap live shape -&gt; CoinGecko DEX spec)</h3>
+                    <table class="data">
+                        <thead><tr><th>CoinGecko DEX schema field</th><th>Source in DCSwap response</th><th>Notes</th></tr></thead>
+                        <tr><td><code>ticker_id</code></td><td><code>/api/tickers[].ticker_id</code></td><td>Present, <code>{BASE}_{TARGET}</code> format</td></tr>
+                        <tr><td><code>base_currency</code></td><td><code>/api/tickers[].base_currency</code></td><td>Present</td></tr>
+                        <tr><td><code>target_currency</code></td><td><code>/api/tickers[].target_currency</code></td><td>Present</td></tr>
+                        <tr><td><code>last_price</code></td><td><code>/api/tickers[].last_price</code></td><td>Present, string decimal</td></tr>
+                        <tr><td><code>base_volume</code> (24h)</td><td><code>/api/tickers[].base_volume</code></td><td>Present, sliding 24h</td></tr>
+                        <tr><td><code>target_volume</code> (24h)</td><td><code>/api/tickers[].target_volume</code></td><td>Present, sliding 24h</td></tr>
+                        <tr><td><code>pool_id</code></td><td><code>/api/tickers[].pool_id</code></td><td>Present, pair contract address</td></tr>
+                        <tr><td><code>liquidity_in_usd</code></td><td><code>/api/tickers[].liquidity_in_usd</code></td><td>Present, priced against <code>PriceLens</code> snapshot</td></tr>
+                        <tr><td><code>high</code> / <code>low</code> (24h)</td><td>not present today</td><td>Optional per CG DEX spec; CG typically derives from ticker snapshots</td></tr>
+                        <tr><td><code>bid</code> / <code>ask</code></td><td>derive from <code>last_price</code></td><td>For a constant-product AMM there is no order book; bid/ask are the marginal price at 1 unit of size</td></tr>
+                        <tr><td><code>product_type</code></td><td>imply <code>spot</code></td><td>DCSwap is spot only, no perps</td></tr>
+                    </table>
+                    <div class="callout">
+                        <div class="callout-title"><i class="fa-solid fa-circle-info"></i> Pairs endpoint field-name note</div>
+                        <p>For <code>/api/pairs</code>, CoinGecko's DEX spec expects <code>ticker_id</code>, <code>base</code>, <code>target</code>, <code>pool_id</code>. DCSwap's current <code>/api/pairs</code> returns <code>pair_id</code>, <code>base</code>, <code>quote</code> - same information, three field-name differences. If CoinGecko's loader is strict, the DCSwap indexer can add an aliased route at <code>/api/coingecko/pairs</code> that renormalizes without changing the canonical endpoint - flag <code>contact@datachain.one</code> and this can be shipped in &lt; 1 hour.</p>
+                    </div>
+
+                    <h3 class="section-subtitle">9.3 Submission steps</h3>
+                    <ol>
+                        <li><strong>Verify endpoints one last time:</strong> confirm <code>/api/pairs</code> and <code>/api/tickers</code> return HTTP 200.</li>
+                        <li><strong>Submit CoinGecko new-DEX request</strong> at <a href="https://www.coingecko.com/en/coins/new" target="_blank" rel="noopener">coingecko.com/en/coins/new</a> or reach out via <code>hello@coingecko.com</code>.</li>
+                        <li><strong>Payload for CoinGecko:</strong>
+                            <table class="data" style="margin-top:0.5rem">
+                                <tr><td>DEX name</td><td><code>DCSwap</code></td></tr>
+                                <tr><td>DEX website</td><td><a href="https://dcswap.net" target="_blank" rel="noopener">dcswap.net</a></td></tr>
+                                <tr><td>DEX chain</td><td><code>Datachain Rope</code> (chainId <code>271828</code>)</td></tr>
+                                <tr><td>Pairs endpoint</td><td><a href="https://dcswap.net/api/pairs" target="_blank" rel="noopener"><code>https://dcswap.net/api/pairs</code></a></td></tr>
+                                <tr><td>Tickers endpoint</td><td><a href="https://dcswap.net/api/tickers" target="_blank" rel="noopener"><code>https://dcswap.net/api/tickers</code></a></td></tr>
+                                <tr><td>Factory address</td><td><code>0x772e5fd559069aecce5e6983c0c415c8579d780d</code></td></tr>
+                                <tr><td>Router address</td><td><code>0x8ebdd966e9e9af2ec5d02c886b1c4b5ba617e7c4</code></td></tr>
+                                <tr><td>Wrapped native (WFAT)</td><td><code>0x285eecf51d5f0a6ab8d8151139b4d19b05c6b3e4</code></td></tr>
+                                <tr><td>Init code hash</td><td><code>0x17abb07a6866e0805d5525f8aa38bfb7e6e0b51cb92df1a1a981d5a96ebdff28</code></td></tr>
+                                <tr><td>Fork lineage</td><td>Uniswap V2</td></tr>
+                                <tr><td>Block explorer</td><td><a href="https://dcscan.io" target="_blank" rel="noopener">dcscan.io</a></td></tr>
+                                <tr><td>Public RPC</td><td><code>https://erpc.datachain.network</code></td></tr>
+                                <tr><td>Contact</td><td><code>contact@datachain.one</code></td></tr>
+                            </table>
+                        </li>
+                        <li><strong>CoinGecko engineering will:</strong>
+                            <ul>
+                                <li>Poll <code>/api/pairs</code> on a slow cadence (typically hourly) to discover pools.</li>
+                                <li>Poll <code>/api/tickers</code> every 1-5 min for live price + volume + liquidity.</li>
+                                <li>Cross-check Router <code>Swap</code> logs against <code>DCSwapRouter</code> via <code>https://erpc.datachain.network</code>.</li>
+                                <li>Assign a chain slug for Datachain Rope; add DCSwap under it.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Post-listing verification:</strong>
+                            <ul>
+                                <li>DCSwap appears under <a href="https://www.coingecko.com/en/exchanges/decentralized" target="_blank" rel="noopener">coingecko.com/en/exchanges/decentralized</a> filtered by the Rope chain.</li>
+                                <li>Each pool has a live "Trade" button pointing to <code>https://dcswap.net</code>.</li>
+                                <li>FAT market cap on CoinGecko starts pulling reserve data from DCSwap pools.</li>
+                            </ul>
+                        </li>
+                    </ol>
+
+                    <h3 class="section-subtitle">9.4 Cross-platform coordination with CMC</h3>
+                    <p>The parent-token CMC listing (id <code>10357</code>) already tracks native FAT. CoinGecko's DEX listing for DCSwap should reference the same asset registry (<a href="#assets">§5</a>) so cross-platform price + supply numbers stay in sync. The single source of truth on both is <code>https://dcscan.io/api/v1/supply/{circulating,total,reconciliation}</code>.</p>
+                </div>
+
+                <div class="api-section" id="acceptance">
+                    <h2 class="section-title"><span class="section-num">10.</span> Acceptance criteria (post-integration smoke tests)</h2>
+                    <p class="section-desc">Both platforms should verify the following before go-live.</p>
+
+                    <h3 class="section-subtitle">10.1 Chain connectivity</h3>
+                    <div class="code-block"><span class="comment"># Chain ID matches</span>
+curl -sS -X POST https://erpc.datachain.network \
+  -H <span class="string">'content-type: application/json'</span> \
+  -d <span class="string">'{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}'</span>
+<span class="comment"># expect: {"jsonrpc":"2.0","result":"0x425d4","id":1}</span>
+
+<span class="comment"># Block is advancing</span>
+curl -sS -X POST https://erpc.datachain.network \
+  -H <span class="string">'content-type: application/json'</span> \
+  -d <span class="string">'{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'</span>
+
+<span class="comment"># Fleet status writer healthy</span>
+curl -sS https://erpc.datachain.network/v1/fleet-status | jq <span class="string">'.writer.status'</span>
+<span class="comment"># expect: "healthy"</span></div>
+
+                    <h3 class="section-subtitle">10.2 Native FAT deposit + withdrawal (Model A)</h3>
+                    <ol>
+                        <li>Send <code>0.01 FAT</code> from Datawallet+ / MetaMask to your generated deposit address.</li>
+                        <li>Verify credit within ~10 blocks (~42 s) using <code>eth_getTransactionReceipt</code>.</li>
+                        <li>Withdraw <code>0.005 FAT</code> back to Datawallet+. Verify receipt.</li>
+                        <li>Confirm your deposit address's <code>eth_getTransactionCount</code> incremented.</li>
+                    </ol>
+
+                    <h3 class="section-subtitle">10.3 DCR-20 (WFAT / USDC) transfer semantics</h3>
+                    <ol>
+                        <li>Read <code>balanceOf(address)</code> returns non-zero.</li>
+                        <li>Read <code>Transfer(from, to, value)</code> log via <code>eth_getLogs</code> filtered by the WFAT contract topic.</li>
+                        <li>Optional (Model B): quote a <code>getAmountsOut(1e18, [WFAT, USDC])</code> on <code>DCSwapRouter</code> and verify the result is within 0.5% of <code>dcswap.net/v1/prices.data.FAT.usd</code>.</li>
+                    </ol>
+
+                    <h3 class="section-subtitle">10.4 Swap round-trip (Model B)</h3>
+                    <ol>
+                        <li><code>swapExactETHForTokens(0, [WFAT, USDC], user, deadline) { value: 1e17 }</code> (~0.1 FAT -&gt; USDC).</li>
+                        <li>Verify <code>Swap</code> event on the FAT/USDC pool.</li>
+                        <li>Verify user's WFAT balance and USDC balance updated.</li>
+                        <li>Reverse: <code>swapExactTokensForETH(usdc_amount, 0, [USDC, WFAT], user, deadline)</code> after <code>USDC.approve(router, usdc_amount)</code>.</li>
+                    </ol>
+                </div>
+
+                <div class="api-section" id="contacts">
+                    <h2 class="section-title"><span class="section-num">11.</span> Points of contact</h2>
+                    <table class="data">
+                        <tr><td>Technical integration</td><td><code>contact@datachain.one</code> (route to Rope engineering: Kaze Onguene)</td></tr>
+                        <tr><td>Listing / market operations</td><td><code>contact@datachain.one</code> (route to listing: Adrian Ozinberger)</td></tr>
+                        <tr><td>Emergency (RPC down, mempool divergence, unexpected chain state)</td><td>Same address; monitor <a href="https://erpc.datachain.network/v1/fleet-status" target="_blank" rel="noopener"><code>self_heal.escalate_to_cerber</code></a></td></tr>
+                        <tr><td>Public source repo</td><td><a href="https://github.com/KazeONGUENE/rope" target="_blank" rel="noopener">github.com/KazeONGUENE/rope</a></td></tr>
+                        <tr><td>Whitepaper</td><td><a href="https://cdn.prod.website-files.com/64ad7361581c1795281be76e/69fbb91537ccd997078cc500_6e160b5f20d1180954cd44d064c67c4b_Datachain_Rope_Quipu_Proto_Computer_Anthropological_Paper.pdf" target="_blank" rel="noopener">Datachain Rope Quipu paper</a></td></tr>
+                        <tr><td>Governance</td><td>On-chain via DCSwapTimelock <code>0x50Cfc56D81603A61660B8c6306e7Cb6E6693532c</code> (1h min-delay)</td></tr>
+                    </table>
+                </div>
+
+                <div class="api-section" id="versioning">
+                    <h2 class="section-title"><span class="section-num">12.</span> Versioning + change control</h2>
+                    <p>This page is versioned in the source tree at <code>datachain-rope/docs/EXCHANGE_INTEGRATION_GUIDE_v1.md</code>. Any breaking change (contract redeployment, RPC URL rotation, chain-parameter change) will be:</p>
+                    <ol>
+                        <li>Announced 14 days in advance via the CMC roadmap section and the ecosystem mailing list.</li>
+                        <li>Published as a <code>v2</code> (or later) revision of this document.</li>
+                        <li>Reflected in the live <a href="https://dcscan.io/api/v1/network/config" target="_blank" rel="noopener"><code>/api/v1/network/config</code></a> endpoint at cut-over (which is why we ask integrators to cache-fetch that endpoint rather than hard-code values).</li>
+                    </ol>
+                    <p>The public JSON-RPC hostnames (<code>erpc.datachain.network</code>, <code>erpc.rope.network</code>) and the block explorer hostname (<code>dcscan.io</code>) are permanent. Backend infra behind them may rotate freely without integrator work.</p>
+                    <hr>
+                    <p style="color:var(--gray-500);font-size:12px;font-style:italic">Every value in this document was verified live against the production endpoints on 2026-08-14. If you spot a drift or find an integration corner case not covered here, please email <code>contact@datachain.one</code> and we will fold the answer back into the next revision.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="footer-container container footer-content">
+            <div class="footer-brand">
+                <div class="logo-icon" style="width: 24px; height: 24px;">
+                    <img src="/assets/logo.svg" alt="DC Explorer Logo" style="width: 100%; height: 100%; object-fit: contain;">
+                </div>
+                DC Explorer - Powered by Datachain Rope
+            </div>
+            <div class="footer-links">
+                <a href="https://datachain.network">Datachain</a>
+                <a href="/apis">API</a>
+                <a href="/apis/exchange-integration">Exchange Integration</a>
+                <a href="/admin-tokens">Admin Tokens</a>
+                <a href="https://github.com/KazeONGUENE/rope">GitHub</a>
+                <a href="/partners">Partners</a>
+                <a href="/contact">Contact</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- ============================================================== -->
+    <!-- Integration-engineering ticket modal.                            -->
+    <!--                                                                  -->
+    <!-- Opened by any element carrying the `data-open-integration-modal` -->
+    <!-- attribute (the hero CTA on this page). Submits to the public     -->
+    <!-- endpoint `POST /api/v1/integration-requests` implemented in      -->
+    <!-- crates/rope-explorer/src/main.rs. The endpoint stores the        -->
+    <!-- request in a JSONL cache, anchors it as a knot on ledger wallet  -->
+    <!-- 0x…d005, and sends an email alert to the integration-engineering -->
+    <!-- inbox. The `website` field is a honeypot; leave it blank.        -->
+    <!-- ============================================================== -->
+    <div class="modal-backdrop" id="integration-modal" aria-hidden="true" role="dialog" aria-labelledby="integration-modal-title">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div>
+                    <h2 class="modal-title" id="integration-modal-title">Open a ticket with Datachain Rope integration engineering</h2>
+                    <div class="modal-subtitle">Tell us about your platform and what you need. A real integration engineer will reach out within 2 business days.</div>
+                </div>
+                <button type="button" class="modal-close" data-close-integration-modal aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="integration-request-form" novalidate>
+                    <!-- Honeypot: real users don't see this; bots fill it. -->
+                    <div class="form-honeypot" aria-hidden="true">
+                        <label for="ir-website">Website</label>
+                        <input type="text" id="ir-website" name="website" tabindex="-1" autocomplete="off">
+                    </div>
+
+                    <div class="form-grid">
+                        <div class="form-field">
+                            <label class="form-label" for="ir-name">Your name <span class="req">*</span></label>
+                            <input type="text" id="ir-name" name="name" class="form-input" maxlength="120" required>
+                        </div>
+                        <div class="form-field">
+                            <label class="form-label" for="ir-email">Work email <span class="req">*</span></label>
+                            <input type="email" id="ir-email" name="email" class="form-input" maxlength="254" required>
+                        </div>
+
+                        <div class="form-field span-2">
+                            <label class="form-label" for="ir-company">Platform / company</label>
+                            <input type="text" id="ir-company" name="company" class="form-input" maxlength="200" placeholder="e.g. MintMe, XSwap, CoinGecko, MEXC, BitGo, ...">
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-label" for="ir-platform-type">Platform type <span class="req">*</span></label>
+                            <select id="ir-platform-type" name="platform_type" class="form-select" required>
+                                <option value="">Select ...</option>
+                                <option value="cex">Centralised exchange (CEX)</option>
+                                <option value="dex">Decentralised exchange (DEX) / interface</option>
+                                <option value="aggregator">Aggregator (1inch, Rango, Li.Fi, ...)</option>
+                                <option value="wallet">Wallet (MetaMask, Trust, Rabby, ...)</option>
+                                <option value="bridge">Bridge (LayerZero, Wormhole, Axelar, ...)</option>
+                                <option value="market_data">Market-data (CoinGecko, CMC, DefiLlama, ...)</option>
+                                <option value="custodian">Custodian (BitGo, Fireblocks, Copper, ...)</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-label" for="ir-integration-model">Integration model</label>
+                            <select id="ir-integration-model" name="integration_model" class="form-select">
+                                <option value="undecided">Undecided / need advice</option>
+                                <option value="a_custody">Model A - CEX with custody (RPC + node)</option>
+                                <option value="b_dex">Model B - non-custodial DEX / aggregator</option>
+                                <option value="both">Both</option>
+                            </select>
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-label" for="ir-timeline">Timeline</label>
+                            <select id="ir-timeline" name="timeline" class="form-select">
+                                <option value="asap">ASAP (&lt; 30 days)</option>
+                                <option value="q1" selected>Within 90 days</option>
+                                <option value="q2">Within 180 days</option>
+                                <option value="research">Evaluating / researching</option>
+                            </select>
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-label" for="ir-region">Primary region</label>
+                            <select id="ir-region" name="region" class="form-select">
+                                <option value="">(unspecified)</option>
+                                <option value="global">Global</option>
+                                <option value="eu">EU</option>
+                                <option value="us">US</option>
+                                <option value="uk">UK</option>
+                                <option value="mena">MENA</option>
+                                <option value="latam">LATAM</option>
+                                <option value="apac">APAC</option>
+                                <option value="africa">Africa</option>
+                            </select>
+                        </div>
+
+                        <div class="form-field span-2">
+                            <label class="form-label" for="ir-platform-url">Platform URL</label>
+                            <input type="url" id="ir-platform-url" name="platform_url" class="form-input" maxlength="500" placeholder="https://...">
+                            <span class="form-hint">Optional. Helps the engineer scope your existing surface without a round-trip.</span>
+                        </div>
+
+                        <div class="form-field span-2">
+                            <label class="form-label" for="ir-contact-channel">Real-time contact</label>
+                            <input type="text" id="ir-contact-channel" name="contact_channel" class="form-input" maxlength="200" placeholder="Telegram / Signal / Discord handle (optional)">
+                        </div>
+
+                        <div class="form-field span-2">
+                            <label class="form-label" for="ir-description">What do you need? <span class="req">*</span></label>
+                            <textarea id="ir-description" name="description" class="form-textarea" maxlength="8000" required placeholder="Listing tier, custody constraints, KYC/AML posture, expected volumes, specific endpoints you'd like validated, blockers you've hit ... anything the engineer should know before reaching out."></textarea>
+                            <span class="form-hint">Everything you write here is anchored on-chain (Quipu knot on ledger wallet 0x…d005) and routed to contact@datachain.one. Do not paste secrets, private keys, or seed phrases.</span>
+                        </div>
+                    </div>
+
+                    <div class="modal-status" id="integration-modal-status" role="status"></div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" data-close-integration-modal>Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="integration-modal-submit"><i class="fa-solid fa-paper-plane"></i> Send request</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <script>
+    (function () {
+        var backdrop = document.getElementById('integration-modal');
+        var form = document.getElementById('integration-request-form');
+        var statusEl = document.getElementById('integration-modal-status');
+        var submitBtn = document.getElementById('integration-modal-submit');
+        if (!backdrop || !form) return;
+
+        function open() {
+            backdrop.classList.add('open');
+            backdrop.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('modal-open');
+            setStatus('', '');
+            setTimeout(function () {
+                var first = document.getElementById('ir-name');
+                if (first) first.focus();
+            }, 40);
+        }
+        function close() {
+            backdrop.classList.remove('open');
+            backdrop.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('modal-open');
+        }
+        function setStatus(text, kind) {
+            statusEl.textContent = text || '';
+            statusEl.className = 'modal-status' + (kind ? (' ' + kind) : '');
+        }
+
+        document.querySelectorAll('[data-open-integration-modal]').forEach(function (el) {
+            el.addEventListener('click', function (e) { e.preventDefault(); open(); });
+        });
+        document.querySelectorAll('[data-close-integration-modal]').forEach(function (el) {
+            el.addEventListener('click', function () { close(); });
+        });
+        backdrop.addEventListener('click', function (e) {
+            if (e.target === backdrop) close();
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && backdrop.classList.contains('open')) close();
+        });
+
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            var data = {
+                name: form.name.value.trim(),
+                email: form.email.value.trim(),
+                company: form.company.value.trim(),
+                platform_type: form.platform_type.value,
+                integration_model: form.integration_model.value,
+                region: form.region.value,
+                timeline: form.timeline.value,
+                description: form.description.value.trim(),
+                contact_channel: form.contact_channel.value.trim(),
+                platform_url: form.platform_url.value.trim(),
+                website: form.website.value // honeypot
+            };
+            if (!data.name || !data.email || !data.platform_type || !data.description) {
+                setStatus('Please fill in name, email, platform type, and description.', 'err');
+                return;
+            }
+            submitBtn.disabled = true;
+            var originalHtml = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending...';
+            setStatus('Submitting ticket ...', 'info');
+            fetch('/api/v1/integration-requests', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            }).then(function (res) {
+                return res.json().then(function (json) { return { status: res.status, body: json }; });
+            }).then(function (r) {
+                if (r.status >= 200 && r.status < 300 && r.body && r.body.success) {
+                    var id = r.body.id ? (' Ticket ID: ' + r.body.id) : '';
+                    setStatus('Thanks. Your request is in the queue.' + id + ' Integration engineering will email you at ' + data.email + ' within 2 business days.', 'ok');
+                    form.reset();
+                    setTimeout(close, 4200);
+                } else {
+                    var msg = (r.body && r.body.error) ? r.body.error : ('HTTP ' + r.status);
+                    setStatus('Could not submit: ' + msg + '. You can also email contact@datachain.one directly.', 'err');
+                }
+            }).catch(function (err) {
+                setStatus('Network error: ' + (err && err.message ? err.message : err) + '. Please email contact@datachain.one directly.', 'err');
+            }).finally(function () {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalHtml;
+            });
+        });
+    })();
+    </script>
+
+    <script src="/js/dcscan-stats.js"></script>
+    <script src="/js/dcscan-wallet.js" defer></script>
+</body>
+</html>

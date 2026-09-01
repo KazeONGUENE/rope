@@ -8,6 +8,10 @@ publish = false
 name = "sign_phase2_rpc"
 path = "sign_phase2_rpc.rs"
 
+[[bin]]
+name = "sign_phase2_create_ledger"
+path = "sign_phase2_create_ledger.rs"
+
 [dependencies]
 k256 = { version = "0.13", features = ["ecdsa", "sha2", "arithmetic"] }
 sha3 = "0.10"
