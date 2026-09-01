@@ -35,6 +35,19 @@ rope.toml
 *.profraw
 coverage/
 
+# Local editor / deploy backups (never commit)
+*.bak-*
+**/__pycache__/
+
+# Foundry / Node contract tooling
+contracts/node_modules/
+contracts/artifacts/
+contracts/typechain-types/
+
+# Ephemeral rustup/toolchain dirs (accidental cwd artifacts)
+**/.rustup/
+examples/phase2-signed-rpc/target/
+
 # Anvil/Reth state dumps and snapshots (large binary blobs, recoverable from VPS backups)
 deploy/anvil-state-dump-*.hex
 deploy/reth-state-snapshot-*.hex
