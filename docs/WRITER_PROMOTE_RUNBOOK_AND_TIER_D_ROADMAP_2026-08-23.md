@@ -249,6 +249,7 @@ A dedicated `handover-quipu-canon-v2-phase1-deploy-YYYY-MM-DD.mdc` is drafted on
 
 ## 5. Cross-references
 
+- **`docs/GREEN_WRITER_PROMOTE_DRILL_CHECKLIST_2026-09-01.md`** - **operator checklist for the current fleet** (London BLUE `159.65.208.206`, GREEN promote target `92.243.25.119`, Paris legacy attester). Use this instead of the SSH hosts in section 2 when running a drill or real promote.
 - `docs/BLUE_NEVER_HANGDOWN_ALTERNATIVES_2026-08-23.md` - **alternatives menu** for the "BLUE should never hangdown" directive. Includes auto-writer-promote with fencing (B1), which is the automated version of this manual runbook. Once B1 lands, §§1-2 of this doc become a rollback path rather than a first-response procedure.
 - `docs/MTBF_REGRESSION_POSTMORTEM_AND_MITIGATION_MENU_2026-08-23.md` - **CORRECTED root-cause diagnosis + mitigation menu** (published 2026-08-23, ~2h after this runbook)
 - `datachain-rope/docs/QUIPU_CANON_V2_SCALE_5M_TPS_ARCHITECTURE.md` - v2.0 architecture (Phase 1-5 code-complete; Phase 1 confirmed deployed on BLUE)
